@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/providers/provider_selection.dart';
@@ -11,6 +12,7 @@ import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
+import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/providers_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
@@ -119,6 +121,50 @@ final class _Harness {
       .fold(0, (int sum, int count) => sum + count);
 }
 
+/// 테스트 Functions 리전 — example config 의 값 그대로.
+const String region = 'asia-northeast3';
+
+/// 배포된 함수 목록 명령 키.
+const String functionsListKey =
+    'firebase functions:list --json --project $projectId';
+
+/// Kakao 로그인 함수(함수 목록 파일 순서).
+const List<String> kakaoFunctions = <String>[
+  'kakaoCustomToken',
+  'linkKakaoProvider',
+  'disconnectKakaoProvider',
+];
+
+/// firebase-tools 원문 fixture — 지울 함수가 이미 없을 때의 삭제 출력.
+const String deleteNoMatchFixturePath =
+    'test/tool/setup/fixtures/functions_delete_no_match.txt';
+
+/// firebase-tools 원문 fixture — 삭제 확인을 받지 못해 멈춘 삭제 출력.
+const String deleteAbortedFixturePath =
+    'test/tool/setup/fixtures/functions_delete_aborted.txt';
+
+/// [names] 를 지우는 명령 키.
+String buildDeleteKey(List<String> names) =>
+    'firebase functions:delete ${names.join(' ')} --region $region '
+    '--project $projectId --force --non-interactive';
+
+/// `firebase functions:list --json` 성공 출력을 만든다 — [ids] 가 [region] 에 있다.
+CommandResult buildFunctionsList(List<String> ids) => CommandResult(
+  0,
+  jsonEncode(<String, Object?>{
+    'status': 'success',
+    'result': <Object?>[
+      for (final String id in ids)
+        <String, Object?>{
+          'id': id,
+          'region': region,
+          'runServiceId': id.toLowerCase(),
+        },
+    ],
+  }),
+  '',
+);
+
 /// 사용자 목록 한 페이지 응답 — [providerIds] 마다 가짜 사용자 하나.
 RestResponse buildUsersPage(List<String> providerIds) => RestResponse(
   200,
@@ -175,6 +221,9 @@ void main() {
       ..writeAsStringSync(
         File(UserFilesStep.jsonExamplePath).readAsStringSync(),
       );
+    File('$root/${FunctionsStep.manifestPath}')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(File(FunctionsStep.manifestPath).readAsStringSync());
   });
 
   tearDown(() {
@@ -192,11 +241,14 @@ void main() {
     final rest = FakeRestClient()
       ..on('GET', buildUsersUrl(), const RestResponse(200, '{}'))
       ..on('GET', buildIndexUrl(), const RestResponse(200, '{}'));
+    final runner = FakeCommandRunner()
+      ..on(functionsListKey, buildFunctionsList(const <String>['ping']));
     final h = _Harness(
       root,
       const <String?>['y', '0', 'y'],
       isRequested: true,
       rest: rest,
+      runner: runner,
     );
 
     final int code = await h.run();
@@ -409,6 +461,179 @@ void main() {
       expect(h.screen.asks, isNot(contains('이 값으로 진행할까요?')));
       expect(h.runner.calls, isEmpty);
       expect(h.rebuildCount, 0);
+    });
+  });
+
+  group('가입자 0명 끄기 — 함수 삭제 한 번 묻기', () {
+    late String before;
+
+    setUp(() {
+      replaceJsonString(
+        configPath,
+        FirebaseProjectStep.projectIdKey,
+        projectId,
+      );
+      replaceJsonString(configPath, enabledProvidersKey, 'kakao');
+      before = File(configPath).readAsStringSync();
+    });
+
+    /// Kakao 0명 응답을 등록한 가짜 REST.
+    FakeRestClient buildZeroKakaoRest() =>
+        FakeRestClient()
+          ..on('GET', buildIndexUrl(), const RestResponse(200, '{}'));
+
+    /// CSV 에서 kakao 만 빠졌고 다른 config 바이트는 그대로인지 본다.
+    void expectOnlyCsvChanged() {
+      expect(readCsv(), '');
+      expect(
+        File(configPath).readAsStringSync(),
+        before.replaceFirst(
+          '"$enabledProvidersKey": "kakao"',
+          '"$enabledProvidersKey": ""',
+        ),
+      );
+    }
+
+    test('T-20-OFF-04: Kakao 0명 · 배포 함수 3개 → CSV 에서 빼고 이름을 보인 뒤 한 번 묻는다 · '
+        'Enter 면 지우지 않는다 · 키 · xcconfig · secret 쓰기 0', () async {
+      final runner = FakeCommandRunner()
+        ..on(
+          functionsListKey,
+          buildFunctionsList(<String>['ping', ...kakaoFunctions]),
+        );
+      final h = _Harness(
+        root,
+        const <String?>['y', '0', 'y', ''],
+        isRequested: true,
+        rest: buildZeroKakaoRest(),
+        runner: runner,
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expectOnlyCsvChanged();
+      for (final name in kakaoFunctions) {
+        expect(h.output, contains(name));
+      }
+      expect(h.screen.asks.where((String a) => a == '지울까요?'), hasLength(1));
+      expect(h.output, contains('지울까요? [y/N]'));
+      expect(h.runner.countMode(RunMode.stream), 0);
+      expect(h.runner.calls.map((FakeCall call) => call.key).toList(), <String>[
+        functionsListKey,
+      ]);
+      expect(File('$root/ios/Flutter/dev.xcconfig').existsSync(), isFalse);
+      expect(h.rebuildCount, 1);
+      expect(h.output, contains(replanLine));
+    });
+
+    test('T-20-OFF-05: y 면 함수 목록 파일 순서 ∩ 배포 함수를 config 리전으로 한 번 지우고 '
+        '단계 목록을 다시 짠다', () async {
+      final expected = <String>['kakaoCustomToken', 'disconnectKakaoProvider'];
+      final runner = FakeCommandRunner()
+        ..on(
+          functionsListKey,
+          buildFunctionsList(<String>[
+            'disconnectKakaoProvider',
+            'ping',
+            'kakaoCustomToken',
+          ]),
+        )
+        ..on(buildDeleteKey(expected), const CommandResult(0, '', ''));
+      final h = _Harness(
+        root,
+        const <String?>['y', '0', 'y', 'y'],
+        isRequested: true,
+        rest: buildZeroKakaoRest(),
+        runner: runner,
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expectOnlyCsvChanged();
+      expect(h.runner.countCalls(RunMode.stream, buildDeleteKey(expected)), 1);
+      expect(h.runner.countMode(RunMode.stream), 1);
+      expect(h.output, isNot(contains('linkKakaoProvider')));
+      expect(h.rebuildCount, 1);
+    });
+
+    group('T-20-OFF-06: 삭제 출력 모양', () {
+      test('지울 함수가 이미 없다는 출력이면 진행한다', () async {
+        final runner = FakeCommandRunner()
+          ..on(functionsListKey, buildFunctionsList(kakaoFunctions))
+          ..on(
+            buildDeleteKey(kakaoFunctions),
+            CommandResult(
+              1,
+              '',
+              File(deleteNoMatchFixturePath).readAsStringSync(),
+            ),
+          );
+        final h = _Harness(
+          root,
+          const <String?>['y', '0', 'y', 'y'],
+          isRequested: true,
+          rest: buildZeroKakaoRest(),
+          runner: runner,
+        );
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone, reason: h.output);
+        expectOnlyCsvChanged();
+        expect(h.output, contains('이미 지워져 있습니다'));
+        expect(h.rebuildCount, 1);
+      });
+
+      test('멈춤 출력이면 원문을 보이는 실패다', () async {
+        final runner = FakeCommandRunner()
+          ..on(functionsListKey, buildFunctionsList(kakaoFunctions))
+          ..on(
+            buildDeleteKey(kakaoFunctions),
+            CommandResult(
+              1,
+              '',
+              File(deleteAbortedFixturePath).readAsStringSync(),
+            ),
+          );
+        final h = _Harness(
+          root,
+          const <String?>['y', '0', 'y', 'y'],
+          isRequested: true,
+          rest: buildZeroKakaoRest(),
+          runner: runner,
+        );
+
+        final int code = await h.run();
+
+        expect(code, wizardExitStopped, reason: h.output);
+        expect(h.output, contains('함수를 지우지 못했습니다'));
+        expect(h.output, contains('Error: Command aborted.'));
+        expect(readCsv(), '');
+        expect(h.rebuildCount, 0);
+      });
+    });
+
+    test('T-20-OFF-07: 배포 함수가 없는 수단(Google · Apple)을 빼면 삭제 질문 · 함수 목록 '
+        '요청이 없다', () async {
+      replaceJsonString(configPath, enabledProvidersKey, 'google,apple');
+      final rest = FakeRestClient()
+        ..on('GET', buildUsersUrl(), buildUsersPage(<String>['password']));
+      final h = _Harness(
+        root,
+        const <String?>['y', '0', 'y'],
+        isRequested: true,
+        rest: rest,
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(readCsv(), '');
+      expect(h.screen.asks, isNot(contains('지울까요?')));
+      expect(h.runner.calls, isEmpty);
+      expect(h.rebuildCount, 1);
     });
   });
 }

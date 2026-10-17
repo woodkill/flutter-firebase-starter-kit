@@ -35,6 +35,9 @@ typedef DeployedSecret = ({String secret, String version});
 /// 조직 정책이 공개 호출을 막으면([invokerBlockedMarker] · [isOrgPolicyRejection])
 /// 원문 뒤에 [orgPolicyGuidance] 를 보이고 IAM 정책을 우회하려 하지 않는다.
 ///
+/// 꺼진 로그인 수단의 함수가 배포된 채 남아 있으면 끝남 줄에 개수와 지우는
+/// 명령([buildLeftoverInfo])을 정보로만 붙이고 묻지 않는다.
+///
 /// secret 값은 인자에 싣지 않고 표준 입력으로만 넘기며, 이미 있는 secret 의 값은
 /// 읽거나 바꾸지 않는다. 프로젝트 ID · 리전은 매번 이번 flavor 의 config 에서
 /// 읽는다.
@@ -178,6 +181,42 @@ final class FunctionsStep implements Step {
     'firebase',
     <String>['functions:list', '--json', '--project', projectId],
   );
+
+  /// [region] 의 함수 [names] 를 지우는 명령의 표시형 — 사용자가 직접 칠 명령이라
+  /// 확인 질문을 건너뛰는 옵션을 붙이지 않는다.
+  static String buildDeleteDisplay(
+    List<String> names,
+    String region,
+    String projectId,
+  ) =>
+      'firebase functions:delete ${names.join(' ')} --region $region '
+      '--project $projectId';
+
+  /// 꺼진 로그인 수단의 함수 [names] 가 남아 있다는 정보 문장을 만든다.
+  static String buildLeftoverInfo(
+    List<String> names,
+    String region,
+    String projectId,
+  ) =>
+      '꺼진 로그인 수단의 함수 ${names.length}개가 남아 있습니다 — 지우기: '
+      '${buildDeleteDisplay(names, region, projectId)}';
+
+  /// 켠 로그인 수단 [enabledTokens] 밖의 수단(표 순서)마다 함수 목록 파일의 함수
+  /// 가운데 [deployed] 에 있는 것을 모은다(함수 목록 파일 순서).
+  ///
+  /// 함수 목록 파일에서 읽지 못한 수단은 건너뛴다.
+  static List<String> findLeftoverFunctions(
+    String projectRoot,
+    Set<String> enabledTokens,
+    Map<String, String?> deployed,
+  ) => <String>[
+    for (final ProviderEntry entry in providerCatalog)
+      if (!enabledTokens.contains(entry.token))
+        for (final String name
+            in readProviderFunctions(projectRoot, entry.token) ??
+                const <String>[])
+          if (deployed.containsKey(name)) name,
+  ];
 
   /// 저장소 루트 [workingDirectory] 에서 [flavor] 의 배포 스크립트를 실행 모드로
   /// 부르는 명령.
@@ -357,7 +396,7 @@ final class FunctionsStep implements Step {
         '${context.paths.json} 에서 프로젝트 ID 를 읽지 못했습니다',
       );
     }
-    final String? region = _readRegion(context);
+    final String? region = readRegion(context);
     if (region == null) {
       return _mark(
         _FunctionsMode.unreadable,
@@ -462,16 +501,19 @@ final class FunctionsStep implements Step {
     );
     if (invokerProblem != null) return invokerProblem;
     _mode = _FunctionsMode.done;
-    if (providerFunctions.isEmpty) {
-      return Done(
-        '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
-        '공개 호출 확인',
-      );
-    }
-    return Done(
-      '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 · '
-      '로그인 수단 함수 ${providerFunctions.length}개 배포 · 공개 호출 확인',
+    final verdict = providerFunctions.isEmpty
+        ? '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
+              '공개 호출 확인'
+        : '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 · '
+              '로그인 수단 함수 ${providerFunctions.length}개 배포 · 공개 호출 확인';
+    // 꺼진 로그인 수단의 함수가 배포된 채 남아 있으면 지우는 명령을 정보로만 붙인다.
+    final List<String> leftover = findLeftoverFunctions(
+      context.projectRoot,
+      _enabledProviders.toSet(),
+      deployed,
     );
+    if (leftover.isEmpty) return Done(verdict);
+    return Done('$verdict · ${buildLeftoverInfo(leftover, region, projectId)}');
   }
 
   @override
@@ -832,8 +874,11 @@ final class FunctionsStep implements Step {
     return items is List<Object?> ? items : null;
   }
 
-  /// config 의 Functions 리전을 읽는다 — 없거나 빈 값이면 null.
-  static String? _readRegion(WizardContext context) {
+  /// 이번 flavor config 의 Functions 리전(`functionsRegion`)을 읽는다 — 파일 ·
+  /// 키가 없거나 빈 값이면 null.
+  ///
+  /// 로그인 수단 단계가 끈 수단의 함수를 지울 때도 같은 규칙으로 읽는다.
+  static String? readRegion(WizardContext context) {
     final String path = context.resolve(context.paths.json);
     if (!File(path).existsSync()) return null;
     final String? value = readJsonString(

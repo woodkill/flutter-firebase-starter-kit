@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
 import '../providers/provider_catalog.dart';
@@ -8,6 +9,7 @@ import '../providers/sign_in_counts.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
+import 'functions_step.dart';
 
 /// 로그인 수단 단계 — 앱에 보일 소셜 로그인을 고르는 체크 목록을 연다.
 ///
@@ -23,6 +25,10 @@ import 'billing_step.dart';
 /// Remote Config kill switch 를 안내한 뒤 위저드 밖으로 끝낸다([ExitForUser]) —
 /// 빼면 그 사용자들이 로그인 · 재인증 · 회원탈퇴를 못 하기 때문이다. 세지 못해도
 /// CSV 를 바꾸지 않는다.
+///
+/// 모두 0명이면 CSV 를 쓴 뒤 그 수단의 함수 가운데 배포돼 있는 것을 이름으로 보이고
+/// 지울지 한 번 묻는다(기본 아니요). 예일 때만 [buildDeleteCommand] 로 지운다 — 키 ·
+/// xcconfig · Secret Manager 값은 남겨 다시 켤 때 다시 넣지 않아도 된다.
 final class ProvidersStep implements Step {
   /// 로그인 수단 단계를 만든다.
   ProvidersStep();
@@ -40,6 +46,37 @@ final class ProvidersStep implements Step {
   /// 가입자가 있는 로그인 수단을 뺄 때 안내 끝의 테스트 계정 정리 문장.
   static const String testAccountGuideLine =
       '테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요';
+
+  /// 끈 로그인 수단의 배포 함수를 지울지 묻는 질문.
+  static const String deleteQuestion = '지울까요?';
+
+  /// 지울 함수가 이미 없을 때 Firebase CLI 삭제 출력에 실리는 문장 조각.
+  static const String deleteNoMatchMarker =
+      'do not match any existing functions';
+
+  /// [region] 의 함수 [names] 를 [projectId] 에서 지우는 명령.
+  ///
+  /// 사용자가 위저드에서 예라고 답한 뒤에만 만든다 — Firebase CLI 의 삭제 확인을
+  /// 비대화형으로 넘기려고 `--force` 를 붙인다(없으면 확인 없이 멈춘다).
+  static Command buildDeleteCommand(
+    List<String> names,
+    String region,
+    String projectId,
+  ) => Command('firebase', <String>[
+    'functions:delete',
+    ...names,
+    '--region',
+    region,
+    '--project',
+    projectId,
+    '--force',
+    '--non-interactive',
+  ]);
+
+  /// 삭제 [result] 가 지울 함수가 이미 없다는 실패인지 본다.
+  static bool isAlreadyDeleted(CommandResult result) =>
+      result.stdout.contains(deleteNoMatchMarker) ||
+      result.stderr.contains(deleteNoMatchMarker);
 
   /// 로그인 수단 [token] 의 버튼을 켜고 끄는 Remote Config 키를 만든다.
   ///
@@ -145,7 +182,8 @@ final class ProvidersStep implements Step {
 
   /// 체크 목록을 열어 고른 결과를 값 표 확인 뒤 CSV 에 쓴다.
   ///
-  /// 뺀 로그인 수단이 있으면 값 표를 묻기 전에 가입자 수를 검사한다.
+  /// 뺀 로그인 수단이 있으면 값 표를 묻기 전에 가입자 수를 검사하고, CSV 를 쓴
+  /// 뒤 그 수단의 배포 함수를 지울지 묻는다.
   Future<StepOutcome> _applyChoose(WizardContext context) async {
     final Set<String> current = _known.toSet();
     final Set<String>? chosen = chooseProviders(
@@ -203,8 +241,96 @@ final class ProvidersStep implements Step {
     } on ConfigEditException catch (e) {
       return Failed('${context.paths.json} 을 쓰지 못했습니다 — ${e.message}');
     }
+    if (removedTokens.isNotEmpty) {
+      final StepOutcome? deleteFailure = await _offerFunctionDeletion(
+        context,
+        removedTokens,
+      );
+      if (deleteFailure != null) return deleteFailure;
+    }
     context.session.isProviderSelectionRequested = false;
     return isSetChanged ? const Replan() : const Applied();
+  }
+
+  /// CSV 에서 뺀 [removedTokens] 의 배포 함수를 이름으로 보이고 지울지 한 번 묻는다.
+  ///
+  /// 지울 함수가 없거나 아니요면 null(진행) — 남은 함수는 Cloud Functions 단계가
+  /// 정보로 알린다. 예면 지우고, 지울 함수가 이미 없다는 출력도 진행으로 본다. 그
+  /// 밖의 삭제 실패는 원문을 보이는 [Failed] 다(CSV 는 이미 바뀌었다).
+  Future<StepOutcome?> _offerFunctionDeletion(
+    WizardContext context,
+    List<String> removedTokens,
+  ) async {
+    final candidates = <String>[];
+    for (final token in removedTokens) {
+      final List<String>? names = FunctionsStep.readProviderFunctions(
+        context.projectRoot,
+        token,
+      );
+      if (names == null) {
+        context.terminal.writeLine(
+          '  ${FunctionsStep.manifestPath} 에서 뺀 로그인 수단의 함수 목록을 읽지 '
+          '못해 함수는 지우지 않았습니다',
+        );
+        return null;
+      }
+      candidates.addAll(names);
+    }
+    if (candidates.isEmpty) return null;
+    final String? projectId = readConfiguredProjectId(context);
+    final String? region = FunctionsStep.readRegion(context);
+    if (projectId == null || region == null) {
+      context.terminal.writeLine(
+        '  ${context.paths.json} 에서 프로젝트 ID · Functions 리전을 읽지 못해 '
+        '함수는 지우지 않았습니다',
+      );
+      return null;
+    }
+    final CommandResult listed = await context.runner.capture(
+      FunctionsStep.buildFunctionsListCommand(projectId),
+    );
+    final Map<String, String?>? deployed = FunctionsStep.parseDeployedFunctions(
+      listed,
+      region,
+    );
+    if (deployed == null) {
+      context.terminal.writeLine(
+        '  배포된 함수 목록을 읽지 못해 함수는 지우지 않았습니다 — 남은 함수는 '
+        '${FunctionsStep.stepTitle} 단계가 알려 줍니다',
+      );
+      return null;
+    }
+    final targets = <String>[
+      for (final String name in candidates)
+        if (deployed.containsKey(name)) name,
+    ];
+    if (targets.isEmpty) return null;
+    context.terminal
+      ..writeLine(
+        '  뺀 로그인 수단의 함수 ${targets.length}개가 배포돼 있습니다 ($region): '
+        '${targets.join(' · ')}',
+      )
+      ..writeLine('  지우면 다시 켤 때 다시 배포합니다 — 키 · secret 값은 남깁니다.');
+    if (!context.terminal.confirm(deleteQuestion)) {
+      context.terminal.writeLine('  함수를 남겼습니다.');
+      return null;
+    }
+    final CommandResult result = await context.runner.stream(
+      buildDeleteCommand(targets, region, projectId),
+    );
+    if (result.isSuccess) {
+      context.terminal.writeLine('  함수 ${targets.length}개를 지웠습니다.');
+      return null;
+    }
+    if (isAlreadyDeleted(result)) {
+      context.terminal.writeLine('  지울 함수가 이미 지워져 있습니다 — 그대로 진행합니다.');
+      return null;
+    }
+    return Failed(
+      '함수를 지우지 못했습니다 — 로그인 수단 목록은 이미 바뀌었습니다 · 남은 함수는 '
+      '${FunctionsStep.stepTitle} 단계가 지우는 명령과 함께 알려 줍니다',
+      result: result,
+    );
   }
 
   /// 뺀 로그인 수단 [removedTokens] 의 가입자 수를 센다.

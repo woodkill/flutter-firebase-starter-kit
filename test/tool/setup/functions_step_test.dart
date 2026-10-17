@@ -1308,6 +1308,65 @@ void main() {
     );
   });
 
+  group('T-20-FUNC-06: 꺼진 로그인 수단의 함수가 남아 있으면 ✓ 줄에 정보만 붙인다', () {
+    const kakaoFunctions = <String>[
+      'kakaoCustomToken',
+      'linkKakaoProvider',
+      'disconnectKakaoProvider',
+    ];
+
+    /// 공통 함수만 확인하는 ✓ 판정 문장.
+    String buildDoneLine() =>
+        '  ✓ ${FunctionsStep.stepTitle} — 의존성 · secret '
+        '${declaredSecrets.length}개 · 공통 함수 ${commonFunctions.length}개 배포 · '
+        '공개 호출 확인';
+
+    test('Kakao 를 끈 저장소에 Kakao 함수 3개가 남으면 개수 · 지우는 명령을 보이고 묻지 '
+        '않는다', () async {
+      writeModulesMarker();
+      final harness = _Harness(root, const <String?>[]);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(
+          functionsListKey,
+          buildFunctionsList(<String>[
+            ...commonFunctions,
+            ...kakaoFunctions.reversed,
+          ]),
+        );
+      registerPublicPolicies(harness.fake, commonFunctions);
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '${buildDoneLine()} · 꺼진 로그인 수단의 함수 3개가 남아 있습니다 — 지우기: '
+          'firebase functions:delete kakaoCustomToken linkKakaoProvider '
+          'disconnectKakaoProvider --region $region --project $projectId\n',
+        ),
+      );
+      expect(harness.output, isNot(contains('--force')));
+      expect(harness.screen.asks, isEmpty);
+      expect(harness.fake.countMode(RunMode.stream), 0);
+    });
+
+    test('남은 게 없으면 판정 문장 그대로다', () async {
+      writeModulesMarker();
+      final harness = _Harness(root, const <String?>[]);
+      harness.fake.on(secretsListKey, buildSecretsList(declaredSecrets));
+      registerDeployed(harness.fake);
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(harness.output, contains('${buildDoneLine()}\n'));
+      expect(harness.output, isNot(contains('꺼진 로그인 수단')));
+      expect(harness.screen.asks, isEmpty);
+    });
+  });
+
   /// stg config(example 복사 · stg 프로젝트 ID)를 쓴다.
   void writeStgConfig() {
     const paths = FlavorPaths(Flavor.stg);
