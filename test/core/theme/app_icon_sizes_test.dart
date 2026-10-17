@@ -30,8 +30,8 @@ void main() {
         const a = AppIconSizes();
         final b = const AppIconSizes().copyWith(sm: 28);
 
-        expect(a.lerp(b, 0.0).sm, equals(a.sm));
-        expect(a.lerp(b, 1.0).sm, equals(b.sm));
+        expect(a.lerp(b, 0).sm, equals(a.sm));
+        expect(a.lerp(b, 1).sm, equals(b.sm));
         expect(a.lerp(b, 0.5).sm, equals(24.0));
       });
 

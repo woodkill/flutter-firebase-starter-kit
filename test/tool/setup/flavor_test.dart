@@ -49,7 +49,7 @@ void main() {
         // Gradle productFlavors 의 접미사와도 같다(prod 는 접미사 줄이 없다).
         final RegExpMatch? gradleSuffix = RegExp(
           'create\\("${flavor.name}"\\)\\s*\\{\\s*'
-          'applicationIdSuffix\\s*=\\s*"([^"]*)"',
+          r'applicationIdSuffix\s*=\s*"([^"]*)"',
         ).firstMatch(gradle);
         expect(
           gradleSuffix?.group(1) ?? '',

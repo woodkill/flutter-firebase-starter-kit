@@ -106,7 +106,7 @@ final class _Sandbox {
     '#!/bin/sh\n'
     'printf \'%s\\n\' "\$*" >> \'${log.path}\'\n'
     'if [ "\$1 \$2" = \'$failWhenArgsStartWith\' ]; then\n'
-    '  printf \'%s\\n\' \'$stderrLine\' >&2\n'
+    "  printf '%s\\n' '$stderrLine' >&2\n"
     '  exit $exitCode\n'
     'fi\n'
     'exit 0\n',
@@ -151,7 +151,7 @@ final class _Sandbox {
         '      exit 0\n'
         '      ;;\n'
         '  esac\n'
-        '  printf \'%s\\n\' \'$_notZshParentLine\' >&2\n'
+        "  printf '%s\\n' '$_notZshParentLine' >&2\n"
         '  exit $_notZshParentExitCode\n'
         'fi\n'
         'exit 0\n',

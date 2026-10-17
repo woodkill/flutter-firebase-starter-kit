@@ -102,7 +102,7 @@ void main() {
         reason: '인자 없는 Apple debug provider 가 남아 있다',
       );
       expect(
-        _countMatches(code, RegExp(r'debugToken:')),
+        _countMatches(code, RegExp('debugToken:')),
         2,
         reason: '토큰 인자는 debug provider 두 곳에만 있어야 한다',
       );

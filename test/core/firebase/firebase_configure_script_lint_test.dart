@@ -69,7 +69,7 @@ void main() {
     });
 
     test('flutterfire 호출 전에 ruby xcodeproj 전제조건을 검사한다', () {
-      const guard = r'''ruby -e "require 'xcodeproj'" >/dev/null''';
+      const guard = '''ruby -e "require 'xcodeproj'" >/dev/null''';
       expect(
         lines.where((String line) => line.contains(guard)).length,
         1,
@@ -105,8 +105,8 @@ void main() {
   group('firebase-configure.sh 부수효과 복원 계약', () {
     test('변형 대상 2종을 스냅샷할 상수로 들고 있고 mktemp/cp 로 떠 둔다', () {
       const pbxproj =
-          r'CLI_TOUCHED_PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"';
-      const firebaseJson = r'CLI_TOUCHED_FIREBASE_JSON="firebase.json"';
+          'CLI_TOUCHED_PBXPROJ="ios/Runner.xcodeproj/project.pbxproj"';
+      const firebaseJson = 'CLI_TOUCHED_FIREBASE_JSON="firebase.json"';
       const mktemp = r'mktemp -d "${TMPDIR:-/tmp}/firebase-configure-XXXXXX"';
       const snapshotCopy =
           r'cp "$SNAP_SRC" "${SNAP_DIR}/$(basename "$SNAP_SRC")"';
@@ -168,7 +168,7 @@ void main() {
         (String line) => line.contains(r'fvm dart format "$OUT_DART"'),
       );
       final int skipWorktreeIndex = lines.indexWhere(
-        (String line) => line.contains(r'for OUT_PATH in'),
+        (String line) => line.contains('for OUT_PATH in'),
       );
 
       expect(snapshotIndex, greaterThanOrEqualTo(0));

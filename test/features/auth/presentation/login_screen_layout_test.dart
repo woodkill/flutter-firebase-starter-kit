@@ -274,7 +274,7 @@ void main() {
     }
 
     testWidgets('글자 배율 1.0 에서는 버튼 라벨이 제 크기(16)로 그려진다', (tester) async {
-      applyLargeTextNarrowView(tester, textScaleFactor: 1.0);
+      applyLargeTextNarrowView(tester, textScaleFactor: 1);
 
       await pumpWrapper(tester, strategies: _sixStrategies);
       await tester.pumpAndSettle();

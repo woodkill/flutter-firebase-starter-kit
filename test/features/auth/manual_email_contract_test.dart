@@ -169,7 +169,7 @@ const String _ttlCommandLine =
 
 /// 확장 삭제 명령 — 저장소 밖 임시 디렉터리에서 실행한다(정확한 줄).
 const String _extensionUninstallLine =
-    '( cd "\$(mktemp -d)" && firebase ext:uninstall firestore-send-email '
+    r'( cd "$(mktemp -d)" && firebase ext:uninstall firestore-send-email '
     '--immediate --project <your-project-id> )';
 
 /// 메일 함수 배포 명령(`--apply`) — 발송 모드 절 「켜기」 ⑥ 의 정확한 줄.
@@ -181,7 +181,7 @@ const String _functionsApplyCommandLine =
 const String _invokerCommandLine =
     'gcloud run services add-iam-policy-binding '
     'ext-firestore-send-email-processqueue --region=us-central1 '
-    '--member=serviceAccount:\$(gcloud projects describe <your-project-id> '
+    r'--member=serviceAccount:$(gcloud projects describe <your-project-id> '
     "--format='value(projectNumber)')-compute@developer.gserviceaccount.com "
     '--role=roles/run.invoker --project <your-project-id>';
 
@@ -659,7 +659,7 @@ void main() {
         reason: '절이 강제 옵션을 안내한다',
       );
       expect(
-        RegExp(r'^for s in ', multiLine: true).hasMatch(delivery),
+        RegExp('^for s in ', multiLine: true).hasMatch(delivery),
         isFalse,
         reason: '절에 secret 반복문이 있다(반복문은 로그인 수단 절 한 곳)',
       );
@@ -720,7 +720,7 @@ void main() {
       expect(countExactLines(delivery, '"emailDelivery": "kit"'), 1);
       final List<String> envLines = readTrackedFile(_extensionEnvExamplePath)
           .split('\n')
-          .where((String line) => RegExp(r'^[A-Z_]+=').hasMatch(line))
+          .where((String line) => RegExp('^[A-Z_]+=').hasMatch(line))
           .toList();
       expect(envLines, hasLength(4), reason: '확장 값 example 의 키 줄이 4개가 아니다');
       for (final line in envLines) {

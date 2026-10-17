@@ -28,7 +28,7 @@ const String _kLogoAsset = 'assets/images/splash/logo.png';
 ///
 /// 디자인 시스템 변경 시 본 값만 갱신하면 정상 표시 + 에러 placeholder
 /// 양쪽이 동기된다.
-const double _kLogoSize = 128.0;
+const double _kLogoSize = 128;
 
 /// SplashScreen State 수명당 보류 재초기화 최대 횟수 (quick 260914-k81).
 ///

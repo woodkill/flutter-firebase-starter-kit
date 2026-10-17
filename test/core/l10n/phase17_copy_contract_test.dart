@@ -202,7 +202,7 @@ final List<_CopyRow> _kPhase17Rows = <_CopyRow>[
     'devToolsSendTestPushAnonymous',
     (l) => l.devToolsSendTestPushAnonymous,
     '게스트 상태에서는 테스트 알림을 보낼 수 없어요. 로그인한 뒤 설정에서 알림 받기를 켜 주세요.',
-    'Test notifications aren\'t available as a guest. Sign in, then turn on '
+    "Test notifications aren't available as a guest. Sign in, then turn on "
         '"Receive notifications" in Settings.',
     'ゲストの状態ではテスト通知を送れません。ログイン後、設定で「通知を受け取る」をオンにしてください。',
   ),

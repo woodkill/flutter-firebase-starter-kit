@@ -274,9 +274,8 @@ SplashInitializer splashInitializer(Ref ref) {
   // Phase 9.1 D-02-A: socialLinkInProgress 가 true 면 자동 익명 sign-in 스킵.
   // Firebase 미초기화 시에는 의미 없으므로 false 로 처리 (signInAnonymously 자체가
   // isInitialized=false 분기에서 이미 스킵됨).
-  final isSocialLinkInProgress = isInitialized
-      ? ref.watch(socialLinkInProgressProvider)
-      : false;
+  final isSocialLinkInProgress =
+      isInitialized && ref.watch(socialLinkInProgressProvider);
   // Phase 10.1 D-14: Crashlytics 주입 (Firebase 초기화 시에만).
   final crashlytics = isInitialized
       ? ref.watch(crashlyticsServiceProvider)

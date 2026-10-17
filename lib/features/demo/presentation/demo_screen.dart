@@ -37,16 +37,16 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 // 토큰 신설 대신 상수 규약(splash_screen.dart 의 `_kLogoSize` 선례) 을 따른다.
 
 /// 컬러 스와치 한 변의 길이 (logical pixel, IN-03).
-const double _kSwatchSize = 40.0;
+const double _kSwatchSize = 40;
 
 /// 스페이싱 쇼케이스 막대의 높이 (logical pixel, IN-03).
-const double _kSpacingBarHeight = 24.0;
+const double _kSpacingBarHeight = 24;
 
 /// photoUrl 썸네일 한 변의 길이 (logical pixel, IN-03).
-const double _kThumbnailSize = 48.0;
+const double _kThumbnailSize = 48;
 
 /// 환경 카드 leading 아이콘의 크기 (logical pixel, IN-03).
-const double _kEnvCardIconSize = 32.0;
+const double _kEnvCardIconSize = 32;
 
 /// 개발 · 데모 화면 — release 가 아닌 빌드에서만 등록된다(D-14).
 ///

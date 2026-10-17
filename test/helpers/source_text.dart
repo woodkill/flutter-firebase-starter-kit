@@ -55,7 +55,7 @@ String stripHashComments(String raw) => raw
 
 /// `<!-- ... -->` 블록 주석을 제거한다 (XML · plist).
 String stripXmlComments(String raw) =>
-    raw.replaceAll(RegExp(r'<!--.*?-->', dotAll: true), '');
+    raw.replaceAll(RegExp('<!--.*?-->', dotAll: true), '');
 
 /// [needle] 이 [haystack] 에 나타나는 횟수를 센다.
 ///

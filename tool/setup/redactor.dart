@@ -22,14 +22,14 @@ final class Redactor {
   static final List<RegExp> patterns = <RegExp>[
     RegExp(
       r'-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?'
-      r'-----END [A-Z ]*PRIVATE KEY-----',
+      '-----END [A-Z ]*PRIVATE KEY-----',
     ),
-    RegExp(r'-----(?:BEGIN|END) [A-Z ]*PRIVATE KEY-----'),
+    RegExp('-----(?:BEGIN|END) [A-Z ]*PRIVATE KEY-----'),
     RegExp(r'ya29\.[0-9A-Za-z._-]+'),
-    RegExp(r'AIza[0-9A-Za-z_-]{35}'),
+    RegExp('AIza[0-9A-Za-z_-]{35}'),
     RegExp(
-      r'[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-'
-      r'[0-9A-Fa-f]{12}',
+      '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-'
+      '[0-9A-Fa-f]{12}',
     ),
   ];
 

@@ -1232,7 +1232,7 @@ void main() {
           user: _testUser(providerIds: _kAllProviderIdsHeld),
         );
 
-        expect(find.bySemanticsLabel(RegExp(r'^Unlink ')), findsNothing);
+        expect(find.bySemanticsLabel(RegExp('^Unlink ')), findsNothing);
         const names = <String>[
           'Google',
           'Apple',
@@ -1257,7 +1257,7 @@ void main() {
             signUpProviderId: 'line',
           ),
         );
-        expect(find.bySemanticsLabel(RegExp(r'^Unlink ')), findsNWidgets(6));
+        expect(find.bySemanticsLabel(RegExp('^Unlink ')), findsNWidgets(6));
         expect(tester.takeException(), isNull);
         handle.dispose();
       },

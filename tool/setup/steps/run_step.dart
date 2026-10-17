@@ -81,7 +81,7 @@ final class RunStep implements Step {
     '    2. 홈 오른쪽 위 「로그인」(Sign in) → 「계정이 없으신가요? 가입하기」'
         '(No account? Create one) → 이름 · 이메일 · 비밀번호를 넣고 「가입하기」(Create account)',
     '    3. 받은 메일의 인증 링크를 엽니다 — 메일이 보이지 않으면 스팸함을 확인하세요',
-    '    4. 앱으로 돌아와 「인증 확인」(I\'ve verified my email)',
+    "    4. 앱으로 돌아와 「인증 확인」(I've verified my email)",
     '  $quitLine',
   ];
 

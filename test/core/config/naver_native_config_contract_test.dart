@@ -151,7 +151,7 @@ void main() {
       // clientSecret 값이 @string/ 로 시작하는지 (리터럴 secret 금지).
       final secretMatch = RegExp(
         r'android:name="com\.naver\.sdk\.clientSecret"\s*'
-        r'android:value="([^"]*)"',
+        'android:value="([^"]*)"',
       ).firstMatch(manifest);
       expect(
         secretMatch,
@@ -170,7 +170,7 @@ void main() {
 
       final logMatch = RegExp(
         r'android:name="com\.naver\.sdk\.logEnabled"\s*'
-        r'android:value="([^"]*)"',
+        'android:value="([^"]*)"',
       ).firstMatch(manifest);
       expect(
         logMatch,
@@ -466,7 +466,7 @@ void main() {
         stripSlashComments(readTrackedFile('$kotlinDir/NaverHostChannel.kt')),
       );
 
-      final match = RegExp(r'const val CHANNEL = "([^"]+)"').firstMatch(kotlin);
+      final match = RegExp('const val CHANNEL = "([^"]+)"').firstMatch(kotlin);
       expect(
         match,
         isNotNull,
@@ -558,7 +558,7 @@ void main() {
       expect(
         RegExp(
           r'<activity\s+android:name="com\.kakao\.sdk\.flutter\.auth\.'
-          r'AuthCodeHandlerActivity"',
+          'AuthCodeHandlerActivity"',
         ).hasMatch(manifest),
         isTrue,
         reason: '양성 대조군: Kakao 콜백 Activity 선언을 정규식이 잡지 못한다.',
@@ -622,7 +622,7 @@ void main() {
         r'android:name="\.MainActivity"\s+'
         r'android:exported="true"\s+'
         r'android:launchMode="singleTop"\s+'
-        r'android:taskAffinity=""',
+        'android:taskAffinity=""',
       );
       expect(
         mainBlock.allMatches(manifest).length,
@@ -877,7 +877,7 @@ void main() {
       );
 
       final match = RegExp(
-        r'static let channelName = "([^"]+)"',
+        'static let channelName = "([^"]+)"',
       ).firstMatch(swift);
       expect(
         match,
@@ -994,7 +994,7 @@ void main() {
       expect(
         countOccurrences(r'print("a=\(x)")', r'\('),
         1,
-        reason: '양성 대조군: r"\\(" 가 Swift 보간 1건을 세지 못한다.',
+        reason: r'양성 대조군: r"\(" 가 Swift 보간 1건을 세지 못한다.',
       );
       const sample =
           r'NSLog("\(u.path)"); os_log("x"); '

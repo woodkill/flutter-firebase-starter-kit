@@ -70,7 +70,7 @@ final RegExp _previousTocEntryPattern = RegExp(
 const List<String> _templateCommandLines = <String>[
   'git remote add upstream https://github.com/woodkill/flutter-firebase-starter-kit.git',
   'git fetch upstream --tags',
-  'git merge -s ours --allow-unrelated-histories "v\$(cat KIT_VERSION)" -m "킷 기준점 v\$(cat KIT_VERSION)"',
+  r'git merge -s ours --allow-unrelated-histories "v$(cat KIT_VERSION)" -m "킷 기준점 v$(cat KIT_VERSION)"',
   'git push',
 ];
 
@@ -90,7 +90,7 @@ const List<String> _subsectionHeadings = <String>[
 /// 절에 정확한 줄로 있어야 하는 명령 줄.
 const List<String> _requiredCommandLines = <String>[
   'TAG=v1.0.0-rc.2',
-  'git merge "\$TAG" -m "킷 \$TAG 반영"',
+  r'git merge "$TAG" -m "킷 $TAG 반영"',
   'git rm <파일>',
   'git checkout --ours -- <파일>',
   'git add <파일>',
@@ -237,7 +237,7 @@ List<String> _collectForbiddenHits(String text) => RegExp(
 
 /// README 에서 첫 `## ` 줄 앞까지(머리)를 돌려준다.
 String _sliceReadmeHead(String readme) {
-  final int index = readme.indexOf(RegExp(r'^## ', multiLine: true));
+  final int index = readme.indexOf(RegExp('^## ', multiLine: true));
   return index == -1 ? readme : readme.substring(0, index);
 }
 

@@ -86,7 +86,7 @@ const Size _goldenLogicalSize = Size(360, 800);
 
 /// golden device pixel ratio — test view 기본값과 같은 3.0 을 명시해 fixture
 /// 해상도를 환경 기본값 변화로부터 고정한다.
-const double _goldenDevicePixelRatio = 3.0;
+const double _goldenDevicePixelRatio = 3;
 
 /// 현행 활성 provider 6종 — `_allStrategies` 선언 순서 verbatim
 /// (Google · Apple · Facebook · Kakao · Naver · LINE).

@@ -227,7 +227,7 @@ void main() {
     expect(output.indexOf(noticeLine), greaterThan(output.indexOf('▶ B')));
     expect(
       output.indexOf(noticeLine),
-      greaterThan(output.indexOf('  \$ run-B')),
+      greaterThan(output.indexOf(r'  $ run-B')),
     );
   });
 

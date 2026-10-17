@@ -33,7 +33,7 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// golden device pixel ratio — mockup 촬영 조건(DPR 3)과 같다.
-const double kGoldenDpr = 3.0;
+const double kGoldenDpr = 3;
 
 /// golden viewport 높이 (logical px) — UI-SPEC §Golden 캡처 계약.
 const double kGoldenHeight = 800;

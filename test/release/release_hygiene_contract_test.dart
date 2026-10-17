@@ -194,7 +194,7 @@ void main() {
         ).firstMatch(text)!;
         expect(
           RegExp(
-            r"'''(.*?)'''",
+            "'''(.*?)'''",
           ).allMatches(paths.group(1)!).map((m) => m.group(1)),
           <String>[r'^ios/Podfile\.lock$'],
         );

@@ -880,7 +880,7 @@ void main() {
       expect(
         output,
         contains(
-          '  \$ git add .firebaserc functions/src/shared/region.ts '
+          r'  $ git add .firebaserc functions/src/shared/region.ts '
           '&& git commit -m "$commitHintMessage"',
         ),
       );
@@ -935,7 +935,7 @@ void main() {
         expect(output, contains('\n  $newKotlinFile\n'));
         final String addLine = const LineSplitter()
             .convert(output)
-            .singleWhere((String line) => line.startsWith('  \$ git add '));
+            .singleWhere((String line) => line.startsWith(r'  $ git add '));
         expect(addLine, contains(oldKotlinFile));
         expect(addLine, contains(newKotlinFile));
         expect(addLine, contains('.firebaserc'));

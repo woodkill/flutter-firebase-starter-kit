@@ -148,7 +148,7 @@ String _sliceWarningBox(String spmSection) {
   }
   final boxLines = <String>[];
   for (var i = start; i < lines.length && lines[i].startsWith('>'); i++) {
-    boxLines.add(lines[i].replaceFirst(RegExp(r'^> ?'), ''));
+    boxLines.add(lines[i].replaceFirst(RegExp('^> ?'), ''));
   }
   return boxLines.join('\n');
 }

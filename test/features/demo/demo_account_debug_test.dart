@@ -46,7 +46,7 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
 /// device pixel ratio — 옛 홈 golden 촬영 조건(DPR 3)과 같다.
-const double _dpr = 3.0;
+const double _dpr = 3;
 
 /// 데모 viewport 높이 (logical px) — 옛 홈 golden 캡처 계약 H 열.
 const double _demoHeight = 1400;
@@ -187,7 +187,7 @@ Future<ui.Image> _captureSection(
   final rb = tester.renderObject<RenderRepaintBoundary>(_sectionBoundary(l10n));
   late ui.Image image;
   await tester.runAsync(() async {
-    image = await rb.toImage(pixelRatio: 3.0);
+    image = await rb.toImage(pixelRatio: 3);
   });
   return image;
 }

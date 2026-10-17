@@ -134,7 +134,7 @@ Map<String, String> _splitFormFields(String yaml, String path) {
   final fields = <String, String>{};
   final idLine = RegExp(r'^    id: (\S+)$', multiLine: true);
   for (final String block
-      in yaml.split(RegExp(r'^  - type: ', multiLine: true)).skip(1)) {
+      in yaml.split(RegExp('^  - type: ', multiLine: true)).skip(1)) {
     final RegExpMatch? match = idLine.firstMatch(block);
     if (match == null) {
       continue;

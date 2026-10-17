@@ -178,7 +178,7 @@ void main() {
         for (final file in files) {
           final source = file.readAsStringSync();
           if (RegExp(
-            r"^import 'package:flutter_starter_kit/",
+            "^import 'package:flutter_starter_kit/",
             multiLine: true,
           ).hasMatch(source)) {
             offenders.add(file.path);

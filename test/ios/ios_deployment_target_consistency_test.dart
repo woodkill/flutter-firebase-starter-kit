@@ -90,7 +90,7 @@ bool isDeploymentTargetBelowMinimum(String target) =>
 /// pbxproj [content] 의 `IPHONEOS_DEPLOYMENT_TARGET = <v>;` 값 목록을 등장 순서대로 돌려준다.
 List<String> collectPbxprojDeploymentTargets(String content) {
   return RegExp(
-    r'IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);',
+    'IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+);',
   ).allMatches(content).map((RegExpMatch match) => match.group(1)!).toList();
 }
 

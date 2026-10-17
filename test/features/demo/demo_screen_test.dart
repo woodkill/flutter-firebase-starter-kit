@@ -119,7 +119,7 @@ List<WidgetSpan> _collectLinkedWidgetSpans(WidgetTester tester) {
 
 /// 연결된 계정 카드의 semantics label 을 돌려준다 (`Linked accounts: …`).
 String _readLinkedAccountsSemantics(WidgetTester tester) => tester
-    .getSemantics(find.bySemanticsLabel(RegExp(r'^Linked accounts: ')))
+    .getSemantics(find.bySemanticsLabel(RegExp('^Linked accounts: ')))
     .label;
 
 /// 표시 span 이 낭독 문자열에 새면 나타나는 문자 — 자리표시(U+FFFC) ·

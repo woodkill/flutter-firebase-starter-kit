@@ -52,9 +52,10 @@ class _PasswordFieldState extends State<PasswordField> {
       controller: widget.controller,
       focusNode: widget.focusNode,
       autofillHints: <String>[
-        widget.isNewPassword
-            ? AutofillHints.newPassword
-            : AutofillHints.password,
+        if (widget.isNewPassword)
+          AutofillHints.newPassword
+        else
+          AutofillHints.password,
       ],
       obscureText: _obscure,
       textInputAction: widget.textInputAction,

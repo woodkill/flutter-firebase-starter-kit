@@ -548,7 +548,7 @@ void main() {
     });
 
     testWidgets('T-171-SETTINGS-12: 계정 행 탭 → 계정 화면 경로 push · 병합 '
-        'label 「내 계정\\n이름」 (D-03)', (tester) async {
+        r'label 「내 계정\n이름」 (D-03)', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpMemberSettings(tester, user: _testUser(displayName: '홍길동'));
 

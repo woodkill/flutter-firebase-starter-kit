@@ -2,7 +2,7 @@ import 'dart:math';
 
 /// UUID 버전 4 모양(대소문자 무관) — 버전 자리 `4` · variant 자리 `8`~`b`.
 final RegExp _uuidV4Pattern = RegExp(
-  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-'
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-'
   r'[0-9a-fA-F]{12}$',
 );
 

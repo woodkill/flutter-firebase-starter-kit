@@ -68,7 +68,7 @@ final List<String> _contactChannelWords = <String>[
 final RegExp _internalLinkPattern = RegExp(r'\]\(#([^)\s]+)\)');
 
 /// 앵커가 붙는 헤딩 줄(`##` ~ `####`).
-final RegExp _headingLinePattern = RegExp(r'^#{2,4} ');
+final RegExp _headingLinePattern = RegExp('^#{2,4} ');
 
 /// 헤딩을 앵커로 바꿀 때 지우는 문자 — 글자 · 숫자 · 결합 기호 · 하이픈 · 밑줄 ·
 /// 공백이 아닌 것 전부.

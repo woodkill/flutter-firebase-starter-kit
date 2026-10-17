@@ -572,10 +572,10 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     ///
     /// 마지막 주석 줄은 현재 번들 ID 를 접두어로 품지만 PRODUCT_BUNDLE_IDENTIFIER
     /// 줄이 아니다 — rename 이 건드리면 안 된다.
-    const kitPbxproj = '''
+    const kitPbxproj = r'''
 /* Begin XCBuildConfiguration section */
 				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev;
-				PRODUCT_NAME = "\$(TARGET_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.RunnerTests;
 				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev;
 				PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
@@ -585,10 +585,10 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
 ''';
 
     /// `--org com.example --name my_app` 적용 뒤 기대하는 pbxproj.
-    const renamedPbxproj = '''
+    const renamedPbxproj = r'''
 /* Begin XCBuildConfiguration section */
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev;
-				PRODUCT_NAME = "\$(TARGET_NAME)";
+				PRODUCT_NAME = "$(TARGET_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.RunnerTests;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev;
 				PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp;
@@ -1341,7 +1341,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.stderr, contains('Invalid project prefix'));
       expect(
         result.stderr + result.stdout,
-        isNot(matches(RegExp(r'[가-힯]'))),
+        isNot(matches(RegExp('[가-힯]'))),
         reason: 'CLI output must contain no Korean (F1 regression guard)',
       );
     });
@@ -1373,7 +1373,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(result.stdout, isNot(contains('Package Rename Tool')));
       expect(
         result.stdout,
-        isNot(matches(RegExp(r'[가-힯]'))),
+        isNot(matches(RegExp('[가-힯]'))),
         reason: 'CLI output must contain no Korean (F1 regression guard)',
       );
     });

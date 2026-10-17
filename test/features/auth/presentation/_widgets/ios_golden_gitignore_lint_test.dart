@@ -67,7 +67,7 @@ void main() {
         // 표준화. golden.path 가 이미 그 형식이지만 명시적으로 변환.
         final String expectedEntry = golden.path
             .replaceAll(r'\', '/')
-            .replaceFirst(RegExp('^\\./'), '');
+            .replaceFirst(RegExp(r'^\./'), '');
         final bool matched = gitignoreLines.any(
           (line) => line == expectedEntry,
         );

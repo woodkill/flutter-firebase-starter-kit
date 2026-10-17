@@ -40,8 +40,8 @@ const List<String> _expectedExcludes = <String>[
 // 치환값의 10자리 0 은 인접 문자열로 끊어 둔다 — 한 줄에 「팀 키 = 10자;」 모양이
 // 생기지 않게 한다.
 const List<String> _expectedReplaceText = <String>[
-  r'regex:AIza[0-9A-Za-z_-]{35}==>PLACEHOLDER',
-  r'regex:DEVELOPMENT_TEAM = [A-Z0-9]{10};==>DEVELOPMENT_TEAM = '
+  'regex:AIza[0-9A-Za-z_-]{35}==>PLACEHOLDER',
+  'regex:DEVELOPMENT_TEAM = [A-Z0-9]{10};==>DEVELOPMENT_TEAM = '
       '0000000000;',
   r'regex:(`Channel ID` — 숫자 \(예: `)[0-9]{10}(`\))==>\g<1>0000000000\g<2>',
 ];
@@ -122,9 +122,9 @@ void main() {
 
       final String text = readTrackedFile(_replaceTextPath);
       // 값 0 — 키 모양 토큰이 없고, 10자리 숫자는 전부 자리표시 0 이다.
-      expect(RegExp(r'AIza[0-9A-Za-z_-]{35}').hasMatch(text), isFalse);
+      expect(RegExp('AIza[0-9A-Za-z_-]{35}').hasMatch(text), isFalse);
       final Iterable<String> digitRuns = RegExp(
-        r'(?<![0-9])[0-9]{10}(?![0-9])',
+        '(?<![0-9])[0-9]{10}(?![0-9])',
       ).allMatches(text).map((RegExpMatch match) => match.group(0)!);
       expect(digitRuns, isNotEmpty);
       expect(

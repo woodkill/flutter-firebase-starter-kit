@@ -1070,7 +1070,7 @@ void main() {
       expect(hint, isNot(contains(FirebaseAppFiles.iosPlistPath)));
       final String addLine = const LineSplitter()
           .convert(hint)
-          .singleWhere((String line) => line.startsWith('  \$ git add '));
+          .singleWhere((String line) => line.startsWith(r'  $ git add '));
       expect(addLine, contains('$newKotlinDir/MainActivity.kt'));
       expect(addLine, contains('$oldKotlinDir/MainActivity.kt'));
 

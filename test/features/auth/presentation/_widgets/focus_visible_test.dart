@@ -103,7 +103,7 @@ void main() {
       expect(
         beforeDecoration.border,
         isA<Border>().having(
-          (b) => (b.top).color,
+          (b) => b.top.color,
           'outline 색 (focus 진입 전)',
           Colors.transparent,
         ),

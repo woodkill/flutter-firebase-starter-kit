@@ -148,7 +148,7 @@ void main() {
       final output = terminal.output.toString();
       expect(code, wizardExitDone);
       expect(output, contains('  ✗ Xcode 준비 — 라이선스 동의 필요'));
-      expect(output, contains('  \$ sudo xcodebuild -license accept'));
+      expect(output, contains(r'  $ sudo xcodebuild -license accept'));
       expect(runner.countCalls(RunMode.interactive, _licenseAcceptKey), 1);
       expect(runner.countMode(RunMode.interactive), 1);
       expect(runner.countMode(RunMode.stream), 0);
@@ -204,7 +204,7 @@ void main() {
 
       final output = terminal.output.toString();
       expect(code, wizardExitDone);
-      expect(output, contains('  \$ xcodebuild -downloadPlatform iOS'));
+      expect(output, contains(r'  $ xcodebuild -downloadPlatform iOS'));
       expect(output, contains('수 GB'));
       expect(runner.countCalls(RunMode.stream, _downloadKey), 1);
       expect(runner.countMode(RunMode.interactive), 0);

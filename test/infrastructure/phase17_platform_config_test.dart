@@ -88,7 +88,7 @@ void main() {
       final String icon = stripXmlComments(readTrackedFile(_iconPath));
       expect(icon, contains('<vector'));
       final List<String> fills = RegExp(
-        r'android:fillColor="([^"]+)"',
+        'android:fillColor="([^"]+)"',
       ).allMatches(icon).map((RegExpMatch m) => m.group(1)!).toList();
       expect(fills, isNotEmpty, reason: 'path 에 fillColor 가 있어야 한다');
       expect(
@@ -175,7 +175,7 @@ void main() {
         final String tag = mainTag!.group(0)!;
 
         expect(
-          RegExp(r'android:autoRemoveFromRecents="true"').hasMatch(tag),
+          RegExp('android:autoRemoveFromRecents="true"').hasMatch(tag),
           isTrue,
           reason:
               '알림 탭 → 뒤로 로 끝난 task 가 최근 앱에 빈 카드로 남으면 그 카드가 '
@@ -183,7 +183,7 @@ void main() {
         );
         // 양성 대조군 겸 유지 단언 — 같은 태그 범위에서 빈 affinity 를 잡는다.
         expect(
-          RegExp(r'android:taskAffinity=""').hasMatch(tag),
+          RegExp('android:taskAffinity=""').hasMatch(tag),
           isTrue,
           reason: '빈 taskAffinity 는 StrandHogg 방어라 유지한다 (minSdk 24)',
         );

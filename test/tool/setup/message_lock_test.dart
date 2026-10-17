@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 /// Dart 파일 이름 · JSON 키와 겹친다)와 16진 해시 갈래(색 값 · 해시 값과 겹친다)를
 /// 뺀 코드용 목록이다.
 const List<String> forbiddenSourcePatterns = <String>[
-  r'Phase [0-9]',
+  'Phase [0-9]',
   r'\bD-[0-9]{2}\b',
   r'\bD-[A-Z]+-[0-9]',
   r'\b(WR|IN|CR|BL)-[0-9]',
@@ -17,16 +17,16 @@ const List<String> forbiddenSourcePatterns = <String>[
   r'\bquick [0-9]{6}',
   r'\b[0-9]{6}-[a-z0-9]{3}\b',
   r'\bUAT',
-  r'실측',
-  r'재현됐',
+  '실측',
+  '재현됐',
   r'\bmemory\b',
   r'\bgsd[-:]',
-  r'20[0-9]{2}-[0-9]{2}-[0-9]{2}',
+  '20[0-9]{2}-[0-9]{2}-[0-9]{2}',
 ];
 
 /// 위저드 테스트에 쓰지 않는 패턴 — 작업 단계 표기 · 결정 ID · 작업 기록 경로.
 const List<String> forbiddenTestPatterns = <String>[
-  r'Phase [0-9]',
+  'Phase [0-9]',
   r'\bD-[0-9]{2}\b',
   r'\.planning',
 ];

@@ -477,7 +477,7 @@ final class FirebaseProjectStep implements Step {
     final script = File(context.resolve(configureScriptPath));
     if (!script.existsSync()) return null;
     final RegExpMatch? match = RegExp(
-      r'^PROJECT_ID_PREFIX="([^"]*)"',
+      '^PROJECT_ID_PREFIX="([^"]*)"',
       multiLine: true,
     ).firstMatch(script.readAsStringSync());
     if (match == null) return null;

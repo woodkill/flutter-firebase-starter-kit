@@ -60,7 +60,7 @@ void main() {
       test('t=0.0이면 this의 값을 유지한다', () {
         const a = AppSpacing();
         final b = const AppSpacing().copyWith(lg: 32);
-        final result = a.lerp(b, 0.0);
+        final result = a.lerp(b, 0);
 
         expect(result.lg, equals(a.lg));
       });
@@ -68,7 +68,7 @@ void main() {
       test('t=1.0이면 other의 값을 반환한다', () {
         const a = AppSpacing();
         final b = const AppSpacing().copyWith(lg: 32);
-        final result = a.lerp(b, 1.0);
+        final result = a.lerp(b, 1);
 
         expect(result.lg, equals(b.lg));
       });

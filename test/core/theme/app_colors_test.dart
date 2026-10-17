@@ -46,7 +46,7 @@ void main() {
       test('t=0.0이면 this를 반환한다', () {
         final light = AppColors.fromBrightness(Brightness.light);
         final dark = AppColors.fromBrightness(Brightness.dark);
-        final result = light.lerp(dark, 0.0);
+        final result = light.lerp(dark, 0);
 
         expect(result.success, equals(light.success));
         expect(result.warning, equals(light.warning));
@@ -56,7 +56,7 @@ void main() {
       test('t=1.0이면 other를 반환한다', () {
         final light = AppColors.fromBrightness(Brightness.light);
         final dark = AppColors.fromBrightness(Brightness.dark);
-        final result = light.lerp(dark, 1.0);
+        final result = light.lerp(dark, 1);
 
         expect(result.success, equals(dark.success));
         expect(result.warning, equals(dark.warning));

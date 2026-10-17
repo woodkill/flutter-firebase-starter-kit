@@ -64,7 +64,7 @@ void main() {
       test('t=0.0이면 this의 스타일을 유지한다', () {
         final light = AppTypography.fromTextTheme(ThemeData.light().textTheme);
         final dark = AppTypography.fromTextTheme(ThemeData.dark().textTheme);
-        final result = light.lerp(dark, 0.0);
+        final result = light.lerp(dark, 0);
 
         expect(result.displayLarge, equals(light.displayLarge));
       });
