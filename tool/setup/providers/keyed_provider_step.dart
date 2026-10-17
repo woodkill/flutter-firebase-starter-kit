@@ -164,7 +164,8 @@ final class PairFailed extends PairCheck {
 /// 다른 flavor 중복 · 서버 확인이 틀리면 그 값만 [maxKeyAttempts] 회까지 다시
 /// 묻는다. 물을 값이 없으면(맞춤) 고칠 자리 이름 표만 보이고, 서버 확인이 있는
 /// 수단은 config 값으로 짝을 먼저 확인한 뒤 쓴다. 기록은 config → xcconfig →
-/// Secret Manager(표준 입력) 순서다.
+/// Secret Manager(표준 입력) 순서다. 원격 자리가 있는 수단은 검사 끝에
+/// [findRemoteProblem] 으로 그 자리를 보고, 기록 끝에 [writeRemote] 로 쓴다.
 abstract class KeyedProviderStep implements Step {
   /// 하위 클래스만 만든다.
   KeyedProviderStep();
@@ -193,12 +194,38 @@ abstract class KeyedProviderStep implements Step {
   /// 받지 않는다).
   String? suggestValue(WizardContext context, KeyField field) => null;
 
+  /// 파일 · Secret Manager 밖의 원격 자리(예: Firebase 로그인 수단 설정)가
+  /// [values] 와 어긋나는지 본다 — 어긋나면 화면에 보일 자리 이름(값 없음), 맞으면
+  /// null.
+  ///
+  /// 검사가 파일 · Secret Manager 를 모두 읽은 뒤(읽기 실패가 없을 때) 부른다.
+  /// [values] 는 자리표시가 아닌 config 값과 이번 검사에서 Secret Manager 로 읽은
+  /// 서버 전용 secret 값(메모리만)이다 — 물을 값은 들어 있지 않다. 기본은 원격
+  /// 자리가 없다(요청 0).
+  Future<String?> findRemoteProblem(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async => null;
+
+  /// 원격 자리에 [values] 를 쓴다 — 실패면 단계 결과로 보일 [Failed], 아니면 null.
+  ///
+  /// 실행(입력 · 맞춤 모두)이 config → xcconfig → Secret Manager 를 모두 쓴
+  /// 뒤 마지막에 부른다. [values] 는 그 기록에 쓴 값(입력값이 우선)과 서버 전용
+  /// secret 의 Secret Manager 값(메모리만)이다. 실패해도 앞에서 쓴 자리는 되돌리지
+  /// 않는다. 기본은 아무것도 쓰지 않는다(요청 0).
+  Future<Failed?> writeRemote(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) async => null;
+
   _KeyedMode _mode = _KeyedMode.unreadable;
   String _reason = '';
   CommandResult? _failedResult;
   String _projectId = '';
   List<KeyField> _askFields = const <KeyField>[];
   Map<KeyField, String> _knownValues = const <KeyField, String>{};
+  Map<KeyField, String> _serverSecretValues = const <KeyField, String>{};
+  String? _remoteProblem;
   List<KeyField> _xcconfigFixes = const <KeyField>[];
   Map<KeyField, List<String>> _secretWrites = const <KeyField, List<String>>{};
   List<_Place> _places = const <_Place>[];
@@ -221,6 +248,7 @@ abstract class KeyedProviderStep implements Step {
     final String xcconfigPath = context.resolve(context.paths.xcconfig);
     final askFields = <KeyField>[];
     final knownValues = <KeyField, String>{};
+    final serverSecretValues = <KeyField, String>{};
     final xcconfigFixes = <KeyField>[];
     final secretWrites = <KeyField, List<String>>{};
     final pending = <_Place>[];
@@ -291,6 +319,9 @@ abstract class KeyedProviderStep implements Step {
           case SecretFound(:final String value):
             if (value.isEmpty || value == secretPlaceholderValue) {
               needsInput = true;
+            } else {
+              // 원격 자리 비교 · 기록에만 쓴다 — 서버 확인에는 넘기지 않는다.
+              serverSecretValues[field] = value;
             }
           case SecretMissing():
             if (configKey != null) {
@@ -320,15 +351,24 @@ abstract class KeyedProviderStep implements Step {
     _projectId = projectId;
     _askFields = askFields;
     _knownValues = knownValues;
+    _serverSecretValues = serverSecretValues;
     _xcconfigFixes = xcconfigFixes;
     _secretWrites = secretWrites;
     _places = pending;
     _otherFlavorValues = otherFlavorValues;
-    if (pending.isEmpty) {
+    final String? remoteProblem = await findRemoteProblem(
+      context,
+      <KeyField, String>{...knownValues, ...serverSecretValues},
+    );
+    _remoteProblem = remoteProblem;
+    if (pending.isEmpty && remoteProblem == null) {
       _mode = _KeyedMode.done;
       return Done('키 · secret $secretCount개 · iOS 쪽 맞음');
     }
-    final String places = pending.map(_describePlace).join(' · ');
+    final String places = <String>[
+      ...pending.map(_describePlace),
+      ?remoteProblem,
+    ].join(' · ');
     if (duplicates.isNotEmpty) {
       return _mark(_KeyedMode.duplicate, duplicates.join(' · '));
     }
@@ -445,7 +485,10 @@ abstract class KeyedProviderStep implements Step {
         for (final _Place place in _places)
           SummaryRow(place.location, place.name),
       ],
-      notes: <String>['${context.paths.json} 의 값으로 씁니다 — 값은 화면에 보이지 않습니다'],
+      notes: <String>[
+        ?_remoteProblem,
+        '${context.paths.json} 의 값으로 씁니다 — 값은 화면에 보이지 않습니다',
+      ],
     );
     final values = Map<KeyField, String>.of(_knownValues);
     final PairCheck result = await verifyPair(
@@ -602,7 +645,11 @@ abstract class KeyedProviderStep implements Step {
         }
       }
     }
-    return const Applied();
+    final Failed? remoteFailure = await writeRemote(context, <KeyField, String>{
+      ..._serverSecretValues,
+      ...values,
+    });
+    return remoteFailure ?? const Applied();
   }
 
   /// [raw] 가 그 flavor example config 의 같은 키 값(자리표시)이거나 빈 값이면 true.

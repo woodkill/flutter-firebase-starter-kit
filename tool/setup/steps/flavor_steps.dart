@@ -5,6 +5,7 @@ import 'apis_step.dart';
 import 'app_check_step.dart';
 import 'billing_step.dart';
 import 'configure_step.dart';
+import 'facebook_step.dart';
 import 'firebase_project_step.dart';
 import 'firestore_step.dart';
 import 'functions_step.dart';
@@ -36,6 +37,7 @@ List<Step> buildSteps({
   required Set<String> enabledProviders,
 }) {
   final providerSteps = <Step>[
+    if (enabledProviders.contains(FacebookStep.token)) FacebookStep(),
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
     if (enabledProviders.contains(NaverStep.token)) NaverStep(),
     if (enabledProviders.contains(LineStep.token)) LineStep(),
@@ -59,7 +61,9 @@ List<Step> buildSteps({
 /// Android 쪽 단계는 함수 배포가 기다리는 로그인 수단 단계 목록에 넣지 않는다.
 List<Step>? _buildAndroidSideSteps(String token) {
   final AndroidFingerprintKind? kind = switch (token) {
-    KakaoStep.token || NaverStep.token => AndroidFingerprintKind.keyHash,
+    FacebookStep.token ||
+    KakaoStep.token ||
+    NaverStep.token => AndroidFingerprintKind.keyHash,
     LineStep.token => AndroidFingerprintKind.sha1Colon,
     _ => null,
   };
