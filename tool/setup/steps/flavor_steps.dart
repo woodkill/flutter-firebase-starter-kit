@@ -11,6 +11,7 @@ import 'functions_step.dart';
 import 'identity_step.dart';
 import 'kakao_step.dart';
 import 'login_step.dart';
+import 'naver_step.dart';
 import 'provider_android_step.dart';
 import 'providers_step.dart';
 import 'rules_step.dart';
@@ -35,6 +36,7 @@ List<Step> buildSteps({
 }) {
   final providerSteps = <Step>[
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
+    if (enabledProviders.contains(NaverStep.token)) NaverStep(),
   ];
   return <Step>[
     ..._buildCommonSteps(),
@@ -55,7 +57,7 @@ List<Step> buildSteps({
 /// Android 쪽 단계는 함수 배포가 기다리는 로그인 수단 단계 목록에 넣지 않는다.
 List<Step>? _buildAndroidSideSteps(String token) {
   final AndroidFingerprintKind? kind = switch (token) {
-    KakaoStep.token => AndroidFingerprintKind.keyHash,
+    KakaoStep.token || NaverStep.token => AndroidFingerprintKind.keyHash,
     _ => null,
   };
   final ProviderEntry? entry = findProvider(token);
