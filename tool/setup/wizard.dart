@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:math';
 
 import 'command_runner.dart';
 import 'flavor.dart';
 import 'log_sink.dart';
+import 'providers/fingerprints.dart';
 import 'redactor.dart';
 import 'rest_client.dart';
 import 'step.dart';
@@ -79,6 +81,11 @@ final class WizardSession {
   ///
   /// 로그인 수단 단계가 체크 목록을 마치면 끈다.
   bool isProviderSelectionRequested = false;
+
+  /// 이번 실행에서 계산한 Android 디버그 서명 키 지문 — 아직 계산 전이면 null.
+  ///
+  /// 「계산할 수 없음」 도 담는다 — keytool 을 한 실행 안에서 다시 부르지 않는다.
+  DebugFingerprints? debugFingerprints;
 }
 
 /// 단계 실행에 필요한 공용 문맥.
@@ -88,7 +95,8 @@ final class WizardContext {
   ///
   /// [random] 을 주지 않으면 암호학적으로 안전한 난수를, [now] 를 주지 않으면
   /// 시스템 시각을 쓴다(테스트는 고정값을 넣는다). [flavor] 의 기본값은 dev 이고
-  /// [session] 을 주지 않으면 빈 세션을 만든다.
+  /// [session] 을 주지 않으면 빈 세션을 만든다. [homeDirectory] 를 주지 않으면
+  /// 환경 변수 `HOME` 을 쓴다(테스트는 임시 디렉터리를 넣는다).
   WizardContext({
     required this.projectRoot,
     required this.runner,
@@ -98,9 +106,11 @@ final class WizardContext {
     required this.rest,
     this.flavor = Flavor.dev,
     WizardSession? session,
+    String? homeDirectory,
     Random? random,
     DateTime Function()? now,
   }) : session = session ?? WizardSession(),
+       homeDirectory = homeDirectory ?? Platform.environment['HOME'] ?? '',
        random = random ?? Random.secure(),
        now = now ?? DateTime.now;
 
@@ -127,6 +137,9 @@ final class WizardContext {
 
   /// 한 실행 안의 메모리 상태.
   final WizardSession session;
+
+  /// 사용자 홈 디렉터리의 절대 경로 — 모르면 빈 문자열.
+  final String homeDirectory;
 
   /// [flavor] 의 사용자 파일 · 설정 파일 경로.
   FlavorPaths get paths => FlavorPaths(flavor);

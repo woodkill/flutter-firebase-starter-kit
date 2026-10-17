@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 
 import '../../../tool/setup/command_runner.dart';
@@ -230,11 +231,19 @@ final DateTime fixedTestNow = DateTime(2030, 1, 2, 3, 4, 5);
 /// 테스트 문맥의 고정 난수 씨앗.
 const int fixedTestRandomSeed = 19;
 
+/// 테스트 문맥의 기본 홈 디렉터리 — 디버그 키스토어가 없는 임시 경로다.
+///
+/// 개발자 기기의 실제 키스토어를 읽어 가짜 실행기에 없는 keytool 명령을 부르지
+/// 않게 한다.
+final String noKeystoreTestHome =
+    '${Directory.systemTemp.path}/setup-test-no-home';
+
 /// 가짜 실행기 · 가짜 터미널 · 가짜 REST 로 위저드 문맥을 만든다.
 ///
 /// [terminal] 은 [RedactingTerminal] 로 감싸 넣는다 — 화면 단언은 넘긴
 /// [ScriptedTerminal] 의 `output` 으로, 기록 단언은 [log] 로 한다. [log] 를 따로
-/// 넘길 때는 같은 [redactor] 로 만든 것을 넘긴다.
+/// 넘길 때는 같은 [redactor] 로 만든 것을 넘긴다. [homeDirectory] 를 주지 않으면
+/// [noKeystoreTestHome] 을, [session] 을 주지 않으면 빈 세션을 쓴다.
 WizardContext buildTestContext({
   required String projectRoot,
   FakeCommandRunner? runner,
@@ -244,6 +253,8 @@ WizardContext buildTestContext({
   FakeRestClient? rest,
   Random? random,
   DateTime Function()? now,
+  String? homeDirectory,
+  WizardSession? session,
 }) {
   final Redactor usedRedactor = redactor ?? log?.redactor ?? Redactor();
   final MemoryLogSink usedLog = log ?? MemoryLogSink(usedRedactor);
@@ -258,6 +269,8 @@ WizardContext buildTestContext({
     redactor: usedRedactor,
     log: usedLog,
     rest: rest ?? FakeRestClient(),
+    session: session,
+    homeDirectory: homeDirectory ?? noKeystoreTestHome,
     random: random ?? Random(fixedTestRandomSeed),
     now: now ?? () => fixedTestNow,
   );
