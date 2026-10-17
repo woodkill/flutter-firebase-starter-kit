@@ -11,6 +11,7 @@ import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/providers/provider_selection.dart';
@@ -225,6 +226,10 @@ final class _LoggingRest implements RestClient {
   }
 }
 
+/// 디버그 키스토어가 없는 홈에서 보이는 Kakao Android 쪽 줄.
+const String kakaoAndroidUnavailableLine =
+    '  ✗ Kakao — Android 쪽 — $unavailableFingerprintGuide';
+
 /// 흐름 한 번에 쓰는 가짜 실행기 · REST · 화면 · 기록 묶음.
 final class _Harness {
   _Harness(this.root, List<String?> inputs)
@@ -240,6 +245,7 @@ final class _Harness {
       redactor: log.redactor,
       log: log,
       rest: _LoggingRest(rest, log),
+      homeDirectory: noKeystoreTestHome,
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     );
@@ -1133,6 +1139,14 @@ void main() {
         isFalse,
       );
       expect(output, contains(providersHintLine));
+      // 지문을 계산할 수 없는 홈 — Android 쪽 줄만 ✗ 로 끝 목록에 든다.
+      expect(
+        lines.skip(checklists.last),
+        contains(kakaoAndroidUnavailableLine),
+      );
+      final int remaining = lines.lastIndexOf(remainingHeading);
+      expect(remaining, greaterThan(checklists.last));
+      expect(lines.skip(remaining + 1), contains(kakaoAndroidUnavailableLine));
     },
   );
 
@@ -1188,5 +1202,14 @@ void main() {
     expect(h.rest.externalRequests, isEmpty);
     expect(h.runner.countMode(RunMode.stream), 0);
     expect(countWriteRequests(h.rest), 0);
+    // 지문을 계산할 수 없는 홈 — 점검표 · 끝 목록의 Android 쪽 ✗ 줄 하나씩.
+    expect(
+      lines.where((String line) => line == kakaoAndroidUnavailableLine),
+      hasLength(2),
+    );
+    final int remaining = lines.indexOf(remainingHeading);
+    expect(remaining, greaterThan(lines.indexOf(kakaoAndroidUnavailableLine)));
+    expect(lines[remaining + 1], kakaoAndroidUnavailableLine);
+    expect(lines, isNot(contains(allDoneLine)));
   });
 }

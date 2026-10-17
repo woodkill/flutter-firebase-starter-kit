@@ -1,5 +1,6 @@
 import '../confirm.dart';
 import '../firebase_app_files.dart';
+import '../providers/fingerprints.dart';
 import '../providers/key_formats.dart';
 import '../providers/keyed_provider_step.dart';
 import '../providers/provider_catalog.dart';
@@ -47,6 +48,13 @@ final class KakaoStep extends KeyedProviderStep {
   /// 어드민 키가 틀렸을 때 보이는 문장.
   static const String adminKeyMismatchMessage = '어드민 키가 맞지 않습니다';
 
+  /// 값 표의 Android 키 해시 행 라벨.
+  static const String keyHashRowLabel = 'Android 키 해시';
+
+  /// 지문을 계산할 수 없을 때 값 표의 키 해시 행 값.
+  static const String keyHashUnavailableValue =
+      '(Android 쪽 줄 참고 — 지금은 계산할 수 없음)';
+
   /// [adminKey] 를 서버가 받아들이는지 확인하는 요청을 만든다.
   ///
   /// 키는 `Authorization: KakaoAK <키>` 헤더에만 싣고, 표시형에는
@@ -83,6 +91,11 @@ final class KakaoStep extends KeyedProviderStep {
     adminKeyField,
   ];
 
+  /// 패키지명 · 번들 ID 와 이번 실행에서 계산한 Android 키 해시 행을 만든다.
+  ///
+  /// 키 해시 행은 세션에 담긴 지문만 읽는다(keytool 을 부르지 않는다) — 계산했으면
+  /// 키 해시, 계산할 수 없었으면 [keyHashUnavailableValue], 아직 계산 전이면
+  /// 행을 넣지 않는다.
   @override
   List<SummaryRow> buildValueRows(WizardContext context) => <SummaryRow>[
     SummaryRow(
@@ -93,6 +106,15 @@ final class KakaoStep extends KeyedProviderStep {
       'iOS 번들 ID',
       readBundleId(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
     ),
+    ...?switch (context.session.debugFingerprints) {
+      FingerprintsAvailable(:final String keyHash) => <SummaryRow>[
+        SummaryRow(keyHashRowLabel, keyHash),
+      ],
+      FingerprintsUnavailable() => const <SummaryRow>[
+        SummaryRow(keyHashRowLabel, keyHashUnavailableValue),
+      ],
+      null => null,
+    },
   ];
 
   @override

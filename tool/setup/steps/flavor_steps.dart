@@ -1,4 +1,5 @@
 import '../flavor.dart';
+import '../providers/provider_catalog.dart';
 import '../step.dart';
 import 'apis_step.dart';
 import 'app_check_step.dart';
@@ -10,6 +11,7 @@ import 'functions_step.dart';
 import 'identity_step.dart';
 import 'kakao_step.dart';
 import 'login_step.dart';
+import 'provider_android_step.dart';
 import 'providers_step.dart';
 import 'rules_step.dart';
 import 'run_step.dart';
@@ -24,7 +26,9 @@ import 'xcode_step.dart';
 ///
 /// 위저드는 이 순서대로 검사하고 진행한다. 켠 로그인 수단의 단계는 App Check
 /// 뒤 · Functions 앞에 고정 순서로 끼우고, Functions 단계는 그 단계들이 모두
-/// 끝난 뒤에 검사한다. 새 단계는 진행 순서에 맞는 자리에 끼운다.
+/// 끝난 뒤에 검사한다. 콘솔형 로그인 수단은 그 단계 바로 뒤에 Android 쪽 줄을
+/// 끼운다 — 함수 배포는 Android 쪽 줄을 기다리지 않는다. 새 단계는 진행 순서에
+/// 맞는 자리에 끼운다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
@@ -32,6 +36,35 @@ List<Step> buildSteps({
   final providerSteps = <Step>[
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
   ];
+  return <Step>[
+    ..._buildCommonSteps(),
+    for (final Step step in providerSteps) ...<Step>[
+      step,
+      ...?_buildAndroidSideSteps(step.id),
+    ],
+    FunctionsStep(
+      enabledProviders: enabledProviders,
+      providerStepIds: <String>[for (final Step step in providerSteps) step.id],
+    ),
+    RunStep(),
+  ];
+}
+
+/// 로그인 수단 [token] 단계 뒤에 끼울 Android 쪽 단계 — 콘솔형 수단이 아니면 null.
+///
+/// Android 쪽 단계는 함수 배포가 기다리는 로그인 수단 단계 목록에 넣지 않는다.
+List<Step>? _buildAndroidSideSteps(String token) {
+  final AndroidFingerprintKind? kind = switch (token) {
+    KakaoStep.token => AndroidFingerprintKind.keyHash,
+    _ => null,
+  };
+  final ProviderEntry? entry = findProvider(token);
+  if (kind == null || entry == null) return null;
+  return <Step>[ProviderAndroidSideStep(entry, kind)];
+}
+
+/// 로그인 수단과 무관한 앞 단계 목록(App Check 까지)을 만든다.
+List<Step> _buildCommonSteps() {
   return <Step>[
     XcodeStep(),
     ToolsStep(),
@@ -48,11 +81,5 @@ List<Step> buildSteps({
     ConfigureStep(),
     RulesStep(),
     AppCheckStep(),
-    ...providerSteps,
-    FunctionsStep(
-      enabledProviders: enabledProviders,
-      providerStepIds: <String>[for (final Step step in providerSteps) step.id],
-    ),
-    RunStep(),
   ];
 }

@@ -4,6 +4,8 @@ import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
+import '../../../tool/setup/confirm.dart';
+import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
@@ -435,5 +437,43 @@ void main() {
       expect(RegExp('Phase [0-9]').hasMatch(text), isFalse);
     }
     expect(h.log.text, contains('(비밀 값 32자)'));
+  });
+
+  test('T-20-KAKAO-08: 값 표의 Android 키 해시 행 — 계산함 · 계산할 수 없음 · 계산 전', () {
+    /// 세션에 [fingerprints] 를 담은 문맥으로 값 표 행을 만든다.
+    Map<String, String> buildRows(DebugFingerprints? fingerprints) {
+      final session = WizardSession()..debugFingerprints = fingerprints;
+      final List<SummaryRow> rows = KakaoStep().buildValueRows(
+        buildTestContext(projectRoot: root, session: session),
+      );
+      return <String, String>{
+        for (final SummaryRow row in rows) row.label: row.value,
+      };
+    }
+
+    const keyHash = 'q1AFhLJe1jbJyRsDcFRsODGFDxY=';
+    expect(
+      buildRows(
+        const FingerprintsAvailable(
+          sha1Hex: 'ab500584b25ed636c9c91b0370546c3831850f16',
+          sha256Hex: '',
+          keyHash: keyHash,
+        ),
+      ),
+      <String, String>{
+        'Android 패키지명': '$applicationId.dev',
+        'iOS 번들 ID': devBundleId,
+        KakaoStep.keyHashRowLabel: keyHash,
+      },
+    );
+    expect(
+      buildRows(const FingerprintsUnavailable('keytool 을 찾지 못했습니다')),
+      <String, String>{
+        'Android 패키지명': '$applicationId.dev',
+        'iOS 번들 ID': devBundleId,
+        KakaoStep.keyHashRowLabel: '(Android 쪽 줄 참고 — 지금은 계산할 수 없음)',
+      },
+    );
+    expect(buildRows(null).keys, <String>['Android 패키지명', 'iOS 번들 ID']);
   });
 }
