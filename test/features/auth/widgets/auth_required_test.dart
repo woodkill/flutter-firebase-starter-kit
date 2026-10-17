@@ -43,9 +43,9 @@ Future<void> pumpAuthRequired(
   when(() => mockAuth.currentUser).thenReturn(currentUser);
 
   final mockRepo = _MockAuthRepository();
-  when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+  when(mockRepo.signInWithGoogle).thenAnswer((_) async => null);
+  when(mockRepo.signInWithApple).thenAnswer((_) async => null);
+  when(mockRepo.signInWithFacebook).thenAnswer((_) async => null);
 
   final router = GoRouter(
     initialLocation: '/',
@@ -101,7 +101,6 @@ void main() {
       await pumpAuthRequired(
         tester,
         isFirebaseInitialized: true,
-        currentUser: null,
         onAuthenticated: () => callbackInvoked++,
       );
 
@@ -172,7 +171,6 @@ void main() {
       await pumpAuthRequired(
         tester,
         isFirebaseInitialized: false,
-        currentUser: null,
         onAuthenticated: () => callbackInvoked++,
       );
 

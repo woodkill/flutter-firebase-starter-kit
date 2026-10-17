@@ -138,7 +138,7 @@ void main() {
     // exists=true 로 전환.
     final defaultSnapshot = _MockSnapshot();
     when(() => defaultSnapshot.exists).thenReturn(false);
-    when(() => defaultSnapshot.data()).thenReturn(null);
+    when(defaultSnapshot.data).thenReturn(null);
     when(() => mockDoc.get()).thenAnswer((_) async => defaultSnapshot);
   });
 
@@ -538,7 +538,7 @@ void main() {
 
         // 3분기 (full uid): lastReloadedUid = 'FULL-B'.
         // Firestore mock 을 '문서 없음' 으로 두어 state 는 null 로 유지.
-        await notifier.reloadForUser(uid: 'FULL-B', isAnonymous: false);
+        await notifier.reloadForUser(uid: 'FULL-B');
         expect(
           container.read(termsProvider).lastReloadedUid,
           'FULL-B',
@@ -570,7 +570,7 @@ void main() {
       final existingSnapshot = _MockSnapshot();
       when(() => existingSnapshot.exists).thenReturn(true);
       when(
-        () => existingSnapshot.data(),
+        existingSnapshot.data,
       ).thenReturn(<String, dynamic>{'displayName': 'Foo'});
       when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
 
@@ -640,7 +640,7 @@ void main() {
       final existingSnapshot = _MockSnapshot();
       when(() => existingSnapshot.exists).thenReturn(true);
       when(
-        () => existingSnapshot.data(),
+        existingSnapshot.data,
       ).thenReturn(<String, dynamic>{'displayName': 'A'});
       when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
       when(
@@ -676,7 +676,7 @@ void main() {
 
       final existingSnapshot = _MockSnapshot();
       when(() => existingSnapshot.exists).thenReturn(true);
-      when(() => existingSnapshot.data()).thenReturn(<String, dynamic>{});
+      when(existingSnapshot.data).thenReturn(<String, dynamic>{});
       when(() => mockDoc.get()).thenAnswer((_) async => existingSnapshot);
       when(
         () => mockCrashlytics.setCustomKey(any(), any<Object>()),
@@ -716,7 +716,7 @@ void main() {
         expect(prefs.getString('terms.accepted_value'), isNotNull);
 
         // 2) 사용자 A 로그아웃 — userChanges null emit 시뮬레이션.
-        await container.read(termsProvider.notifier).reloadForUser(uid: null);
+        await container.read(termsProvider.notifier).reloadForUser();
 
         expect(
           container.read(termsProvider).acceptance,
@@ -768,7 +768,7 @@ void main() {
 
       // 정식 사용자 진입 — 기본 stub 이 exists=false 라 prefs I/O 없이
       // lastReloadedUid 만 갱신된다.
-      await notifier.reloadForUser(uid: 'FULL-B', isAnonymous: false);
+      await notifier.reloadForUser(uid: 'FULL-B');
       expect(container.read(termsProvider).lastReloadedUid, 'FULL-B');
 
       // 이 스토어는 setValue 가 성공하므로 seed 는 정상 저장된다.
@@ -779,7 +779,7 @@ void main() {
       );
       expect(seed, isA<Success<void>>());
 
-      await notifier.reloadForUser(uid: null);
+      await notifier.reloadForUser();
 
       // 삭제 실패 여부를 prefs.get* 로 단언하지 않는다 — SharedPreferences
       // 는 `_store.remove` 호출 전에 캐시를 먼저 비우므로 성공/실패 양쪽에서

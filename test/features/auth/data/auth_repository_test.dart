@@ -120,7 +120,7 @@ void main() {
     when(() => mockUser.displayName).thenReturn('Test');
     when(() => mockUser.photoURL).thenReturn(null);
     when(() => mockUser.metadata).thenReturn(mockMetadata);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     when(() => mockCredential.user).thenReturn(mockUser);
     // (Phase 9.2 R4 — IN-03 회귀 가드 sparsity 보강) grand suite 의
     // `_autoSendEmailVerification` 진입 시 항상 `isNewUser=false` 가드로
@@ -200,9 +200,7 @@ void main() {
       when(() => mockUser.emailVerified).thenReturn(false);
       when(() => mockUser.displayName).thenReturn(null);
       when(() => mockUser.photoURL).thenReturn(null);
-      when(
-        () => mockMetadata.creationTime,
-      ).thenReturn(DateTime.utc(2026, 1, 1));
+      when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
       when(
         () => mockAuth.signInWithEmailAndPassword(
           email: any(named: 'email'),
@@ -1601,7 +1599,7 @@ void main() {
           fb.FirebaseAuthException(code: 'credential-already-in-use'),
         );
         // _safeDelete (anonymous user.delete()) succeeds.
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+        when(mockAnonymous.delete).thenAnswer((_) async {});
         // signInWithCredential succeeds (non-anonymous user returned).
         when(
           () => mockAuth.signInWithCredential(any()),
@@ -1621,7 +1619,7 @@ void main() {
         // 남아 verifyNever 로 추가 검증 가능 — 본 테스트는 1회 매칭 후 end.
         verifyInOrder([
           () => mockSocialLinkInProgress.begin(),
-          () => mockAnonymous.delete(),
+          mockAnonymous.delete,
           () => mockAuth.signInWithCredential(any()),
           () => mockSocialLinkInProgress.end(),
         ]);
@@ -1659,7 +1657,7 @@ void main() {
         ),
       );
       // _safeDelete succeeds.
-      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      when(mockAnonymous.delete).thenAnswer((_) async {});
       // signInWithCredential success (credential reuse path).
       when(
         () => mockAuth.signInWithCredential(any()),
@@ -1676,7 +1674,7 @@ void main() {
       // "signInWithCredential 1회 + signInWithProvider 0회" invariant 보장.
       verifyInOrder([
         () => mockSocialLinkInProgress.begin(),
-        () => mockAnonymous.delete(),
+        mockAnonymous.delete,
         () => mockAuth.signInWithCredential(any()),
         () => mockSocialLinkInProgress.end(),
       ]);
@@ -1703,7 +1701,7 @@ void main() {
         () => mockAnonymous.linkWithProvider(any()),
       ).thenThrow(fb.FirebaseAuthException(code: 'credential-already-in-use'));
       // _safeDelete succeeds.
-      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      when(mockAnonymous.delete).thenAnswer((_) async {});
       // signInWithProvider success (legacy fallback path).
       when(
         () => mockAuth.signInWithProvider(any()),
@@ -1716,7 +1714,7 @@ void main() {
       expect(result, isA<Success<User>>());
       verifyInOrder([
         () => mockSocialLinkInProgress.begin(),
-        () => mockAnonymous.delete(),
+        mockAnonymous.delete,
         () => mockAuth.signInWithProvider(any()),
         () => mockSocialLinkInProgress.end(),
       ]);
@@ -1749,7 +1747,7 @@ void main() {
       expect(result, isA<Failure<User>>());
       final failure = (result! as Failure<User>).exception;
       expect(failure, isA<NoInternetConnection>());
-      verifyNever(() => mockAnonymous.delete());
+      verifyNever(mockAnonymous.delete);
       verifyNever(() => mockAuth.signInWithProvider(any()));
       verifyNever(() => mockAuth.signInWithCredential(any()));
       verify(() => mockSocialLinkInProgress.begin()).called(1);
@@ -1786,7 +1784,7 @@ void main() {
         () => mockAnonymous.linkWithCredential(any()),
       ).thenThrow(fb.FirebaseAuthException(code: 'credential-already-in-use'));
       // _safeDelete succeeds.
-      when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+      when(mockAnonymous.delete).thenAnswer((_) async {});
       // signInWithCredential succeeds.
       when(
         () => mockAuth.signInWithCredential(any()),
@@ -1799,7 +1797,7 @@ void main() {
       expect(result, isA<Success<User>>());
       verifyInOrder([
         () => mockSocialLinkInProgress.begin(),
-        () => mockAnonymous.delete(),
+        mockAnonymous.delete,
         () => mockAuth.signInWithCredential(any()),
         () => mockSocialLinkInProgress.end(),
       ]);
@@ -1846,7 +1844,7 @@ void main() {
         when(
           () => mockAnonymous.linkWithCredential(any()),
         ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+        when(mockAnonymous.delete).thenAnswer((_) async {});
         when(
           () => mockAuth.signInWithCredential(any()),
         ).thenAnswer((_) async => mockCredential);
@@ -1879,7 +1877,7 @@ void main() {
         ]);
         // 핵심 회귀 가드 — 자동 합류 방아쇠(새 로그인) 0회 + 익명 삭제 0회.
         verifyNever(() => mockAuth.signInWithCredential(any()));
-        verifyNever(() => mockAnonymous.delete());
+        verifyNever(mockAnonymous.delete);
       },
     );
 
@@ -1901,7 +1899,7 @@ void main() {
         when(
           () => mockAnonymous.linkWithProvider(any()),
         ).thenThrow(fb.FirebaseAuthException(code: 'email-already-in-use'));
-        when(() => mockAnonymous.delete()).thenAnswer((_) async {});
+        when(mockAnonymous.delete).thenAnswer((_) async {});
 
         final result = await repository.signInWithApple();
 
@@ -1917,7 +1915,7 @@ void main() {
         // 핵심 회귀 가드 — 자동 합류 방아쇠(새 로그인) 0회 + 익명 삭제 0회.
         verifyNever(() => mockAuth.signInWithProvider(any()));
         verifyNever(() => mockAuth.signInWithCredential(any()));
-        verifyNever(() => mockAnonymous.delete());
+        verifyNever(mockAnonymous.delete);
       },
     );
   });

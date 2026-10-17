@@ -367,7 +367,7 @@ void main() {
         verify(
           () => analytics.setUserProperty(name: 'guest_mode', value: 'false'),
         ).called(1);
-        verify(() => analytics.setUserId(id: null)).called(1);
+        verify(() => analytics.setUserId()).called(1);
         verify(() => crashlytics.setUserIdentifier('')).called(1);
         expect(recorder.mirrorCalls, isEmpty);
       },

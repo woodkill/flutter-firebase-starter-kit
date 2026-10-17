@@ -110,7 +110,7 @@ void main() {
     when(() => mockCurrentUser.photoURL).thenReturn(null);
     when(() => mockCurrentUser.isAnonymous).thenReturn(false);
     when(() => mockCurrentUser.metadata).thenReturn(mockMetadata);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     when(() => mockCurrentUser.providerData).thenReturn(const []);
     when(() => mockCurrentUser.reload()).thenAnswer((_) async {});
     when(
@@ -173,7 +173,7 @@ void main() {
     when(() => user.photoURL).thenReturn(null);
     when(() => user.metadata).thenReturn(mockMetadata);
     when(() => user.providerData).thenReturn(const []);
-    when(() => user.reload()).thenAnswer((_) async {});
+    when(user.reload).thenAnswer((_) async {});
     when(() => user.getIdToken(any())).thenAnswer((_) async => 'swapped-token');
     return user;
   }
@@ -613,7 +613,7 @@ void main() {
           ),
         ).called(1);
         verify(() => replacement.getIdToken(true)).called(1);
-        verify(() => replacement.reload()).called(1);
+        verify(replacement.reload).called(1);
         verifyNever(() => mockCurrentUser.getIdToken(any()));
         verifyNever(() => mockCurrentUser.reload());
         verify(() => mockSocialLinkInProgress.begin()).called(1);
@@ -709,7 +709,6 @@ void main() {
           any(that: isA<FirebaseFunctionsException>()),
           any(),
           reason: 'app_check_rejected_linkLineProvider',
-          fatal: false,
         ),
       ).called(1);
       verify(() => mockLineSdkClient.logout()).called(1);

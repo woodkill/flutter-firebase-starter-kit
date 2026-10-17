@@ -157,7 +157,7 @@ User _testUser({
     email: email,
     emailVerified: true,
     displayName: displayName,
-    createdAt: DateTime.utc(2026, 1, 1),
+    createdAt: DateTime.utc(2026),
     providerIds: providerIds,
     signUpProviderId: signUpProviderId,
   );
@@ -390,8 +390,8 @@ Future<_MockAuthRepository> _pumpLogoutHarness(
   _useViewport(tester, const Size(800, 8000));
 
   final mockRepo = _MockAuthRepository();
-  when(() => mockRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
-  when(() => mockRepo.signOut()).thenAnswer((_) async {});
+  when(mockRepo.signOutAndResetOnboarding).thenAnswer((_) async {});
+  when(mockRepo.signOut).thenAnswer((_) async {});
 
   final mockAuth = _MockFirebaseAuth();
   when(() => mockAuth.currentUser).thenReturn(null);
@@ -1883,7 +1883,7 @@ void main() {
       (tester) async {
         final mockAuth = _MockFirebaseAuth();
         when(
-          () => mockAuth.authStateChanges(),
+          mockAuth.authStateChanges,
         ).thenAnswer((_) => const Stream<fb.User?>.empty());
         final container = ProviderContainer(
           overrides: [
@@ -2008,15 +2008,15 @@ void main() {
       await tester.tap(find.text(l10n.commonCancel));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
-      verifyNever(() => repo.signOutAndResetOnboarding());
+      verifyNever(repo.signOutAndResetOnboarding);
 
       // 확인 — 호출 1 · signOut 단독 호출 0.
       await tester.tap(find.text(l10n.authAccountSignOut));
       await tester.pumpAndSettle();
       await tester.tap(find.text(l10n.authAccountSignOut).last);
       await tester.pumpAndSettle();
-      verify(() => repo.signOutAndResetOnboarding()).called(1);
-      verifyNever(() => repo.signOut());
+      verify(repo.signOutAndResetOnboarding).called(1);
+      verifyNever(repo.signOut);
     });
 
     testWidgets('T-171-ACCOUNT-04: 연결 가능 0(W5) — 섹션 크기 0 · 연결된 계정 ↔ 로그아웃 간격 '
@@ -2100,9 +2100,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // I2 invariant 단일 진리원 (10.2 D-A4).
-        verify(() => repo.signOutAndResetOnboarding()).called(1);
+        verify(repo.signOutAndResetOnboarding).called(1);
         // D-A7 호출자 책임 — UI 로그아웃 경로는 signOut() 단독 호출 0.
-        verifyNever(() => repo.signOut());
+        verifyNever(repo.signOut);
       },
     );
 

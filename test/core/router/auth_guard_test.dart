@@ -721,7 +721,7 @@ void main() {
       required StreamController<fb.User?> controller,
     }) {
       final mockAuth = _MockFirebaseAuth();
-      when(() => mockAuth.userChanges()).thenAnswer((_) => controller.stream);
+      when(mockAuth.userChanges).thenAnswer((_) => controller.stream);
       final container = ProviderContainer(
         overrides: [
           isFirebaseInitializedProvider.overrideWithValue(isInitialized),
@@ -738,7 +738,7 @@ void main() {
       // 않는다 — StreamController 를 쥐어 줘도 붙잡을 것이 없다.
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.userChanges(),
+        mockAuth.userChanges,
       ).thenAnswer((_) => const Stream<fb.User?>.empty());
       final container = ProviderContainer(
         overrides: [
@@ -747,7 +747,7 @@ void main() {
         ],
       );
       expect(container.read(authRefreshProvider), initialAuthRefreshState);
-      verifyNever(() => mockAuth.userChanges());
+      verifyNever(mockAuth.userChanges);
 
       expect(container.dispose, returnsNormally);
 
@@ -829,7 +829,7 @@ void main() {
       final controller = StreamController<fb.User?>();
       addTearDown(controller.close);
       final mockAuth = _MockFirebaseAuth();
-      when(() => mockAuth.userChanges()).thenAnswer((_) => controller.stream);
+      when(mockAuth.userChanges).thenAnswer((_) => controller.stream);
       final container = ProviderContainer(
         overrides: [
           isFirebaseInitializedProvider.overrideWithValue(true),
@@ -939,7 +939,7 @@ void main() {
     test('G2-D: emailVerified 만 다른 두 사용자를 순차 emit 하면 2회 통지한다', () async {
       final h = makeNotifier();
 
-      h.controller.add(snapshotUser(emailVerified: false));
+      h.controller.add(snapshotUser());
       await pump();
       h.controller.add(snapshotUser(emailVerified: true));
       await pump();
@@ -958,7 +958,7 @@ void main() {
 
       h.controller.add(snapshotUser(isAnonymous: true));
       await pump();
-      h.controller.add(snapshotUser(isAnonymous: false));
+      h.controller.add(snapshotUser());
       await pump();
 
       expect(
@@ -1946,7 +1946,6 @@ void main() {
           user: userA,
           termsAcceptance: null,
           reloadedUid: 'A-UID',
-          onboardingSeen: true,
         );
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.home);
@@ -1970,7 +1969,6 @@ void main() {
           user: userA,
           termsAcceptance: null,
           reloadedUid: 'A-UID',
-          onboardingSeen: true,
         );
         addTearDown(container.dispose);
         when(() => mockState.matchedLocation).thenReturn(AppRoutes.onboarding);
@@ -2425,7 +2423,6 @@ void main() {
         final container = makeContainerWithReloadedUid(
           isInitialized: true,
           user: anonymousUser(),
-          onboardingSeen: false,
           reloadedUid: 'anon-uid',
         );
         addTearDown(container.dispose);

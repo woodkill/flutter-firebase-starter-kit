@@ -40,7 +40,7 @@ void main() {
     setUp(() {
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.authStateChanges(),
+        mockAuth.authStateChanges,
       ).thenAnswer((_) => const Stream<User?>.empty());
 
       container = ProviderContainer(
@@ -83,7 +83,7 @@ void main() {
       addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.authStateChanges(),
+        mockAuth.authStateChanges,
       ).thenAnswer((_) => const Stream<User?>.empty());
       final container = ProviderContainer(
         overrides: [
@@ -130,7 +130,7 @@ void main() {
     ) async {
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.authStateChanges(),
+        mockAuth.authStateChanges,
       ).thenAnswer((_) => const Stream<User?>.empty());
       final container = ProviderContainer(
         overrides: [
@@ -191,7 +191,7 @@ void main() {
       (tester) async {
         final mockAuth = _MockFirebaseAuth();
         when(
-          () => mockAuth.authStateChanges(),
+          mockAuth.authStateChanges,
         ).thenAnswer((_) => const Stream<User?>.empty());
         final container = ProviderContainer(
           overrides: [
@@ -230,7 +230,7 @@ void main() {
     ProviderContainer makeContainer(StreamController<void> controller) {
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.authStateChanges(),
+        mockAuth.authStateChanges,
       ).thenAnswer((_) => const Stream<User?>.empty());
 
       return ProviderContainer(
@@ -373,9 +373,7 @@ void main() {
       addTearDown(authController.close);
 
       final mockAuth = _MockFirebaseAuth();
-      when(
-        () => mockAuth.userChanges(),
-      ).thenAnswer((_) => authController.stream);
+      when(mockAuth.userChanges).thenAnswer((_) => authController.stream);
       final container = ProviderContainer(
         overrides: [
           isFirebaseInitializedProvider.overrideWithValue(true),
@@ -433,9 +431,7 @@ void main() {
       addTearDown(authController.close);
 
       final mockAuth = _MockFirebaseAuth();
-      when(
-        () => mockAuth.userChanges(),
-      ).thenAnswer((_) => authController.stream);
+      when(mockAuth.userChanges).thenAnswer((_) => authController.stream);
       final container = ProviderContainer(
         overrides: [
           isFirebaseInitializedProvider.overrideWithValue(true),

@@ -548,7 +548,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'profile_photo_notifier_upload',
-          fatal: false,
         ),
       ).called(1);
     });

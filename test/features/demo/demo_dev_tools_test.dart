@@ -135,7 +135,7 @@ Future<DevToolsTestEnv> pumpDevToolsHarness(
   // Phase 10.2 D-A1/A4: 구 D-20 로그아웃 메서드(signOut → signInAnonymously
   // cascade)는 폐기되고 signOutAndResetOnboarding (Future<void>) 으로 교체됨.
   // production 와 Dev Tools 의 단일 진리원.
-  when(() => mockRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
+  when(mockRepo.signOutAndResetOnboarding).thenAnswer((_) async {});
 
   final onboardingRecorder = OnboardingResetRecorder();
   final recordingOnboarding = RecordingOnboardingNotifier(onboardingRecorder);
@@ -302,7 +302,7 @@ void main() {
         await _scrollTo(tester, find.text(l10n.devToolsForceSignOut));
         await tester.tap(find.text(l10n.devToolsForceSignOut));
         await tester.pumpAndSettle();
-        verify(() => env.authRepo.signOutAndResetOnboarding()).called(1);
+        verify(env.authRepo.signOutAndResetOnboarding).called(1);
       },
     );
   });
@@ -312,7 +312,7 @@ void main() {
         '성공 SnackBar(floating)', (tester) async {
       final env = await pumpDevToolsHarness(tester, locale: const Locale('ko'));
       when(
-        () => env.testPushClient.send(),
+        env.testPushClient.send,
       ).thenAnswer((_) async => const TestPushSent(2));
       final l10n = AppLocalizations.of(tester.element(find.byType(DemoScreen)));
       final sendButton = find.widgetWithText(
@@ -336,7 +336,7 @@ void main() {
       await tester.tap(sendButton);
       await tester.pumpAndSettle();
 
-      verify(() => env.testPushClient.send()).called(1);
+      verify(env.testPushClient.send).called(1);
       expect(find.text('기기 2대에 테스트 알림을 보냈어요.'), findsOneWidget);
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.behavior, SnackBarBehavior.floating);
@@ -415,7 +415,7 @@ void main() {
     ) async {
       final env = await pumpDevToolsHarness(tester);
       final pending = Completer<TestPushOutcome>();
-      when(() => env.testPushClient.send()).thenAnswer((_) => pending.future);
+      when(env.testPushClient.send).thenAnswer((_) => pending.future);
       final l10n = AppLocalizations.of(tester.element(find.byType(DemoScreen)));
       final button = _sendButton(l10n);
       await _scrollTo(tester, button);
@@ -429,7 +429,7 @@ void main() {
 
       await tester.tap(button, warnIfMissed: false);
       await tester.pump();
-      verify(() => env.testPushClient.send()).called(1);
+      verify(env.testPushClient.send).called(1);
 
       pending.complete(const TestPushSent(2));
       await tester.pumpAndSettle();

@@ -128,7 +128,7 @@ void main() {
     when(() => mockUser.photoURL).thenReturn(null);
     when(() => mockUser.isAnonymous).thenReturn(false);
     when(() => mockUser.metadata).thenReturn(mockMetadata);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     when(() => mockUser.providerData).thenReturn(const <fb.UserInfo>[]);
     when(() => mockCredential.user).thenReturn(mockUser);
     when(() => mockCredential.additionalUserInfo).thenReturn(null);

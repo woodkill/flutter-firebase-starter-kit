@@ -102,7 +102,7 @@ void main() {
     when(() => mockCurrentUser.photoURL).thenReturn(null);
     when(() => mockCurrentUser.isAnonymous).thenReturn(false);
     when(() => mockCurrentUser.metadata).thenReturn(mockMetadata);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     when(() => mockCurrentUser.providerData).thenReturn(const []);
 
     when(() => mockLinkResult.user).thenReturn(mockCurrentUser);

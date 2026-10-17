@@ -71,9 +71,7 @@ typedef _ArrivalApp = ({
 Future<_ArrivalApp> _pumpApp(WidgetTester tester) async {
   final repo = _MockAuthRepository();
   final repoDone = Completer<void>();
-  when(
-    () => repo.signOutAndResetOnboarding(),
-  ).thenAnswer((_) => repoDone.future);
+  when(repo.signOutAndResetOnboarding).thenAnswer((_) => repoDone.future);
   final router = _buildRouter();
   addTearDown(router.dispose);
 

@@ -248,7 +248,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'fcm_token_repository_upsert',
-          fatal: false,
         ),
       ).called(1);
     });
@@ -275,7 +274,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'fcm_token_repository_delete',
-          fatal: false,
         ),
       ).called(1);
     });
@@ -335,7 +333,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'fcm_token_repository_fetch_all',
-          fatal: false,
         ),
       ).called(1);
     });

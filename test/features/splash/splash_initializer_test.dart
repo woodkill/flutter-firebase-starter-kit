@@ -35,12 +35,8 @@ _MockCrashlytics _buildCrashlyticsMock() {
 User stubUser({String uid = 'anon-uid'}) {
   return User(
     uid: uid,
-    email: null,
     emailVerified: false,
-    displayName: null,
-    photoUrl: null,
     createdAt: DateTime.utc(2026, 4, 14),
-    providerIds: const <String>[],
   );
 }
 
@@ -310,7 +306,6 @@ void main() {
           any<Object>(),
           any<StackTrace?>(),
           reason: any(named: 'reason'),
-          fatal: false,
         ),
       ).called(1);
     });
@@ -460,7 +455,6 @@ void main() {
             any<Object>(),
             any<StackTrace?>(),
             reason: any(named: 'reason'),
-            fatal: false,
           ),
         ).called(1);
       },
@@ -532,7 +526,6 @@ void main() {
           any<Object>(),
           any<StackTrace?>(),
           reason: any(named: 'reason'),
-          fatal: false,
         ),
       ).called(1);
     });

@@ -17,12 +17,12 @@ import '../../../helpers/auth_mocks.dart';
 /// 로그아웃 경로 협력 객체 · 호출 기록.
 class _Harness {
   _Harness() {
-    when(() => auth.signOut()).thenAnswer((_) async => calls.add('signOut'));
-    when(() => googleSignIn.signOut()).thenAnswer((_) async {});
-    when(() => facebookAuth.logOut()).thenAnswer((_) async {});
-    when(() => kakao.logout()).thenAnswer((_) async {});
-    when(() => naver.logout()).thenAnswer((_) async {});
-    when(() => line.logout()).thenAnswer((_) async {});
+    when(auth.signOut).thenAnswer((_) async => calls.add('signOut'));
+    when(googleSignIn.signOut).thenAnswer((_) async {});
+    when(facebookAuth.logOut).thenAnswer((_) async {});
+    when(kakao.logout).thenAnswer((_) async {});
+    when(naver.logout).thenAnswer((_) async {});
+    when(line.logout).thenAnswer((_) async {});
   }
 
   final MockFirebaseAuth auth = MockFirebaseAuth();
@@ -58,7 +58,7 @@ void main() {
       await repo.signOutAndResetOnboarding();
 
       expect(h.calls, <String>['cleanup', 'reset', 'signOut']);
-      verify(() => h.auth.signOut()).called(1);
+      verify(h.auth.signOut).called(1);
     });
 
     test('T-17-NOTIF-10: cleanup 이 5초 걸려도 3초 뒤 reset · signOut 진행 '
@@ -93,7 +93,7 @@ void main() {
         // 늦게 끝난 cleanup 은 로그아웃 결과에 영향이 없다.
         async.elapse(const Duration(seconds: 3));
         expect(h.calls.last, 'cleanup-done');
-        verify(() => h.auth.signOut()).called(1);
+        verify(h.auth.signOut).called(1);
       });
     });
 
@@ -109,7 +109,7 @@ void main() {
         await expectLater(repo.signOutAndResetOnboarding(), completes);
 
         expect(h.calls, <String>['cleanup', 'reset', 'signOut']);
-        verify(() => h.auth.signOut()).called(1);
+        verify(h.auth.signOut).called(1);
       },
     );
 

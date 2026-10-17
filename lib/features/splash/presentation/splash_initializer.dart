@@ -219,7 +219,6 @@ class SplashInitializer {
         exception,
         stack,
         reason: 'splash_auto_signin_retry_exhausted',
-        fatal: false,
       );
     }
     return Result.failure(exception);

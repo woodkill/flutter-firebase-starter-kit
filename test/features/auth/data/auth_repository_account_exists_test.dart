@@ -55,7 +55,7 @@ void main() {
     mockLineSdkClient = MockLineSdkClient();
     mockFunctions = MockFirebaseFunctions();
     mockLookupCallable = _MockHttpsCallable();
-    fakeNow = DateTime.utc(2026, 5, 29, 10, 0, 0);
+    fakeNow = DateTime.utc(2026, 5, 29, 10);
 
     repository = buildAuthRepository(
       auth: mockAuth,

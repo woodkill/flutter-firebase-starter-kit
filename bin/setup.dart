@@ -72,7 +72,7 @@ Future<void> main(List<String> arguments) async {
   if (results.flag('help')) {
     stdout
       ..writeln('설정 위저드 — 개발 환경과 Firebase 설정을 차례로 준비합니다.')
-      ..writeln('')
+      ..writeln()
       ..writeln('사용법: ./setup.sh [옵션]')
       ..writeln(parser.usage);
     return;
@@ -165,7 +165,7 @@ Future<void> main(List<String> arguments) async {
 void writeArgumentError(ArgParser parser, String message) {
   stderr
     ..writeln('인자 오류: $message')
-    ..writeln('')
+    ..writeln()
     ..writeln('사용법: ./setup.sh [옵션]')
     ..writeln(parser.usage);
   exitCode = wizardExitStopped;

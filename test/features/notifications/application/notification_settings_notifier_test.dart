@@ -86,14 +86,10 @@ class _Harness {
     AuthorizationStatus status = AuthorizationStatus.notDetermined,
     AuthorizationStatus requestResult = AuthorizationStatus.authorized,
   }) {
-    when(
-      () => messaging.getAuthorizationStatus(),
-    ).thenAnswer((_) async => status);
-    when(
-      () => messaging.requestPermission(),
-    ).thenAnswer((_) async => requestResult);
-    when(() => messaging.getToken()).thenAnswer((_) async => _token1);
-    when(() => messaging.deleteToken()).thenAnswer((_) async => true);
+    when(messaging.getAuthorizationStatus).thenAnswer((_) async => status);
+    when(messaging.requestPermission).thenAnswer((_) async => requestResult);
+    when(messaging.getToken).thenAnswer((_) async => _token1);
+    when(messaging.deleteToken).thenAnswer((_) async => true);
     when(
       () => messaging.onTokenRefresh,
     ).thenAnswer((_) => const Stream<String>.empty());
@@ -228,8 +224,8 @@ void main() {
       final container = h.container(user: _regularUser());
 
       expect(await _settledValue(container), isFalse);
-      verifyNever(() => h.messaging.requestPermission());
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.requestPermission);
+      verifyNever(h.messaging.getToken);
 
       final before = DateTime.now();
       final result = await container
@@ -238,8 +234,8 @@ void main() {
       final after = DateTime.now();
 
       expect(result, NotificationToggleResult.enabled);
-      verify(() => h.messaging.requestPermission()).called(1);
-      verify(() => h.messaging.getToken()).called(1);
+      verify(h.messaging.requestPermission).called(1);
+      verify(h.messaging.getToken).called(1);
       final captured = verify(
         () => h.repository.upsert(
           uid: _uid,
@@ -279,8 +275,8 @@ void main() {
           .enable();
 
       expect(result, NotificationToggleResult.permissionDenied);
-      verify(() => h.messaging.requestPermission()).called(1);
-      verifyNever(() => h.messaging.getToken());
+      verify(h.messaging.requestPermission).called(1);
+      verifyNever(h.messaging.getToken);
       verifyNever(
         () => h.repository.upsert(
           uid: any(named: 'uid'),
@@ -362,9 +358,9 @@ void main() {
             .enable();
 
         expect(result, NotificationToggleResult.failed);
-        verifyNever(() => h.messaging.getAuthorizationStatus());
-        verifyNever(() => h.messaging.requestPermission());
-        verifyNever(() => h.messaging.getToken());
+        verifyNever(h.messaging.getAuthorizationStatus);
+        verifyNever(h.messaging.requestPermission);
+        verifyNever(h.messaging.getToken);
         verifyZeroInteractions(h.repository);
         expect(container.read(notificationSettingsProvider).value, isFalse);
       });
@@ -375,7 +371,7 @@ void main() {
         '(reason notification_settings_enable)', () async {
       final h = _Harness()..stubDefaults();
       when(
-        () => h.messaging.requestPermission(),
+        h.messaging.requestPermission,
       ).thenThrow(PlatformException(code: 'boom'));
       final container = h.container(user: _regularUser());
       expect(await _settledValue(container), isFalse);
@@ -391,10 +387,9 @@ void main() {
           any(that: isA<PlatformException>()),
           any(),
           reason: 'notification_settings_enable',
-          fatal: false,
         ),
       ).called(1);
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.getToken);
     });
 
     test('T-17-NOTIF-13: disable() 의 delete Failure(AppException) → failed · '
@@ -442,7 +437,7 @@ void main() {
 
       final before = DateTime.now();
       expect(await _settledValue(container), isTrue);
-      verify(() => h.messaging.getToken()).called(1);
+      verify(h.messaging.getToken).called(1);
       final first = _capturedUpserts(h.repository);
       expect(first, hasLength(1));
       expect(first.single.token, _token1);
@@ -463,29 +458,29 @@ void main() {
           token: any(named: 'token'),
         ),
       );
-      verifyNever(() => h.messaging.requestPermission());
+      verifyNever(h.messaging.requestPermission);
 
       // 앱 밖에서 권한 off → 복귀.
       when(
-        () => h.messaging.getAuthorizationStatus(),
+        h.messaging.getAuthorizationStatus,
       ).thenAnswer((_) async => AuthorizationStatus.denied);
       _simulateResume();
       expect(await _settledValue(container), isFalse);
       verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.getToken);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(kNotificationsOptInKey), isTrue);
       expect(prefs.getString(kNotificationsRegisteredTokenKey), isNull);
 
       // 다시 권한 on → 복귀 — 조용히 재등록.
       when(
-        () => h.messaging.getAuthorizationStatus(),
+        h.messaging.getAuthorizationStatus,
       ).thenAnswer((_) async => AuthorizationStatus.authorized);
       _simulateResume();
       expect(await _settledValue(container), isTrue);
       expect(_capturedUpserts(h.repository), hasLength(1));
       expect(prefs.getString(kNotificationsRegisteredTokenKey), _token1);
-      verifyNever(() => h.messaging.requestPermission());
+      verifyNever(h.messaging.requestPermission);
     });
 
     test('T-17-NOTIF-06: 등록 실패(upsert Failure)는 false 가 아니라 '
@@ -785,7 +780,7 @@ void main() {
       expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
       verify(() => h.repository.delete(uid: _uid, token: _token1)).called(1);
       // 삭제가 끝나지 않았으므로 폐기 단계에도 아직 가지 않았다.
-      verifyNever(() => h.messaging.deleteToken());
+      verifyNever(h.messaging.deleteToken);
     });
 
     test('T-17-NOTIF-14: 정상 로그아웃(삭제 확정) → 삭제 대기 기록 · 폐기 '
@@ -806,7 +801,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsPendingTokenDeletionKey), isFalse);
       expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
-      verifyNever(() => h.messaging.deleteToken());
+      verifyNever(h.messaging.deleteToken);
     });
 
     test('T-17-NOTIF-14: 삭제 실패 → 토큰 폐기를 바로 시도 · 확정되면 폐기 '
@@ -830,7 +825,7 @@ void main() {
           .read(notificationSettingsProvider.notifier)
           .clearForSignOut();
 
-      verify(() => h.messaging.deleteToken()).called(1);
+      verify(h.messaging.deleteToken).called(1);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
       expect(prefs.getStringList(kNotificationsPendingTokenDeletionKey), [
@@ -855,7 +850,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsPendingTokenDeletionKey), isFalse);
       expect(prefs.containsKey(kNotificationsTokenRevokePendingKey), isFalse);
-      verifyNever(() => h.messaging.deleteToken());
+      verifyNever(h.messaging.deleteToken);
     });
 
     test('T-17-NOTIF-15: 다른 uid 가 켤 때 → deleteToken 이 getToken 보다 먼저 · '
@@ -868,11 +863,11 @@ void main() {
       final sdkCalls = <String>[];
       // build 의 기회성 폐기는 실패(오프라인)하고, 켤 때의 폐기는 성공한다.
       final revokeResults = <bool>[false, true];
-      when(() => h.messaging.deleteToken()).thenAnswer((_) async {
+      when(h.messaging.deleteToken).thenAnswer((_) async {
         sdkCalls.add('deleteToken');
         return revokeResults.removeAt(0);
       });
-      when(() => h.messaging.getToken()).thenAnswer((_) async {
+      when(h.messaging.getToken).thenAnswer((_) async {
         sdkCalls.add('getToken');
         return _token1;
       });
@@ -901,7 +896,7 @@ void main() {
         kNotificationsTokenRevokePendingKey: true,
       });
       final h = _Harness()..stubDefaults();
-      when(() => h.messaging.deleteToken()).thenAnswer((_) async => false);
+      when(h.messaging.deleteToken).thenAnswer((_) async => false);
       final container = h.container(user: _regularUser());
       expect(await _settledValue(container), isFalse);
       await pumpEventQueue();
@@ -911,7 +906,7 @@ void main() {
           .enable();
 
       expect(result, NotificationToggleResult.failed);
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.getToken);
       verifyNever(
         () => h.repository.upsert(
           uid: any(named: 'uid'),
@@ -958,7 +953,7 @@ void main() {
 
       expect(await disabling, NotificationToggleResult.disabled);
       expect(await _settledValue(container), isFalse);
-      verifyNever(() => h.messaging.getAuthorizationStatus());
+      verifyNever(h.messaging.getAuthorizationStatus);
       verifyNever(
         () => h.repository.upsert(
           uid: any(named: 'uid'),
@@ -1004,7 +999,7 @@ void main() {
         'getToken · upsert 각 1회 (등록 2중 실행 0)', () async {
       final h = _Harness()
         ..stubDefaults(status: AuthorizationStatus.authorized);
-      when(() => h.messaging.requestPermission()).thenAnswer((_) async {
+      when(h.messaging.requestPermission).thenAnswer((_) async {
         // Android 13+ — OS 다이얼로그가 닫히며 inactive → resumed.
         _simulateResume();
         await pumpEventQueue();
@@ -1020,7 +1015,7 @@ void main() {
       await pumpEventQueue();
 
       expect(result, NotificationToggleResult.enabled);
-      verify(() => h.messaging.getToken()).called(1);
+      verify(h.messaging.getToken).called(1);
       expect(_capturedUpserts(h.repository), hasLength(1));
     });
   });
@@ -1036,7 +1031,7 @@ void main() {
         ..stubDefaults(status: AuthorizationStatus.authorized);
       final firstStatus = Completer<AuthorizationStatus>();
       var statusCalls = 0;
-      when(() => h.messaging.getAuthorizationStatus()).thenAnswer((_) {
+      when(h.messaging.getAuthorizationStatus).thenAnswer((_) {
         statusCalls++;
         return statusCalls == 1
             ? firstStatus.future
@@ -1052,7 +1047,7 @@ void main() {
       await pumpEventQueue();
 
       expect(_capturedUpserts(h.repository), hasLength(1));
-      verify(() => h.messaging.getToken()).called(1);
+      verify(h.messaging.getToken).called(1);
     });
 
     test('T-17-NOTIF-17: build 대기 중 계정이 바뀌면(로그아웃) 이전 uid 로 '
@@ -1064,7 +1059,7 @@ void main() {
         ..stubDefaults(status: AuthorizationStatus.authorized);
       final firstStatus = Completer<AuthorizationStatus>();
       when(
-        () => h.messaging.getAuthorizationStatus(),
+        h.messaging.getAuthorizationStatus,
       ).thenAnswer((_) => firstStatus.future);
       final auth = StreamController<fb.User?>();
       addTearDown(auth.close);
@@ -1097,10 +1092,10 @@ void main() {
         ..stubDefaults(status: AuthorizationStatus.authorized);
       // opt-in 확인을 지난 뒤(_register 의 getToken)에서 멈춘다.
       final firstToken = Completer<String?>();
-      when(() => h.messaging.getToken()).thenAnswer((_) => firstToken.future);
+      when(h.messaging.getToken).thenAnswer((_) => firstToken.future);
       final container = h.container(user: _regularUser());
       await pumpEventQueue();
-      verify(() => h.messaging.getToken()).called(1);
+      verify(h.messaging.getToken).called(1);
 
       await container
           .read(notificationSettingsProvider.notifier)
@@ -1199,7 +1194,7 @@ void main() {
       final containerB = h.container(user: userB);
       expect(await _settledValue(containerB), isFalse);
       await pumpEventQueue();
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.getToken);
       verifyNever(
         () => h.repository.upsert(
           uid: any(named: 'uid'),
@@ -1225,7 +1220,7 @@ void main() {
 
       expect(await enabling, NotificationToggleResult.failed);
       // 첫 await 에서 되돌아가 권한 요청에 닿지 않는다 — 재개 순서와 무관.
-      verifyNever(() => h.messaging.requestPermission());
+      verifyNever(h.messaging.requestPermission);
       await pumpEventQueue();
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.containsKey(kNotificationsOptInKey), isFalse);
@@ -1239,7 +1234,7 @@ void main() {
       final containerB = h.container(user: userB);
       expect(await _settledValue(containerB), isFalse);
       await pumpEventQueue();
-      verifyNever(() => h.messaging.getToken());
+      verifyNever(h.messaging.getToken);
       verifyNever(
         () => h.repository.upsert(
           uid: any(named: 'uid'),

@@ -307,7 +307,6 @@ void main() {
         (_) async => Result.success(
           User(
             uid: 'anon-uid',
-            email: null,
             emailVerified: false,
             createdAt: DateTime.utc(2026, 4, 14),
           ),
@@ -489,7 +488,6 @@ void main() {
         (_) async => Result.success(
           User(
             uid: 'anon-uid',
-            email: null,
             emailVerified: false,
             createdAt: DateTime.utc(2026, 4, 19),
           ),
@@ -925,10 +923,5 @@ Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
 }
 
 /// 테스트용 정식 사용자 스텁.
-User _stubUser() => User(
-  uid: 'anon-uid',
-  email: null,
-  emailVerified: false,
-  createdAt: DateTime.utc(2026, 1, 1),
-  providerIds: const <String>[],
-);
+User _stubUser() =>
+    User(uid: 'anon-uid', emailVerified: false, createdAt: DateTime.utc(2026));

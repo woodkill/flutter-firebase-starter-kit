@@ -19,12 +19,12 @@ import '../../../helpers/auth_mocks.dart';
 /// 로그아웃 경로 협력 객체 — 모든 SDK 로그아웃을 성공 stub 으로 둔다.
 class _Harness {
   _Harness() {
-    when(() => auth.signOut()).thenAnswer((_) async {});
-    when(() => googleSignIn.signOut()).thenAnswer((_) async {});
-    when(() => facebookAuth.logOut()).thenAnswer((_) async {});
-    when(() => kakao.logout()).thenAnswer((_) async {});
-    when(() => naver.logout()).thenAnswer((_) async {});
-    when(() => line.logout()).thenAnswer((_) async {});
+    when(auth.signOut).thenAnswer((_) async {});
+    when(googleSignIn.signOut).thenAnswer((_) async {});
+    when(facebookAuth.logOut).thenAnswer((_) async {});
+    when(kakao.logout).thenAnswer((_) async {});
+    when(naver.logout).thenAnswer((_) async {});
+    when(line.logout).thenAnswer((_) async {});
   }
 
   final MockFirebaseAuth auth = MockFirebaseAuth();
@@ -69,7 +69,7 @@ void main() {
       for (final call in h.logoutCalls.values) {
         verifyNever(call);
       }
-      verify(() => h.auth.signOut()).called(1);
+      verify(h.auth.signOut).called(1);
     });
 
     test('LINE off · 나머지 on → LINE 로그아웃 0 (네이티브 fatal 회피)', () async {
@@ -78,12 +78,12 @@ void main() {
 
       await h.buildRepository(enabled).signOut();
 
-      verifyNever(() => h.line.logout());
-      verify(() => h.googleSignIn.signOut()).called(1);
-      verify(() => h.facebookAuth.logOut()).called(1);
-      verify(() => h.kakao.logout()).called(1);
-      verify(() => h.naver.logout()).called(1);
-      verify(() => h.auth.signOut()).called(1);
+      verifyNever(h.line.logout);
+      verify(h.googleSignIn.signOut).called(1);
+      verify(h.facebookAuth.logOut).called(1);
+      verify(h.kakao.logout).called(1);
+      verify(h.naver.logout).called(1);
+      verify(h.auth.signOut).called(1);
     });
 
     for (final providerId in <String>[
@@ -105,19 +105,19 @@ void main() {
             verifyNever(entry.value);
           }
         }
-        verify(() => h.auth.signOut()).called(1);
+        verify(h.auth.signOut).called(1);
       });
     }
 
     test('on provider 의 SDK 로그아웃이 throw 해도 Firebase 로그아웃은 '
         '1회', () async {
       final h = _Harness();
-      when(() => h.line.logout()).thenThrow(StateError('line logout failed'));
+      when(h.line.logout).thenThrow(StateError('line logout failed'));
 
       await h.buildRepository(<String>{kProviderIdLine}).signOut();
 
-      verify(() => h.line.logout()).called(1);
-      verify(() => h.auth.signOut()).called(1);
+      verify(h.line.logout).called(1);
+      verify(h.auth.signOut).called(1);
     });
   });
 }

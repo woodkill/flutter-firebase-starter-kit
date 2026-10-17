@@ -31,7 +31,7 @@ Future<Result<T>> guardResult<T>(
   } on AppException catch (e) {
     return Result.failure(e);
   } on Object catch (e, st) {
-    await crashlytics.recordError(e, st, reason: reason, fatal: false);
+    await crashlytics.recordError(e, st, reason: reason);
     return Result.failure(UnknownException(cause: e));
   }
 }
@@ -59,12 +59,7 @@ Future<AsyncValue<T>> guardAsyncValue<T>(
     :final error,
     :final stackTrace,
   ) when error is! AppException) {
-    await crashlytics.recordError(
-      error,
-      stackTrace,
-      reason: reason,
-      fatal: false,
-    );
+    await crashlytics.recordError(error, stackTrace, reason: reason);
   }
   return result;
 }

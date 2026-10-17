@@ -66,7 +66,6 @@ class VerifyEmailScreen extends ConsumerWidget {
           ),
         ),
         data: (state) => Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Gap(spacing.xxl),
             // 상단 메일 아이콘 (48dp, primary)

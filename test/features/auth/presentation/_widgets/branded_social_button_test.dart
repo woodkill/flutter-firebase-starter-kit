@@ -273,9 +273,7 @@ Future<void> _expectSkin(
       isA<RoundedRectangleBorder>().having(
         (RoundedRectangleBorder s) => s.side,
         'side',
-        wantOutline == null
-            ? BorderSide.none
-            : BorderSide(color: wantOutline, width: 1),
+        wantOutline == null ? BorderSide.none : BorderSide(color: wantOutline),
       ),
       reason: '$where 외곽선',
     );

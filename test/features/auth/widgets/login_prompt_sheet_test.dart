@@ -46,9 +46,9 @@ Future<LastLocationRecorder> pumpLoginPromptSheetHarness(
 }) async {
   final recorder = LastLocationRecorder();
   final mockRepo = _MockAuthRepository();
-  when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+  when(mockRepo.signInWithGoogle).thenAnswer((_) async => null);
+  when(mockRepo.signInWithApple).thenAnswer((_) async => null);
+  when(mockRepo.signInWithFacebook).thenAnswer((_) async => null);
 
   final router = GoRouter(
     initialLocation: '/',

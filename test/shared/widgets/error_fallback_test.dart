@@ -170,10 +170,15 @@ void main() {
           1,
         );
         expect(countOccurrences(source, 'kErrorWidgetBuildReason'), 1);
-        expect(
-          countOccurrences(source, 'fatal: false'),
-          greaterThanOrEqualTo(1),
+        // 대체 화면 기록은 non-fatal 이다 — recordError 의 fatal 기본값이
+        // false 라 인자를 적지 않으므로, builder 대입부터 runApp 까지의
+        // 구간에 recordError 가 있고 `fatal: true` 가 없음을 본다.
+        final builderSpan = source.substring(
+          source.indexOf('ErrorWidget.builder ='),
+          source.indexOf('runApp('),
         );
+        expect(countOccurrences(builderSpan, 'recordError('), 1);
+        expect(countOccurrences(builderSpan, 'fatal: true'), 0);
 
         // builder 대입 직전의 조건이 `!kDebugMode` 여야 한다 — debug 는 SDK
         // 기본 빨간 화면을 유지한다 (D-22).

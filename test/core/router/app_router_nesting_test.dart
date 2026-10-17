@@ -72,9 +72,8 @@ final User _kTestUser = User(
   email: 'me@example.com',
   emailVerified: true,
   displayName: 'Tester',
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   providerIds: const <String>['password'],
-  signUpProviderId: null,
 );
 
 /// production 라우터 배선(`App()`)을 그리고 홈 착지까지 진행한다.

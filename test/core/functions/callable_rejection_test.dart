@@ -79,7 +79,6 @@ void main() {
           e,
           any(),
           reason: 'app_check_rejected_kakaoCustomToken',
-          fatal: false,
         ),
       ).called(1);
     });
@@ -103,7 +102,6 @@ void main() {
           e,
           captureAny(),
           reason: 'app_check_rejected_kakaoCustomToken',
-          fatal: false,
         ),
       ).captured;
       expect(captured.single, same(original));
@@ -191,7 +189,6 @@ void main() {
             any(that: isA<FirebaseFunctionsException>()),
             any(),
             reason: 'app_check_rejected_kakaoCustomToken',
-            fatal: false,
           ),
         ).called(1);
       });

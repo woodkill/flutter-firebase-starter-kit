@@ -146,9 +146,9 @@ void main() {
       final mockSnapshot = _MockSnapshot();
       when(() => mockFirestore.collection(any())).thenReturn(mockCollection);
       when(() => mockCollection.doc(any())).thenReturn(mockDoc);
-      when(() => mockDoc.get()).thenAnswer((_) async => mockSnapshot);
+      when(mockDoc.get).thenAnswer((_) async => mockSnapshot);
       when(() => mockSnapshot.exists).thenReturn(false);
-      when(() => mockSnapshot.data()).thenReturn(null);
+      when(mockSnapshot.data).thenReturn(null);
 
       final controller = StreamController<fb.User?>();
       addTearDown(controller.close);
@@ -248,9 +248,9 @@ void main() {
       final mockSnapshot = _MockSnapshot();
       when(() => mockFirestore.collection(any())).thenReturn(mockCollection);
       when(() => mockCollection.doc(any())).thenReturn(mockDoc);
-      when(() => mockDoc.get()).thenAnswer((_) async => mockSnapshot);
+      when(mockDoc.get).thenAnswer((_) async => mockSnapshot);
       when(() => mockSnapshot.exists).thenReturn(true);
-      when(() => mockSnapshot.data()).thenReturn(<String, dynamic>{
+      when(mockSnapshot.data).thenReturn(<String, dynamic>{
         'termsAccepted': <String, dynamic>{
           'version': TermsNotifier.currentVersion,
           'service': true,

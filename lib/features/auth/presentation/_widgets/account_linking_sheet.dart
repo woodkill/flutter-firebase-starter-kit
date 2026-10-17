@@ -150,7 +150,6 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      isDismissible: true,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
       shape: const RoundedRectangleBorder(

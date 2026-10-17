@@ -38,7 +38,7 @@ void main() {
   ProviderContainer makeContainer({NavigatorObserver? observer}) {
     final mockAuth = _MockFirebaseAuth();
     when(
-      () => mockAuth.authStateChanges(),
+      mockAuth.authStateChanges,
     ).thenAnswer((_) => const Stream<User?>.empty());
     return ProviderContainer(
       overrides: [

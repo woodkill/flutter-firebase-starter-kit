@@ -171,7 +171,7 @@ void main() {
   /// 익명 사용자를 currentUser 로 두고 돌려준다 (delete 는 성공 stub).
   _MockFbUser stubAnonymousCurrentUser() {
     final anonymous = buildFbUser(_anonUid, isAnonymous: true);
-    when(() => anonymous.delete()).thenAnswer((_) async {});
+    when(anonymous.delete).thenAnswer((_) async {});
     when(() => mockAuth.currentUser).thenReturn(anonymous);
     return anonymous;
   }
@@ -255,7 +255,7 @@ void main() {
     when(() => mockUser.photoURL).thenReturn(null);
     when(() => mockUser.metadata).thenReturn(mockMetadata);
     when(() => mockUser.providerData).thenReturn(<fb.UserInfo>[]);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     when(() => mockCredential.user).thenReturn(mockUser);
 
     // signUpWithEmail 후속 단계 (displayName · reload · 인증 메일).
@@ -417,7 +417,7 @@ void main() {
 
       expect(result, isA<Success<dynamic>>());
       // fallback 분기를 실제로 탔다 — 익명 폐기 뒤 기존 계정 로그인.
-      verify(() => anonymous.delete()).called(1);
+      verify(anonymous.delete).called(1);
       verify(() => mockAuth.signInWithCredential(any())).called(1);
       expect(recorded, isEmpty);
     });
@@ -441,7 +441,7 @@ void main() {
         (result! as Failure<dynamic>).exception,
         isA<AccountExistsWithDifferentCredential>(),
       );
-      verifyNever(() => anonymous.delete());
+      verifyNever(anonymous.delete);
       verifyNever(() => mockAuth.signInWithCredential(any()));
       expect(recorded, isEmpty);
     });
@@ -511,7 +511,7 @@ void main() {
 
       expect(result, isA<Success<dynamic>>());
       // fallback 분기를 실제로 탔다 — 익명 폐기 뒤 서버 credential 로 로그인.
-      verify(() => anonymous.delete()).called(1);
+      verify(anonymous.delete).called(1);
       verify(() => mockAuth.signInWithCredential(pending)).called(1);
       verifyNever(() => mockAuth.signInWithProvider(any()));
       expect(recorded, isEmpty);
@@ -566,7 +566,7 @@ void main() {
 
       expect(result, isA<Success<dynamic>>());
       // fallback 분기를 실제로 탔다 — 익명 폐기 뒤 같은 credential 로 로그인.
-      verify(() => anonymous.delete()).called(1);
+      verify(anonymous.delete).called(1);
       verify(() => mockAuth.signInWithCredential(any())).called(1);
       expect(recorded, isEmpty);
     });
@@ -644,7 +644,7 @@ void main() {
     test('L3 linkCustomTokenProviderArm(callable 성공) → 0회', () async {
       final existing = buildFbUser(_existingUid);
       when(() => mockAuth.currentUser).thenReturn(existing);
-      when(() => existing.reload()).thenAnswer((_) async {});
+      when(existing.reload).thenAnswer((_) async {});
       when(
         () => existing.getIdToken(true),
       ).thenAnswer((_) async => 'caller-fresh-id-token');

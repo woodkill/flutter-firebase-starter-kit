@@ -702,7 +702,7 @@ void printDryRun(
   stdout.writeln(
     '${_yellow('[DRY RUN]')} Organization: $currentOrg -> $newOrg',
   );
-  stdout.writeln('');
+  stdout.writeln();
   stdout.writeln('Changes to apply:');
 
   for (var i = 0; i < changes.length; i++) {
@@ -720,7 +720,7 @@ void printDryRun(
     }
   }
 
-  stdout.writeln('');
+  stdout.writeln();
   stdout.writeln('Run with --apply to execute these changes.');
 }
 
@@ -916,18 +916,13 @@ void main(List<String> arguments) {
           'Used as <prefix>-dev / -stg / -prod in '
           'scripts/firebase-configure.sh',
     )
-    ..addFlag(
-      'apply',
-      help: 'Apply changes (default: dry-run)',
-      defaultsTo: false,
-    )
+    ..addFlag('apply', help: 'Apply changes (default: dry-run)')
     ..addFlag(
       'yes',
       help:
           'Skip confirmation prompt for --apply (required in CI / '
           'non-interactive shells).',
       negatable: false,
-      defaultsTo: false,
     )
     ..addFlag('help', abbr: 'h', help: 'Show usage', negatable: false);
 
@@ -936,7 +931,7 @@ void main(List<String> arguments) {
     results = parser.parse(arguments);
   } on FormatException catch (e) {
     stderr.writeln(_red('Error: ${e.message}'));
-    stderr.writeln('');
+    stderr.writeln();
     stderr.writeln('Usage: fvm dart run bin/rename.dart [options]');
     stderr.writeln(parser.usage);
     exit(1);
@@ -944,9 +939,9 @@ void main(List<String> arguments) {
 
   if (results.flag('help')) {
     stdout.writeln('Starter Kit App ID Rename Tool');
-    stdout.writeln('');
+    stdout.writeln();
     stdout.writeln('Usage: fvm dart run bin/rename.dart [options]');
-    stdout.writeln('');
+    stdout.writeln();
     stdout.writeln(parser.usage);
     return;
   }
@@ -954,7 +949,7 @@ void main(List<String> arguments) {
   // BUG-ARGS 가드: 필수 옵션 누락 시 스택 트레이스 대신 영어 에러 출력
   if (!results.wasParsed('org') || !results.wasParsed('name')) {
     stderr.writeln(_red('Error: --org and --name are required.'));
-    stderr.writeln('');
+    stderr.writeln();
     stderr.writeln('Usage: fvm dart run bin/rename.dart [options]');
     stderr.writeln(parser.usage);
     exit(1);
@@ -1013,7 +1008,7 @@ void main(List<String> arguments) {
 
   if (changes.isEmpty) {
     stdout.writeln('No changes to apply.');
-    stdout.writeln('');
+    stdout.writeln();
     stdout.writeln('Possible reasons:');
     stdout.writeln("  - Project already renamed to '$org/$name'");
     stdout.writeln(
@@ -1032,7 +1027,7 @@ void main(List<String> arguments) {
 
   // --apply: 우선 변경 요약을 보여준다
   printDryRun(changes, org, name, projectRoot);
-  stdout.writeln('');
+  stdout.writeln();
 
   if (!skipConfirm) {
     if (!_confirmApply(changes.length)) {
@@ -1042,7 +1037,7 @@ void main(List<String> arguments) {
   }
 
   stdout.writeln('Applying changes...');
-  stdout.writeln('');
+  stdout.writeln();
   try {
     applyChanges(changes);
   } on MoveVerificationException catch (e) {
@@ -1051,7 +1046,7 @@ void main(List<String> arguments) {
     exit(1);
   }
   stdout.writeln('${_green('Done!')} ${changes.length} changes applied.');
-  stdout.writeln('');
+  stdout.writeln();
   stdout.writeln('Next steps:');
   stdout.writeln('  1. fvm flutter pub get');
   stdout.writeln(

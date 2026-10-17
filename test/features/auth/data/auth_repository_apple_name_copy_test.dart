@@ -160,7 +160,7 @@ void main() {
   /// 익명 사용자를 currentUser 로 두고 돌려준다 (delete 는 성공 stub).
   _MockFbUser stubAnonymousCurrentUser() {
     final anonymous = buildFbUser(_anonUid, isAnonymous: true);
-    when(() => anonymous.delete()).thenAnswer((_) async {});
+    when(anonymous.delete).thenAnswer((_) async {});
     when(() => mockAuth.currentUser).thenReturn(anonymous);
     return anonymous;
   }
@@ -219,7 +219,7 @@ void main() {
       expect(userOf(result).displayName, _appleName);
       verify(() => promoted.updateDisplayName(_appleName)).called(1);
       verifyNever(() => anonymous.updateDisplayName(any()));
-      verifyNever(() => promoted.reload());
+      verifyNever(promoted.reload);
       // Blocker #2 — 진입 시 익명 판별 1회만 읽는다(복사 뒤 재조회 없음).
       verify(() => mockAuth.currentUser).called(1);
     });
@@ -323,7 +323,7 @@ void main() {
 
       expect(userOf(result).displayName, isNull);
       // fallback 분기를 실제로 탔다 — 익명 폐기 뒤 서버 credential 로 로그인.
-      verify(() => anonymous.delete()).called(1);
+      verify(anonymous.delete).called(1);
       verify(() => mockAuth.signInWithCredential(pending)).called(1);
       verifyNever(() => existing.updateDisplayName(any()));
       verifyNever(() => anonymous.updateDisplayName(any()));

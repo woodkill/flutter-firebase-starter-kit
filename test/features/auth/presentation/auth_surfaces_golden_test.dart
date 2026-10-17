@@ -534,7 +534,7 @@ User _reauthUser(List<String> providerIds, {String? signUpProviderId}) => User(
   uid: 'uid-mock',
   email: 'me@example.com',
   emailVerified: true,
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   providerIds: providerIds,
   signUpProviderId: signUpProviderId,
 );

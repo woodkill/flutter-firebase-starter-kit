@@ -375,7 +375,6 @@ void main() {
             any(that: isA<FirebaseFunctionsException>()),
             any(),
             reason: 'app_check_rejected_deleteUserAccount',
-            fatal: false,
           ),
         ).called(1);
       },

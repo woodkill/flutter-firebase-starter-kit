@@ -82,8 +82,8 @@ void main() {
   // 주 사용 시나리오) 동일 값이어도 false 가 됐다.
   group('T-03-WR-02: AppSpacing 값 동등성', () {
     test('동일 값 두 인스턴스는 == 이고 hashCode 도 같다', () {
-      const a = AppSpacing(xs: 4);
-      const b = AppSpacing(xs: 4);
+      const a = AppSpacing();
+      const b = AppSpacing();
 
       expect(a == b, isTrue);
       expect(a.hashCode, equals(b.hashCode));

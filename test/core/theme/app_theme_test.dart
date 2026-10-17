@@ -158,10 +158,7 @@ void main() {
     });
 
     test('인자를 생략하면 기본 seedColor 와 동일한 테마다', () {
-      expect(
-        AppTheme.light() == AppTheme.light(seedColor: AppTheme.seedColor),
-        isTrue,
-      );
+      expect(AppTheme.light() == AppTheme.light(), isTrue);
     });
   });
 }

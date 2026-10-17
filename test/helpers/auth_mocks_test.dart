@@ -36,7 +36,6 @@ void main() {
         now: () => fixedNow,
         readTermsAcceptanceSnapshot: () => null,
         recordSignUpMethod: (_, _) async {},
-        crashlytics: CrashlyticsService.disabled,
         onSignOutCleanup: () async {},
         staticProviders: <String, bool>{},
         emailDeliveryMode: EmailDeliveryMode.firebase,

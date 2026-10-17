@@ -45,11 +45,9 @@ typedef ProductionApp = ({
 _MockFirebaseAuth _buildSignedOutAuth() {
   final mockAuth = _MockFirebaseAuth();
   when(
-    () => mockAuth.authStateChanges(),
+    mockAuth.authStateChanges,
   ).thenAnswer((_) => const Stream<fb.User?>.empty());
-  when(
-    () => mockAuth.userChanges(),
-  ).thenAnswer((_) => const Stream<fb.User?>.empty());
+  when(mockAuth.userChanges).thenAnswer((_) => const Stream<fb.User?>.empty());
   when(() => mockAuth.currentUser).thenReturn(null);
   return mockAuth;
 }

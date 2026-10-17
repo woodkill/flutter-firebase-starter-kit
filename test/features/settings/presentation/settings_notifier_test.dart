@@ -402,7 +402,7 @@ void main() {
       uid: 'u1',
       email: 'user@example.com',
       emailVerified: true,
-      createdAt: DateTime.utc(2026, 1, 1),
+      createdAt: DateTime.utc(2026),
       providerIds: const ['google.com'],
     );
 
@@ -681,7 +681,7 @@ void main() {
       uid: 'u1',
       email: 'user@example.com',
       emailVerified: true,
-      createdAt: DateTime.utc(2026, 1, 1),
+      createdAt: DateTime.utc(2026),
       providerIds: const ['kakao'],
       signUpProviderId: 'kakao',
     );
@@ -838,7 +838,7 @@ void main() {
       uid: 'u1',
       email: 'user@example.com',
       emailVerified: true,
-      createdAt: DateTime.utc(2026, 1, 1),
+      createdAt: DateTime.utc(2026),
       providerIds: const ['kakao'],
       signUpProviderId: 'kakao',
     );

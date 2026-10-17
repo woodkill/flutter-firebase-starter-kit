@@ -81,7 +81,7 @@ User _userWith(List<String> providerIds) => User(
   uid: _currentUid,
   email: _currentEmail,
   emailVerified: true,
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   providerIds: providerIds,
 );
 
@@ -99,7 +99,7 @@ fb.User _sdkUserWith(List<String> providerIds) {
     when(() => infos[index].providerId).thenReturn(providerId);
   }
   final metadata = _MockUserMetadata();
-  when(() => metadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+  when(() => metadata.creationTime).thenReturn(DateTime.utc(2026));
   final user = _MockFirebaseUser();
   when(() => user.uid).thenReturn(_currentUid);
   when(() => user.email).thenReturn(_currentEmail);
@@ -134,7 +134,7 @@ Future<GoRouter> _pumpReauthFlow(
   when(() => mockFbUser.emailVerified).thenReturn(true);
   when(() => mockAuth.currentUser).thenReturn(mockFbUser);
   when(
-    () => mockAuth.authStateChanges(),
+    mockAuth.authStateChanges,
   ).thenAnswer((_) => const Stream<fb.User?>.empty());
 
   final router = GoRouter(

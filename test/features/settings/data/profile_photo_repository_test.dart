@@ -264,7 +264,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'profile_photo_repository_upload',
-          fatal: false,
         ),
       ).called(1);
       verifyNever(() => userDoc.set(any(), any()));
@@ -351,7 +350,6 @@ void main() {
           any<Object>(that: isA<StateError>()),
           any<StackTrace?>(),
           reason: 'profile_photo_repository_remove',
-          fatal: false,
         ),
       ).called(1);
       verifyNever(() => userDoc.set(any(), any()));

@@ -74,14 +74,14 @@ Future<void> pumpWrapper(
 }) async {
   final mockAuth = _FakeFirebaseAuth();
   when(
-    () => mockAuth.authStateChanges(),
+    mockAuth.authStateChanges,
   ).thenAnswer((_) => const Stream<fb.User?>.empty());
   when(() => mockAuth.currentUser).thenReturn(null);
 
   final mockRepo = _FakeAuthRepository();
-  when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+  when(mockRepo.signInWithGoogle).thenAnswer((_) async => null);
+  when(mockRepo.signInWithApple).thenAnswer((_) async => null);
+  when(mockRepo.signInWithFacebook).thenAnswer((_) async => null);
 
   final router = GoRouter(
     initialLocation: AppRoutes.login,

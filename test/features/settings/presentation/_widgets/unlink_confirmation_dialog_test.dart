@@ -120,7 +120,7 @@ final User _unlinkedUser = User(
   uid: 'uid-1',
   email: 'me@example.com',
   emailVerified: true,
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   providerIds: const <String>['kakao'],
   signUpProviderId: 'kakao',
 );

@@ -175,7 +175,7 @@ void main() {
       // (a) 실제 라우터 route 표 — 데모 경로 GoRoute 정확히 1개.
       final mockAuth = _MockFirebaseAuth();
       when(
-        () => mockAuth.authStateChanges(),
+        mockAuth.authStateChanges,
       ).thenAnswer((_) => const Stream<fb.User?>.empty());
       final container = ProviderContainer(
         overrides: [
@@ -324,7 +324,7 @@ void main() {
       final copied = <String>[];
       _captureClipboard(tester, copied);
       final fbUser = _MockFbUser();
-      when(() => fbUser.getIdToken()).thenAnswer((_) async => 'id-token-171');
+      when(fbUser.getIdToken).thenAnswer((_) async => 'id-token-171');
       final mockAuth = _MockFirebaseAuth();
       when(() => mockAuth.currentUser).thenReturn(fbUser);
 

@@ -238,7 +238,7 @@ void main() {
             uid: 'u1',
             email: 'collide@example.com',
             emailVerified: true,
-            createdAt: DateTime.utc(2026, 1, 1),
+            createdAt: DateTime.utc(2026),
             providerIds: const ['google.com'],
           ),
         ),

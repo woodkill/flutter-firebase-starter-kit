@@ -102,7 +102,7 @@ void main() {
 
     test('setUserId(null) → setUserId(id:null)', () async {
       await service.setUserId(null);
-      verify(() => mockAnalytics.setUserId(id: null)).called(1);
+      verify(() => mockAnalytics.setUserId()).called(1);
     });
 
     test('logEvent("test_event", parameters: {"key":"val"})', () async {

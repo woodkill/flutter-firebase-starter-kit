@@ -173,7 +173,7 @@ DisconnectDeps _deps() => DisconnectDeps(
 
 _MockAuthRepository _authRepo() {
   final authRepo = _MockAuthRepository();
-  when(() => authRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
+  when(authRepo.signOutAndResetOnboarding).thenAnswer((_) async {});
   return authRepo;
 }
 
@@ -250,9 +250,7 @@ Future<void> _pumpWithDialogEntry(
 /// 사후 정리(저장소 로그아웃)가 [gate] 가 끝날 때까지 끝나지 않는 저장소.
 _MockAuthRepository _gatedAuthRepo(Completer<void> gate) {
   final authRepo = _MockAuthRepository();
-  when(
-    () => authRepo.signOutAndResetOnboarding(),
-  ).thenAnswer((_) => gate.future);
+  when(authRepo.signOutAndResetOnboarding).thenAnswer((_) => gate.future);
   return authRepo;
 }
 
@@ -383,7 +381,7 @@ Future<GoRouter> _pumpScreen(
 ]) {
   final repo = _MockSettingsRepository();
   final count = <int>[0];
-  when(() => repo.requestAccountDeletion()).thenAnswer((_) async {
+  when(repo.requestAccountDeletion).thenAnswer((_) async {
     final index = count[0];
     count[0] = index + 1;
     final answer = index < answers.length ? answers[index] : null;
@@ -478,9 +476,7 @@ void main() {
       (tester) async {
         _useView(tester);
         final settingsRepo = _MockSettingsRepository();
-        when(
-          () => settingsRepo.requestAccountDeletion(),
-        ).thenAnswer((_) async {});
+        when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
         final kakao = _FakeStep(AccountProvider.kakao);
         await _pumpWithDialogEntry(
           tester,
@@ -506,7 +502,7 @@ void main() {
         // 다이얼로그 닫힘 · 진행 화면 표시 · 이 시점 삭제 호출 0.
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
         expect(find.byType(WithdrawalDisconnectScreen), findsOneWidget);
-        verifyNever(() => settingsRepo.requestAccountDeletion());
+        verifyNever(settingsRepo.requestAccountDeletion);
         expect(kakao.calls.length, 1);
         expect(
           find.text(l10n.withdrawalDisconnectStatusWorking),
@@ -522,7 +518,7 @@ void main() {
 
         await tester.tap(_finalButtonFinder());
         await tester.pumpAndSettle();
-        verify(() => settingsRepo.requestAccountDeletion()).called(1);
+        verify(settingsRepo.requestAccountDeletion).called(1);
         expect(find.text(l10n.withdrawalSuccess), findsOneWidget);
       },
     );
@@ -965,7 +961,7 @@ void main() {
       final settingsRepo = _MockSettingsRepository();
       final deletion = Completer<void>();
       when(
-        () => settingsRepo.requestAccountDeletion(),
+        settingsRepo.requestAccountDeletion,
       ).thenAnswer((_) => deletion.future);
       await _pumpScreen(
         tester,
@@ -1175,7 +1171,7 @@ void main() {
     ) async {
       final authRepo = _MockAuthRepository();
       when(
-        () => authRepo.signOutAndResetOnboarding(),
+        authRepo.signOutAndResetOnboarding,
       ).thenAnswer((_) async => throw StateError('cleanup failed'));
       final crashlytics = _MockCrashlyticsService();
       // `any<Object>()` 의 자리 값 — 이 파일에는 다른 fallback 등록이 없다.
@@ -1387,9 +1383,7 @@ void main() {
       (tester) async {
         _useView(tester);
         final settingsRepo = _MockSettingsRepository();
-        when(
-          () => settingsRepo.requestAccountDeletion(),
-        ).thenAnswer((_) async {});
+        when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
         final kakao = _FakeStep(AccountProvider.kakao);
         // 다이얼로그 확인 때는 읽히고, 진행 화면 시작 때는 실패한다.
         final reads = <int>[0];
@@ -1423,7 +1417,7 @@ void main() {
         expect(find.text('open-dialog'), findsOneWidget);
         expect(find.text(l10n.withdrawalFailureTransient), findsOneWidget);
         expect(kakao.calls, isEmpty);
-        verifyNever(() => settingsRepo.requestAccountDeletion());
+        verifyNever(settingsRepo.requestAccountDeletion);
       },
     );
 
@@ -1432,9 +1426,7 @@ void main() {
     ) async {
       _useView(tester);
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       final kakao = _FakeStep(AccountProvider.kakao);
       // 다이얼로그 판정 뒤 연결이 사라진 경우 — 진행 화면 시작 때는 행 0.
       final reads = <int>[0];
@@ -1468,7 +1460,7 @@ void main() {
       // 오류가 아니므로 실패 안내는 없다.
       expect(find.text(l10n.withdrawalFailureTransient), findsNothing);
       expect(kakao.calls, isEmpty);
-      verifyNever(() => settingsRepo.requestAccountDeletion());
+      verifyNever(settingsRepo.requestAccountDeletion);
     });
 
     group('review IN-02 (iteration 3) — 목록 조회 중 원형 스피너', () {

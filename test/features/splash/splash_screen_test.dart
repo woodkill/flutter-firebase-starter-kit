@@ -35,15 +35,8 @@ class _MockCrashlytics extends Mock implements CrashlyticsService {}
 /// 필요 없다.
 class _MockFirebaseUser extends Mock implements fb.User {}
 
-User _stubUser({String uid = 'anon-uid'}) => User(
-  uid: uid,
-  email: null,
-  emailVerified: false,
-  displayName: null,
-  photoUrl: null,
-  createdAt: DateTime.utc(2026, 4, 21),
-  providerIds: const <String>[],
-);
+User _stubUser({String uid = 'anon-uid'}) =>
+    User(uid: uid, emailVerified: false, createdAt: DateTime.utc(2026, 4, 21));
 
 /// [SplashScreen] 을 [router] 로 pump 한다 (기본 en — [locale] 로 바꾼다).
 Future<void> _pumpSplash(

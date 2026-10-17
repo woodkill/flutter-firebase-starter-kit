@@ -110,7 +110,7 @@ _MockFbUser _buildFbUser({
   when(() => fbUser.displayName).thenReturn(displayName);
   when(() => fbUser.photoURL).thenReturn(photoUrl);
   when(() => fbUser.metadata).thenReturn(metadata);
-  when(() => metadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+  when(() => metadata.creationTime).thenReturn(DateTime.utc(2026));
   when(() => fbUser.providerData).thenReturn(infos);
   return fbUser;
 }
@@ -136,13 +136,13 @@ _MockFirebaseFirestore _buildFirestore({
   when(() => firestore.collection('users')).thenReturn(collection);
   when(() => collection.doc(uid)).thenReturn(doc);
   if (shouldError) {
-    when(() => doc.snapshots()).thenAnswer(
+    when(doc.snapshots).thenAnswer(
       (_) => Stream<_MockDocumentSnapshot>.error(
         FirebaseException(plugin: 'cloud_firestore', code: errorCode),
       ),
     );
   } else {
-    when(() => doc.snapshots()).thenAnswer(
+    when(doc.snapshots).thenAnswer(
       (_) => snapshots ?? const Stream<_MockDocumentSnapshot>.empty(),
     );
   }
@@ -169,7 +169,7 @@ _MockFirebaseFirestore _buildRetryFirestore({
   when(() => firestore.collection('users')).thenReturn(collection);
   when(() => collection.doc(uid)).thenReturn(doc);
   var callIndex = 0;
-  when(() => doc.snapshots()).thenAnswer((_) {
+  when(doc.snapshots).thenAnswer((_) {
     final clamped = callIndex.clamp(0, streamFactories.length - 1);
     final factory = streamFactories[clamped];
     callIndex += 1;
@@ -197,7 +197,7 @@ _MockDocumentSnapshot _buildSnapshot({
 }) {
   final snap = _MockDocumentSnapshot();
   when(() => snap.exists).thenReturn(exists);
-  when(() => snap.data()).thenReturn(data);
+  when(snap.data).thenReturn(data);
   return snap;
 }
 
@@ -682,11 +682,7 @@ void main() {
       test('4. 다른 FirebaseException (unavailable) → 즉시 AsyncData([]) (D-41 '
           '보존, I1)', () async {
         const uid = 'uid-r10f2-other-error';
-        final firestore = _buildFirestore(
-          uid: uid,
-          shouldError: true,
-          errorCode: 'unavailable',
-        );
+        final firestore = _buildFirestore(uid: uid, shouldError: true);
 
         final container = ProviderContainer(
           overrides: [firebaseFirestoreProvider.overrideWithValue(firestore)],

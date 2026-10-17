@@ -101,7 +101,7 @@ void main() {
       final container = createContainer();
       await container
           .read(termsProvider.notifier)
-          .reloadForUser(uid: 'test-uid', isAnonymous: false);
+          .reloadForUser(uid: 'test-uid');
 
       final state = container.read(termsProvider).acceptance;
       expect(state, isNotNull);
@@ -127,7 +127,7 @@ void main() {
       final container = createContainer();
       await container
           .read(termsProvider.notifier)
-          .reloadForUser(uid: 'no-data-uid', isAnonymous: false);
+          .reloadForUser(uid: 'no-data-uid');
 
       expect(container.read(termsProvider).acceptance, isNull);
     });
@@ -144,7 +144,7 @@ void main() {
         final container = createContainer();
         await container
             .read(termsProvider.notifier)
-            .reloadForUser(uid: 'no-terms-uid', isAnonymous: false);
+            .reloadForUser(uid: 'no-terms-uid');
 
         expect(container.read(termsProvider).acceptance, isNull);
       },
@@ -172,7 +172,7 @@ void main() {
       final container = createContainer();
       await container
           .read(termsProvider.notifier)
-          .reloadForUser(uid: 'offline-uid', isAnonymous: false);
+          .reloadForUser(uid: 'offline-uid');
 
       // Fallback 으로 복원된 state 검증.
       final state = container.read(termsProvider).acceptance;
@@ -223,7 +223,7 @@ void main() {
       ).thenReturn(<String, dynamic>{'termsAccepted': terms});
 
       // 3) reloadForUser → 복원된 state.acceptedAt 비교.
-      await notifier.reloadForUser(uid: 'rt-uid', isAnonymous: false);
+      await notifier.reloadForUser(uid: 'rt-uid');
       final restored = container.read(termsProvider).acceptance;
       expect(restored, isNotNull);
       // Firestore Timestamp 정밀도 한계 (microsecond) 내에서 일치.
@@ -257,7 +257,7 @@ void main() {
         final container = createContainer();
         await container
             .read(termsProvider.notifier)
-            .reloadForUser(uid: 'old-version-uid', isAnonymous: false);
+            .reloadForUser(uid: 'old-version-uid');
 
         expect(
           container.read(termsProvider).acceptance,
@@ -279,9 +279,7 @@ void main() {
         expect(container.read(termsProvider).acceptance, isNotNull);
 
         // null uid → state=null.
-        await container
-            .read(termsProvider.notifier)
-            .reloadForUser(uid: null, isAnonymous: false);
+        await container.read(termsProvider.notifier).reloadForUser();
 
         expect(container.read(termsProvider).acceptance, isNull);
         // Firestore read 호출 안 됨.
@@ -351,7 +349,7 @@ void main() {
       );
 
       // When (step 2): mirror 후 authUserObserver 가 reloadForUser 호출.
-      await notifier.reloadForUser(uid: 'A-UID', isAnonymous: false);
+      await notifier.reloadForUser(uid: 'A-UID');
 
       // Then (step 2): Firestore A 에 termsAccepted 필드가 없으므로 state=null.
       // resolveAuthRedirect 분기 (5) 가 /onboarding 으로 강제 리다이렉트하는 조건
@@ -386,7 +384,7 @@ void main() {
           'service': true,
           'privacy': true,
           'marketing': false,
-          'acceptedAt': Timestamp.fromDate(DateTime.utc(2026, 3, 1)),
+          'acceptedAt': Timestamp.fromDate(DateTime.utc(2026, 3)),
         },
       });
       when(

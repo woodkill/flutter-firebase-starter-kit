@@ -70,7 +70,6 @@ AppCheckFailedException? classifyAppCheckRejection(
       e,
       e.stackTrace ?? StackTrace.current,
       reason: 'app_check_rejected_$callable',
-      fatal: false,
     ),
   );
   return AppCheckFailedException(cause: e);

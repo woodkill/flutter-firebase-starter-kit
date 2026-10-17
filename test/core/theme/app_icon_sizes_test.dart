@@ -43,7 +43,7 @@ void main() {
 
     group('값 동등성', () {
       test('동일 값 두 인스턴스는 == 이고 hashCode 도 같다', () {
-        const a = AppIconSizes(sm: 20);
+        const a = AppIconSizes();
         final b = const AppIconSizes().copyWith(sm: 20);
 
         expect(a == b, isTrue);

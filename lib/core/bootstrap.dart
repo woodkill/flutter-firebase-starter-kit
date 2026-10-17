@@ -212,9 +212,7 @@ Future<void> bootstrap() async {
               if (kDebugMode) {
                 debugPrint('RemoteConfig 초기화 실패 (무시): $e\n$st');
               }
-              unawaited(
-                FirebaseCrashlytics.instance.recordError(e, st, fatal: false),
-              );
+              unawaited(FirebaseCrashlytics.instance.recordError(e, st));
             }
           }
         } on Object catch (e, st) {
@@ -237,7 +235,6 @@ Future<void> bootstrap() async {
                     d.exception,
                     d.stack,
                     reason: kErrorWidgetBuildReason,
-                    fatal: false,
                   ),
                 );
               }

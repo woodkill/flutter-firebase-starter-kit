@@ -398,7 +398,6 @@ void main() {
             any(that: isA<FirebaseFunctionsException>()),
             any(),
             reason: 'app_check_rejected_disconnectKakaoProvider',
-            fatal: false,
           ),
         ).called(1);
       },

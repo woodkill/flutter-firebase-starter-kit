@@ -11,7 +11,7 @@ void main() {
       test('T-171-HOME-02: $code — appName 비면 ARB appTitle · 있으면 appName', () {
         final l10n = lookupAppLocalizations(Locale(code));
 
-        expect(resolveAppTitle(l10n, appName: ''), l10n.appTitle);
+        expect(resolveAppTitle(l10n), l10n.appTitle);
         expect(resolveAppTitle(l10n, appName: 'My App'), 'My App');
       });
     }

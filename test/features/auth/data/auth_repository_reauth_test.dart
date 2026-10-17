@@ -137,7 +137,7 @@ void main() {
     when(() => mockCurrentUser.photoURL).thenReturn(null);
     when(() => mockCurrentUser.isAnonymous).thenReturn(false);
     when(() => mockCurrentUser.metadata).thenReturn(mockMetadata);
-    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026, 1, 1));
+    when(() => mockMetadata.creationTime).thenReturn(DateTime.utc(2026));
     // mocktail 은 when(...) 진행 중 다른 when 호출을 금지하므로 먼저 만든다.
     final linkedProviders = <fb.UserInfo>[
       providerInfo('google.com', _linkedGoogleSub),

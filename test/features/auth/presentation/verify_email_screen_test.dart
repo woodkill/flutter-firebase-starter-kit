@@ -65,10 +65,7 @@ void main() {
     });
 
     testWidgets('2. 폴링 활성 시 LinearProgressIndicator가 표시된다', (tester) async {
-      await _pumpVerifyEmail(
-        tester,
-        initialState: const VerifyEmailState(isPolling: true),
-      );
+      await _pumpVerifyEmail(tester);
 
       expect(find.byType(LinearProgressIndicator), findsOneWidget);
     });
@@ -111,7 +108,7 @@ void main() {
 
     testWidgets('WR-03 4c. isResending=false + 쿨다운 0 이면 재전송 버튼이 활성이다 '
         '(4b 가 상시 disabled 로 굳지 않았음을 보증하는 대조군)', (tester) async {
-      await _pumpVerifyEmail(tester, initialState: const VerifyEmailState());
+      await _pumpVerifyEmail(tester);
 
       final button = tester.widget<OutlinedButton>(find.byType(OutlinedButton));
       expect(button.onPressed, isNotNull);
@@ -185,7 +182,6 @@ void main() {
         '메시지 표시 (ko 로케일 verbatim)', (tester) async {
       final emptyEmailUser = User(
         uid: 'test-uid-empty-email',
-        email: null,
         emailVerified: false,
         createdAt: DateTime.utc(2026),
       );

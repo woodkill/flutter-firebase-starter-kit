@@ -75,9 +75,9 @@ Future<_DialogHandle> _pumpAndShowDialog(
   Future<bool?>? dialogResult;
   final repo = settingsRepo ?? _MockSettingsRepository();
   final aRepo = authRepo ?? _MockAuthRepository();
-  when(() => aRepo.signOut()).thenAnswer((_) async {});
+  when(aRepo.signOut).thenAnswer((_) async {});
   // 16-07(ec7e13d) 이후 탈퇴 성공 path 는 signOutAndResetOnboarding 를 호출한다.
-  when(() => aRepo.signOutAndResetOnboarding()).thenAnswer((_) async {});
+  when(aRepo.signOutAndResetOnboarding).thenAnswer((_) async {});
 
   final router = GoRouter(
     initialLocation: '/',
@@ -224,9 +224,7 @@ void main() {
     testWidgets('E6C-WC-01 — 서버 삭제가 이미 끝났으면(온보딩 도착 전) 확인 문구를 맞게 '
         '넣어도 confirm disabled · 삭제 0 (quick 261011-e6c)', (tester) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       await _pumpAndShowDialog(
         tester,
         settingsRepo: settingsRepo,
@@ -251,7 +249,7 @@ void main() {
         warnIfMissed: false,
       );
       await tester.pump();
-      verifyNever(() => settingsRepo.requestAccountDeletion());
+      verifyNever(settingsRepo.requestAccountDeletion);
     });
 
     testWidgets('WC4 — partial input "탈" 시 confirm disabled', (tester) async {
@@ -282,9 +280,7 @@ void main() {
 
     testWidgets('WC6 — confirm 탭 → success SnackBar 노출', (tester) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
 
       await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
 
@@ -298,7 +294,7 @@ void main() {
 
       // 성공 SnackBar "회원탈퇴가 완료되었습니다." 노출.
       expect(find.text('회원탈퇴가 완료되었습니다.'), findsOneWidget);
-      verify(() => settingsRepo.requestAccountDeletion()).called(1);
+      verify(settingsRepo.requestAccountDeletion).called(1);
     });
 
     testWidgets(
@@ -306,7 +302,7 @@ void main() {
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
         when(
-          () => settingsRepo.requestAccountDeletion(),
+          settingsRepo.requestAccountDeletion,
         ).thenThrow(const ReauthenticationRequiredException());
 
         await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -354,7 +350,7 @@ void main() {
     ) async {
       final settingsRepo = _MockSettingsRepository();
       when(
-        () => settingsRepo.requestAccountDeletion(),
+        settingsRepo.requestAccountDeletion,
       ).thenThrow(const UnknownException());
 
       await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -382,7 +378,7 @@ void main() {
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
         when(
-          () => settingsRepo.requestAccountDeletion(),
+          settingsRepo.requestAccountDeletion,
         ).thenThrow(const TooManyRequests());
 
         await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -411,7 +407,7 @@ void main() {
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
         when(
-          () => settingsRepo.requestAccountDeletion(),
+          settingsRepo.requestAccountDeletion,
         ).thenThrow(const NoInternetConnection());
 
         await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -439,7 +435,7 @@ void main() {
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
         when(
-          () => settingsRepo.requestAccountDeletion(),
+          settingsRepo.requestAccountDeletion,
         ).thenThrow(const AppCheckFailedException());
         final visited = <String>[];
 
@@ -481,7 +477,7 @@ void main() {
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
         when(
-          () => settingsRepo.requestAccountDeletion(),
+          settingsRepo.requestAccountDeletion,
         ).thenThrow(const ServiceUnavailable());
 
         await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -543,7 +539,7 @@ void main() {
       final settingsRepo = _MockSettingsRepository();
       final deleteGate = Completer<void>();
       when(
-        () => settingsRepo.requestAccountDeletion(),
+        settingsRepo.requestAccountDeletion,
       ).thenAnswer((_) => deleteGate.future);
 
       await _pumpAndShowDialog(tester, settingsRepo: settingsRepo);
@@ -620,9 +616,7 @@ void main() {
       tester,
     ) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       final handle = await _pumpAndShowDialog(
         tester,
         settingsRepo: settingsRepo,
@@ -643,16 +637,14 @@ void main() {
         AppRoutes.withdrawalDisconnect,
       );
       expect(await handle.result, isFalse);
-      verifyNever(() => settingsRepo.requestAccountDeletion());
+      verifyNever(settingsRepo.requestAccountDeletion);
     });
 
     testWidgets('WC18 (16.10 Q6-A) — 이메일/비밀번호만이면 진행 화면 없이 바로 삭제', (
       tester,
     ) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       await _pumpAndShowDialog(
         tester,
         settingsRepo: settingsRepo,
@@ -666,7 +658,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      verify(() => settingsRepo.requestAccountDeletion()).called(1);
+      verify(settingsRepo.requestAccountDeletion).called(1);
       expect(find.text('withdraw-stub'), findsNothing);
       expect(find.text('회원탈퇴가 완료되었습니다.'), findsOneWidget);
     });
@@ -675,9 +667,7 @@ void main() {
       tester,
     ) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       await _pumpAndShowDialog(
         tester,
         settingsRepo: settingsRepo,
@@ -691,7 +681,7 @@ void main() {
       await tester.pump();
       await tester.pumpAndSettle();
 
-      verify(() => settingsRepo.requestAccountDeletion()).called(1);
+      verify(settingsRepo.requestAccountDeletion).called(1);
       expect(find.text('withdraw-stub'), findsNothing);
     });
 
@@ -699,9 +689,7 @@ void main() {
       tester,
     ) async {
       final settingsRepo = _MockSettingsRepository();
-      when(
-        () => settingsRepo.requestAccountDeletion(),
-      ).thenAnswer((_) async {});
+      when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
       final reads = <int>[0];
       await _pumpAndShowDialog(
         tester,
@@ -723,7 +711,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(reads.single, 1);
-      verifyNever(() => settingsRepo.requestAccountDeletion());
+      verifyNever(settingsRepo.requestAccountDeletion);
       expect(
         find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
         findsOneWidget,
@@ -741,9 +729,7 @@ void main() {
       'WC21 (review WR-01) — 캐시가 비어도 서버에 카카오 · 라인이 있으면 진행 화면 · 삭제 0',
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
-        when(
-          () => settingsRepo.requestAccountDeletion(),
-        ).thenAnswer((_) async {});
+        when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
         await _pumpAndShowDialog(
           tester,
           settingsRepo: settingsRepo,
@@ -758,7 +744,7 @@ void main() {
 
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
         expect(find.text('withdraw-stub'), findsOneWidget);
-        verifyNever(() => settingsRepo.requestAccountDeletion());
+        verifyNever(settingsRepo.requestAccountDeletion);
       },
     );
 
@@ -766,9 +752,7 @@ void main() {
       'WC22 (review IN-02 · iter 2) — 조회 reader 생성 실패도 조회 실패처럼 흡수 · 삭제 0 · 재시도 안내 · 다이얼로그 유지',
       (tester) async {
         final settingsRepo = _MockSettingsRepository();
-        when(
-          () => settingsRepo.requestAccountDeletion(),
-        ).thenAnswer((_) async {});
+        when(settingsRepo.requestAccountDeletion).thenAnswer((_) async {});
         await _pumpAndShowDialog(
           tester,
           settingsRepo: settingsRepo,
@@ -784,7 +768,7 @@ void main() {
 
         // 확인 버튼 핸들러가 잡히지 않은 예외로 끝나지 않는다.
         expect(tester.takeException(), isNull);
-        verifyNever(() => settingsRepo.requestAccountDeletion());
+        verifyNever(settingsRepo.requestAccountDeletion);
         expect(
           find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
           findsOneWidget,

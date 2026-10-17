@@ -3,7 +3,7 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final now = DateTime(2026, 4, 5, 12, 0);
+  final now = DateTime(2026, 4, 5, 12);
 
   group('User 모델', () {
     test('필수 필드로 생성하고 접근할 수 있다', () {

@@ -50,18 +50,16 @@ const _forgotPasswordText = 'FORGOT_PASSWORD_STUB';
 Future<GoRouter> _pumpRouter(WidgetTester tester) async {
   final mockAuth = _FakeFirebaseAuth();
   when(
-    () => mockAuth.authStateChanges(),
+    mockAuth.authStateChanges,
   ).thenAnswer((_) => const Stream<fb.User?>.empty());
   when(() => mockAuth.currentUser).thenReturn(null);
 
   final mockRepo = _FakeAuthRepository();
-  when(() => mockRepo.signInWithGoogle()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithApple()).thenAnswer((_) async => null);
-  when(() => mockRepo.signInWithFacebook()).thenAnswer((_) async => null);
+  when(mockRepo.signInWithGoogle).thenAnswer((_) async => null);
+  when(mockRepo.signInWithApple).thenAnswer((_) async => null);
+  when(mockRepo.signInWithFacebook).thenAnswer((_) async => null);
   // 재인증 선택 화면 열림 reload (reauth-login-auto-merge stale providerData).
-  when(
-    () => mockRepo.reloadUser(),
-  ).thenAnswer((_) async => const Result.success(null));
+  when(mockRepo.reloadUser).thenAnswer((_) async => const Result.success(null));
 
   final router = GoRouter(
     initialLocation: AppRoutes.home,
@@ -112,7 +110,7 @@ Future<GoRouter> _pumpRouter(WidgetTester tester) async {
             uid: 'reauth-forwarding-uid',
             email: 'forwarding@example.com',
             emailVerified: true,
-            createdAt: DateTime.utc(2026, 1, 1),
+            createdAt: DateTime.utc(2026),
             providerIds: const <String>['google.com', 'password'],
           ),
         ),

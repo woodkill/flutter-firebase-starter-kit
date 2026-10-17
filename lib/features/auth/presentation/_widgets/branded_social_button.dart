@@ -579,7 +579,7 @@ Widget _renderUnifiedButton(
             borderRadius: radius,
             side: outlineColor == null
                 ? BorderSide.none
-                : BorderSide(color: outlineColor, width: 1),
+                : BorderSide(color: outlineColor),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(

@@ -136,9 +136,7 @@ Override _fixedKind(SessionEndingKind kind) =>
 ({Override override, Completer<void> repoDone}) _pendingRepository() {
   final repo = _MockAuthRepository();
   final repoDone = Completer<void>();
-  when(
-    () => repo.signOutAndResetOnboarding(),
-  ).thenAnswer((_) => repoDone.future);
+  when(repo.signOutAndResetOnboarding).thenAnswer((_) => repoDone.future);
   return (
     override: authRepositoryProvider.overrideWithValue(repo),
     repoDone: repoDone,
@@ -371,7 +369,6 @@ void main() {
         name: '상속형 타이포그래피 테마',
         theme: AppTheme.light().copyWith(
           typography: Typography.material2021(
-            platform: TargetPlatform.android,
             englishLike: const TextTheme(bodyMedium: TextStyle(fontSize: 14)),
           ),
         ),

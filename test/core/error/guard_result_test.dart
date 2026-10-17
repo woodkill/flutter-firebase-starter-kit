@@ -50,7 +50,6 @@ void main() {
           any(that: isA<StateError>()),
           any(),
           reason: 'demo_repo_load',
-          fatal: false,
         ),
       ).called(1);
 
@@ -144,7 +143,6 @@ void main() {
           any(that: isA<StateError>()),
           any(),
           reason: 'demo_notifier_load',
-          fatal: false,
         ),
       ).called(1);
     });

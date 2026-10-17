@@ -325,7 +325,7 @@ void main() {
     test('Test 6: anonymous→full 전이 시 mirrorToFirestore (write) → '
         'reloadForUser (read) 직렬화로 원본 acceptance 복원', () async {
       // 사전: SharedPreferences 에 익명 단계의 acceptance 저장.
-      final originalAcceptedAt = DateTime.utc(2026, 4, 15, 9, 0, 0);
+      final originalAcceptedAt = DateTime.utc(2026, 4, 15, 9);
       final original = TermsAcceptance(
         version: TermsNotifier.currentVersion,
         service: true,

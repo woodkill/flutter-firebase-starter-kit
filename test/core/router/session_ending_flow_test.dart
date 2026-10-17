@@ -72,9 +72,8 @@ final User _kTestUser = User(
   email: 'me@example.com',
   emailVerified: true,
   displayName: 'Tester',
-  createdAt: DateTime.utc(2026, 1, 1),
+  createdAt: DateTime.utc(2026),
   providerIds: const <String>['password'],
-  signUpProviderId: null,
 );
 
 /// 진입 전환이 끝나기에 충분한 시간.
@@ -179,9 +178,7 @@ void main() {
         '완료 뒤에도 유지 → 온보딩 전환 중 유지 → 전환 뒤 오버레이 0 · 없음', (tester) async {
       final repo = _MockAuthRepository();
       final repoDone = Completer<void>();
-      when(
-        () => repo.signOutAndResetOnboarding(),
-      ).thenAnswer((_) => repoDone.future);
+      when(repo.signOutAndResetOnboarding).thenAnswer((_) => repoDone.future);
       final app = await _pumpAccountScreen(tester, repo);
       expect(
         find.descendant(
@@ -200,7 +197,7 @@ void main() {
         app.container.read(sessionEndingProvider).kind,
         SessionEndingKind.signOut,
       );
-      verify(() => repo.signOutAndResetOnboarding()).called(1);
+      verify(repo.signOutAndResetOnboarding).called(1);
       await tester.pump(AuthInProgressOverlay.indicatorDelay);
       expect(
         find.descendant(
@@ -245,7 +242,7 @@ void main() {
       // error 는 저장소 호출 안에서 던진다 — 테스트 zone 에서 만든 실패 future 는
       // error zone 경계를 넘지 못해, 탭 핸들러의 zone 에서 await 할 수 없다.
       final failNow = Completer<void>();
-      when(() => repo.signOutAndResetOnboarding()).thenAnswer((_) async {
+      when(repo.signOutAndResetOnboarding).thenAnswer((_) async {
         await failNow.future;
         throw error;
       });
@@ -266,7 +263,7 @@ void main() {
       expect(find.byType(AuthInProgressOverlay), findsNothing);
       expect(find.byType(AccountScreen), findsOneWidget);
       expect(app.container.read(sessionEndingProvider), idleSessionEndingState);
-      verify(() => repo.signOutAndResetOnboarding()).called(1);
+      verify(repo.signOutAndResetOnboarding).called(1);
     });
   });
 }
