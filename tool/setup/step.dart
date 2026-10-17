@@ -1,7 +1,7 @@
 import 'command_runner.dart';
 import 'wizard.dart';
 
-/// 단계 검사 결과 — 끝남 · 할 일 · 앞 단계 대기 세 가지.
+/// 단계 검사 결과 — 끝남 · 할 일 · 할 수 없음 · 확인할 수 없음 · 앞 단계 대기.
 sealed class CheckResult {
   /// 하위 클래스만 만든다.
   const CheckResult();
@@ -25,9 +25,32 @@ final class Todo extends CheckResult {
   final String reason;
 }
 
+/// 해야 할 일이지만 지금 위저드가 할 수 없는 단계 — 진행을 막지 않는다.
+///
+/// 위저드는 이 단계를 실행하지 않고 다음 단계로 가며, 끝에 남은 일로 보인다.
+/// 저장하지 않으므로 다음 실행의 검사가 다시 판정한다.
+final class Deferred extends CheckResult {
+  /// 할 수 없는 까닭을 [reason] 으로 적는다.
+  const Deferred(this.reason);
+
+  /// 점검표 · 끝 목록에 보일 사유.
+  final String reason;
+}
+
+/// 결과를 읽을 방법이 없어 끝났다고 판정할 수 없는 단계.
+///
+/// 위저드는 이 단계를 실행하지 않고 ✓ 로 보이지 않으며, 끝에 남은 일로 늘 보인다.
+final class Unverifiable extends CheckResult {
+  /// 확인할 수 없는 까닭 · 확인하는 법을 [note] 로 적는다.
+  const Unverifiable(this.note);
+
+  /// 점검표 · 끝 목록에 보일 문장.
+  final String note;
+}
+
 /// 앞 단계가 끝나야 검사할 수 있는 단계.
 ///
-/// 점검표가 끝나지 않은 앞 단계를 가진 단계에만 붙이는 판정이다 —
+/// 끝나지 않은 앞 단계를 가진 단계에 위저드가 붙이는 판정이다 —
 /// [Step.check] 는 이 값을 돌려주지 않는다.
 final class Blocked extends CheckResult {
   /// [waitingFor] 단계가 끝나기를 기다린다.
@@ -94,6 +117,17 @@ final class Replan extends StepOutcome {
   const Replan();
 }
 
+/// 사용자가 이 단계를 지금 하지 않기로 했다 — 위저드를 멈추지 않고 다음 단계로 간다.
+///
+/// 저장하지 않으므로 다음 실행의 점검표에 다시 할 일로 보인다.
+final class DeferredByUser extends StepOutcome {
+  /// 미룬 사유 [note] 로 만든다.
+  const DeferredByUser(this.note);
+
+  /// 진행 줄 · 끝 목록에 보일 사유.
+  final String note;
+}
+
 /// 위저드 단계 하나 — 검사 · 실행할 명령 · 실행을 같은 모양으로 갖는다.
 abstract interface class Step {
   /// 다른 단계가 [dependsOn] 으로 가리키는 고유 이름.
@@ -113,9 +147,10 @@ abstract interface class Step {
   /// false 를 돌려준다 — 보인 안내와 실제 실행이 어긋나지 않게 한다.
   bool get isCostlyOrIrreversible;
 
-  /// 읽기 전용으로 상태를 검사한다 — [Done] · [Todo] 만 돌려준다.
+  /// 읽기 전용으로 상태를 검사한다 — [Done] · [Todo] · [Deferred] ·
+  /// [Unverifiable] 을 돌려준다.
   ///
-  /// [Blocked] 는 위저드의 점검표가 만드는 판정이라 여기서 돌려주면 위저드가
+  /// [Blocked] 는 위저드가 만드는 판정이라 여기서 돌려주면 계약 위반으로 위저드가
   /// [StateError] 로 멈춘다.
   Future<CheckResult> check(WizardContext context);
 
@@ -127,4 +162,16 @@ abstract interface class Step {
 
   /// 단계를 실행한다.
   Future<StepOutcome> apply(WizardContext context);
+}
+
+/// 할 일일 때 진행 · 미루기 · 멈춤을 고르게 하는 단계.
+///
+/// 위저드는 이 단계의 진행 질문을 y/N 대신 세 선택지 고르기로 묻는다. 미루기를
+/// 고르면 실행하지 않고 [deferLabel] 을 사유로 한 ✗ 줄을 남긴 뒤 다음 단계로 간다.
+abstract interface class DeferrableStep implements Step {
+  /// 진행 선택지 문구.
+  String get proceedLabel;
+
+  /// 미루기 선택지 문구 — 미룬 줄의 사유로도 쓴다.
+  String get deferLabel;
 }

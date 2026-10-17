@@ -111,6 +111,32 @@ final class _ScriptedStep implements Step {
   }
 }
 
+/// 미룰 수 있는 테스트용 단계의 진행 선택지.
+const String _proceedLabel = '지금 진행';
+
+/// 미룰 수 있는 테스트용 단계의 미루기 선택지.
+const String _deferLabel = '지금 안 함';
+
+/// 끝난 뒤 함수가 찍는 줄.
+const String _completionLine = '끝 요약';
+
+/// 할 일일 때 진행 · 미루기 · 멈춤을 고르게 하는 테스트용 단계.
+final class _DeferrableScriptedStep extends _ScriptedStep
+    implements DeferrableStep {
+  _DeferrableScriptedStep(super.id, {required super.checks});
+
+  @override
+  String get proceedLabel => _proceedLabel;
+
+  @override
+  String get deferLabel => _deferLabel;
+}
+
+/// 끝 목록 [lines] 가 붙는 출력 끝부분(빈 줄 · 안내 줄 · 머리 · 줄들)을 만든다.
+String _buildRemainingTail(List<String> lines) =>
+    '\n\n$remainingDoneLine\n$remainingHeading\n'
+    '${lines.map((String line) => '$line\n').join()}';
+
 void main() {
   late Directory tempDir;
 
@@ -133,6 +159,29 @@ void main() {
       steps,
     );
     return (code: code, terminal: terminal);
+  }
+
+  /// [steps] 를 [inputs] 답으로 진행하고 끝난 뒤 함수가 불린 횟수도 돌려준다.
+  ///
+  /// 끝난 뒤 함수는 [_completionLine] 을 한 줄 찍는다.
+  Future<({int code, ScriptedTerminal terminal, int completions})>
+  runStepsWithCompletion(
+    List<Step> steps,
+    List<String?> inputs, {
+    StepListBuilder? rebuildSteps,
+  }) async {
+    final ScriptedTerminal terminal = ScriptedTerminal(inputs);
+    int completions = 0;
+    final int code = await runWizard(
+      buildTestContext(projectRoot: tempDir.path, terminal: terminal),
+      steps,
+      onCompleted: (WizardContext context) async {
+        completions++;
+        context.terminal.writeLine(_completionLine);
+      },
+      rebuildSteps: rebuildSteps,
+    );
+    return (code: code, terminal: terminal, completions: completions);
   }
 
   test('T-19-WIZ-01 앞 단계가 끝나지 않은 단계는 검사하지 않고 ? 로 보인다', () async {
@@ -608,6 +657,328 @@ void main() {
       );
       expect(missing.exitCode, ProcessCommandRunner.commandNotFoundExitCode);
       expect(missing.isOutputShown, isTrue);
+    });
+  });
+
+  test(
+    'T-20-ENGINE-01: 할 수 없는 단계는 ✗ 로 보이고 실행하지 않고 다음 단계로 가며 끝 목록에 남는다',
+    () async {
+      const String deferredLine = '  ✗ B — 지문이 없습니다';
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Done('a 끝')],
+      );
+      final _ScriptedStep b = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Deferred('지문이 없습니다')],
+      );
+      final _ScriptedStep c = _ScriptedStep(
+        'C',
+        checks: const <CheckResult>[Todo('c'), Todo('c'), Done('c 끝')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a, b, c], const <String?>['y']);
+
+      final String output = run.terminal.output.toString();
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(b.applyCount, 0);
+      expect(c.applyCount, 1);
+      expect(output, isNot(contains('▶ B')));
+      expect(output.indexOf(deferredLine), lessThan(output.indexOf('▶ C')));
+      expect(
+        output,
+        endsWith(
+          '${_buildRemainingTail(<String>[deferredLine])}'
+          '$_completionLine\n',
+        ),
+      );
+      expect(output, isNot(contains(allDoneLine)));
+      expect(output, isNot(contains(_stopLine)));
+    },
+  );
+
+  test(
+    'T-20-ENGINE-02: 확인할 수 없는 단계는 ? 로 보이고 묻지도 실행하지도 않으며 ✓ 가 되지 않는다',
+    () async {
+      const String unverifiableLine = '  ? A — 콘솔 업로드 — 확인은 실기기 알림';
+      final _ScriptedStep a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Unverifiable('콘솔 업로드 — 확인은 실기기 알림')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a], const <String?>[]);
+
+      final String output = run.terminal.output.toString();
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(a.applyCount, 0);
+      expect(run.terminal.asks, isEmpty);
+      expect(output, startsWith('$checklistHeading\n$unverifiableLine\n'));
+      expect(output, isNot(contains('  ✓ A')));
+      expect(
+        output,
+        endsWith(
+          '${_buildRemainingTail(<String>[unverifiableLine])}'
+          '$_completionLine\n',
+        ),
+      );
+    },
+  );
+
+  group('T-20-ENGINE-03: 미룰 수 있는 할 일은 진행 · 미루기 · 멈춤을 고른다', () {
+    test('T-20-ENGINE-03: 미루면 ✗ 줄을 보이고 다음 단계로 가며 끝 목록에 남는다', () async {
+      const String deferredLine = '  ✗ A — $_deferLabel';
+      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a 할 일')],
+      );
+      final _ScriptedStep b = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a, b], const <String?>['2', 'y']);
+
+      final String output = run.terminal.output.toString();
+      expect(run.terminal.asks, <String>[
+        failureChoiceQuestion,
+        _confirmQuestion,
+      ]);
+      expect(output, contains('  1) $_proceedLabel\n'));
+      expect(output, contains('  2) $_deferLabel\n'));
+      expect(output, contains('  3) $stopOption\n'));
+      expect(a.applyCount, 0);
+      expect(b.applyCount, 1);
+      expect(output.indexOf(deferredLine), lessThan(output.indexOf('▶ B')));
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(
+        output,
+        endsWith(
+          '${_buildRemainingTail(<String>[deferredLine])}'
+          '$_completionLine\n',
+        ),
+      );
+    });
+
+    test('T-20-ENGINE-03: 미룸은 저장하지 않아 같은 문맥으로 다시 돌리면 다시 ✗ 다', () async {
+      final ScriptedTerminal terminal = ScriptedTerminal(const <String?>[
+        '2',
+        '2',
+      ]);
+      final WizardContext context = buildTestContext(
+        projectRoot: tempDir.path,
+        terminal: terminal,
+      );
+      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a 할 일')],
+      );
+
+      final int first = await runWizard(context, <Step>[a]);
+      final int second = await runWizard(context, <Step>[a]);
+
+      final String output = terminal.output.toString();
+      expect(first, wizardExitDone);
+      expect(second, wizardExitDone);
+      expect(_countExactLines(output, '  ✗ A — a 할 일'), 2);
+      expect(
+        terminal.asks.where((String ask) => ask == failureChoiceQuestion),
+        hasLength(2),
+      );
+      expect(a.applyCount, 0);
+      expect(tempDir.listSync(), isEmpty);
+    });
+
+    test('T-20-ENGINE-03: 같은 실행에서 단계 목록을 다시 짜도 미룬 단계는 다시 묻지 않는다', () async {
+      const String deferredLine = '  ✗ A — $_deferLabel';
+      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a 할 일')],
+      );
+      final _ScriptedStep b = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Todo('b')],
+        outcomes: const <StepOutcome>[Replan()],
+      );
+      final _ScriptedStep rebuiltB = _ScriptedStep(
+        'B',
+        checks: const <CheckResult>[Done('b 끝')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(
+            <Step>[a, b],
+            const <String?>['2', 'y'],
+            rebuildSteps: () => <Step>[a, rebuiltB],
+          );
+
+      final String output = run.terminal.output.toString();
+      expect(output, contains(replanLine));
+      expect(
+        run.terminal.asks.where((String ask) => ask == failureChoiceQuestion),
+        hasLength(1),
+      );
+      expect(a.applyCount, 0);
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(
+        output,
+        endsWith(
+          '${_buildRemainingTail(<String>[deferredLine])}'
+          '$_completionLine\n',
+        ),
+      );
+    });
+  });
+
+  group('T-20-ENGINE-04: 미루기 고르기는 기본값이 없고 멈춤 · 입력 끝이면 1 로 멈춘다', () {
+    for (final ({String label, List<String?> inputs}) answer
+        in <({String label, List<String?> inputs})>[
+          (label: 'Enter 뒤 멈춤', inputs: <String?>['', '3']),
+          (label: '입력 끝(EOF)', inputs: <String?>[]),
+        ]) {
+      test('T-20-ENGINE-04: ${answer.label}', () async {
+        final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+          'A',
+          checks: const <CheckResult>[Todo('a 할 일')],
+        );
+        final _ScriptedStep b = _ScriptedStep(
+          'B',
+          checks: const <CheckResult>[Todo('b')],
+        );
+
+        final ({int code, ScriptedTerminal terminal, int completions}) run =
+            await runStepsWithCompletion(<Step>[a, b], answer.inputs);
+
+        final String output = run.terminal.output.toString();
+        expect(run.code, wizardExitStopped);
+        expect(output, contains(_stopLine));
+        expect(output, isNot(contains('▶ B')));
+        expect(a.applyCount, 0);
+        expect(run.completions, 0);
+      });
+    }
+
+    test('T-20-ENGINE-04: Enter 는 고르지 않은 것이라 다시 묻는다', () async {
+      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a 할 일')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a], const <String?>['', '2']);
+
+      expect(a.applyCount, 0);
+      expect(run.code, wizardExitDone);
+      expect(run.terminal.output.toString(), contains('  ✗ A — $_deferLabel'));
+    });
+  });
+
+  test(
+    'T-20-ENGINE-05: 미룰 수 있는 단계에서 진행을 고르면 실행하고 재검사 ✓ 면 모든 단계가 끝난다',
+    () async {
+      final _DeferrableScriptedStep a = _DeferrableScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
+      );
+
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[a], const <String?>['1']);
+
+      final String output = run.terminal.output.toString();
+      expect(a.applyCount, 1);
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(output, contains('  ✓ A — a 끝'));
+      expect(output, endsWith('\n\n$allDoneLine\n$_completionLine\n'));
+      expect(output, isNot(contains(remainingHeading)));
+    },
+  );
+
+  test('T-20-ENGINE-06: 실행이 나중에로 끝나면 ✗ 줄을 보이고 다음 단계로 가며 0 으로 끝난다', () async {
+    const String deferredLine = '  ✗ A — 나중에';
+    final _ScriptedStep a = _ScriptedStep(
+      'A',
+      checks: const <CheckResult>[Todo('a')],
+      outcomes: const <StepOutcome>[DeferredByUser('나중에')],
+    );
+    final _ScriptedStep b = _ScriptedStep(
+      'B',
+      checks: const <CheckResult>[Todo('b'), Todo('b'), Done('b 끝')],
+    );
+
+    final ({int code, ScriptedTerminal terminal, int completions}) run =
+        await runStepsWithCompletion(<Step>[a, b], const <String?>['y', 'y']);
+
+    final String output = run.terminal.output.toString();
+    expect(a.applyCount, 1);
+    expect(b.applyCount, 1);
+    expect(output.indexOf(deferredLine), lessThan(output.indexOf('▶ B')));
+    expect(output, isNot(contains(_stopLine)));
+    expect(run.code, wizardExitDone);
+    expect(run.completions, 1);
+    expect(
+      output,
+      endsWith(
+        '${_buildRemainingTail(<String>[deferredLine])}'
+        '$_completionLine\n',
+      ),
+    );
+  });
+
+  group('T-20-ENGINE-07: 남은 일이 없으면 끝 출력이 지금과 같다', () {
+    test('T-20-ENGINE-07: 점검표에서 모두 ✓', () async {
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(<Step>[
+            _ScriptedStep('A', checks: const <CheckResult>[Done('a 끝')]),
+            _ScriptedStep('B', checks: const <CheckResult>[Done('b 끝')]),
+          ], const <String?>[]);
+
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(
+        run.terminal.output.toString(),
+        '$checklistHeading\n'
+        '  ✓ A — a 끝\n'
+        '  ✓ B — b 끝\n'
+        '$allDoneLine\n'
+        '$_completionLine\n',
+      );
+    });
+
+    test('T-20-ENGINE-07: 할 일을 진행해 모두 ✓', () async {
+      final ({int code, ScriptedTerminal terminal, int completions}) run =
+          await runStepsWithCompletion(
+            <Step>[
+              _ScriptedStep(
+                'A',
+                checks: const <CheckResult>[Todo('a'), Todo('a'), Done('a 끝')],
+              ),
+            ],
+            const <String?>['y'],
+          );
+
+      expect(run.code, wizardExitDone);
+      expect(run.completions, 1);
+      expect(
+        run.terminal.output.toString(),
+        '$checklistHeading\n'
+        '  ✗ A — a\n'
+        '\n'
+        '▶ A\n'
+        '  a\n'
+        '  \$ run-A\n'
+        '$_confirmQuestion [y/N] \n'
+        '  ✓ A — a 끝\n'
+        '\n'
+        '$allDoneLine\n'
+        '$_completionLine\n',
+      );
     });
   });
 }

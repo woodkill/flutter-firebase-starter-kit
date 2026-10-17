@@ -8,7 +8,10 @@ import 'rest_client.dart';
 import 'step.dart';
 import 'terminal.dart';
 
-/// 모든 단계가 끝났을 때의 종료 코드.
+/// 할 수 있는 단계를 모두 지났을 때의 종료 코드.
+///
+/// 미룬 · 할 수 없는 · 확인할 수 없는 단계가 남아 있어도 같다 — 그 줄은 끝 목록에
+/// 보인다.
 const int wizardExitDone = 0;
 
 /// 멈춤 · 거절 · 입력 끝 · 실패로 끝났을 때의 종료 코드.
@@ -22,6 +25,12 @@ const String checklistHeading = '점검표';
 
 /// 모든 단계가 끝났을 때의 줄.
 const String allDoneLine = '모든 단계가 끝났습니다.';
+
+/// 할 수 있는 단계를 모두 지났지만 남은 일이 있을 때의 줄.
+const String remainingDoneLine = '할 수 있는 단계를 모두 지났습니다 — 남은 일은 아래와 같습니다.';
+
+/// 끝 목록(미룬 · 할 수 없는 · 확인할 수 없는 단계)의 머리 줄.
+const String remainingHeading = 'release 빌드 전에 끝내야 할 일:';
 
 /// 단계를 시작하기 전에 묻는 질문.
 const String stepConfirmQuestion = '이 단계를 진행할까요?';
@@ -40,16 +49,16 @@ const String exitForUserTailLine = '끝나면 ./setup.sh 를 다시 실행하세
 /// 위저드 밖 짧은 작업을 기다릴 때의 문구.
 const String waitForEnterMessage = '끝나면 Enter 를 누르세요';
 
-/// 실패 뒤 고르기 질문.
+/// 실패 뒤 고르기 · 미룰 수 있는 단계의 진행 고르기 질문.
 const String failureChoiceQuestion = '어떻게 할까요?';
 
 /// 실패 뒤 고르기의 다시 시도 선택지.
 const String retryOption = '다시 시도';
 
-/// 실패 뒤 고르기의 멈춤 선택지.
+/// 실패 뒤 고르기 · 미룰 수 있는 단계의 진행 고르기의 멈춤 선택지.
 const String stopOption = '멈춤';
 
-/// 모든 단계가 끝난 뒤 부르는 함수 — 끝 요약 등을 보인다.
+/// 할 수 있는 단계를 모두 지난 뒤 부르는 함수 — 끝 요약 등을 보인다.
 typedef WizardCompletion = Future<void> Function(WizardContext context);
 
 /// 끝난 뒤 함수가 실패했을 때의 안내 머리 — 종료 코드는 바꾸지 않는다.
@@ -147,11 +156,24 @@ enum _RetryDecision {
   rerun,
 }
 
+/// 단계 진행 질문의 답.
+enum _ProceedDecision {
+  /// 실행한다.
+  proceed,
+
+  /// 이번 실행에서는 하지 않고 다음 단계로 간다.
+  defer,
+
+  /// 멈춘다.
+  stop,
+}
+
 /// 점검표를 보이고 첫 할 일 단계부터 차례로 진행하는 위저드.
 final class Wizard {
   /// [context] 로 [steps] 를 순서대로 진행하는 위저드를 만든다.
   ///
-  /// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다.
+  /// [onCompleted] 는 할 수 있는 단계를 모두 지났을 때(종료 코드 0 직전)에만
+  /// 부른다 — 끝 목록에 남은 일이 있어도 부른다.
   /// [rebuildSteps] 는 단계가 [Replan] 을 돌려줬을 때 새 목록을 만든다 — null 이면
   /// [Replan] 은 [Applied] 와 같다.
   Wizard(this.context, this.steps, {this.onCompleted, this.rebuildSteps})
@@ -163,7 +185,7 @@ final class Wizard {
   /// 처음 받은 단계 목록.
   final List<Step> steps;
 
-  /// 모든 단계가 끝났을 때 부를 함수. null 이면 부르지 않는다.
+  /// 할 수 있는 단계를 모두 지났을 때 부를 함수. null 이면 부르지 않는다.
   final WizardCompletion? onCompleted;
 
   /// 단계 목록을 다시 만드는 함수. null 이면 다시 만들지 않는다.
@@ -178,14 +200,23 @@ final class Wizard {
   // 방금 진행한 단계가 목록 다시 짜기를 요청했으면 true.
   bool _isReplanPending = false;
 
+  // 이번 바퀴의 끝 목록 줄(진행 순서) — 바퀴마다 새로 모은다.
+  final List<String> _remainingLines = <String>[];
+
+  // 이번 실행에서 사용자가 미룬 단계 id → 미룬 사유. 다시 짠 바퀴에서도 다시
+  // 묻지 않는다 — 파일로 남기지 않으므로 다음 실행은 다시 묻는다.
+  final Map<String, String> _userDeferrals = <String, String>{};
+
   Terminal get _terminal => context.terminal;
 
   /// 위저드를 실행하고 종료 코드를 돌려준다.
   ///
-  /// 단계가 목록 다시 짜기를 요청하면 새 목록으로 점검표부터 다시 돈다.
+  /// 단계가 목록 다시 짜기를 요청하면 새 목록으로 점검표부터 다시 돈다 — 끝 목록도
+  /// 새 바퀴의 판정으로 다시 모은다.
   Future<int> run() async {
     while (true) {
       final Map<String, CheckResult> results = await _checkAll();
+      _remainingLines.clear();
       _printChecklist(results);
       if (results.values.every((CheckResult result) => result is Done)) {
         _terminal.writeLine(allDoneLine);
@@ -203,9 +234,26 @@ final class Wizard {
         }
       }
       if (isReplanned) continue;
-      _terminal.writeLine('');
-      _terminal.writeLine(allDoneLine);
+      _printEnding();
       return _complete();
+    }
+  }
+
+  /// 진행을 마친 뒤의 끝 줄을 보인다.
+  ///
+  /// 끝 목록이 비었으면 모든 단계가 끝났다는 줄을, 아니면 남은 일 안내 · 머리 ·
+  /// 점검표 줄 모양 그대로의 끝 목록을 보인다.
+  void _printEnding() {
+    _terminal.writeLine('');
+    if (_remainingLines.isEmpty) {
+      _terminal.writeLine(allDoneLine);
+      return;
+    }
+    _terminal
+      ..writeLine(remainingDoneLine)
+      ..writeLine(remainingHeading);
+    for (final String line in _remainingLines) {
+      _terminal.writeLine(line);
     }
   }
 
@@ -281,8 +329,9 @@ final class Wizard {
   /// 단계 하나를 검사하고 판정을 기록에 남긴다 — 검사 중 예외는 할 일로 본다.
   ///
   /// [Step.check] 가 [Blocked] 를 돌려주면 계약 위반이라 [StateError] 를
-  /// 던진다 — 단계 검사는 모두 여기를 거치므로 돌려준 값은 [Done] · [Todo]
-  /// 뿐이다. 점검표의 [Blocked] 는 [_checkAll] 이 이 함수를 거치지 않고 만든다.
+  /// 던진다 — 단계 검사는 모두 여기를 거치므로 돌려준 값은 [Done] · [Todo] ·
+  /// [Deferred] · [Unverifiable] 뿐이다. [Blocked] 는 위저드가 이 함수를 거치지
+  /// 않고 만든다.
   Future<CheckResult> _check(Step step) async {
     CheckResult result;
     try {
@@ -300,6 +349,8 @@ final class Wizard {
     final String line = switch (result) {
       Done(:final String summary) => '✓ $summary',
       Todo(:final String reason) => '✗ $reason',
+      Deferred(:final String reason) => '✗ $reason',
+      Unverifiable(:final String note) => '? $note',
       Blocked(:final String waitingFor) => '? $waitingFor 뒤에 검사합니다',
     };
     context.log.write('check', '${step.id} $line');
@@ -317,6 +368,8 @@ final class Wizard {
   String _formatCheckLine(Step step, CheckResult result) => switch (result) {
     Done(:final String summary) => '  ✓ ${step.title} — $summary',
     Todo(:final String reason) => '  ✗ ${step.title} — $reason',
+    Deferred(:final String reason) => '  ✗ ${step.title} — $reason',
+    Unverifiable(:final String note) => '  ? ${step.title} — $note',
     Blocked(:final String waitingFor) =>
       '  ? ${step.title} — $waitingFor 뒤에 검사합니다',
   };
@@ -325,19 +378,32 @@ final class Wizard {
   ///
   /// 실패하거나 실행 뒤에도 끝나지 않으면 다시 시도 · 멈춤을 고르게 한다. 다시
   /// 시도는 먼저 다시 검사한다 — 위저드 밖에서 이미 끝냈으면 실행하지 않고 ✓ 로
-  /// 넘어간다.
+  /// 넘어간다. 검사 · 재검사가 할 수 없음 · 확인할 수 없음이거나 사용자가 미루면
+  /// 그 줄을 끝 목록에 모으고 다음 단계로 간다(멈춤이 아니다).
   Future<int?> _runStep(Step step) async {
     final CheckResult current = await _check(step);
-    // _check 는 Done · Todo 만 돌려주므로 Todo 가 아니면 끝난 것이다.
     if (current is! Todo) {
-      _terminal.writeLine(_formatCheckLine(step, current));
+      _settle(step, current);
+      return null;
+    }
+    final String? userDeferral = _userDeferrals[step.id];
+    if (userDeferral != null) {
+      _deferByUser(step, userDeferral);
       return null;
     }
     _terminal.writeLine('');
     _terminal.writeLine('▶ ${step.title}');
     _terminal.writeLine('  ${current.reason}');
     _printPlannedLines(step);
-    if (!_terminal.confirm(stepConfirmQuestion)) return _stop();
+    switch (_askToProceed(step)) {
+      case _ProceedDecision.proceed:
+        break;
+      case _ProceedDecision.defer when step is DeferrableStep:
+        _deferByUser(step, step.deferLabel);
+        return null;
+      case _ProceedDecision.defer || _ProceedDecision.stop:
+        return _stop();
+    }
 
     while (true) {
       final StepOutcome outcome = await _apply(step);
@@ -349,10 +415,13 @@ final class Wizard {
         case Applied() || Replan():
           final CheckResult after = await _check(step);
           if (after is! Todo) {
-            _terminal.writeLine(_formatCheckLine(step, after));
+            _settle(step, after);
             return null;
           }
           _printFailure(after.reason, null);
+        case DeferredByUser(:final String note):
+          _deferByUser(step, note);
+          return null;
         case ExitForUser(:final String guide):
           _terminal.writeLine(guide);
           _terminal.writeLine(exitForUserTailLine);
@@ -383,17 +452,66 @@ final class Wizard {
     if (!_chooseRetry()) return _RetryDecision.stop;
     final CheckResult recheck = await _check(step);
     if (recheck is Todo) return _RetryDecision.rerun;
-    _terminal.writeLine(_formatCheckLine(step, recheck));
+    _settle(step, recheck);
     return _RetryDecision.finished;
+  }
+
+  /// 할 일이 아닌 판정 [result] 로 [step] 을 마무리하고 진행 줄을 보인다.
+  ///
+  /// 끝나지 않은 판정([Deferred] · [Unverifiable] · [Blocked])은 끝 목록에도
+  /// 모은다. [Todo] 는 호출한 쪽이 먼저 갈라 실행으로 가므로 여기 오면
+  /// 프로그래밍 오류다.
+  void _settle(Step step, CheckResult result) {
+    final String line = _formatCheckLine(step, result);
+    switch (result) {
+      case Todo():
+        throw StateError('${step.id} 단계는 아직 할 일이라 마무리할 수 없습니다');
+      case Done():
+        _terminal.writeLine(line);
+      case Deferred() || Unverifiable() || Blocked():
+        _terminal.writeLine(line);
+        _remainingLines.add(line);
+    }
+  }
+
+  /// [step] 을 사용자가 [note] 사유로 미룬 것으로 마무리한다.
+  ///
+  /// 이번 실행 동안만 기억한다 — 파일로 남기지 않는다.
+  void _deferByUser(Step step, String note) {
+    _userDeferrals[step.id] = note;
+    _settle(step, Deferred(note));
+  }
+
+  /// 단계 진행 여부를 묻는다.
+  ///
+  /// [DeferrableStep] 은 진행 · 미루기 · 멈춤 셋 가운데 고르게 한다 — 기본값이
+  /// 없어 Enter 만 치면 다시 묻는다. 그 밖의 단계는 y/N 으로 묻는다. 입력 끝은
+  /// 멈춤이다.
+  _ProceedDecision _askToProceed(Step step) {
+    if (step is! DeferrableStep) {
+      return _terminal.confirm(stepConfirmQuestion)
+          ? _ProceedDecision.proceed
+          : _ProceedDecision.stop;
+    }
+    final int? choice = _terminal.choose(failureChoiceQuestion, <String>[
+      step.proceedLabel,
+      step.deferLabel,
+      stopOption,
+    ], defaultIndex: null);
+    return switch (choice) {
+      0 => _ProceedDecision.proceed,
+      1 => _ProceedDecision.defer,
+      _ => _ProceedDecision.stop,
+    };
   }
 
   /// [step] 의 검사가 [Blocked] 를 돌려줬을 때의 프로그래밍 오류를 만든다.
   ///
-  /// [Blocked] 는 점검표가 앞 단계를 기다리는 단계에만 붙이는 판정이다 —
-  /// [Step.check] 는 [Done] · [Todo] 만 돌려준다.
+  /// [Blocked] 는 위저드가 앞 단계를 기다리는 단계에만 붙이는 판정이다 —
+  /// [Step.check] 는 [Done] · [Todo] · [Deferred] · [Unverifiable] 만 돌려준다.
   StateError _buildBlockedCheckError(Step step) => StateError(
     '${step.id} 단계의 check 가 Blocked 를 돌려줬습니다 — '
-    'check 는 Done · Todo 만 돌려줍니다',
+    'check 는 Done · Todo · Deferred · Unverifiable 만 돌려줍니다',
   );
 
   /// 안내를 보이고 Enter 를 기다려 그 자리에서 다시 검사한다.
@@ -406,7 +524,7 @@ final class Wizard {
       if (!_terminal.waitForEnter(waitForEnterMessage)) return _stop();
       final CheckResult after = await _check(step);
       if (after is! Todo) {
-        _terminal.writeLine(_formatCheckLine(step, after));
+        _settle(step, after);
         return null;
       }
       _terminal.writeLine('  아직 끝나지 않았습니다 — ${after.reason}');
@@ -470,8 +588,9 @@ final class Wizard {
 
 /// [steps] 를 [context] 로 진행하고 종료 코드(0 · 1 · 3)를 돌려준다.
 ///
-/// [onCompleted] 는 모든 단계가 끝났을 때(종료 코드 0 직전)에만 부른다 — 이미
-/// 모든 단계가 끝난 저장소의 재실행도 포함한다. 단계가 [Replan] 을 돌려주면
+/// [onCompleted] 는 할 수 있는 단계를 모두 지났을 때(종료 코드 0 직전)에만
+/// 부른다 — 이미 모든 단계가 끝난 저장소의 재실행 · 끝 목록에 남은 일이 있는
+/// 실행도 포함한다. 단계가 [Replan] 을 돌려주면
 /// [rebuildSteps] 로 새 목록을 받아 점검표부터 다시 돈다([maxReplans] 회까지).
 Future<int> runWizard(
   WizardContext context,
