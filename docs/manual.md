@@ -3835,39 +3835,127 @@ bash scripts/check_phase_refs.sh
 
 ## 정적 분석 — woody_lints · riverpod_lint
 
-### 무엇이 바뀌었나
+킷의 analyze 규칙은 `woody_lints` 패키지에서 온다. 규칙이나 riverpod_lint
+진단을 끄거나 woody_lints 판을 올릴 때 이 절을 본다.
 
-woody_lints 1.3.0 부터 riverpod_lint 가 최상위 `plugins:` 선언으로 **실제로
-실행**된다. 이전 버전의 `analyzer: plugins: - riverpod_lint` 선언은
-riverpod_lint 3.x 를 아무것도 로드하지 않았다 — 킷이 강제한다고 믿던 Riverpod
-규칙이 한 번도 돌지 않았던 셈이다. 킷의 `analysis_options.yaml` 이
-`package:woody_lints/analysis_options.yaml` 을 include 하므로 추가 설정은
-필요 없다.
+### 구성
+
+`pubspec.yaml` 의 `dev_dependencies` 가 woody_lints 를 공개 GitHub 저장소의
+tag 로 받는다.
+
+```yaml
+dev_dependencies:
+  woody_lints:
+    git:
+      url: https://github.com/woodkill/woody_lints.git
+      ref: v2.0.0
+```
+
+`analysis_options.yaml` 은 묶음 프리셋 하나를 include 한다. 기본 규칙 ·
+riverpod_lint plugin · 코드 생성(freezed · json_serializable) 설정이 함께
+들어온다.
+
+```yaml
+include: package:woody_lints/recommended.yaml
+```
+
+- 킷 옵션 파일의 `analyzer: exclude:` 목록(생성 파일 `**/*.g.dart` ·
+  `**/*.freezed.dart`, `functions/**`, 플랫폼 폴더)은 지우지 않는다. 프리셋에도
+  생성 파일 제외가 있지만 riverpod_lint 진단에는 닿지 않아, 프로젝트의 옵션
+  파일에 직접 적어야 막힌다.
+- riverpod_lint 는 프리셋의 `plugins:` 가 `^3.1.9` 범위로 선언하고, 분석할 때
+  pub.dev 에서 받는다. 그래서 분석에는 네트워크가 필요하고, `pubspec.yaml` ·
+  `pubspec.lock` 에는 riverpod_lint 를 따로 적지 않는다. woody_lints 를 tag 로
+  고정해도 plugin 은 그 범위 안의 최신 판으로 풀린다.
+- woody_lints 2.0.0 은 Dart 3.13 이상이 필요하다. 킷의 `.fvmrc` 가 고정한
+  Flutter 가 이를 충족한다.
 
 ### 확인 방법
 
-- IDE (Dart Analysis Server) 의 Problems 패널 또는 `fvm dart analyze`.
-- Flutter 3.41.9 에서는 `fvm flutter analyze` 도 plugin 진단을 표시하지만,
-  Flutter 3.47.5 에서는 `flutter analyze` 가 plugin 진단을 표시하지 않았다
-  (2026-09-20 실측). **기준 명령은 `fvm dart analyze`** 로 잡는다.
+저장소 루트에서 두 명령을 모두 실행하고, 둘 다 `No issues found!` 인지 본다.
 
-### plugin 해석 · Analysis Server 재시작
+```bash
+fvm flutter analyze
+fvm dart analyze
+```
 
-- plugin 은 프로젝트 `pubspec.lock` 이 아니라 Analysis Server 의 plugin 캐시
-  (`~/.dartServer/.plugin_manager`) 에서 woody_lints 의 제약
-  (`riverpod_lint: ^3.1.3`) 대로 해석된다.
-- plugin 설정이나 woody_lints 버전을 바꾼 뒤에는 IDE 에서 **Analysis Server 를
-  재시작**해야 새 규칙이 반영된다 (VS Code: `Dart: Restart Analysis Server`).
+- `fvm flutter analyze` 는 info 진단도 실패로 친다.
+- riverpod_lint 진단은 `fvm dart analyze` 에만 나온다.
 
-### 억제 문법
+plugin 준비가 실패하면 출력에 `An error occurred while executing an analyzer plugin:`
+머리말이 보인다(첫 줄이 아닐 수 있다). 이때도 종료 코드는 남은 진단대로 나오므로
+종료 코드만으로는 알 수 없다.
 
-- plugin 진단은 네임스페이스 형식만 동작한다:
-  `// ignore: riverpod_lint/<rule>` · `// ignore_for_file: riverpod_lint/<rule>`.
-  plain `// ignore: <rule>` 은 **무효**다.
-- ignore 는 진단 **시작 줄 바로 윗줄**에 둔다. doc 주석이 있는 멤버는 진단이
-  `///` 첫 줄에서 시작하므로 `///` 블록 **위**에 둔다.
-- 억제할 때는 바로 위에 이유 주석을 남기고, 구조 개편이 필요하면 후속 todo
-  파일명을 함께 적는다.
+### 진단 고치기
+
+```bash
+fvm dart fix --dry-run
+fvm dart fix --apply
+```
+
+`--dry-run` 으로 자동으로 고칠 것을 보고 `--apply` 로 고친다. 한 규칙만 고치려면
+`--code=<규칙>` 을 붙인다. riverpod_lint 진단은 `dart fix` 가 고치지 않으므로,
+자동으로 고쳐지지 않은 진단과 함께 손으로 고친다.
+
+### 한 줄 · 파일 단위로 끄기
+
+- 한 줄: 진단이 시작하는 줄 바로 위에 `// ignore: <규칙>` 을 적는다.
+- 파일: 파일 맨 위에 `// ignore_for_file: <규칙>` 을 적는다.
+- riverpod_lint 진단은 `riverpod_lint/<규칙>` 처럼 접두사를 붙인다. 접두사가
+  없으면 꺼지지 않는다.
+- 무시 주석 바로 윗줄에는 끄는 까닭을 적은 주석을 둔다. 없으면 그 무시 주석에
+  `document_ignores` info 가 붙는다.
+- `///` 문서 주석이 있는 멤버는 진단이 `///` 첫 줄에서 시작하므로, 이유 주석 →
+  무시 주석 → `///` 블록 순서로 적는다.
+
+```dart
+// 서버가 보낸 표기를 그대로 보여 주는 진단 화면이라 큰따옴표를 둔다.
+// ignore: prefer_single_quotes
+const String serverSample = "ok";
+
+// 이 자리에서는 <규칙> 이 맞지 않는 까닭을 적는다.
+// ignore: riverpod_lint/<규칙>
+final items = ref.watch(itemsProvider);
+```
+
+### 프로젝트 전체에서 끄기
+
+- 규칙: 킷 `analysis_options.yaml` 에 이미 있는 `linter:` → `rules:` 아래에
+  `<규칙>: false` 를 맵 꼴로 더한다. 같은 `rules:` 에 목록 꼴(`- 이름`)을 섞으면
+  YAML 이 깨져 `fvm dart analyze` 가 진단 없이 종료 코드 3 으로 끝난다.
+- riverpod_lint 진단: 파일 끝에 최상위 `plugins:` → `riverpod_lint:` 를 두고, 그
+  아래에 `version: ^3.1.9` 와 `diagnostics:` → `<규칙>: false` 를 적는다.
+  - `version` 없이 `diagnostics:` 만 적으면 경고 없이 무시된다.
+  - 이 블록이 프리셋의 plugin 선언을 대신하므로 `version` 값은 프리셋 선언과
+    같게 적는다.
+  - `analyzer: errors:` 로는 riverpod_lint 진단을 끌 수 없다.
+
+```yaml
+linter:
+  rules:
+    prefer_final_locals: false
+
+plugins:
+  riverpod_lint:
+    version: ^3.1.9
+    diagnostics:
+      avoid_public_notifier_properties: false
+```
+
+바꾼 뒤에는 IDE 의 Analysis Server 를 재시작한다 — VS Code 는 명령 팔레트의
+`Dart: Restart Analysis Server`.
+
+### woody_lints 판 올리기
+
+1. 새 tag 의 woody_lints `CHANGELOG.md` 에서 「새로 생기는 경고」 와 요구 SDK 를
+   본다.
+2. `pubspec.yaml` 의 `ref:` 를 새 tag 로 고친다.
+3. `fvm flutter pub get`
+4. `pubspec.yaml` 과 `pubspec.lock` 을 함께 커밋한다 — `ref:` 만 바꾸고 lock 을
+   그대로 두면 `fvm flutter pub get --enforce-lockfile` 이 실패한다.
+5. `fvm flutter analyze` · `fvm dart analyze` 로 새 진단을 본다.
+6. `fvm dart fix --apply` 로 고칠 수 있는 것을 고치고, 남은 것은 손으로 고친다.
+7. IDE 의 Analysis Server 를 재시작한다.
 
 ### 테스트 작성 규칙
 
@@ -3881,26 +3969,41 @@ riverpod_lint 3.x 를 아무것도 로드하지 않았다 — 킷이 강제한�
   (`avoid_public_notifier_properties`). 호출 기록은 생성자로 받은 **외부
   recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
 
-### 현재 lib 억제 0건
-
-quick `260920-b28` 이 남아 있던 lib 억제 3건을 **구조로** 해소했다. `lib` ·
-`test` 어디에도 `riverpod_lint/` 지시문이 없다.
-
-| 해소한 진단 | 옛 구조 | 새 구조 |
-|-------------|---------|---------|
-| `unsupported_provider_value` (`authChangeNotifier` provider) | provider 가 GoRouter `refreshListenable` 용 `ChangeNotifier` 를 값으로 반환 | `AuthRefresh` notifier 가 불변 state(인증 스냅샷 + 최초 emit 여부 + revision)만 노출하고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 가 만들어 소유 · dispose 한다 (`ref.listen` 으로 중계) |
-| `avoid_public_notifier_properties` (`acceptanceSnapshotJson` getter) | notifier getter 가 Custom Token payload JSON 을 직접 계산 | `TermsState` 의 순수 파생(`buildAcceptanceSnapshotJson()`) |
-| `avoid_public_notifier_properties` (`lastReloadedUid` getter) | notifier getter 가 stale 가드 기준값을 노출 | `TermsState.lastReloadedUid` (소비처는 `ref.read(termsProvider).lastReloadedUid`) |
-
-**새 코드를 쓸 때의 규칙 2줄:**
+### 새 코드를 쓸 때의 규칙
 
 1. **Notifier 는 불변 state 만 노출한다.** public 필드 · getter 를 두지 말고
    값을 `state` 에 담는다. 값이 여러 개면 record 나 freezed 값 객체로 묶고,
-   파생값은 notifier 밖 순수 함수 · extension 으로 뺀다.
+   파생값은 notifier 밖 순수 함수 · extension 으로 뺀다. 킷의 `TermsState` 가
+   그 예다 — 약관 동의 스냅샷 JSON 은 `buildAcceptanceSnapshotJson()` 이 만들고,
+   `lastReloadedUid` 는 `ref.read(termsProvider).lastReloadedUid` 로 읽는다.
 2. **provider 는 `Listenable` 같은 가변 객체를 값으로 반환하지 않는다.**
    필요하면 **소비하는 쪽**이 만들어 소유하고 `ref.listen` 으로 값을 받아
    올린다 — 그 객체는 소비자의 구현 세부이고, 정리(`ref.onDispose`)도
-   소비자 책임이다. `appRouter` 의 `RouterRefreshListenable` 이 그 예다.
+   소비자 책임이다. `AuthRefresh` notifier 는 인증 상태를 불변 state 로만
+   내고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 의
+   `RouterRefreshListenable` 이 만들어 소유한다.
+
+킷 코드(lib · test · tool · bin)에는 riverpod_lint 무시 주석이 없다.
+
+### 문제 해결
+
+- riverpod_lint 진단이 보이지 않는다:
+  - `fvm flutter analyze` 로 보고 있다 → `fvm dart analyze` 로 본다.
+  - 출력에 `An error occurred while executing an analyzer plugin:` 이 있다 →
+    pub.dev 에 닿는지 네트워크를 확인하고 다시 분석한다.
+  - 끄는 설정이 듣지 않는다 → `plugins:` 의 `riverpod_lint:` 아래에 `version`
+    을 적었는지 본다.
+- Analysis Server 를 재시작해도 plugin 준비가 계속 실패하면 woody_lints README 의
+  「문제 해결」 을 본다 — <https://github.com/woodkill/woody_lints#문제-해결>.
+
+### 되돌리기
+
+- 끈 줄(`linter: rules:` 의 `<규칙>: false` · `diagnostics:` 아래 줄 · 무시
+  주석)을 지우면 다시 켜진다. `plugins:` 블록을 통째로 지우면 프리셋의 plugin
+  선언으로 돌아간다.
+- 판을 되돌리려면 `pubspec.yaml` 의 `ref:` 를 전 tag 로 고치고
+  `fvm flutter pub get` 을 한 뒤 `pubspec.yaml` 과 `pubspec.lock` 을 함께
+  커밋한다.
 
 ---
 

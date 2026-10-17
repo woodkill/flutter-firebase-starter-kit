@@ -144,10 +144,13 @@ paths:
 - 생성 파일은 커밋하지 않는다 (.gitignore 대상)
 
 ## Linting
-- 커스텀 lint 패키지: `woody_lints` (GitHub 비공개 패키지)
-- 프로젝트별 추가/제외 규칙은 `analysis_options.yaml`에서 오버라이드
-- lint 규칙 자체를 수정하려면 `woody_lints` 패키지를 업데이트
-- 검사: `fvm dart analyze`
+- 커스텀 lint 패키지: `woody_lints` — 공개 GitHub 저장소 `https://github.com/woodkill/woody_lints.git`, `pubspec.yaml` 에 `ref: v2.0.0`(tag)으로 고정
+- `analysis_options.yaml` 은 `include: package:woody_lints/recommended.yaml` (기본 규칙 · riverpod_lint plugin · 코드 생성 설정) — riverpod_lint 는 프리셋의 `plugins:` 로 받으므로 `dev_dependencies` 에 따로 두지 않는다
+- 프로젝트별 끄기: 규칙은 `linter: rules:` 에 `<규칙>: false`(맵 문법), plugin 진단은 최상위 `plugins:` → `riverpod_lint:` 에 `version` 과 `diagnostics:` 를 함께(`version` 없으면 무시됨)
+- 무시 주석은 바로 윗줄에 이유 주석을 둔다(`document_ignores`) · plugin 진단은 `riverpod_lint/<규칙>` 접두사
+- 자동 수정: `fvm dart fix --apply` (riverpod_lint 진단은 고치지 않음)
+- lint 규칙 자체를 수정하려면 `woody_lints` 저장소에서 새 tag → 킷 `ref:` 를 그 tag 로 → `fvm flutter pub get` → `pubspec.lock` 과 함께 커밋
+- 검사: `fvm flutter analyze` 와 `fvm dart analyze` 둘 다 0 — riverpod_lint 진단은 `fvm dart analyze` 에만 나온다
 
 ## FlutterFire CLI
 - `flutterfire` 명령을 직접 실행하지 않는다 — PATH에 `~/.pub-cache/bin`을 추가하지 않음

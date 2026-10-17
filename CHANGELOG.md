@@ -14,6 +14,12 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- merge 뒤 `fvm flutter pub get` 을 실행한다. woody_lints 2.0.0 이 새 규칙을 켜므로, 킷이 고치지 않은 내 코드에 info 진단이 생겨 `fvm flutter analyze` 가 실패할 수 있다. `fvm dart fix --apply` 로 고칠 수 있는 것을 고치고 나머지는 손으로 고친다. 규칙을 끄려면 `analysis_options.yaml` 의 `linter: rules:` 에 `<규칙>: false` 를 적는다. 내 무시 주석에는 바로 윗줄에 이유 주석이 있어야 한다(`document_ignores`) — 매뉴얼 [정적 분석 — woody_lints · riverpod_lint](docs/manual.md#정적-분석--woody_lints--riverpod_lint).
+- `pubspec.yaml` 의 `dependencies` · `dev_dependencies` 가 이름 순으로 바뀐다. 의존성을 더하거나 고친 저장소는 이 두 블록에서 충돌한다 — 킷의 순서를 받고 내 항목을 이름 순 자리에 다시 넣은 뒤 `fvm flutter pub get` 을 한다. `name` · `description` · `version` 줄은 내 값 그대로 둔다.
+- 매뉴얼 「킷 업데이트 반영」 사용자 소유 표면 표에서 이 판이 고치는 파일과 조치: 12 · 13행 `pubspec.yaml` · `pubspec.lock`(위 항목대로 · lock 이 충돌하면 표의 조치대로 킷 판을 받고 `fvm flutter pub get`) · 19행 `lib/core/router/app_router.dart`(import 순서만 — 충돌은 직접 합친다) · 20행 `lib/features/demo/` · `test/features/demo/`(데모를 지웠다면 규칙 1 의 `git rm` · 「데모를 지웠다면」 규칙 3) · 22행 `lib/features/notifications/data/local_notifications_service.dart`(알림 id 를 고르는 함수의 한 줄 — `_kNotificationColor` 줄은 그대로라 대개 자동 병합되고, 겹치면 내 값) · 32행 `bin/setup.dart` · `tool/setup/`(킷 전용 · 고치지 않았다면 충돌 없음).
+
 ### Added
 
 - 설정 위저드 `./setup.sh` 를 더한다. macOS 에서 개발 도구를 확인하고(없으면 확인을 받은 뒤 Homebrew 로 설치한다) 앱 정체성 · Firebase 프로젝트 만들기와 결제 연결 · Firestore · Storage · 이메일 로그인 · 앱 등록 · App Check 디버그 토큰 · Cloud Functions 배포를 거쳐 dev flavor 앱 실행과 로그인 확인까지 진행한다. 다시 실행하면 끝난 단계를 건너뛴다. 실행 기록은 `.setup/logs/` 에 남는다. 새 파일은 `setup.sh` · `bin/setup.dart` · `tool/setup/` 이고, `.gitignore` 에 `/.setup/` 한 줄이 더해진다 — README 「Getting Started」.
@@ -22,6 +28,11 @@
 ### Changed
 
 - `scripts/firebase-configure.sh` 가 `config/<flavor>.json` 의 `firebaseProjectId` 를 먼저 쓰고, 그 값이 비었거나 자리표시 값(`your-project-<flavor>`)일 때만 `PROJECT_ID_PREFIX` 로 프로젝트 ID 를 정한다. 어느 값을 썼는지는 출력의 `project source:` 줄에 보인다. config 파일이 있으면 `jq` 가 필요하다. 상수 3줄은 그대로라 merge 로 끝난다 — 매뉴얼 「킷 업데이트 반영」 사용자 소유 표면 표 4행.
+- woody_lints 를 tag `v2.0.0` 으로 고정하고 묶음 프리셋 `package:woody_lints/recommended.yaml` 로 받는다. 새 규칙 75개가 켜지고, 킷 코드(lib · test · tool · bin)에는 그 진단이 남지 않는다. riverpod_lint plugin 은 프리셋이 `^3.1.9` 범위로 선언하고 분석할 때 pub.dev 에서 받는다. 바뀐 파일은 `pubspec.yaml` · `pubspec.lock` · `analysis_options.yaml` 과 킷 코드 다수이고, 앱 동작은 그대로다. 설정 위저드는 설정 파일에서 키 · 변수 · 리전 자리를 찾지 못한 실패를 전용 예외로 알리고(화면 문구는 같다), 그 밖의 예상하지 못한 오류는 단계 실패로 감추지 않고 위저드를 멈춘다 — 매뉴얼 [정적 분석 — woody_lints · riverpod_lint](docs/manual.md#정적-분석--woody_lints--riverpod_lint).
+
+### Removed
+
+- `pubspec.yaml` `dev_dependencies` 의 `riverpod_lint` 줄을 뺀다. plugin 은 옵션 파일의 `plugins:` 로 받는다(프리셋이 선언한다).
 
 ## [1.0.0-rc.3] - 2026-10-14
 
