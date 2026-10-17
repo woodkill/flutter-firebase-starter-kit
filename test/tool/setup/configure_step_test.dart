@@ -97,6 +97,18 @@ const String identityOnlyDiff =
 /// 실행 시점에 조립한 가짜 API 키 — 소스에 완형을 두지 않는다.
 final String fakeApiKey = 'AIza${'x' * 35}';
 
+/// 실행 시점에 조립한 가짜 iOS OAuth client ID.
+final String googleClientId =
+    '${'1' * 12}-${'b' * 32}.apps.googleusercontent.com';
+
+/// 실행 시점에 조립한 가짜 REVERSED_CLIENT_ID.
+final String googleReversedClientId =
+    'com.googleusercontent.apps.${'1' * 12}-${'b' * 32}';
+
+/// [haystack] 에서 [needle] 이 나타나는 횟수를 센다.
+int countOccurrences(String haystack, String needle) =>
+    haystack.split(needle).length - 1;
+
 const CommandResult _ok = CommandResult(0, '', '');
 
 /// 이미 끝난 앞 단계 — 앱 등록 단계의 의존 단계를 대신한다.
@@ -224,17 +236,26 @@ void main() {
   }
 
   /// iOS plist 를 쓴다.
+  ///
+  /// [clientId] · [reversedClientId] · [androidClientId] 를 주면 그 키를 함께
+  /// 쓴다(Google 로그인을 켠 뒤 다시 받은 파일 모양).
   void writePlist({
     String project = projectId,
     String? bundleId,
     String appId = iosAppId,
     Flavor flavor = Flavor.dev,
+    String? clientId,
+    String? reversedClientId,
+    String? androidClientId,
   }) {
     writeFixture(
       FlavorPaths(flavor).iosPlist,
       '<?xml version="1.0" encoding="UTF-8"?>\n'
       '<plist version="1.0">\n'
       '<dict>\n'
+      '${clientId == null ? '' : '\t<key>CLIENT_ID</key>\n\t<string>$clientId</string>\n'}'
+      '${reversedClientId == null ? '' : '\t<key>REVERSED_CLIENT_ID</key>\n\t<string>$reversedClientId</string>\n'}'
+      '${androidClientId == null ? '' : '\t<key>ANDROID_CLIENT_ID</key>\n\t<string>$androidClientId</string>\n'}'
       '\t<key>API_KEY</key>\n'
       '\t<string>$fakeApiKey</string>\n'
       '\t<key>GCM_SENDER_ID</key>\n'
@@ -343,11 +364,15 @@ void main() {
   });
 
   /// 앞 단계(끝남) · 앱 등록 단계로 위저드를 돌린다.
+  ///
+  /// [requiresGoogleClient] 면 끝난 Google 단계를 앞에 두고 Google 클라이언트를
+  /// 요구하는 앱 등록 단계를 돌린다.
   Future<int> runConfigureStep(
     CommandRunner runner,
     ScriptedTerminal terminal, {
     MemoryLogSink? log,
     Flavor flavor = Flavor.dev,
+    bool requiresGoogleClient = false,
   }) {
     final Redactor redactor = log?.redactor ?? Redactor();
     final MemoryLogSink usedLog = log ?? MemoryLogSink(redactor);
@@ -366,7 +391,8 @@ void main() {
       _FinishedStep('firebase_project', 'Firebase 프로젝트'),
       _FinishedStep('identity', '앱 정체성'),
       _FinishedStep('tools', '개발 도구'),
-      ConfigureStep(),
+      if (requiresGoogleClient) _FinishedStep('google', 'Google 로그인'),
+      ConfigureStep(requiresGoogleClient: requiresGoogleClient),
     ]);
   }
 
@@ -933,4 +959,129 @@ void main() {
       });
     },
   );
+
+  group('T-20-GOOGLE-07: Google 을 켰으면 iOS 설정 파일에 CLIENT_ID 가 있어야 '
+      '한다', () {
+    test('CLIENT_ID 없음 → ✗ 사유 · configure 1회 · 다시 받은 파일에 있음 → ✓', () async {
+      // ANDROID_CLIENT_ID 만 있는 파일 — 키 이름이 섞여 읽히지 않아야 한다.
+      writeRealOptions();
+      writePlist(androidClientId: googleClientId);
+      writeGoogleServices();
+      final runner = _ConfigureCallbackRunner(
+        FakeCommandRunner()
+          ..on(statusKey, _ok)
+          ..on(configureKey, const CommandResult(0, configureSuccessStdout, ''))
+          ..on(appsListKey, buildAppsList(<String>[iosAppId, androidAppId])),
+        () => writePlist(
+          clientId: googleClientId,
+          reversedClientId: googleReversedClientId,
+        ),
+      );
+      final terminal = ScriptedTerminal(const <String?>['y']);
+
+      final int code = await runConfigureStep(
+        runner,
+        terminal,
+        requiresGoogleClient: true,
+      );
+
+      final output = terminal.output.toString();
+      expect(code, wizardExitDone);
+      expect(
+        readChecklistReason(output),
+        'Google 로그인을 켠 뒤의 iOS 설정 파일이 아닙니다 — 다시 받습니다',
+      );
+      expect(runner.inner.countCalls(RunMode.stream, configureKey), 1);
+      expect(output, contains('  ✓ ${ConfigureStep.stepTitle} — '));
+      expect(countOccurrences(output, googleClientId), 0);
+    });
+
+    test('CLIENT_ID 있음 → ✓ · 실행 0', () async {
+      writeRealOptions();
+      writePlist(
+        clientId: googleClientId,
+        reversedClientId: googleReversedClientId,
+      );
+      writeGoogleServices();
+      final runner = FakeCommandRunner()
+        ..on(appsListKey, buildAppsList(<String>[androidAppId, iosAppId]));
+      final terminal = ScriptedTerminal(const <String?>[]);
+
+      final int code = await runConfigureStep(
+        runner,
+        terminal,
+        requiresGoogleClient: true,
+      );
+
+      expect(code, wizardExitDone);
+      expect(terminal.asks, isEmpty);
+      expect(runner.countMode(RunMode.stream), 0);
+    });
+
+    test('FirebaseAppFiles 는 CLIENT_ID · REVERSED_CLIENT_ID 를 읽는다', () {
+      writePlist(androidClientId: googleClientId);
+      final withoutClient = FirebaseAppFiles.read(root);
+      expect(withoutClient.iosClientId, isNull);
+      expect(withoutClient.iosReversedClientId, isNull);
+
+      writePlist(
+        clientId: googleClientId,
+        reversedClientId: googleReversedClientId,
+      );
+      final withClient = FirebaseAppFiles.read(root);
+      expect(withClient.iosClientId, googleClientId);
+      expect(withClient.iosReversedClientId, googleReversedClientId);
+    });
+  });
+
+  test('T-20-GOOGLE-08: 다시 받아도 CLIENT_ID 가 없으면 실패 사유에 매뉴얼 절 · '
+      '멈춤을 고르면 exit 1 · configure 1회', () async {
+    writeRealOptions();
+    writePlist();
+    writeGoogleServices();
+    final runner = _ConfigureCallbackRunner(
+      FakeCommandRunner()
+        ..on(statusKey, _ok)
+        ..on(configureKey, const CommandResult(0, configureSuccessStdout, ''))
+        ..on(appsListKey, buildAppsList(<String>[iosAppId, androidAppId])),
+      writePlist,
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', '2']);
+
+    final int code = await runConfigureStep(
+      runner,
+      terminal,
+      requiresGoogleClient: true,
+    );
+
+    final output = terminal.output.toString();
+    expect(code, wizardExitStopped);
+    expect(runner.inner.countCalls(RunMode.stream, configureKey), 1);
+    final String failureLine = output
+        .split('\n')
+        .firstWhere((String line) => line.startsWith('  실패 — '));
+    expect(failureLine, contains('CLIENT_ID'));
+    expect(failureLine, contains('매뉴얼 「로그인 수단 켜고 끄기」'));
+    expect(terminal.asks, <String>[stepConfirmQuestion, failureChoiceQuestion]);
+  });
+
+  test('T-20-GOOGLE-09: Google 을 켜지 않았으면 CLIENT_ID 를 보지 않는다', () async {
+    writeRealFiles();
+    final runner = FakeCommandRunner()
+      ..on(appsListKey, buildAppsList(<String>[androidAppId, iosAppId]));
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    final int code = await runConfigureStep(runner, terminal);
+
+    expect(code, wizardExitDone);
+    expect(terminal.asks, isEmpty);
+    expect(runner.countMode(RunMode.stream), 0);
+    expect(runner.countCalls(RunMode.capture, appsListKey), 1);
+    expect(ConfigureStep().requiresGoogleClient, isFalse);
+    expect(ConfigureStep().dependsOn, isNot(contains('google')));
+    expect(
+      ConfigureStep(requiresGoogleClient: true).dependsOn,
+      contains('google'),
+    );
+  });
 }

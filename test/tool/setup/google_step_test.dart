@@ -11,6 +11,7 @@ import '../../../tool/setup/providers/idp_config.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/steps/google_ios_step.dart';
 import '../../../tool/setup/steps/google_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
 import '../../../tool/setup/terminal.dart';
@@ -56,6 +57,10 @@ const String organizationWarningText =
 /// 실행 시점에 조립하는 가짜 Web client ID.
 String buildWebClientId([String letter = 'a']) =>
     '${'1' * 12}-${letter * 32}.apps.googleusercontent.com';
+
+/// 실행 시점에 조립하는 가짜 REVERSED_CLIENT_ID.
+String buildReversedClientId([String letter = 'a']) =>
+    'com.googleusercontent.apps.${'1' * 12}-${letter * 32}';
 
 /// 실행 시점에 조립하는 가짜 client secret(가림 최소 길이보다 길다).
 String buildClientSecret() => 'client-secret-${'s' * 16}';
@@ -260,11 +265,14 @@ final class _Harness {
   );
 
   /// 앞 단계(끝남) · Google 단계로 위저드를 돌린다.
-  Future<int> run() => runWizard(buildContext(), <Step>[
+  Future<int> run() => runSteps(<Step>[
     _FinishedStep('providers', '로그인 수단'),
     _FinishedStep('sign_in', SignInStep.stepTitle),
     GoogleStep(),
   ]);
+
+  /// [steps] 로 위저드를 돌린다.
+  Future<int> runSteps(List<Step> steps) => runWizard(buildContext(), steps);
 }
 
 void main() {
@@ -572,5 +580,92 @@ void main() {
       expect(File(configPath()).readAsStringSync(), configBefore);
       expect(h.output, contains('✓ Google 로그인'));
     });
+  });
+
+  group('T-20-GOOGLE-10: iOS 쪽 — 설정 파일의 REVERSED_CLIENT_ID 를 xcconfig 에 '
+      '쓴다', () {
+    const paths = FlavorPaths(Flavor.dev);
+
+    /// xcconfig 절대 경로.
+    String xcconfigPath() => '$root/${paths.xcconfig}';
+
+    /// [reversedClientId] 를 담은 iOS 설정 파일을 쓴다(null 이면 키 없음).
+    void writeIosPlist(String? reversedClientId) => writeFixture(
+      paths.iosPlist,
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      '<plist version="1.0">\n'
+      '<dict>\n'
+      '${reversedClientId == null ? '' : '\t<key>REVERSED_CLIENT_ID</key>\n\t<string>$reversedClientId</string>\n'}'
+      '\t<key>PROJECT_ID</key>\n'
+      '\t<string>$projectId</string>\n'
+      '</dict>\n'
+      '</plist>\n',
+    );
+
+    /// 앞 단계(끝남) · iOS 쪽 단계로 돌린다.
+    Future<int> runIosSide(_Harness h) => h.runSteps(<Step>[
+      _FinishedStep('google', GoogleStep.stepTitle),
+      _FinishedStep('configure', '앱 등록 · 설정 파일'),
+      GoogleIosStep(),
+    ]);
+
+    setUp(() {
+      writeFixture(
+        paths.xcconfig,
+        File(paths.xcconfigExample).readAsStringSync(),
+      );
+    });
+
+    test('다름 → ✗ · 실행하면 xcconfig 에 그 값 · 질문은 진행 확인 하나 · '
+        '재검사 ✓', () async {
+      writeIosPlist(buildReversedClientId());
+      final h = _Harness(root, const <String?>['y']);
+
+      expect(await runIosSide(h), wizardExitDone);
+
+      expect(
+        readXcconfigValue(xcconfigPath(), 'REVERSED_CLIENT_ID'),
+        buildReversedClientId(),
+      );
+      expect(h.screen.asks, <String>[stepConfirmQuestion]);
+      expect(h.output, contains('✓ ${GoogleIosStep.stepTitle}'));
+      expect(h.runner.calls, isEmpty);
+      expect(h.rest.requests, isEmpty);
+    });
+
+    test('같음 → ✓ · 질문 0', () async {
+      writeIosPlist(buildReversedClientId());
+      replaceXcconfigValue(
+        xcconfigPath(),
+        'REVERSED_CLIENT_ID',
+        buildReversedClientId(),
+      );
+      final h = _Harness(root, const <String?>[]);
+
+      expect(await runIosSide(h), wizardExitDone);
+
+      expect(h.screen.asks, isEmpty);
+      expect(h.output, contains('✓ ${GoogleIosStep.stepTitle}'));
+    });
+
+    for (final (String label, String? value) in <(String, String?)>[
+      ('설정 파일에 없음', null),
+      ('형식이 아님', 'com.example.not-reversed'),
+    ]) {
+      test('$label → 실행하면 실패 사유 · 매뉴얼 절 · xcconfig 무변경', () async {
+        writeIosPlist(value);
+        final String before = File(xcconfigPath()).readAsStringSync();
+        final h = _Harness(root, const <String?>['y', '2']);
+
+        expect(await runIosSide(h), wizardExitStopped);
+
+        final String failureLine = h.output
+            .split('\n')
+            .firstWhere((String line) => line.startsWith('  실패 — '));
+        expect(failureLine, contains('REVERSED_CLIENT_ID'));
+        expect(failureLine, contains('매뉴얼 「로그인 수단 켜고 끄기」'));
+        expect(File(xcconfigPath()).readAsStringSync(), before);
+      });
+    }
   });
 }

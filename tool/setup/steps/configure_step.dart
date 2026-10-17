@@ -5,6 +5,7 @@ import '../command_runner.dart';
 import '../firebase_app_files.dart';
 import '../flavor.dart';
 import '../git_tree.dart';
+import '../providers/provider_catalog.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
@@ -22,9 +23,24 @@ import 'identity_step.dart';
 /// 미커밋 변경을 본다. `firebase.json` 변경이나 앞 단계(앱 정체성)가 남긴 번들 ID
 /// 줄 밖의 pbxproj 변경이 있으면 멈추고, 실행 뒤에는 두 파일이 실행 직전 바이트와
 /// 같은지 본다. 위저드는 두 파일을 직접 고치거나 되돌리지 않는다.
+///
+/// [requiresGoogleClient] 면(Google 로그인을 켠 flavor) iOS 설정 파일에 Google
+/// 로그인 정보(`CLIENT_ID`)가 있어야 끝난 것으로 본다 — Google 을 켜기 전에 받은
+/// 파일이면 스크립트를 다시 실행해 새로 받고, 다시 받아도 없으면 실패로 끝낸다
+/// (같은 실행을 스스로 되풀이하지 않는다).
 final class ConfigureStep implements Step {
   /// 앱 등록 · 설정 파일 단계를 만든다.
-  ConfigureStep();
+  ///
+  /// [requiresGoogleClient] 면 Google 단계에 의존하고 iOS 설정 파일의 `CLIENT_ID`
+  /// 를 검사 술어에 더한다.
+  ConfigureStep({this.requiresGoogleClient = false});
+
+  /// Google 로그인을 켠 flavor 면 true — iOS 설정 파일에 `CLIENT_ID` 가 있어야 한다.
+  final bool requiresGoogleClient;
+
+  /// Google 로그인을 켠 뒤의 설정 파일이 아닐 때의 검사 사유.
+  static const String missingGoogleClientReason =
+      'Google 로그인을 켠 뒤의 iOS 설정 파일이 아닙니다 — 다시 받습니다';
 
   /// 단계 제목.
   static const String stepTitle = '앱 등록 · 설정 파일';
@@ -132,10 +148,12 @@ final class ConfigureStep implements Step {
   String get title => stepTitle;
 
   @override
-  List<String> get dependsOn => const <String>[
+  List<String> get dependsOn => <String>[
     'firebase_project',
     'identity',
     'tools',
+    // CLIENT_ID 술어는 Google 을 켠 뒤에만 뜻이 있다 — 켜기 전에 돌면 헛돈다.
+    if (requiresGoogleClient) 'google',
   ];
 
   @override
@@ -179,6 +197,9 @@ final class ConfigureStep implements Step {
       packageName,
     );
     if (fileProblem != null) return _mark(_ConfigureMode.run, fileProblem);
+    if (requiresGoogleClient && files.iosClientId == null) {
+      return _mark(_ConfigureMode.run, missingGoogleClientReason);
+    }
 
     final CommandResult result = await context.runner.capture(
       buildAppsListCommand(projectId),
@@ -277,6 +298,17 @@ final class ConfigureStep implements Step {
       return Failed(
         'configure 스크립트의 마지막 줄이 완료 줄($completeLine)이 아닙니다',
         result: result,
+      );
+    }
+    if (requiresGoogleClient &&
+        FirebaseAppFiles.read(
+              context.projectRoot,
+              flavor: context.flavor,
+            ).iosClientId ==
+            null) {
+      return Failed(
+        '다시 받은 iOS 설정 파일에도 Google 로그인 정보(CLIENT_ID)가 없습니다 — '
+        '${formatManualReference(providersManualHeading)}',
       );
     }
     return const Applied();

@@ -123,6 +123,18 @@ final class FirebaseAppFiles {
   /// iOS 설정 파일의 `GOOGLE_APP_ID`(Firebase 앱 ID).
   String? get iosAppId => _readPlistString('GOOGLE_APP_ID');
 
+  /// iOS 설정 파일의 `CLIENT_ID`(Google 로그인 iOS OAuth client).
+  ///
+  /// Google 로그인을 켜기 전에 받은 파일에는 없다. 키가 없거나 값이 비었으면 null
+  /// 이다 — `ANDROID_CLIENT_ID` 같은 다른 키와 섞이지 않는다.
+  String? get iosClientId => _readNonEmptyPlistString('CLIENT_ID');
+
+  /// iOS 설정 파일의 `REVERSED_CLIENT_ID`(Google 로그인 URL scheme).
+  ///
+  /// 키가 없거나 값이 비었으면 null 이다.
+  String? get iosReversedClientId =>
+      _readNonEmptyPlistString('REVERSED_CLIENT_ID');
+
   /// Android 설정 파일의 `project_info.project_id`.
   String? get androidProjectId {
     final Object? info = _googleServices?['project_info'];
@@ -158,6 +170,12 @@ final class FirebaseAppFiles {
       '<key>${RegExp.escape(key)}</key>\\s*<string>([^<]*)</string>',
     ).firstMatch(plist);
     return match?.group(1);
+  }
+
+  /// [_readPlistString] 과 같되, 앞뒤 공백을 뗀 값이 비었으면 null.
+  String? _readNonEmptyPlistString(String key) {
+    final String? value = _readPlistString(key)?.trim();
+    return value == null || value.isEmpty ? null : value;
   }
 
   /// 파일을 읽는다 — 없거나 읽지 못하면 null.
