@@ -261,7 +261,7 @@ final class AppCheckStep implements Step {
       token,
     );
     _token = token;
-    return _registerAll(context, _apps, token);
+    return await _registerAll(context, _apps, token);
   }
 
   /// [apps] 에 [token] 을 등록한다.

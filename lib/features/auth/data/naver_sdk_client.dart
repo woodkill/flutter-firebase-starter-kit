@@ -842,7 +842,7 @@ class NaverSdkClient {
     if (kDebugMode) {
       debugPrint('Naver logIn stale 슬롯 재시도: method=logIn');
     }
-    return _login();
+    return await _login();
   }
 
   /// 플러그인 logout — D-57 1회성 토큰 정책. 기기 내 토큰만 제거한다.

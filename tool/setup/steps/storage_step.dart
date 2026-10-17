@@ -115,7 +115,7 @@ final class StorageStep implements Step {
         result: toFailureResult(response),
       );
     }
-    return _resolveLocation(context, projectId);
+    return await _resolveLocation(context, projectId);
   }
 
   @override

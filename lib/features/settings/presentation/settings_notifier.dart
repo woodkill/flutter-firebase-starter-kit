@@ -282,7 +282,11 @@ class SettingsNotifier extends _$SettingsNotifier {
     final provider = AccountProvider.tryParse(providerId);
     if (provider == null) return AccountUnlinkOutcome.failed;
     // auto-dispose notifier — await 전에 repository 핸들을 캡처한다.
-    return _unlinkWith(ref.read(authRepositoryProvider), provider, providerId);
+    return await _unlinkWith(
+      ref.read(authRepositoryProvider),
+      provider,
+      providerId,
+    );
   }
 
   /// provider 측 연결을 먼저 끊고, 성공했을 때만 킷 쪽 연결을 해제한다
@@ -328,7 +332,7 @@ class SettingsNotifier extends _$SettingsNotifier {
     // auto-dispose notifier — await 전에 repository · step 을 캡처한다.
     final repo = ref.read(authRepositoryProvider);
     final step = disconnectStepFor(ref.read(disconnectStepsProvider), provider);
-    if (step == null) return _unlinkWith(repo, provider, providerId);
+    if (step == null) return await _unlinkWith(repo, provider, providerId);
 
     final DisconnectOutcome disconnected;
     try {

@@ -227,7 +227,7 @@ final class Wizard {
       _printChecklist();
       if (_checklist.values.every((CheckResult result) => result is Done)) {
         _terminal.writeLine(allDoneLine);
-        return _complete();
+        return await _complete();
       }
       var isReplanned = false;
       for (final Step step in _steps) {
@@ -242,7 +242,7 @@ final class Wizard {
       }
       if (isReplanned) continue;
       _printEnding();
-      return _complete();
+      return await _complete();
     }
   }
 
@@ -445,7 +445,7 @@ final class Wizard {
           _terminal.writeLine(exitForUserTailLine);
           return wizardExitForUser;
         case WaitForUser(:final String guide):
-          return _waitForUser(step, guide);
+          return await _waitForUser(step, guide);
         case Failed(:final String summary, :final CommandResult? result):
           _printFailure(summary, result);
         case Declined():

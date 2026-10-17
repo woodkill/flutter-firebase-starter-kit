@@ -539,7 +539,7 @@ final class FunctionsStep implements Step {
       isCleanupRetryAllowed: true,
     );
     if (deployed is! Applied) return deployed;
-    return _bindAfterDeploy(context);
+    return await _bindAfterDeploy(context);
   }
 
   /// 배포 스크립트를 실행하고 결과를 분류한다.
@@ -576,7 +576,7 @@ final class FunctionsStep implements Step {
           result: policy,
         );
       }
-      return _runDeploy(context, isCleanupRetryAllowed: false);
+      return await _runDeploy(context, isCleanupRetryAllowed: false);
     }
     return judged;
   }
@@ -597,7 +597,7 @@ final class FunctionsStep implements Step {
     }
     await _inspectInvokers(context, deployed);
     if (_mode != _FunctionsMode.bind) return const Applied();
-    return _applyBindings(context);
+    return await _applyBindings(context);
   }
 
   /// 공개 호출이 빠진 서비스마다 바인딩을 더한다.

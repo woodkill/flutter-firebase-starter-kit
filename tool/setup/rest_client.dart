@@ -272,7 +272,7 @@ final class HttpRestClient implements RestClient {
 
     terminal.writeCommand(request.displayCurl());
     final String? body = request.body;
-    return _exchange(
+    return await _exchange(
       method: request.method,
       url: request.url,
       headers: <String, String>{
@@ -292,7 +292,7 @@ final class HttpRestClient implements RestClient {
   Future<RestResponse> sendExternal(ExternalRequest request) async {
     terminal.writeCommand(request.displayCurl());
     final Map<String, String>? form = request.formBody;
-    return _exchange(
+    return await _exchange(
       method: request.method,
       url: request.url,
       headers: request.headers,

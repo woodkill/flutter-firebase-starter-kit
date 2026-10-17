@@ -200,7 +200,7 @@ final class SignInStep implements Step {
     final List<String>? disabled = _listDisabled(response);
     if (disabled == null) return const Failed('로그인 설정 응답을 해석하지 못했습니다');
     if (disabled.isEmpty) return const Applied();
-    return _sendPatch(context);
+    return await _sendPatch(context);
   }
 
   /// 이메일/비밀번호 · 익명을 켜는 PATCH 를 보낸다.

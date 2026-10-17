@@ -408,7 +408,7 @@ abstract class KeyedProviderStep implements Step {
       final StepOutcome? rejected = await _verifyValues(context, values);
       if (rejected != null) return rejected;
     }
-    return _writeValues(context, values);
+    return await _writeValues(context, values);
   }
 
   /// 고칠 자리 이름 표 → (서버 확인이 있으면) config 값으로 짝 확인 → 기록.
@@ -444,7 +444,7 @@ abstract class KeyedProviderStep implements Step {
           '입력하세요',
         );
       case PairOk() || PairNotAvailable():
-        return _writeValues(context, values);
+        return await _writeValues(context, values);
     }
   }
 

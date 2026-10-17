@@ -1047,7 +1047,7 @@ class AuthRepository implements AnonymousSignIn {
     }
     // email-already-in-use (D7 b) 는 익명을 유지한 채 signIn 한다. 성공해도
     // 익명 삭제 금지 — 위 docstring trade-off 참조.
-    return _auth.signInWithCredential(retryCredential);
+    return await _auth.signInWithCredential(retryCredential);
   }
 
   /// 충돌 시점에 보존된 native pending credential 을 실제 계정에 연결한다
@@ -1238,7 +1238,7 @@ class AuthRepository implements AnonymousSignIn {
       }
       final currentUser = _auth.currentUser;
       if (currentUser == null) return null;
-      return currentUser.linkWithCredential(credential);
+      return await currentUser.linkWithCredential(credential);
     });
   }
 
@@ -1258,7 +1258,7 @@ class AuthRepository implements AnonymousSignIn {
       final provider = fb.AppleAuthProvider()
         ..addScope('email')
         ..addScope('name');
-      return currentUser.linkWithProvider(provider);
+      return await currentUser.linkWithProvider(provider);
     });
   }
 
@@ -1280,7 +1280,7 @@ class AuthRepository implements AnonymousSignIn {
       if (facebook == null) return null;
       final currentUser = _auth.currentUser;
       if (currentUser == null) return null;
-      return currentUser.linkWithCredential(facebook.credential);
+      return await currentUser.linkWithCredential(facebook.credential);
     });
   }
 
@@ -1322,7 +1322,7 @@ class AuthRepository implements AnonymousSignIn {
         email: email,
         password: password,
       );
-      return currentUser.linkWithCredential(credential);
+      return await currentUser.linkWithCredential(credential);
     });
   }
 
@@ -2241,7 +2241,7 @@ class AuthRepository implements AnonymousSignIn {
   Future<Result<User>?> signInWithExistingProvider({
     required AccountProvider provider,
   }) async {
-    return switch (provider) {
+    return await switch (provider) {
       AccountProvider.google => signInWithGoogle(),
       AccountProvider.apple => signInWithApple(),
       AccountProvider.facebook => signInWithFacebook(),
@@ -2488,7 +2488,9 @@ class AuthRepository implements AnonymousSignIn {
       _logReauthMismatch(AccountProvider.google, 'account not linked');
       throw const ReauthUserMismatch();
     }
-    return current.reauthenticateWithCredential(_googleCredentialOf(account));
+    return await current.reauthenticateWithCredential(
+      _googleCredentialOf(account),
+    );
   }
 
   /// Facebook 로그인으로 새 credential 을 받아 재인증한다
@@ -2499,7 +2501,7 @@ class AuthRepository implements AnonymousSignIn {
   Future<fb.UserCredential?> _reauthWithFacebook(fb.User current) async {
     final facebook = await _facebookCredentialOf();
     if (facebook == null) return null;
-    return current.reauthenticateWithCredential(facebook.credential);
+    return await current.reauthenticateWithCredential(facebook.credential);
   }
 
   /// Custom Token provider 로 같은 계정의 새 세션을 받는다
@@ -2543,7 +2545,7 @@ class AuthRepository implements AnonymousSignIn {
       _logReauthMismatch(provider, 'callable uid');
       rethrow;
     }
-    return _auth.signInWithCustomToken(customToken);
+    return await _auth.signInWithCustomToken(customToken);
   }
 
   /// Custom Token provider 별 SDK 로그인 → callable 이름 · payload · timeout 을
@@ -4207,7 +4209,7 @@ AuthRepository authRepository(Ref ref) {
     // 콜백을 async 로 둬 recorder provider 생성 중 동기 예외
     // (_assertFirebaseReady 등) 도 Future 안으로 흘린다 — 가입 흐름의 catch 에
     // 닿아 가입을 실패로 바꾸지 않는다 (D-17).
-    recordSignUpMethod: (uid, providerId) async => ref
+    recordSignUpMethod: (uid, providerId) async => await ref
         .read(signUpMethodRecorderProvider)
         .record(uid: uid, providerId: providerId),
     // Phase 17 D-44: callable App Check 차단 판정의 non-fatal 기록 채널.

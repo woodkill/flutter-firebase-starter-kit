@@ -139,7 +139,7 @@ class SplashInitializer {
     }
     // Phase 10.1 D-04 — 첫 시도 fail. transient 면 retry, permanent 즉시 fail.
     if (!_isTransient(firstResult.exception)) {
-      return _finalize(firstResult.exception);
+      return await _finalize(firstResult.exception);
     }
     // Phase 10.1 D-03 — exponential backoff 직렬 retry loop.
     var lastException = firstResult.exception;
@@ -151,12 +151,12 @@ class SplashInitializer {
       }
       // retry 중 permanent 오류 발견 시 즉시 종료 (정상 분류 흐름).
       if (!_isTransient(retryResult.exception)) {
-        return _finalize(retryResult.exception);
+        return await _finalize(retryResult.exception);
       }
       lastException = retryResult.exception;
     }
     // retry 소진 — 마지막 transient fail 을 final 결과로 emit (D-14).
-    return _finalize(lastException);
+    return await _finalize(lastException);
   }
 
   /// transient (재시도 가능) 분류 여부 (Phase 10.1 D-02, T-10.1-01).

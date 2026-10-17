@@ -346,7 +346,7 @@ final class FirebaseProjectStep implements Step {
       return const Declined();
     }
     if (!hasAliases) _writeAliases(context, _projectId);
-    return _addFirebaseOrGuide(context, _projectId);
+    return await _addFirebaseOrGuide(context, _projectId);
   }
 
   /// 새로 만들기 · 고르기를 묻고 고른 쪽을 진행한다.
@@ -359,7 +359,7 @@ final class FirebaseProjectStep implements Step {
       const <String>[createOption, pickOption],
     );
     if (choice == null) return const Declined();
-    return choice == 0 ? _applyCreate(context) : _applyPick(context);
+    return await (choice == 0 ? _applyCreate(context) : _applyPick(context));
   }
 
   /// 새 ID 를 받아 확인 표 뒤에 프로젝트를 만들고, 기록한 뒤 Firebase 를 추가한다.
@@ -407,7 +407,7 @@ final class FirebaseProjectStep implements Step {
 
     // Firebase 추가가 막혀도 Enter 재검사 · 다시 실행이 같은 ID 로 이어지게 먼저 쓴다.
     _writeProjectId(context, projectId);
-    return _addFirebaseOrGuide(context, projectId);
+    return await _addFirebaseOrGuide(context, projectId);
   }
 
   /// [projectId] 에 Firebase 를 추가한다 — 실패하면 콘솔 안내 뒤 Enter 를 기다린다.
