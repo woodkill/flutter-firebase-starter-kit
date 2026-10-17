@@ -283,4 +283,31 @@ void main() {
     expect(log.lines, contains('[in] ${Redactor.mask}'));
     expect(countText(log.text, token), 0);
   });
+
+  test('T-20-SECRET-06: 숨김 입력은 기록에 글자 수 판정만 남기고 값을 가림에 등록한다', () {
+    final String secret = 'k' * 32;
+    final ScriptedTerminal answers = ScriptedTerminal(<String?>[secret]);
+    final RedactingTerminal wrapped = RedactingTerminal(answers, redactor, log);
+
+    expect(wrapped.askSecret('어드민 키를 붙여 넣으세요'), secret);
+    wrapped.writeLine('받은 값 $secret');
+
+    expect(answers.secretAsks, <String>['어드민 키를 붙여 넣으세요']);
+    expect(log.lines, contains('[out] 어드민 키를 붙여 넣으세요'));
+    expect(log.lines, contains('[in] (비밀 값 32자)'));
+    expect(log.lines, contains('[out] 받은 값 ${Redactor.mask}'));
+    expect(countText(answers.output.toString(), secret), 0);
+    expect(countText(log.text, secret), 0);
+    expect(countText(answers.output.toString(), '받은 값 ${Redactor.mask}'), 1);
+
+    final ScriptedTerminal ended = ScriptedTerminal(const <String?>[]);
+    final RedactingTerminal endedWrapped = RedactingTerminal(
+      ended,
+      redactor,
+      log,
+    );
+
+    expect(endedWrapped.askSecret('어드민 키를 붙여 넣으세요'), isNull);
+    expect(log.lines.last, '[in] ${RedactingTerminal.endOfInputRecord}');
+  });
 }

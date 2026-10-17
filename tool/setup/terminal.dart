@@ -57,18 +57,44 @@ int? parseChoiceAnswer(
   return number - 1;
 }
 
+/// 터미널 에코가 켜져 있는지 읽는 함수.
+///
+/// 표준 입력이 터미널이 아니면 [StdinException] 을 던질 수 있다.
+typedef EchoModeReader = bool Function();
+
+/// 터미널 에코를 켜거나 끄는 함수.
+typedef EchoModeWriter = void Function(bool isEnabled);
+
+/// 표준 입력의 터미널 에코가 켜져 있는지 읽는다 — 터미널이 아니면
+/// [StdinException] 을 던진다.
+bool readStdinEchoMode() => stdin.echoMode;
+
+/// 표준 입력의 터미널 에코를 [isEnabled] 로 바꾼다.
+void writeStdinEchoMode(bool isEnabled) => stdin.echoMode = isEnabled;
+
 /// 표준 입출력을 쓰는 터미널.
 final class StdioTerminal implements Terminal {
   /// [readLine] · [output] 을 주지 않으면 표준 입력 · 표준 출력을 쓴다.
-  StdioTerminal({String? Function()? readLine, StringSink? output})
-    : _readLine = readLine ?? _readStdinLine,
-      _output = output ?? stdout;
+  ///
+  /// [readEchoMode] · [writeEchoMode] 는 숨김 입력의 에코 제어다 — 주지 않으면
+  /// 표준 입력의 에코를 읽고 쓴다.
+  StdioTerminal({
+    String? Function()? readLine,
+    StringSink? output,
+    EchoModeReader? readEchoMode,
+    EchoModeWriter? writeEchoMode,
+  }) : _readLine = readLine ?? _readStdinLine,
+       _output = output ?? stdout,
+       _readEchoMode = readEchoMode ?? readStdinEchoMode,
+       _writeEchoMode = writeEchoMode ?? writeStdinEchoMode;
 
   /// 번호를 다시 묻는 최대 횟수.
   static const int maxChoiceAttempts = 3;
 
   final String? Function() _readLine;
   final StringSink _output;
+  final EchoModeReader _readEchoMode;
+  final EchoModeWriter _writeEchoMode;
 
   /// 표준 입력에서 한 줄을 읽는다 — 입력 끝이면 null.
   static String? _readStdinLine() => stdin.readLineSync(encoding: utf8);
@@ -103,25 +129,32 @@ final class StdioTerminal implements Terminal {
     return trimmed.isEmpty ? (defaultValue ?? '') : trimmed;
   }
 
+  /// 에코를 끄고 읽은 뒤, 정상 · 입력 끝 · 예외 어느 경로든 시작 때 값으로
+  /// 되돌리고 한 줄 내린다.
   @override
   String? askSecret(String question) {
     _output.write('$question: ');
-    // 터미널이 아니면 에코를 바꿀 수 없다 — 그때는 그대로 읽는다.
-    bool? restoreEchoMode;
-    try {
-      final bool current = stdin.echoMode;
-      stdin.echoMode = false;
-      restoreEchoMode = current;
-    } on StdinException {
-      restoreEchoMode = null;
-    }
+    final bool? before = _turnEchoOff();
     try {
       return _readLine()?.trim();
     } finally {
-      final bool? before = restoreEchoMode;
-      if (before != null) stdin.echoMode = before;
+      if (before != null) _writeEchoMode(before);
       // 에코가 꺼져 Enter 의 줄바꿈이 보이지 않으므로 직접 한 줄 내린다.
       _output.writeln();
+    }
+  }
+
+  /// 에코를 끄고 시작 때 값을 돌려준다.
+  ///
+  /// 표준 입력이 터미널이 아니면 에코를 바꿀 수 없다([StdinException]) — 그때는
+  /// 건드리지 않고 null 을 돌려줘 그대로 읽게 한다.
+  bool? _turnEchoOff() {
+    try {
+      final bool before = _readEchoMode();
+      _writeEchoMode(false);
+      return before;
+    } on StdinException {
+      return null;
     }
   }
 

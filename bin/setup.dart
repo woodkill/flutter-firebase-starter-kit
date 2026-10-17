@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -29,6 +30,12 @@ const String logPathLinePrefix = '실행 기록: ';
 
 /// 실행 기록 파일을 만들지 못했을 때의 안내 머리.
 const String logOpenFailedPrefix = '실행 기록 파일을 만들지 못했습니다 — ';
+
+/// Ctrl-C 로 끝날 때의 종료 코드(셸 관례 128 + SIGINT 2).
+const int interruptExitCode = 130;
+
+/// Ctrl-C 처리 중 실행 기록을 닫지 못했을 때의 안내 머리.
+const String interruptLogCloseFailedPrefix = '실행 기록을 닫지 못했습니다 — ';
 
 /// 설정 위저드 진입점 — `./setup.sh` 가 FVM 의 Dart 로 실행한다.
 ///
@@ -114,45 +121,87 @@ Future<void> main(List<String> arguments) async {
       return;
     }
 
-    final ProcessCommandRunner runner = ProcessCommandRunner(
-      terminal,
-      log: log,
-    );
-    final HttpRestClient rest = HttpRestClient(
-      tokens: AccessTokenSource(runner, redactor),
-      terminal: terminal,
-      log: log,
-    );
-    final WizardContext context = WizardContext(
-      projectRoot: projectRoot,
-      runner: runner,
-      terminal: terminal,
-      redactor: redactor,
-      log: log,
-      rest: rest,
-    );
-    context.session.isProviderSelectionRequested = results.flag('providers');
-    // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
-    List<Step> buildCurrentSteps() => buildSteps(
-      flavor: Flavor.dev,
-      enabledProviders: readEnabledProviders(
-        context.resolve(context.paths.json),
-      ),
-    );
+    // 숨김 입력 중 Ctrl-C 로 끝나도 사용자의 셸이 에코 꺼진 채 남지 않게 한다 —
+    // Dart VM 은 종료할 때 터미널 에코를 되돌리지 않는다.
+    final bool echoBefore = readStdinEchoMode();
+    final StreamSubscription<ProcessSignal> interruptSubscription =
+        ProcessSignal.sigint.watch().listen((ProcessSignal signal) {
+          unawaited(
+            handleInterrupt(
+              writeEchoMode: writeStdinEchoMode,
+              echoBefore: echoBefore,
+              closeLog: log.close,
+              exitProcess: exit,
+            ),
+          );
+        });
     try {
-      code = await runWizard(
-        context,
-        buildCurrentSteps(),
-        onCompleted: showCompletionSummary,
-        rebuildSteps: buildCurrentSteps,
+      final ProcessCommandRunner runner = ProcessCommandRunner(
+        terminal,
+        log: log,
       );
+      final HttpRestClient rest = HttpRestClient(
+        tokens: AccessTokenSource(runner, redactor),
+        terminal: terminal,
+        log: log,
+      );
+      final WizardContext context = WizardContext(
+        projectRoot: projectRoot,
+        runner: runner,
+        terminal: terminal,
+        redactor: redactor,
+        log: log,
+        rest: rest,
+      );
+      context.session.isProviderSelectionRequested = results.flag('providers');
+      // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
+      List<Step> buildCurrentSteps() => buildSteps(
+        flavor: Flavor.dev,
+        enabledProviders: readEnabledProviders(
+          context.resolve(context.paths.json),
+        ),
+      );
+      try {
+        code = await runWizard(
+          context,
+          buildCurrentSteps(),
+          onCompleted: showCompletionSummary,
+          rebuildSteps: buildCurrentSteps,
+        );
+      } finally {
+        rest.close();
+      }
+      terminal.writeLine('$logPathLinePrefix${log.path}');
     } finally {
-      rest.close();
+      // 신호 구독이 남아 있으면 Dart VM 이 끝나지 않는다.
+      await interruptSubscription.cancel();
     }
-    terminal.writeLine('$logPathLinePrefix${log.path}');
   } finally {
     await log.close();
     exitCode = code;
+  }
+}
+
+/// Ctrl-C 를 받았을 때 터미널을 되돌리고 끝낸다.
+///
+/// 순서: [writeEchoMode] 로 에코를 [echoBefore] 로 되돌림 → [closeLog] 로 실행
+/// 기록 닫기(실패하면 표준 오류에 한 줄 남기고 넘어간다) → [exitProcess] 에
+/// [interruptExitCode]. 에코 복구가 실패해도 종료는 일어난다.
+Future<void> handleInterrupt({
+  required EchoModeWriter writeEchoMode,
+  required bool echoBefore,
+  required Future<void> Function() closeLog,
+  required void Function(int code) exitProcess,
+}) async {
+  try {
+    writeEchoMode(echoBefore);
+  } finally {
+    try {
+      await closeLog();
+    } on Exception catch (e) {
+      stderr.writeln('$interruptLogCloseFailedPrefix$e');
+    }
+    exitProcess(interruptExitCode);
   }
 }
 
