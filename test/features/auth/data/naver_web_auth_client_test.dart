@@ -409,7 +409,7 @@ void main() {
       for (final line in logs) {
         expect(line, isNot(contains(state)));
         expect(line, isNot(contains(codeSentinel)));
-        expect(line, isNot(contains(callbackUrl!)));
+        expect(line, isNot(contains(callbackUrl)));
         expect(line, isNot(contains(_fakeScheme)));
       }
     });
