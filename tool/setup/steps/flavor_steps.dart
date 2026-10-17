@@ -9,6 +9,9 @@ import 'facebook_step.dart';
 import 'firebase_project_step.dart';
 import 'firestore_step.dart';
 import 'functions_step.dart';
+import 'google_android_step.dart';
+import 'google_ios_step.dart';
+import 'google_step.dart';
 import 'identity_step.dart';
 import 'kakao_step.dart';
 import 'line_step.dart';
@@ -30,12 +33,14 @@ import 'xcode_step.dart';
 /// 위저드는 이 순서대로 검사하고 진행한다. 켠 로그인 수단의 단계는 App Check
 /// 뒤 · Functions 앞에 고정 순서로 끼우고, Functions 단계는 그 단계들이 모두
 /// 끝난 뒤에 검사한다. 콘솔형 로그인 수단은 그 단계 바로 뒤에 Android 쪽 줄을
-/// 끼운다 — 함수 배포는 Android 쪽 줄을 기다리지 않는다. 새 단계는 진행 순서에
-/// 맞는 자리에 끼운다.
+/// 끼운다 — 함수 배포는 Android 쪽 줄을 기다리지 않는다. Google 은 설정 파일을
+/// 다시 받아야 하므로 로그인 수단 단계 다음 · 앱 등록 앞에 두고, iOS · Android
+/// 쪽 줄은 앱 등록 다음에 둔다. 새 단계는 진행 순서에 맞는 자리에 끼운다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
 }) {
+  final bool isGoogleEnabled = enabledProviders.contains(GoogleStep.token);
   final providerSteps = <Step>[
     if (enabledProviders.contains(FacebookStep.token)) FacebookStep(),
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
@@ -43,14 +48,18 @@ List<Step> buildSteps({
     if (enabledProviders.contains(LineStep.token)) LineStep(),
   ];
   return <Step>[
-    ..._buildCommonSteps(),
+    ..._buildCommonSteps(isGoogleEnabled: isGoogleEnabled),
     for (final Step step in providerSteps) ...<Step>[
       step,
       ...?_buildAndroidSideSteps(step.id),
     ],
     FunctionsStep(
       enabledProviders: enabledProviders,
-      providerStepIds: <String>[for (final Step step in providerSteps) step.id],
+      providerStepIds: <String>[
+        // Google 은 Android 쪽 줄(SHA-1 등록)을 기다리지 않는다.
+        if (isGoogleEnabled) ...<String>[GoogleStep.token, 'google_ios'],
+        for (final Step step in providerSteps) step.id,
+      ],
     ),
     RunStep(),
   ];
@@ -72,8 +81,12 @@ List<Step>? _buildAndroidSideSteps(String token) {
   return <Step>[ProviderAndroidSideStep(entry, kind)];
 }
 
-/// 로그인 수단과 무관한 앞 단계 목록(App Check 까지)을 만든다.
-List<Step> _buildCommonSteps() {
+/// 앞 단계 목록(App Check 까지)을 만든다.
+///
+/// [isGoogleEnabled] 면 Google 단계를 로그인 수단 단계 다음에 두고, 앱 등록이
+/// Google 클라이언트가 든 설정 파일을 요구하게 하며, Google 의 iOS · Android 쪽
+/// 단계를 앱 등록 다음에 둔다.
+List<Step> _buildCommonSteps({required bool isGoogleEnabled}) {
   return <Step>[
     XcodeStep(),
     ToolsStep(),
@@ -87,7 +100,9 @@ List<Step> _buildCommonSteps() {
     StorageStep(),
     SignInStep(),
     ProvidersStep(),
-    ConfigureStep(),
+    if (isGoogleEnabled) GoogleStep(),
+    ConfigureStep(requiresGoogleClient: isGoogleEnabled),
+    if (isGoogleEnabled) ...<Step>[GoogleIosStep(), GoogleAndroidStep()],
     RulesStep(),
     AppCheckStep(),
   ];

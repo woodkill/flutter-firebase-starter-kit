@@ -7,10 +7,15 @@ import 'package:test/test.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/idp_config.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/steps/configure_step.dart';
+import '../../../tool/setup/steps/flavor_steps.dart';
+import '../../../tool/setup/steps/functions_step.dart';
+import '../../../tool/setup/steps/google_android_step.dart';
 import '../../../tool/setup/steps/google_ios_step.dart';
 import '../../../tool/setup/steps/google_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
@@ -48,6 +53,36 @@ const String deployKey =
 /// Firebase Google 로그인 설정 GET 주소.
 const String idpGetUrl =
     '$idpConfigUrlPrefix$projectId/defaultSupportedIdpConfigs/google.com';
+
+/// fixture Gradle 의 applicationId.
+const String applicationId = 'com.example.google_app';
+
+/// fixture Android 설정 파일의 Firebase Android 앱 ID.
+const String androidAppId = '1:000:android:google';
+
+/// Firebase Android 앱 SHA 인증서 목록 주소.
+const String shaUrl =
+    'https://firebase.googleapis.com/v1beta1/projects/$projectId/androidApps/'
+    '$androidAppId/sha';
+
+/// 실행 시점에 조립하는 가짜 디버그 SHA-1(소문자 16진 40자).
+String buildSha1() => 'ab' * 20;
+
+/// SHA 인증서 목록 응답 — [hashes] 는 (해시, 종류) 쌍.
+RestResponse buildShaList(List<(String, String)> hashes) => RestResponse(
+  200,
+  jsonEncode(<String, Object?>{
+    if (hashes.isNotEmpty)
+      'certificates': <Object?>[
+        for (final (String hash, String type) in hashes)
+          <String, Object?>{
+            'name': 'projects/$projectId/androidApps/$androidAppId/sha/x',
+            'shaHash': hash,
+            'certType': type,
+          },
+      ],
+  }),
+);
 
 /// 조직 경고 줄 원문.
 const String organizationWarningText =
@@ -137,6 +172,40 @@ final class _FinishedStep implements Step {
   Future<StepOutcome> apply(WizardContext context) async => const Applied();
 }
 
+/// 검사에서 한 번 할 일을 내고, 실행하면 끝나는 단계 — 앞 단계가 위저드를 멈추지
+/// 않았는지 본다.
+final class _PendingStep implements Step {
+  _PendingStep(this.id);
+
+  @override
+  final String id;
+
+  /// 실행 횟수.
+  int applyCount = 0;
+
+  @override
+  String get title => '다음 단계';
+
+  @override
+  List<String> get dependsOn => const <String>[];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async =>
+      applyCount == 0 ? const Todo('할 일') : const Done('끝남');
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => const <String>[];
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    applyCount++;
+    return const Applied();
+  }
+}
+
 /// 흘리는 명령이 실행되는 순간 등록한 함수를 부르는 실행기.
 ///
 /// 결과는 감싼 가짜 실행기에 맡긴다 — 그 순간의 임시 파일 내용을 읽는 데 쓴다.
@@ -220,6 +289,9 @@ final class _Harness {
   final ScriptedTerminal screen;
   final MemoryLogSink log;
 
+  /// 위저드 세션 — 지문 캐시를 미리 넣을 때 쓴다.
+  WizardSession? session;
+
   /// 화면 출력 전체.
   String get output => screen.output.toString();
 
@@ -259,6 +331,7 @@ final class _Harness {
     redactor: log.redactor,
     log: log,
     rest: _LoggingRest(rest, log),
+    session: session,
     homeDirectory: noKeystoreTestHome,
     random: Random(fixedTestRandomSeed),
     now: () => fixedTestNow,
@@ -667,5 +740,197 @@ void main() {
         expect(File(xcconfigPath()).readAsStringSync(), before);
       });
     }
+  });
+
+  group('T-20-GOOGLE-11 ~ 13: Android 쪽 — 디버그 SHA-1 Firebase 등록', () {
+    const paths = FlavorPaths(Flavor.dev);
+
+    /// 지문 [fingerprints] 를 세션에 넣은 하네스를 만든다.
+    _Harness buildAndroidHarness(
+      List<String?> inputs,
+      DebugFingerprints fingerprints,
+    ) =>
+        _Harness(root, inputs)
+          ..session = (WizardSession()..debugFingerprints = fingerprints);
+
+    /// 계산한 디버그 지문.
+    FingerprintsAvailable buildAvailable() => FingerprintsAvailable(
+      sha1Hex: buildSha1(),
+      sha256Hex: 'cd' * 32,
+      keyHash: 'q1AFhLJe1jbJyRsDcFRsODGFDxY=',
+    );
+
+    /// 앞 단계(끝남) · Android 쪽 단계 · [after] 로 돌린다.
+    Future<int> runAndroidSide(_Harness h, {List<Step> after = const []}) =>
+        h.runSteps(<Step>[
+          _FinishedStep('google', GoogleStep.stepTitle),
+          _FinishedStep('configure', '앱 등록 · 설정 파일'),
+          GoogleAndroidStep(),
+          ...after,
+        ]);
+
+    setUp(() {
+      writeFixture(
+        'android/app/build.gradle.kts',
+        'android {\n'
+            '    defaultConfig {\n'
+            '        applicationId = "$applicationId"\n'
+            '    }\n'
+            '}\n',
+      );
+      writeFixture(
+        paths.androidJson,
+        jsonEncode(<String, Object?>{
+          'project_info': <String, Object?>{'project_id': projectId},
+          'client': <Object?>[
+            <String, Object?>{
+              'client_info': <String, Object?>{
+                'mobilesdk_app_id': androidAppId,
+                'android_client_info': <String, Object?>{
+                  'package_name': '$applicationId.dev',
+                },
+              },
+            },
+          ],
+        }),
+      );
+    });
+
+    test('T-20-GOOGLE-11: 목록에 없으면 ✗ · 실행하면 SHA_1 소문자로 1회 등록 · '
+        '재검사 ✓', () async {
+      final h = buildAndroidHarness(const <String?>['y'], buildAvailable());
+      h.rest
+        ..on(
+          'GET',
+          shaUrl,
+          buildShaList(<(String, String)>[('cd' * 32, 'SHA_256')]),
+        )
+        ..on(
+          'GET',
+          shaUrl,
+          buildShaList(<(String, String)>[('cd' * 32, 'SHA_256')]),
+        )
+        ..on(
+          'GET',
+          shaUrl,
+          buildShaList(<(String, String)>[
+            ('cd' * 32, 'SHA_256'),
+            (buildSha1(), 'SHA_1'),
+          ]),
+        )
+        ..on('POST', shaUrl, const RestResponse(200, '{}'));
+
+      expect(await runAndroidSide(h), wizardExitDone);
+
+      final List<RestRequest> posts = h.rest.requests
+          .where((RestRequest request) => request.method == 'POST')
+          .toList();
+      expect(posts, hasLength(1));
+      expect(
+        posts.single.body,
+        '{"shaHash":"${buildSha1()}","certType":"SHA_1"}',
+      );
+      expect(h.output, contains('✓ ${GoogleAndroidStep.stepTitle}'));
+      expect(h.screen.asks, <String>[stepConfirmQuestion]);
+    });
+
+    test('T-20-GOOGLE-12: 목록에 이미 있으면(대문자로 와도) ✓ · 쓰기 0', () async {
+      final h = buildAndroidHarness(const <String?>[], buildAvailable());
+      h.rest.on(
+        'GET',
+        shaUrl,
+        buildShaList(<(String, String)>[(buildSha1().toUpperCase(), 'SHA_1')]),
+      );
+
+      expect(await runAndroidSide(h), wizardExitDone);
+
+      expect(h.rest.countRequests('POST', shaUrl), 0);
+      expect(h.screen.asks, isEmpty);
+      expect(h.output, contains('✓ ${GoogleAndroidStep.stepTitle}'));
+    });
+
+    test('T-20-GOOGLE-13: 지문을 계산할 수 없으면 그 줄만 ✗ · SHA 요청 0 · 다음 '
+        '단계 진행', () async {
+      final h = buildAndroidHarness(const <String?>[
+        'y',
+      ], const FingerprintsUnavailable('fixture'));
+      final next = _PendingStep('next');
+
+      expect(await runAndroidSide(h, after: <Step>[next]), wizardExitDone);
+
+      expect(h.rest.requests, isEmpty);
+      expect(
+        h.output,
+        contains(
+          '  ✗ ${GoogleAndroidStep.stepTitle} — $unavailableFingerprintGuide',
+        ),
+      );
+      expect(next.applyCount, 1);
+    });
+  });
+
+  group('T-20-GOOGLE-14: 단계 목록', () {
+    test('켰으면 providers · google · configure · google_ios · google_android '
+        '순서 · Functions 는 google · google_ios 를 기다린다', () {
+      final List<Step> steps = buildSteps(
+        flavor: Flavor.dev,
+        enabledProviders: <String>{GoogleStep.token, 'facebook'},
+      );
+      final ids = <String>[for (final Step step in steps) step.id];
+      final int start = ids.indexOf('providers');
+
+      expect(ids.sublist(start, start + 5), <String>[
+        'providers',
+        'google',
+        'configure',
+        'google_ios',
+        'google_android',
+      ]);
+      expect(ids.where((String id) => id == 'configure'), hasLength(1));
+      final ConfigureStep configure = steps.whereType<ConfigureStep>().single;
+      expect(configure.requiresGoogleClient, isTrue);
+      expect(configure.dependsOn, contains('google'));
+      final FunctionsStep functions = steps.whereType<FunctionsStep>().single;
+      expect(
+        functions.dependsOn,
+        containsAll(<String>['google', 'google_ios']),
+      );
+      expect(functions.dependsOn, contains('facebook'));
+      expect(functions.dependsOn, isNot(contains('google_android')));
+      final Step google = steps.firstWhere(
+        (Step step) => step.id == GoogleStep.token,
+      );
+      expect(google.title, 'Google 로그인');
+      expect(google.dependsOn, <String>['providers', 'sign_in']);
+      for (final id in <String>['google_ios', 'google_android']) {
+        expect(
+          steps.firstWhere((Step step) => step.id == id).dependsOn,
+          <String>['google', 'configure'],
+        );
+      }
+    });
+
+    test('켜지 않았으면 Google 단계 0 · 앱 등록은 Google 클라이언트를 요구하지 '
+        '않는다', () {
+      final List<Step> steps = buildSteps(
+        flavor: Flavor.dev,
+        enabledProviders: <String>{'kakao'},
+      );
+      final ids = <String>[for (final Step step in steps) step.id];
+
+      expect(ids.where((String id) => id.startsWith('google')), isEmpty);
+      expect(ids.indexOf('configure'), ids.indexOf('providers') + 1);
+      final ConfigureStep configure = steps.whereType<ConfigureStep>().single;
+      expect(configure.requiresGoogleClient, isFalse);
+      expect(configure.dependsOn, <String>[
+        'firebase_project',
+        'identity',
+        'tools',
+      ]);
+      expect(
+        steps.whereType<FunctionsStep>().single.dependsOn,
+        isNot(contains('google')),
+      );
+    });
   });
 }
