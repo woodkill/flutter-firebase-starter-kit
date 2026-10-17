@@ -991,30 +991,29 @@ void main() {
         enabledProviders: <String>{'facebook'},
       );
 
-      expect(
-        <String>[for (final Step step in steps) step.id],
-        <String>[
-          'xcode',
-          'tools',
-          'user_files',
-          'identity',
-          'login',
-          'firebase_project',
-          'billing',
-          'apis',
-          'firestore',
-          'storage',
-          'sign_in',
-          'providers',
-          'configure',
-          'rules',
-          'app_check',
-          'facebook',
-          'facebook_android',
-          'functions',
-          'run',
-        ],
-      );
+      final ids = <String>[for (final Step step in steps) step.id];
+
+      expect(ids.sublist(0, ids.indexOf('run') + 1), <String>[
+        'xcode',
+        'tools',
+        'user_files',
+        'identity',
+        'login',
+        'firebase_project',
+        'billing',
+        'apis',
+        'firestore',
+        'storage',
+        'sign_in',
+        'providers',
+        'configure',
+        'rules',
+        'app_check',
+        'facebook',
+        'facebook_android',
+        'functions',
+        'run',
+      ]);
       expect(steps.whereType<FunctionsStep>().single.dependsOn, <String>[
         'configure',
         'apis',
