@@ -10,6 +10,7 @@ import 'firestore_step.dart';
 import 'functions_step.dart';
 import 'identity_step.dart';
 import 'kakao_step.dart';
+import 'line_step.dart';
 import 'login_step.dart';
 import 'naver_step.dart';
 import 'provider_android_step.dart';
@@ -37,6 +38,7 @@ List<Step> buildSteps({
   final providerSteps = <Step>[
     if (enabledProviders.contains(KakaoStep.token)) KakaoStep(),
     if (enabledProviders.contains(NaverStep.token)) NaverStep(),
+    if (enabledProviders.contains(LineStep.token)) LineStep(),
   ];
   return <Step>[
     ..._buildCommonSteps(),
@@ -58,6 +60,7 @@ List<Step> buildSteps({
 List<Step>? _buildAndroidSideSteps(String token) {
   final AndroidFingerprintKind? kind = switch (token) {
     KakaoStep.token || NaverStep.token => AndroidFingerprintKind.keyHash,
+    LineStep.token => AndroidFingerprintKind.sha1Colon,
     _ => null,
   };
   final ProviderEntry? entry = findProvider(token);
