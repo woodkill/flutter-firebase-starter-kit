@@ -3,8 +3,9 @@
 #
 # 순서: macOS 확인 → Homebrew 확인(없으면 안내 후 종료) → FVM 확인(없으면 설치
 # 명령을 보이고 입력이 터미널이고 y 를 받았을 때만 설치) → .fvmrc 가 고정한
-# Flutter 판 설치 → 패키지 받기(fvm flutter pub get) → FVM 의 Dart 로
-# 위저드(bin/setup.dart) 실행.
+# Flutter 판 설치 → 패키지 받기(fvm flutter pub get) → 터미널 상태 저장 →
+# FVM 의 Dart 로 위저드(bin/setup.dart)를 자식으로 실행 → 끝나면(Ctrl-C 포함)
+# 터미널 상태를 되돌리고 위저드의 종료 코드로 끝낸다.
 # 받은 인자는 위저드에 그대로 넘긴다. 셸 설정 파일은 고치지 않는다 — PATH 설정은
 # 안내만 한다.
 emulate -L zsh
@@ -77,4 +78,25 @@ fvm flutter pub get || {
   exit $pub_get_status
 }
 
-exec fvm dart run bin/setup.dart "$@"
+# 위저드 — Ctrl-C 를 받으면 바로 끝나므로 숨김 입력 중이었다면 터미널 에코가
+# 꺼진 채 남을 수 있고, bash 같은 셸은 스스로 되돌리지 않는다. 그래서 위저드를
+# 자식으로 실행하고 끝나면(정상 · 오류 · INT · TERM) 저장해 둔 상태로 되돌린다.
+# 입력이 터미널이 아니면(상태를 읽지 못하면) 저장도 복원도 하지 않는다.
+saved_stty=''
+saved_stty="$(stty -g 2>/dev/null)" || saved_stty=''
+
+# 저장한 터미널 상태로 되돌린다 — 실패해도 stty 의 오류 줄만 보이고 종료 코드는
+# 바꾸지 않는다. 두 번 불려도 같은 상태를 다시 쓸 뿐이다.
+restore_terminal() {
+  if [[ -n "$saved_stty" ]]; then
+    stty "$saved_stty" || true
+  fi
+}
+
+trap 'restore_terminal; exit 130' INT
+trap 'restore_terminal; exit 143' TERM
+
+wizard_status=0
+fvm dart run bin/setup.dart "$@" || wizard_status=$?
+restore_terminal
+exit $wizard_status
