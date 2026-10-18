@@ -130,5 +130,14 @@ void main() {
       () => collectOptionLines('./setup.sh --flavor stg --providers'),
       throwsA(isA<TestFailure>()),
     );
+    // 들여 쓴 줄도 조용히 빠지지 않는다: 옵션 두 개 줄은 실패하고 정상 줄은 모인다.
+    expect(
+      () => collectOptionLines('  ./setup.sh --flavor stg --providers'),
+      throwsA(isA<TestFailure>()),
+    );
+    final indented = collectOptionLines('  ./setup.sh --flavor stg');
+    expect(indented, hasLength(1));
+    expect(indented.single.name, 'flavor');
+    expect(indented.single.value, 'stg');
   });
 }

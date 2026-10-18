@@ -698,4 +698,45 @@ void main() {
       xcconfigPlaceholder,
     );
   });
+
+  test('T-20-NAVER-08: config · 다른 flavor config · xcconfig 에서 읽은 숨김 아닌 '
+      'Client ID 는 가림 함수가 가리지 않는다', () async {
+    final String devId = buildClientId('d');
+    final String stgId = buildClientId('s');
+    final String xcconfigId = buildClientId('c');
+    prepareFlavorFiles(Flavor.stg);
+    setFieldValue(Flavor.dev, NaverStep.clientIdField, devId);
+    setFieldValue(Flavor.stg, NaverStep.clientIdField, stgId);
+    // dev xcconfig 에는 config 와 다른 옛 값이 남아 있다(맞출 자리).
+    replaceXcconfigValue(
+      xcconfigPathOf(Flavor.dev),
+      NaverStep.clientIdField.xcconfigVar!,
+      xcconfigId,
+    );
+    // Secret Manager 는 비어 있다 — 가림 등록은 config · xcconfig 읽기에서만 온다.
+    final h = _Harness(root, const <String?>[]);
+    h
+      ..onSecretReads(clientIdSecret, <CommandResult>[
+        buildSecretMissing(clientIdSecret),
+      ])
+      ..onSecretReads(clientSecretSecret, <CommandResult>[
+        buildSecretMissing(clientSecretSecret),
+      ]);
+    final WizardContext context = h.buildContext();
+
+    await NaverStep().check(context);
+
+    final reasons = <String, String>{
+      devId: 'dev config',
+      stgId: 'stg config',
+      xcconfigId: 'dev xcconfig',
+    };
+    for (final MapEntry<String, String> entry in reasons.entries) {
+      expect(
+        context.redactor.apply('값 ${entry.key} 끝'),
+        '값 ${entry.key} 끝',
+        reason: entry.value,
+      );
+    }
+  });
 }
