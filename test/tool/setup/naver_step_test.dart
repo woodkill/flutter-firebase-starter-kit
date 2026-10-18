@@ -638,28 +638,64 @@ void main() {
       NaverStep.clientSecretField,
     )!;
     prepareFlavorFiles(Flavor.stg);
+    // dev xcconfig 에는 config 를 고치기 전의 옛 실 값이 남아 있다(맞출 자리).
+    final String xcconfigSecret = buildClientSecret('X3');
+    final String xcconfigVar = NaverStep.clientSecretField.xcconfigVar!;
+    final String xcconfigPlaceholder = readXcconfigValue(
+      '$root/${const FlavorPaths(Flavor.dev).xcconfigExample}',
+      xcconfigVar,
+    )!;
     setFieldValue(Flavor.dev, NaverStep.clientSecretField, devSecret);
     setFieldValue(Flavor.stg, NaverStep.clientSecretField, stgSecret);
-    // Secret Manager 는 비어 있다 — 가림 등록은 config 읽기에서만 온다.
-    final h = _Harness(root, const <String?>[]);
-    h
-      ..onSecretReads(clientIdSecret, <CommandResult>[
-        buildSecretMissing(clientIdSecret),
-      ])
-      ..onSecretReads(clientSecretSecret, <CommandResult>[
-        buildSecretMissing(clientSecretSecret),
-      ]);
-    final WizardContext context = h.buildContext();
+    replaceXcconfigValue(
+      xcconfigPathOf(Flavor.dev),
+      xcconfigVar,
+      xcconfigSecret,
+    );
 
-    await NaverStep().check(context);
+    /// Secret Manager 가 빈 하네스로 dev 검사를 한 번 돌린 문맥.
+    Future<WizardContext> runCheck() async {
+      // Secret Manager 는 비어 있다 — 가림 등록은 config · xcconfig 읽기에서만 온다.
+      final h = _Harness(root, const <String?>[]);
+      h
+        ..onSecretReads(clientIdSecret, <CommandResult>[
+          buildSecretMissing(clientIdSecret),
+        ])
+        ..onSecretReads(clientSecretSecret, <CommandResult>[
+          buildSecretMissing(clientSecretSecret),
+        ]);
+      final WizardContext context = h.buildContext();
+      await NaverStep().check(context);
+      return context;
+    }
 
-    for (final secret in <String>[devSecret, stgSecret]) {
+    final WizardContext context = await runCheck();
+
+    final reasons = <String, String>{
+      devSecret: 'dev config',
+      stgSecret: 'stg config',
+      xcconfigSecret: 'dev xcconfig',
+    };
+    for (final MapEntry<String, String> entry in reasons.entries) {
       expect(
-        context.redactor.apply('값 $secret 끝'),
+        context.redactor.apply('값 ${entry.key} 끝'),
         '값 ${Redactor.mask} 끝',
-        reason: secret == devSecret ? 'dev config' : 'stg config',
+        reason: entry.value,
       );
     }
     expect(context.redactor.apply(placeholder), placeholder);
+
+    // xcconfig 가 example 자리표시 그대로면 실 값이 아니라 가리지 않는다.
+    replaceXcconfigValue(
+      xcconfigPathOf(Flavor.dev),
+      xcconfigVar,
+      xcconfigPlaceholder,
+    );
+    final WizardContext placeholderContext = await runCheck();
+
+    expect(
+      placeholderContext.redactor.apply(xcconfigPlaceholder),
+      xcconfigPlaceholder,
+    );
   });
 }

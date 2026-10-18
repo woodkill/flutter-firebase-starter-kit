@@ -316,6 +316,12 @@ abstract class KeyedProviderStep implements Step {
             '${context.paths.xcconfig} 에 $xcconfigVar 변수가 없습니다',
           );
         }
+        // 숨김 값은 config 값과 같이 읽자마자 가림 함수에 등록한다 — 비교에만 쓰고
+        // 화면 · 기록에는 쓰지 않는다. example 의 자리표시 · 빈 값은 등록하지 않는다.
+        if (field.isHidden &&
+            !_isXcconfigPlaceholder(context, current, xcconfigVar)) {
+          context.redactor.register(current);
+        }
         if (needsInput || current != configValue) {
           xcconfigFixes.add(field);
           pending.add((location: context.paths.xcconfig, name: xcconfigVar));
@@ -733,11 +739,38 @@ abstract class KeyedProviderStep implements Step {
     String exampleRelativePath,
     String raw,
     String configKey,
+  ) => _matchesExample(
+    context,
+    exampleRelativePath,
+    raw,
+    (String examplePath) => readJsonString(examplePath, configKey)?.trim(),
+  );
+
+  /// [raw] 가 그 flavor example xcconfig 의 같은 변수 값(자리표시)이거나 빈 값이면
+  /// true.
+  static bool _isXcconfigPlaceholder(
+    WizardContext context,
+    String raw,
+    String xcconfigVar,
+  ) => _matchesExample(
+    context,
+    context.paths.xcconfigExample,
+    raw,
+    (String examplePath) => readXcconfigValue(examplePath, xcconfigVar),
+  );
+
+  /// [raw] 가 빈 값이거나 [exampleRelativePath] example 파일에서 [readExample] 로
+  /// 읽은 값과 같으면 true — example 파일이 없으면 false.
+  static bool _matchesExample(
+    WizardContext context,
+    String exampleRelativePath,
+    String raw,
+    String? Function(String examplePath) readExample,
   ) {
     if (raw.isEmpty) return true;
     final String examplePath = context.resolve(exampleRelativePath);
     if (!File(examplePath).existsSync()) return false;
-    return readJsonString(examplePath, configKey)?.trim() == raw;
+    return readExample(examplePath) == raw;
   }
 
   /// 지금 flavor 밖 flavor 들의 config(파일이 있을 때만)에서 [configKey] 의
