@@ -272,6 +272,8 @@ Functions region 을 결정합니다. 기본값은 `asia-northeast3` (서울) �
 
 ## 로그인 수단 켜고 끄기
 
+> **로그인 수단을 켜고 끄는 일은 저장소 루트에서 `./setup.sh --providers` 를 실행하면 설정 위저드가 대신한다.** 아래는 위저드가 하는 일의 뜻과 손으로 할 때의 절차다.
+
 앱의 로그인 화면에 보일 소셜 로그인을 고르는 절차다. clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이메일로 계속」 과 가입 링크만 보인다. 켠 provider 만 키 · 함수 · secret 값 · 콘솔 등록이 필요하다. 끈 provider 는 키 · 함수 · 콘솔 등록이 필요 없고, secret 은 자리표시 값으로 만들어 두기만 하면 된다(「켜기」 ④).
 
 **전제:** [Initial Setup](#initial-setup--flavor-config-키-주입-사전-작업-모든-phase-공통) 의 `config/{flavor}.json` · `ios/Flutter/{flavor}.xcconfig` 복사와 `functions/` 의 `pnpm install` 이 끝나 있다. 함수 배포에는 PATH 에 설치된 Firebase CLI(`firebase`)와 `firebase login` 이 필요하다. 소셜 로그인을 하나도 켜지 않고 공통 함수만 배포할 때도 「켜기」 ④ 의 secret 일괄 생성을 프로젝트마다 한 번 먼저 한다.
