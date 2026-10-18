@@ -260,6 +260,26 @@ void main() {
       expect(h.context.session.appleKeys, isEmpty);
     });
 
+    test('까닭 줄은 홈 디렉터리를 ~ 로 줄인 경로를 보인다', () async {
+      final missing = '${keyDir.path}/missing.p8';
+      final h = buildHarness(<String?>[
+        missing,
+        '~/missing.p8',
+        keyPath(),
+        '',
+      ], homeDirectory: keyDir.path);
+
+      final AppleKey? key = await askAppleKey(
+        h.context,
+        use: AppleKeyUse.signInWithApple,
+      );
+
+      final output = h.screen.output.toString();
+      expect(key?.keyId, keyId);
+      expect(countText(output, '파일이 없습니다 — ~/missing.p8'), 2);
+      expect(output, isNot(contains('파일이 없습니다 — ${keyDir.path}')));
+    });
+
     test('PEM 아님 → 경로만 다시 · 그 뒤 맞는 경로면 통과', () async {
       final textPath = '${keyDir.path}/AuthKey_$keyId.txt';
       File(textPath).writeAsStringSync('not a key file at all\n');

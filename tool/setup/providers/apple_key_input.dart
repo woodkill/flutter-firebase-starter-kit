@@ -69,8 +69,10 @@ final RegExp _authKeyFileName = RegExp(r'^AuthKey_([A-Z0-9]{10})\.p8$');
 /// Key ID 는 [maxKeyAttempts] 회까지 그 값만 다시 묻고, 넘거나 입력 끝이면 null
 /// 이다.
 ///
-/// 내용은 메모리(세션)에만 두고 경로는 어디에도 남기지 않는다. DeviceCheck 를
-/// 실제로 넣었다는 세션 표시는 DeviceCheck 단계가 켠다.
+/// 내용은 메모리(세션)에만 두고 경로는 config · 세션에 저장하지 않는다. 경로를
+/// 다시 묻는 까닭 줄에는 홈 디렉터리를 `~` 로 줄인 경로를 보인다(입력한 답은
+/// 다른 질문의 답처럼 실행 기록에 남는다). DeviceCheck 를 실제로 넣었다는 세션
+/// 표시는 DeviceCheck 단계가 켠다.
 Future<AppleKey?> askAppleKey(
   WizardContext context, {
   required AppleKeyUse use,
@@ -158,8 +160,8 @@ AppleKey? _findOtherKey(Map<AppleKeyUse, AppleKey> keys, AppleKeyUse use) {
 
 /// `.p8` 파일 경로를 묻고 내용을 읽는다 — 맞지 않으면 까닭 한 줄 뒤 경로만 다시.
 ///
-/// 까닭 줄에는 경로만 보이고 내용은 보이지 않는다. 내용은 PEM 개인 키 머리로
-/// 시작할 때만 가림 함수에 등록하고 돌려준다.
+/// 까닭 줄에는 홈 디렉터리를 `~` 로 줄인 경로만 보이고 내용은 보이지 않는다.
+/// 내용은 PEM 개인 키 머리로 시작할 때만 가림 함수에 등록하고 돌려준다.
 _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
   for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
     final String? answer = context.terminal.ask(
@@ -172,19 +174,20 @@ _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
       continue;
     }
     final file = File(path);
+    final String shownPath = _describePath(context, path);
     if (!file.existsSync()) {
-      context.terminal.writeLine('  파일이 없습니다 — $path');
+      context.terminal.writeLine('  파일이 없습니다 — $shownPath');
       continue;
     }
     final String content;
     try {
       content = file.readAsStringSync();
     } on FileSystemException {
-      context.terminal.writeLine('  파일을 읽지 못했습니다 — $path');
+      context.terminal.writeLine('  파일을 읽지 못했습니다 — $shownPath');
       continue;
     }
     if (!content.trimLeft().startsWith(pemPrivateKeyHeader)) {
-      context.terminal.writeLine('  .p8 개인 키 파일이 아닙니다 — $path');
+      context.terminal.writeLine('  .p8 개인 키 파일이 아닙니다 — $shownPath');
       continue;
     }
     context.redactor.register(content);
@@ -201,6 +204,15 @@ String _expandPath(WizardContext context, String path) {
     return '${context.homeDirectory}/${path.substring(2)}';
   }
   return context.resolve(path);
+}
+
+/// 화면에 보일 [path] — 홈 디렉터리(사용자 이름이 든 경로)는 `~` 로 줄인다.
+String _describePath(WizardContext context, String path) {
+  final String home = context.homeDirectory;
+  if (home.isEmpty) return path;
+  if (path == home) return '~';
+  if (path.startsWith('$home/')) return '~/${path.substring(home.length + 1)}';
+  return path;
 }
 
 /// 파일 이름 [fileName] 이 `AuthKey_<Key ID>.p8` 꼴이면 그 Key ID — 아니면 null.
