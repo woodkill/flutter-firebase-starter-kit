@@ -284,12 +284,17 @@ final class _Harness {
   }
 
   /// 실행 단계(끝남) · 로그인 확인 · ([withNext] 면) 뒤 단계로 위저드를 돌린다.
-  Future<int> run(Set<String> providers, {bool withNext = true}) =>
-      runWizard(context, <Step>[
-        _FinishedStep('run', RunStep.stepTitle),
-        SignInCheckStep(enabledProviders: providers),
-        if (withNext) next,
-      ]);
+  ///
+  /// [launcher] 를 주면 로그인 확인이 그 실행 단계로 앱을 다시 띄운다.
+  Future<int> run(
+    Set<String> providers, {
+    bool withNext = true,
+    RunStep? launcher,
+  }) => runWizard(context, <Step>[
+    _FinishedStep('run', RunStep.stepTitle),
+    SignInCheckStep(enabledProviders: providers, launcher: launcher),
+    if (withNext) next,
+  ]);
 
   /// 대화형 실행 명령 호출 수.
   int get launchCount => runner.countCalls(RunMode.interactive, runKey);
@@ -612,5 +617,72 @@ void main() {
         expect(harness.next.applyCount, 1);
       },
     );
+  });
+
+  test('T-20-SIGNIN-08: 주입한 실행 단계의 대기를 쓴다 — 대상이 없으면 시뮬레이터를 '
+      '켜고 실제로 기다리지 않고 정한 횟수만 다시 찾은 뒤 실패', () async {
+    final developerDir = '$root/Xcode.app/Contents/Developer';
+    final deviceHub = '$root/Xcode.app/Contents/Applications/DeviceHub.app';
+    Directory(deviceHub).createSync(recursive: true);
+    const simulatorUdid = '1A2B3C4D-5E6F-4A7B-8C9D-0E1F2A3B4C5D';
+    final delays = <Duration>[];
+    final harness = _Harness(root, const <String?>['1']);
+    harness
+      ..onIndex(<RestResponse>[buildEmptyIndexPage()])
+      ..runner.on(
+        FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
+        const CommandResult(0, '[]', ''),
+      )
+      ..runner.on(
+        FakeCommandRunner.buildKey(RunStep.simulatorListCommand),
+        CommandResult(
+          0,
+          jsonEncode(<String, Object?>{
+            'devices': <String, Object?>{
+              'com.apple.CoreSimulator.SimRuntime.iOS-26-4': <Object?>[
+                <String, Object?>{
+                  'deviceTypeIdentifier':
+                      'com.apple.CoreSimulator.SimDeviceType.iPhone-17',
+                  'isAvailable': true,
+                  'name': 'Sim iPhone A',
+                  'state': 'Shutdown',
+                  'udid': simulatorUdid,
+                },
+              ],
+            },
+          }),
+          '',
+        ),
+      )
+      ..runner.on(
+        FakeCommandRunner.buildKey(RunStep.developerDirCommand),
+        CommandResult(0, '$developerDir\n', ''),
+      )
+      ..runner.on(
+        FakeCommandRunner.buildKey(
+          RunStep.buildBootSimulatorCommand(simulatorUdid),
+        ),
+        const CommandResult(0, '', ''),
+      )
+      ..runner.on(
+        FakeCommandRunner.buildKey(
+          RunStep.buildOpenScreenAppCommand(deviceHub),
+        ),
+        const CommandResult(0, '', ''),
+      );
+
+    final int code = await harness.run(
+      const <String>{'kakao'},
+      launcher: RunStep(
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      ),
+    );
+
+    expect(code, wizardExitStopped, reason: harness.output);
+    expect(delays, hasLength(RunStep.maxLaunchPolls));
+    expect(harness.output, contains('  실패 — ${RunStep.noTargetSummary}'));
+    expect(harness.launchCount, 0);
   });
 }

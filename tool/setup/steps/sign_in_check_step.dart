@@ -19,7 +19,11 @@ import 'run_step.dart';
 /// 저장하지 않으므로 다음 실행의 점검표에 다시 보인다.
 final class SignInCheckStep implements DeferrableStep {
   /// 켠 로그인 수단 토큰 [enabledProviders] 를 확인하는 단계를 만든다.
-  SignInCheckStep({required this.enabledProviders});
+  ///
+  /// 앱을 다시 띄우는 [launcher] 를 주지 않으면 실제 대기를 쓰는 [RunStep] 을
+  /// 만든다 — 시험은 대기를 바꾼 [RunStep] 을 넘긴다.
+  SignInCheckStep({required this.enabledProviders, RunStep? launcher})
+    : _launcher = launcher ?? RunStep();
 
   /// 단계 id.
   static const String stepId = 'sign_in_check';
@@ -42,7 +46,7 @@ final class SignInCheckStep implements DeferrableStep {
   /// 켠 로그인 수단 토큰.
   final Set<String> enabledProviders;
 
-  final RunStep _launcher = RunStep();
+  final RunStep _launcher;
 
   _SignInMode _mode = _SignInMode.unreadable;
   String _reason = '';
