@@ -11,15 +11,18 @@ import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/steps/apis_step.dart';
+import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
+import '../../../tool/setup/steps/device_check_step.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
 import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
+import '../../../tool/setup/steps/play_integrity_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
@@ -426,6 +429,7 @@ final class _Run {
       redactor: log.redactor,
       log: log,
       rest: _LoggingRest(rest, log),
+      homeDirectory: noKeystoreTestHome,
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     );
@@ -465,7 +469,7 @@ final class _Run {
   void onEffect(Command command, void Function() effect) =>
       runner.effects[FakeCommandRunner.buildKey(command)] = effect;
 
-  /// 17단계 · 끝 요약으로 위저드를 돌린다.
+  /// 기본 20단계 · 끝 요약으로 위저드를 돌린다.
   Future<int> run() =>
       runWizard(context, buildDevSteps(), onCompleted: showCommitHint);
 
@@ -914,6 +918,59 @@ void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
         '"providerUserInfo":[{"providerId":"password"}]}]}',
       ),
     ]);
+
+  // 출시용 단계: Play Integrity 설정 기본값(API 꺼짐) · DeviceCheck 미등록(200) —
+  // 둘 다 할 일이고 첫 실행 입력은 「지금 안 함」 이다. APNs 는 확인할 수 없는 줄.
+  run
+    ..onRest(
+      PlayIntegrityStep.buildGetRequest(projectId, androidAppId),
+      <RestResponse>[
+        const RestResponse(
+          200,
+          '{"name":"playIntegrityConfig","tokenTtl":"3600s"}',
+        ),
+      ],
+    )
+    ..onRest(
+      DeviceCheckStep.buildGetRequest(projectId, iosAppId),
+      <RestResponse>[
+        const RestResponse(
+          200,
+          '{"name":"deviceCheckConfig","tokenTtl":"3600s"}',
+        ),
+      ],
+    );
+}
+
+/// 첫 실행 끝 목록 — 출시용 두 단계는 지금 안 함 · APNs 는 확인할 수 없는 줄.
+const List<String> releaseRemainingLines = <String>[
+  '  ✗ ${PlayIntegrityStep.stepTitle} — 지금 안 함',
+  '  ✗ ${DeviceCheckStep.stepTitle} — 지금 안 함',
+  '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}',
+];
+
+/// 출시용 두 단계(Play Integrity · DeviceCheck)를 미루는 입력.
+const List<String> releaseDeferInputs = <String>[
+  '2', // Play Integrity — 지금 안 함
+  '2', // DeviceCheck — 지금 안 함
+];
+
+/// 실패 뒤 다시 시도 · 멈춤 고르기 수를 센다 — 미룰 수 있는 단계의 진행 고르기는
+/// 같은 질문 문구라 선택지 줄로 가른다.
+int _countRetryChoices(_Run run) =>
+    _countOccurrences(run.output, '  1) $retryOption\n  2) $stopOption\n');
+
+/// 끝 목록(머리 줄 다음 · 끝 요약 앞) 줄을 모은다.
+List<String> _readRemainingLines(String output) {
+  final List<String> lines = const LineSplitter().convert(output);
+  final int start = lines.indexOf(remainingHeading);
+  if (start < 0) return const <String>[];
+  return lines
+      .skip(start + 1)
+      .takeWhile(
+        (String line) => line.startsWith('  ✗ ') || line.startsWith('  ? '),
+      )
+      .toList();
 }
 
 /// ruleset 응답 본문.
@@ -973,6 +1030,7 @@ const List<String> appInputs = <String>[
   'y', // Functions
   'y', // 앱 실행
   '', // 기본 실행 대상
+  ...releaseDeferInputs,
 ];
 
 /// [text] 안에 [pattern] 이 나오는 횟수를 센다.
@@ -1003,7 +1061,7 @@ void main() {
   tearDown(() => fixture.delete());
 
   test(
-    'T-19-FLOW-06: 백지 → 17단계 끝까지 · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
+    'T-19-FLOW-06: 백지 → 20단계 끝까지(출시용은 지금 안 함) · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,
@@ -1015,6 +1073,7 @@ void main() {
         'y', // Functions
         'y', // 앱 실행
         '', // 기본 실행 대상
+        ...releaseDeferInputs,
       ]);
       _registerEarlySteps(run, isResumed: false);
       _registerCloudSteps(run);
@@ -1043,7 +1102,8 @@ void main() {
         1,
       );
       expect(output, isNot(contains('되돌리지 못했습니다')));
-      expect(output, contains(allDoneLine));
+      expect(output, contains(remainingDoneLine));
+      expect(_readRemainingLines(output), releaseRemainingLines);
 
       final List<String> status = const LineSplitter().convert(
         fixture.runGitChecked(<String>['status', '--porcelain']),
@@ -1056,7 +1116,7 @@ void main() {
       );
 
       final int hintStart = output.indexOf(commitHintHeading);
-      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(hintStart, greaterThan(output.indexOf(remainingDoneLine)));
       final String hint = output.substring(hintStart);
       for (final path in <String>[
         ConfigureStep.pbxprojPath,
@@ -1156,7 +1216,7 @@ void main() {
   );
 
   test(
-    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 17단계 끝까지',
+    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 20단계 끝까지',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,
@@ -1192,7 +1252,7 @@ void main() {
       expect(_countOccurrences(output, addFirebaseFailedLine), 1);
       expect(_countOccurrences(output, '  아직 끝나지 않았습니다 — '), 1);
       expect(_countAsks(run, waitForEnterMessage), 2);
-      expect(_countAsks(run, failureChoiceQuestion), 0);
+      expect(_countRetryChoices(run), 0);
       expect(_countAsks(run, FirebaseProjectStep.projectChoiceQuestion), 1);
       expect(_countAsks(run, FirebaseProjectStep.idQuestion), 1);
       expect(
@@ -1230,14 +1290,15 @@ void main() {
           2,
         );
       }
-      expect(output, contains(allDoneLine));
+      expect(output, contains(remainingDoneLine));
+      expect(_readRemainingLines(output), releaseRemainingLines);
 
       final List<String> status = const LineSplitter().convert(
         fixture.runGitChecked(<String>['status', '--porcelain']),
       );
       expect(status, contains(' M ${FirebaseProjectStep.firebasercPath}'));
       final int hintStart = output.indexOf(commitHintHeading);
-      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(hintStart, greaterThan(output.indexOf(remainingDoneLine)));
       expect(
         output.substring(hintStart),
         contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
@@ -1337,7 +1398,7 @@ void main() {
       }
       expect(_countAsks(second, FirebaseProjectStep.projectChoiceQuestion), 0);
       expect(_countAsks(second, FirebaseProjectStep.idQuestion), 0);
-      expect(_countAsks(second, failureChoiceQuestion), 0);
+      expect(_countRetryChoices(second), 0);
       expect(
         _countOccurrences(
           output,
@@ -1368,9 +1429,10 @@ void main() {
         0,
       );
       expect(output, isNot(contains('고칠 파일에 커밋하지 않은 변경이 있습니다')));
-      expect(output, contains(allDoneLine));
+      expect(output, contains(remainingDoneLine));
+      expect(_readRemainingLines(output), releaseRemainingLines);
       final int hintStart = output.indexOf(commitHintHeading);
-      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(hintStart, greaterThan(output.indexOf(remainingDoneLine)));
       expect(
         output.substring(hintStart),
         contains('\n  ${FirebaseProjectStep.firebasercPath}\n'),
@@ -1392,6 +1454,7 @@ void main() {
         'y', // Functions
         'y', // 앱 실행
         '', // 기본 실행 대상
+        ...releaseDeferInputs,
       ]);
       _registerEarlySteps(run, isResumed: false);
       _registerCloudSteps(run);
@@ -1411,7 +1474,7 @@ void main() {
         ),
         1,
       );
-      expect(_countAsks(run, failureChoiceQuestion), 1);
+      expect(_countRetryChoices(run), 1);
       final List<String> lines = const LineSplitter().convert(output);
       final int failureLine = lines.indexWhere(
         (String line) => line.startsWith('  실패 — configure 스크립트가 실패했습니다'),
@@ -1422,7 +1485,8 @@ void main() {
       );
       expect(doneLine, greaterThan(failureLine));
       expect(output, isNot(contains('되돌리지 못했습니다')));
-      expect(output, contains(allDoneLine));
+      expect(output, contains(remainingDoneLine));
+      expect(_readRemainingLines(output), releaseRemainingLines);
       for (final text in <String>[output, run.log.text]) {
         expect(text, isNot(contains(buildFakeAccessToken())));
         expect(text, isNot(contains(buildFakeApiKey())));

@@ -2,11 +2,13 @@ import '../flavor.dart';
 import '../providers/provider_catalog.dart';
 import '../step.dart';
 import 'apis_step.dart';
+import 'apns_step.dart';
 import 'app_check_step.dart';
 import 'apple_android_step.dart';
 import 'apple_step.dart';
 import 'billing_step.dart';
 import 'configure_step.dart';
+import 'device_check_step.dart';
 import 'facebook_step.dart';
 import 'firebase_project_step.dart';
 import 'firestore_step.dart';
@@ -19,6 +21,7 @@ import 'kakao_step.dart';
 import 'line_step.dart';
 import 'login_step.dart';
 import 'naver_step.dart';
+import 'play_integrity_step.dart';
 import 'provider_android_step.dart';
 import 'providers_step.dart';
 import 'rules_step.dart';
@@ -40,8 +43,10 @@ import 'xcode_step.dart';
 /// 다시 받아야 하므로 로그인 수단 단계 다음 · 앱 등록 앞에 두고, iOS · Android
 /// 쪽 줄은 앱 등록 다음에 둔다. Apple 은 iOS · Android 쪽 줄을 App Check 다음 ·
 /// 다른 로그인 수단 앞에 두고, 함수 배포는 iOS 쪽 줄만 기다린다. 켠 로그인
-/// 수단이 있으면 실행 단계 바로 다음에 소셜 로그인 확인 단계를 둔다. 새 단계는
-/// 진행 순서에 맞는 자리에 끼운다.
+/// 수단이 있으면 실행 단계 바로 다음에 소셜 로그인 확인 단계를 둔다. 출시용
+/// 단계([PlayIntegrityStep] · [DeviceCheckStep] · [ApnsStep])는 flavor · 켠 로그인
+/// 수단과 무관하게 맨 끝에 둔다 — release 빌드 전에만 필요해 미룰 수 있다. 새
+/// 단계는 진행 순서에 맞는 자리에 끼운다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
@@ -74,6 +79,9 @@ List<Step> buildSteps({
     RunStep(),
     if (enabledProviders.isNotEmpty)
       SignInCheckStep(enabledProviders: enabledProviders),
+    PlayIntegrityStep(),
+    DeviceCheckStep(),
+    ApnsStep(),
   ];
 }
 

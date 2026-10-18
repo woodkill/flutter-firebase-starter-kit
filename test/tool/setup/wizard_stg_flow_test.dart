@@ -14,15 +14,18 @@ import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
+import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
+import '../../../tool/setup/steps/device_check_step.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
 import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
+import '../../../tool/setup/steps/play_integrity_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
@@ -567,6 +570,7 @@ final class _Run {
       log: log,
       rest: _LoggingRest(rest, log),
       flavor: Flavor.stg,
+      homeDirectory: noKeystoreTestHome,
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     );
@@ -767,8 +771,13 @@ void _registerCloudSteps(_Run run, {required bool isResumed}) {
     )
     ..onCommand(
       ApisStep.buildEnabledListCommand(stgProjectId),
+      // 재실행 fixture 는 출시용 Play Integrity API 까지 켜진 상태다.
       isResumed
-          ? <CommandResult>[ok('${ApisStep.requiredServices.join('\n')}\n')]
+          ? <CommandResult>[
+              ok(
+                '${<String>[...ApisStep.requiredServices, PlayIntegrityStep.serviceName].join('\n')}\n',
+              ),
+            ]
           : <CommandResult>[
               ok(
                 '${ApisStep.requiredServices.where((String s) => s != 'secretmanager.googleapis.com').join('\n')}\n',
@@ -1053,7 +1062,63 @@ void _registerAppSteps(_Run run, {required bool isResumed}) {
           ? <RestResponse>[signedIn]
           : <RestResponse>[const RestResponse(200, '{}'), signedIn],
     );
+
+  // 출시용 단계 — 첫 실행: Play Integrity 기본 설정 · DeviceCheck 미등록(200) 이라
+  // 둘 다 할 일(입력은 「지금 안 함」). 재실행: stg 설정 완화 · 키 등록됨(지문
+  // 없는 홈이라 Play Integrity 는 질문 없는 ✗). APNs 는 늘 확인할 수 없는 줄.
+  run
+    ..onRest(
+      PlayIntegrityStep.buildGetRequest(stgProjectId, stgAndroidAppId),
+      <RestResponse>[
+        RestResponse(
+          200,
+          jsonEncode(<String, Object?>{
+            'name': 'playIntegrityConfig',
+            'tokenTtl': '3600s',
+            if (isResumed) ...<String, Object?>{
+              'appIntegrity': <String, Object?>{
+                'allowUnrecognizedVersion': true,
+              },
+              'deviceIntegrity': <String, Object?>{
+                'minDeviceRecognitionLevel':
+                    PlayIntegrityStep.relaxedDeviceRecognitionLevel,
+              },
+            },
+          }),
+        ),
+      ],
+    )
+    ..onRest(
+      DeviceCheckStep.buildGetRequest(stgProjectId, stgIosAppId),
+      <RestResponse>[
+        RestResponse(
+          200,
+          jsonEncode(<String, Object?>{
+            'name': 'deviceCheckConfig',
+            'tokenTtl': '3600s',
+            if (isResumed) ...<String, Object?>{
+              'keyId': 'K' * 10,
+              'privateKeySet': true,
+            },
+          }),
+        ),
+      ],
+    );
 }
+
+/// 지문 없는 홈의 Play Integrity 줄(SHA-256 등록만 남음).
+const String playIntegrityDeferredLine =
+    '  ✗ ${PlayIntegrityStep.stepTitle} — '
+    '${PlayIntegrityStep.fingerprintDeferredReason}';
+
+/// APNs 키 줄 — 늘 확인할 수 없다.
+const String apnsUnverifiableLine =
+    '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}';
+
+/// 실패 뒤 다시 시도 · 멈춤 고르기 수를 센다 — 미룰 수 있는 단계의 진행 고르기는
+/// 같은 질문 문구라 선택지 줄로 가른다.
+int _countRetryChoices(_Run run) =>
+    '  1) $retryOption\n  2) $stopOption\n'.allMatches(run.output).length;
 
 /// 첫 stg 실행의 입력 — 체크 목록은 `0`(이메일만), 프로젝트는 새로 만들기.
 const List<String> firstRunInputs = <String>[
@@ -1080,6 +1145,8 @@ const List<String> firstRunInputs = <String>[
   'y', // Functions
   'y', // 앱 실행
   '', // 기본 실행 대상
+  '2', // Play Integrity — 지금 안 함
+  '2', // DeviceCheck — 지금 안 함
 ];
 
 /// 첫 stg 실행 결과와 실행 전에 읽어 둔 dev 사용자 파일 바이트.
@@ -1124,7 +1191,14 @@ void main() {
       final String output = run.output;
 
       expect(first.code, wizardExitDone, reason: output);
-      expect(output, contains(allDoneLine));
+      expect(output, contains(remainingDoneLine));
+      final List<String> lines = const LineSplitter().convert(output);
+      final int remaining = lines.indexOf(remainingHeading);
+      expect(lines.sublist(remaining + 1, remaining + 4), <String>[
+        '  ✗ ${PlayIntegrityStep.stepTitle} — 지금 안 함',
+        '  ✗ ${DeviceCheckStep.stepTitle} — 지금 안 함',
+        apnsUnverifiableLine,
+      ]);
       // 체크 목록은 dev 의 Google · Kakao 를 미리 체크해 열렸다.
       expect(output, contains(UserFilesStep.newFlavorProvidersNotice));
       expect(output, contains('[x] Google'));
@@ -1134,7 +1208,7 @@ void main() {
       // 위치는 묻지 않는다.
       expect(_countAsks(run, FirestoreStep.locationChoiceQuestion), 0);
       expect(_countAsks(run, FirestoreStep.regionChoiceQuestion), 0);
-      expect(_countAsks(run, failureChoiceQuestion), 0);
+      expect(_countRetryChoices(run), 0);
       expect(
         run.fake.countCalls(
           RunMode.stream,
@@ -1164,7 +1238,7 @@ void main() {
       );
       // 끝 요약의 커밋 힌트에는 `.firebaserc` 만 — skip-worktree 설정 파일은 없다.
       final int hintStart = output.indexOf(commitHintHeading);
-      expect(hintStart, greaterThan(output.indexOf(allDoneLine)));
+      expect(hintStart, greaterThan(output.indexOf(remainingDoneLine)));
       final String hint = output.substring(hintStart);
       expect(hint, contains('\n  ${FirebaseProjectStep.firebasercPath}\n'));
       const stgPaths = FlavorPaths(Flavor.stg);
@@ -1348,7 +1422,8 @@ void main() {
     },
   );
 
-  test('T-20-STG-13: 같은 저장소 --flavor stg 재실행 → 질문 0 · 쓰기 0 · 모두 ✓', () async {
+  test('T-20-STG-13: 같은 저장소 --flavor stg 재실행 → 질문 0 · 쓰기 0 · '
+      '출시용 ✗ · ? 밖 모두 ✓', () async {
     final _FirstRun first = await _runFirstStg(fixture);
     expect(first.code, wizardExitDone, reason: first.run.output);
     const stgPaths = FlavorPaths(Flavor.stg);
@@ -1378,12 +1453,19 @@ void main() {
     expect(second.countWriteRequests(), 0);
     final List<String> checklist = const LineSplitter()
         .convert(output)
-        .takeWhile((String line) => line != allDoneLine)
+        .takeWhile((String line) => line != remainingDoneLine)
         .toList();
-    expect(checklist.where((String line) => line.startsWith('  ✗ ')), isEmpty);
+    expect(output, isNot(contains(allDoneLine)));
+    // 지문 없는 홈 — Play Integrity 는 질문 없는 ✗, APNs 는 확인할 수 없는 ? 다.
+    expect(checklist.where((String line) => line.startsWith('  ✗ ')), <String>[
+      playIntegrityDeferredLine,
+    ]);
+    expect(checklist.where((String line) => line.startsWith('  ? ')), <String>[
+      apnsUnverifiableLine,
+    ]);
     expect(
       checklist.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(second.buildCurrentSteps().length),
+      hasLength(second.buildCurrentSteps().length - 2),
     );
     for (final path in watched) {
       expect(fixture.readBytes(path), before[path], reason: path);

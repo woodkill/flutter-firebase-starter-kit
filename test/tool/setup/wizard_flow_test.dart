@@ -21,10 +21,12 @@ import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
+import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
+import '../../../tool/setup/steps/device_check_step.dart';
 import '../../../tool/setup/steps/firebase_project_step.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
 import '../../../tool/setup/steps/flavor_steps.dart';
@@ -32,6 +34,7 @@ import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
 import '../../../tool/setup/steps/kakao_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
+import '../../../tool/setup/steps/play_integrity_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
@@ -231,6 +234,18 @@ final class _LoggingRest implements RestClient {
 const String kakaoAndroidUnavailableLine =
     '  ✗ Kakao — Android 쪽 — $unavailableFingerprintGuide';
 
+/// 디버그 키스토어가 없는 홈에서 보이는 Play Integrity 줄(SHA-256 등록만 남음).
+const String playIntegrityDeferredLine =
+    '  ✗ ${PlayIntegrityStep.stepTitle} — '
+    '${PlayIntegrityStep.fingerprintDeferredReason}';
+
+/// APNs 키 줄 — 늘 확인할 수 없다.
+const String apnsUnverifiableLine =
+    '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}';
+
+/// 모든 단계가 끝난 저장소의 DeviceCheck Key ID(실행 시점 조립).
+final String finishedDeviceCheckKeyId = 'K' * 10;
+
 /// 흐름 한 번에 쓰는 가짜 실행기 · REST · 화면 · 기록 묶음.
 final class _Harness {
   _Harness(this.root, List<String?> inputs)
@@ -274,7 +289,7 @@ final class _Harness {
   void onRest(RestRequest request, RestResponse response) =>
       rest.on(request.method, request.url.toString(), response);
 
-  /// config 의 켠 로그인 수단으로 만든 단계 목록(로그인 수단 0개면 기본 17단계)
+  /// config 의 켠 로그인 수단으로 만든 단계 목록(로그인 수단 0개면 기본 20단계)
   /// 으로 위저드를 돌린다 — 로그인 수단이 바뀌면 같은 함수로 목록을 다시 만든다.
   Future<int> run({Future<void> Function(WizardContext)? onCompleted}) =>
       runWizard(
@@ -639,10 +654,12 @@ void _registerFinished(
       BillingStep.billingInfoCommand(projectId),
       ok('{"billingEnabled":true}'),
     )
-    // 8. API
+    // 8. API — 출시용 Play Integrity API 도 켜져 있다(같은 목록 명령).
     ..onCommand(
       ApisStep.buildEnabledListCommand(projectId),
-      ok('${ApisStep.requiredServices.join('\n')}\n'),
+      ok(
+        '${<String>[...ApisStep.requiredServices, PlayIntegrityStep.serviceName].join('\n')}\n',
+      ),
     )
     // 9. Firestore
     ..onCommand(FirestoreStep.buildDescribeCommand(projectId), ok('$region\n'))
@@ -740,7 +757,37 @@ void _registerFinished(
     RunStep.buildBatchGetRequest(projectId),
     RestResponse(200, buildVerifiedUsersBody()),
   );
+  // 출시용 단계 — Play Integrity 완화 설정(지문 없는 홈이라 질문 없는 ✗) ·
+  // DeviceCheck 키 등록됨 · APNs 는 늘 확인할 수 없다.
+  h
+    ..onRest(
+      PlayIntegrityStep.buildGetRequest(projectId, androidAppId),
+      RestResponse(200, buildRelaxedPlayIntegrityBody()),
+    )
+    ..onRest(
+      DeviceCheckStep.buildGetRequest(projectId, iosAppId),
+      RestResponse(200, buildRegisteredDeviceCheckBody()),
+    );
 }
+
+/// dev · stg 판정 기준으로 바뀐 Play Integrity 설정 응답 본문.
+String buildRelaxedPlayIntegrityBody() => jsonEncode(<String, Object?>{
+  'name': 'projects/$projectId/apps/$androidAppId/playIntegrityConfig',
+  'tokenTtl': '3600s',
+  'appIntegrity': <String, Object?>{'allowUnrecognizedVersion': true},
+  'deviceIntegrity': <String, Object?>{
+    'minDeviceRecognitionLevel':
+        PlayIntegrityStep.relaxedDeviceRecognitionLevel,
+  },
+});
+
+/// Apple 키가 들어간 DeviceCheck 설정 응답 본문.
+String buildRegisteredDeviceCheckBody() => jsonEncode(<String, Object?>{
+  'name': 'projects/$projectId/apps/$iosAppId/deviceCheckConfig',
+  'keyId': finishedDeviceCheckKeyId,
+  'privateKeySet': true,
+  'tokenTtl': '3600s',
+});
 
 /// ruleset 응답 본문.
 String buildRulesetBody(String content) => jsonEncode(<String, Object?>{
@@ -775,7 +822,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('T-19-FLOW-01: buildDevSteps() id 순서가 17단계 그대로다', () {
+  test('T-19-FLOW-01: buildDevSteps() id 순서가 20단계 그대로다', () {
     expect(
       <String>[for (final Step step in buildDevSteps()) step.id],
       <String>[
@@ -796,11 +843,15 @@ void main() {
         'app_check',
         'functions',
         'run',
+        'play_integrity',
+        'device_check',
+        'apns',
       ],
     );
   });
 
-  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 17줄 · 질문 · 쓰기 0', () async {
+  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 18줄 · 출시용 ✗ · ? 끝 목록 · '
+      '질문 · 쓰기 0', () async {
     final h = _Harness(root, const <String?>[]);
     _registerFinished(h);
 
@@ -810,10 +861,20 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(17),
+      hasLength(18),
     );
-    expect(lines.where((String line) => line.startsWith('  ✗ ')), isEmpty);
-    expect(h.output, contains(allDoneLine));
+    // 지문 없는 홈 — Play Integrity 만 할 수 없는 ✗(점검표 · 끝 목록 한 줄씩).
+    expect(lines.where((String line) => line.startsWith('  ✗ ')), <String>[
+      playIntegrityDeferredLine,
+      playIntegrityDeferredLine,
+    ]);
+    expect(h.output, isNot(contains(allDoneLine)));
+    final int remaining = lines.indexOf(remainingHeading);
+    expect(lines[remaining - 1], remainingDoneLine);
+    expect(lines.sublist(remaining + 1), <String>[
+      playIntegrityDeferredLine,
+      apnsUnverifiableLine,
+    ]);
     expect(h.countStepQuestions(), 0);
     expect(h.screen.asks, isEmpty);
     expect(h.runner.countMode(RunMode.interactive), 0);
@@ -840,9 +901,10 @@ void main() {
     final int code = await h.run();
 
     expect(code, wizardExitDone);
+    // 지문 없는 홈의 Play Integrity ✗(질문 없음)는 묻는 할 일이 아니다.
     final todoLines = <String>[
       for (final String line in const LineSplitter().convert(h.output))
-        if (line.startsWith('  ✗ ')) line,
+        if (line.startsWith('  ✗ ') && line != playIntegrityDeferredLine) line,
     ];
     expect(todoLines, hasLength(1));
     expect(todoLines.single, startsWith('  ✗ ${SignInStep.stepTitle}'));
@@ -907,8 +969,9 @@ void main() {
           '&& git commit -m "$commitHintMessage"',
         ),
       );
+      expect(output.indexOf(remainingDoneLine), isNonNegative);
       expect(
-        output.indexOf(allDoneLine),
+        output.indexOf(remainingDoneLine),
         lessThan(output.indexOf(commitHintHeading)),
       );
       final gitKeys = <String>[
@@ -1208,7 +1271,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(19),
+      hasLength(20),
     );
     expect(
       lines.where(
