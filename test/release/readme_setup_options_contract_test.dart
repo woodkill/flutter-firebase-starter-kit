@@ -2,11 +2,12 @@
 //
 // T-20-DOCS-04: Getting Started 절에 `./setup.sh --providers` 줄 1개 ·
 //   `./setup.sh --flavor stg` 줄 1개가 있다.
-// T-20-DOCS-05: 절에서 `./setup.sh --` 로 시작하는 모든 줄이
+// T-20-DOCS-05: 절에서 앞 · 뒤 공백을 떼고 `./setup.sh --` 로 시작하는 모든 줄이
 //   `./setup.sh --<이름>[ <값>]` 꼴이고(아니면 실패), 옵션 이름이 `bin/setup.dart`
 //   파서에 선언돼 있고, `--flavor` 값은 `Flavor.tryParse` 로 읽힌다.
 // T-20-DOCS-06: 판정 함수의 양성 · 음성 대조 — 가짜 옵션 이름 · 값이 걸러지고
-//   옵션 두 개 줄처럼 읽지 못하는 줄은 조용히 빠지지 않고 실패한다.
+//   옵션 두 개 줄처럼 읽지 못하는 줄은 조용히 빠지지 않고 실패한다. 들여 쓴 줄 ·
+//   줄 끝 공백 줄은 앞 · 뒤 공백을 떼고 읽는다.
 //
 // README 는 template 을 쓴 뒤 사용자 소유라 04 · 05 는 유지보수자 트리에서만 돈다.
 // 06 은 `bin/setup.dart` 만 읽어 어디서나 돈다.
@@ -45,13 +46,14 @@ const String _optionLinePrefix = './setup.sh --';
 
 /// [section] 의 `./setup.sh --…` 줄을 (옵션 이름, 값) 쌍으로 모은다.
 ///
-/// 앞 공백을 뗀 줄이 `./setup.sh --` 로 시작하면 모두 모으고, 그 가운데
+/// 앞 · 뒤 공백을 뗀 줄이 `./setup.sh --` 로 시작하면 모두 모으고, 그 가운데
 /// [_optionLinePattern](옵션 하나 · 값 하나 꼴)에 맞지 않는 줄이 있으면 조용히
 /// 건너뛰지 않고 [fail] 한다.
 List<({String name, String? value})> collectOptionLines(String section) {
   final options = <({String name, String? value})>[];
   for (final String line in section.split('\n')) {
-    final String trimmed = line.trimLeft();
+    // 코드 펜스 안의 앞 · 뒤 공백은 뜻이 없다 — 머리 판정 · 패턴 대조 모두 뗀 줄에 한다.
+    final String trimmed = line.trim();
     if (!trimmed.startsWith(_optionLinePrefix)) continue;
     final RegExpMatch? match = _optionLinePattern.firstMatch(trimmed);
     if (match == null) {
@@ -139,5 +141,10 @@ void main() {
     expect(indented, hasLength(1));
     expect(indented.single.name, 'flavor');
     expect(indented.single.value, 'stg');
+    // 줄 끝 공백은 뜻이 없다: 옵션 하나 줄로 모이고 실패하지 않는다.
+    expect(
+      collectOptionLines('./setup.sh --providers '),
+      <({String name, String? value})>[(name: 'providers', value: null)],
+    );
   });
 }
