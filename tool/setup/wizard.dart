@@ -101,6 +101,12 @@ final class WizardSession {
   ///
   /// DeviceCheck 단계가 실행 끝에 켜고, APNs 안내가 읽는다.
   bool hasEnteredDeviceCheckKey = false;
+
+  /// 이번 실행에서 APNs 키 업로드 안내를 보였으면 true.
+  ///
+  /// APNs 단계가 안내 확인 뒤 켠다 — 같은 실행에서 안내를 다시 띄우지 않는다.
+  /// 업로드했다는 뜻이 아니다(확인할 방법이 없다).
+  bool isApnsGuideShown = false;
 }
 
 /// 단계 실행에 필요한 공용 문맥.
