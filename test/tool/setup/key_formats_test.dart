@@ -131,14 +131,19 @@ void main() {
     );
   });
 
-  test('T-20-FMT-11: Google Web client ID 는 숫자 12자-영숫자 32자.apps 주소', () {
+  test('T-20-FMT-11: Google Web client ID 는 프로젝트 번호(숫자 · 자릿수 무관)-영숫자 '
+      '32자.apps 주소', () {
     const domain = '.apps.googleusercontent.com';
     expectFormat(
       googleWebClientId,
-      valid: <String>['${buildClientIdBody()}$domain'],
-      invalid: <String>[
+      valid: <String>[
+        '${buildClientIdBody()}$domain',
         '${buildClientIdBody(digits: 11)}$domain',
         '${buildClientIdBody(digits: 13)}$domain',
+      ],
+      invalid: <String>[
+        '${buildClientIdBody(digits: 0)}$domain',
+        '${'1' * 11}a-${('a1b2c3' * 8).substring(0, 32)}$domain',
         '${buildClientIdBody(suffix: 31)}$domain',
         '${buildClientIdBody(suffix: 33)}$domain',
         '${'1' * 12}-${'A' * 32}$domain',
@@ -151,9 +156,13 @@ void main() {
     const prefix = 'com.googleusercontent.apps.';
     expectFormat(
       reversedClientId,
-      valid: <String>['$prefix${buildClientIdBody()}'],
-      invalid: <String>[
+      valid: <String>[
+        '$prefix${buildClientIdBody()}',
         '$prefix${buildClientIdBody(digits: 11)}',
+        '$prefix${buildClientIdBody(digits: 13)}',
+      ],
+      invalid: <String>[
+        '$prefix${buildClientIdBody(digits: 0)}',
         '$prefix${buildClientIdBody(suffix: 33)}',
         '$prefix${'1' * 12}-${'A' * 32}',
         buildClientIdBody(),

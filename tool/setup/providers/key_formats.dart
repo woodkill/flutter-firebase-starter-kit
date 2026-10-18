@@ -92,17 +92,20 @@ const KeyFormat lineChannelSecret = KeyFormat(
 );
 
 /// Google Web client ID.
+///
+/// 앞쪽 프로젝트 번호는 자릿수를 고정하지 않는다 — Firebase 가 준 값이라 숫자인지만
+/// 보고 뒤쪽 모양(`-<32자>.apps.googleusercontent.com`)을 검사한다.
 const KeyFormat googleWebClientId = KeyFormat(
   label: 'Google Web client ID',
-  pattern: r'^[0-9]{12}-[a-z0-9]{32}\.apps\.googleusercontent\.com$',
-  description: '<숫자 12자>-<영숫자 32자>.apps.googleusercontent.com',
+  pattern: r'^[0-9]+-[a-z0-9]{32}\.apps\.googleusercontent\.com$',
+  description: '<프로젝트 번호(숫자)>-<영숫자 32자>.apps.googleusercontent.com',
 );
 
-/// iOS `REVERSED_CLIENT_ID`.
+/// iOS `REVERSED_CLIENT_ID` — 프로젝트 번호 자리는 [googleWebClientId] 와 같다.
 const KeyFormat reversedClientId = KeyFormat(
   label: 'REVERSED_CLIENT_ID',
-  pattern: r'^com\.googleusercontent\.apps\.[0-9]{12}-[a-z0-9]{32}$',
-  description: 'com.googleusercontent.apps.<숫자 12자>-<영숫자 32자>',
+  pattern: r'^com\.googleusercontent\.apps\.[0-9]+-[a-z0-9]{32}$',
+  description: 'com.googleusercontent.apps.<프로젝트 번호(숫자)>-<영숫자 32자>',
 );
 
 /// Apple Key ID.
