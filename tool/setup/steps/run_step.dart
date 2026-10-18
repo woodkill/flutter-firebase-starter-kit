@@ -169,6 +169,24 @@ final class RunStep implements Step {
     deviceId,
   ], workingDirectory: workingDirectory);
 
+  /// 앱을 띄우는 경로([launchAppForSignIn])의 계획 줄을 만든다 — 기기 목록 ·
+  /// 시뮬레이터 켜기 · [guideNote] · `flutter run` 순이다.
+  ///
+  /// [guideNote] 는 앱을 띄우기 전에 보일 안내를 설명하는 괄호 줄이다.
+  static List<String> buildLaunchPlanLines(
+    WizardContext context, {
+    required String guideNote,
+  }) => <String>[
+    buildDevicesCommand().render(),
+    '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. 대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 앱을 연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)',
+    simulatorListCommand.render(),
+    developerDirCommand.render(),
+    'xcrun simctl boot <고른 iPhone 시뮬레이터>',
+    'open -a <Xcode 의 시뮬레이터 화면 앱>',
+    guideNote,
+    'fvm flutter run --flavor ${context.flavor.name} --dart-define-from-file=${context.paths.json} -d <고른 기기>',
+  ];
+
   /// [projectId] 의 사용자 목록 한 페이지를 읽는 요청을 만든다.
   ///
   /// 응답에 이메일 · uid · 비밀번호 해시가 실리므로 민감 응답으로 둔다.
@@ -405,14 +423,10 @@ final class RunStep implements Step {
     _RunMode.run => <String>[
       buildPubGetCommand().render(),
       buildCodegenCommand().render(),
-      buildDevicesCommand().render(),
-      '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. 대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 앱을 연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)',
-      simulatorListCommand.render(),
-      developerDirCommand.render(),
-      'xcrun simctl boot <고른 iPhone 시뮬레이터>',
-      'open -a <Xcode 의 시뮬레이터 화면 앱>',
-      '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
-      'fvm flutter run --flavor ${context.flavor.name} --dart-define-from-file=${context.paths.json} -d <고른 기기>',
+      ...buildLaunchPlanLines(
+        context,
+        guideNote: '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
+      ),
       '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
       buildBatchGetRequest(_projectId).displayCurl(),
     ],
@@ -447,6 +461,21 @@ final class RunStep implements Step {
       return Failed('코드 생성이 실패했습니다', result: codegen);
     }
 
+    return await launchAppForSignIn(context, guideLines: signUpGuideLines);
+  }
+
+  /// 실행 대상을 고르고 [guideLines] 를 보인 뒤 대화형 `flutter run` 으로 앱을
+  /// 띄운다 — 패키지 받기 · 코드 생성은 하지 않는다.
+  ///
+  /// 실행 단계와 소셜 로그인 확인 단계가 함께 쓴다. [guideLines] 는 한 줄씩
+  /// 그대로 쓴다(들여쓰기는 넘기는 쪽 몫). 대상 목록을 읽지 못하거나 대상이
+  /// 없으면 실패, 고르기 입력이 끝나면 [Declined], 실행 종료 코드가 0 이 아니면
+  /// 실패, 아니면 [Applied] 다.
+  Future<StepOutcome> launchAppForSignIn(
+    WizardContext context, {
+    required List<String> guideLines,
+  }) async {
+    final root = context.projectRoot;
     final _TargetLookup lookup = await _findTargets(context);
     final List<RunTarget> targets;
     switch (lookup) {
@@ -462,7 +491,7 @@ final class RunStep implements Step {
     if (choice == null) return const Declined();
     final RunTarget target = targets[choice];
 
-    for (final String line in signUpGuideLines) {
+    for (final line in guideLines) {
       context.terminal.writeLine(line);
     }
     final int code = await context.runner.interactive(

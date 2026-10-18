@@ -1656,4 +1656,138 @@ void main() {
       }
     });
   });
+
+  test('T-20-RUN-01: 앱 실행 경로만 따로 부르면 준비 명령 0 · 대상 고르기 · '
+      '넘긴 안내 줄 · interactive 실행 1회 · 끝남', () async {
+    final harness = _Harness(root, const <String?>['']);
+    harness
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+      )
+      ..registerRun(simulatorId, 0);
+    const guideLine = '  Kakao 로 로그인한 뒤 q 로 끝내세요';
+    final step = RunStep(delay: (Duration duration) async {});
+
+    final StepOutcome outcome = await step.launchAppForSignIn(
+      harness.context,
+      guideLines: const <String>[guideLine],
+    );
+
+    expect(outcome, isA<Applied>());
+    expect(harness.runner.countMode(RunMode.stream), 0);
+    expect(
+      harness.runner.calls.map((FakeCall call) => call.key),
+      isNot(
+        anyOf(
+          contains('fvm flutter pub get'),
+          contains(
+            'fvm dart run build_runner build --delete-conflicting-outputs',
+          ),
+        ),
+      ),
+    );
+    expect(
+      harness.runner.countCalls(
+        RunMode.capture,
+        'fvm flutter devices --machine',
+      ),
+      1,
+    );
+    expect(
+      harness.runner.countCalls(
+        RunMode.interactive,
+        'fvm flutter run --flavor dev --dart-define-from-file=config/dev.json '
+        '-d $simulatorId',
+      ),
+      1,
+    );
+    expect(harness.screen.asks, contains(RunStep.targetChoiceQuestion));
+    expect(harness.output, contains('$guideLine\n'));
+    expect(harness.output, isNot(contains('가입하기')));
+    expect(harness.output, isNot(contains(RunStep.quitLine)));
+  });
+
+  test('T-20-RUN-02: 실행 단계 경로는 꺼낸 뒤에도 명령 순서 · 계획 줄이 '
+      '그대로', () async {
+    final harness = _Harness(root, const <String?>['y', '']);
+    harness.rest
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(const <Map<String, Object?>>[]),
+      )
+      ..on(
+        'GET',
+        harness.firstPageUrl,
+        buildPage(<Map<String, Object?>>[buildVerifiedUser('u1')]),
+      );
+    harness
+      ..registerPreparation()
+      ..registerDevices(
+        buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+      )
+      ..registerRun(simulatorId, 0);
+
+    const runKey =
+        'interactive fvm flutter run --flavor dev '
+        '--dart-define-from-file=config/dev.json -d $simulatorId';
+
+    expect(await harness.run(), wizardExitDone);
+    expect(
+      <String>[
+        for (final FakeCall call in harness.runner.calls)
+          '${call.mode.name} ${call.key}',
+      ],
+      <String>[
+        'stream fvm flutter pub get',
+        'stream fvm dart run build_runner build --delete-conflicting-outputs',
+        'capture fvm flutter devices --machine',
+        runKey,
+      ],
+    );
+    expect(harness.output, contains(RunStep.quitLine));
+
+    final rest = FakeRestClient()
+      ..on(
+        'GET',
+        RunStep.buildBatchGetRequest(projectId).url.toString(),
+        buildPage(const <Map<String, Object?>>[]),
+      );
+    final WizardContext context = buildTestContext(
+      projectRoot: root,
+      rest: rest,
+    );
+    final step = RunStep();
+    const searchNote =
+        '(iOS · Android 기기만 보여 주고 고르게 합니다 — 기본값은 iOS 시뮬레이터입니다. '
+        '대상이 없으면 아래 명령으로 쓸 수 있는 iPhone 시뮬레이터 하나를 켜고 화면 '
+        '앱을 연 뒤 다시 찾습니다 — 이미 켜진 iPhone 이 있으면 화면 앱만 엽니다)';
+    const runLine =
+        'fvm flutter run --flavor dev --dart-define-from-file=config/dev.json '
+        '-d <고른 기기>';
+    const recountNote =
+        '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 '
+        '보입니다)';
+
+    expect(await step.check(context), isA<Todo>());
+    expect(step.plannedCommandLines(context), <String>[
+      'fvm flutter pub get',
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+      'fvm flutter devices --machine',
+      searchNote,
+      'xcrun simctl list devices available -j',
+      'xcode-select -p',
+      'xcrun simctl boot <고른 iPhone 시뮬레이터>',
+      'open -a <Xcode 의 시뮬레이터 화면 앱>',
+      '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
+      runLine,
+      recountNote,
+      RunStep.buildBatchGetRequest(projectId).displayCurl(),
+    ]);
+  });
 }
