@@ -683,9 +683,21 @@ void main() {
         reason: entry.value,
       );
     }
-    expect(context.redactor.apply(placeholder), placeholder);
 
-    // xcconfig 가 example 자리표시 그대로면 실 값이 아니라 가리지 않는다.
+    // dev config · stg config · dev xcconfig 가 모두 example 자리표시 그대로면
+    // 실 값이 아니라 가리지 않는다. 세 flavor example 의 config 자리표시는 같은
+    // 문자열이라 config · 다른 flavor config · xcconfig 가드 중 하나만 꺼져도
+    // 그 자리표시가 등록돼 RED 다(dev 는 물을 자리가 되지만 check 만 부른다).
+    replaceJsonString(
+      configPathOf(Flavor.dev),
+      NaverStep.clientSecretField.configKey!,
+      placeholder,
+    );
+    replaceJsonString(
+      configPathOf(Flavor.stg),
+      NaverStep.clientSecretField.configKey!,
+      placeholder,
+    );
     replaceXcconfigValue(
       xcconfigPathOf(Flavor.dev),
       xcconfigVar,
@@ -694,8 +706,14 @@ void main() {
     final WizardContext placeholderContext = await runCheck();
 
     expect(
+      placeholderContext.redactor.apply(placeholder),
+      placeholder,
+      reason: 'dev · stg config 자리표시',
+    );
+    expect(
       placeholderContext.redactor.apply(xcconfigPlaceholder),
       xcconfigPlaceholder,
+      reason: 'dev xcconfig 자리표시',
     );
   });
 
