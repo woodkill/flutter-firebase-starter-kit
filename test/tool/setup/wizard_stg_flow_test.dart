@@ -9,9 +9,12 @@ import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/completion.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
+import '../../../tool/setup/providers/provider_selection.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
+import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/apns_step.dart';
@@ -24,6 +27,7 @@ import '../../../tool/setup/steps/firestore_step.dart';
 import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
+import '../../../tool/setup/steps/kakao_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
 import '../../../tool/setup/steps/play_integrity_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
@@ -1421,6 +1425,55 @@ void main() {
       );
     },
   );
+
+  test('T-20-STG-14: dev 의 Kakao 를 제안받아 고른 첫 stg 실행 — Android 쪽 줄이 아직 '
+      '검사되지 않았어도 Kakao 값 표에 키 해시 행이 있다', () async {
+    // 체크 목록은 Kakao 만 고르고, App Check 까지 첫 실행과 같이 간 뒤 Kakao
+    // 단계에서 콘솔 작업을 미룬다.
+    final int checklist = firstRunInputs.indexOf(emailOnlyAnswer);
+    final int kakaoNumber =
+        providerCatalog.indexWhere(
+          (ProviderEntry entry) => entry.token == KakaoStep.token,
+        ) +
+        1;
+    // 첫 실행 입력의 끝 5개(Functions · 앱 실행 · 실행 대상 · 출시용 둘)는 Kakao
+    // 단계 뒤라 쓰지 않는다.
+    final inputs = <String?>[
+      ...firstRunInputs.sublist(0, checklist),
+      '$kakaoNumber',
+      ...firstRunInputs.sublist(checklist + 1, firstRunInputs.length - 5),
+      'y', // Kakao
+      '2', // 콘솔 작업 뒤 다시 실행
+    ];
+    final run = _Run(fixture, inputs);
+    _registerEarlySteps(run);
+    _registerCloudSteps(run, isResumed: false);
+    _registerAppSteps(run, isResumed: false);
+    for (final name in <String>[
+      ...KakaoStep.nativeAppKeyField.secretNames,
+      ...KakaoStep.adminKeyField.secretNames,
+    ]) {
+      run.onCommand(buildSecretReadCommand(name, stgProjectId), <CommandResult>[
+        CommandResult(
+          1,
+          'Error: HTTP Error: 404, Secret [projects/0/secrets/$name] not '
+              'found or has no versions.\n',
+          '',
+        ),
+      ]);
+    }
+
+    final int code = await run.run();
+    final String output = run.output;
+
+    expect(code, wizardExitForUser, reason: output);
+    expect(run.screen.asks.last, consoleReadyQuestion);
+    final int table = output.indexOf('── Kakao 콘솔에 넣을 값 — stg ──');
+    expect(table, greaterThanOrEqualTo(0), reason: output);
+    final String tableText = output.substring(table);
+    expect(tableText, contains(KakaoStep.keyHashRowLabel));
+    expect(tableText, contains(KakaoStep.keyHashUnavailableValue));
+  });
 
   test('T-20-STG-13: 같은 저장소 --flavor stg 재실행 → 질문 0 · 쓰기 0 · '
       '출시용 ✗ · ? 밖 모두 ✓', () async {

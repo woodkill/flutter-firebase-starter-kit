@@ -8,6 +8,7 @@ import '../secret_store.dart';
 import '../step.dart';
 import '../steps/billing_step.dart';
 import '../wizard.dart';
+import 'fingerprints.dart';
 import 'key_formats.dart';
 import 'provider_catalog.dart';
 
@@ -179,6 +180,9 @@ abstract class KeyedProviderStep implements Step {
   List<KeyField> get fields;
 
   /// 콘솔에 넣을 값 표의 행(패키지명 · 번들 ID 등 — 비밀 값은 넣지 않는다).
+  ///
+  /// 실행은 이 함수를 부르기 전에 세션 지문([readDebugFingerprints])을 계산해
+  /// 두므로 키 해시 · SHA-1 행은 세션 값만 읽으면 된다.
   List<SummaryRow> buildValueRows(WizardContext context);
 
   /// 콘솔에서 할 일 — 기능 이름으로 쓴 3 ~ 5줄.
@@ -435,6 +439,10 @@ abstract class KeyedProviderStep implements Step {
     WizardContext context, {
     bool isDuplicate = false,
   }) async {
+    // 값 표의 키 해시 · SHA-1 행은 세션 지문을 읽는다 — `<token>_android` 줄이
+    // 아직 검사되지 않은 바퀴면 여기서 한 번 계산한다(세션 캐시라 keytool 은
+    // 한 실행에 한 번).
+    await readDebugFingerprints(context);
     final String newAppHeading = findFlavorAppManualHeading(entry);
     writeSummary(
       context.terminal,

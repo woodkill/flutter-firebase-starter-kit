@@ -195,7 +195,8 @@ final class _Harness {
       if (call.key.startsWith('firebase functions:secrets:set ')) call,
   ];
 
-  /// [flavor] 문맥으로 위저드를 만든다 — 화면은 가림 터미널로 감싼다.
+  /// [flavor] 문맥으로 위저드를 만든다 — 화면은 가림 터미널로 감싸고, 홈은
+  /// 키스토어가 없는 경로로 둔다(개발자 홈의 키스토어 · keytool 에 닿지 않는다).
   WizardContext buildContext() => WizardContext(
     projectRoot: root,
     runner: runner,
@@ -204,6 +205,7 @@ final class _Harness {
     log: log,
     rest: rest,
     flavor: flavor,
+    homeDirectory: noKeystoreTestHome,
     random: Random(fixedTestRandomSeed),
     now: () => fixedTestNow,
   );
