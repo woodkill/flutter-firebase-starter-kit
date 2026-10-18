@@ -528,7 +528,8 @@ void main() {
         buildIdpResponse(appId, staleSecret),
         buildIdpResponse(appId, staleSecret),
         buildIdpResponse(appId, appSecret),
-      ]);
+      ])
+      ..onPairCheck(<RestResponse>[const RestResponse(200, '{}')]);
     h.rest.on('PATCH', idpPatchUrl, buildIdpResponse(appId, appSecret));
 
     final int code = await h.run();
@@ -545,7 +546,12 @@ void main() {
       expect(countQuestions(h, field.label), 0);
     }
     expect(h.screen.secretAsks, isEmpty);
-    expect(h.rest.externalRequests, isEmpty);
+    // 맞춤 전 짝 확인 1회 — Secret Manager 의 App Secret 을 메모리로 넘긴다.
+    expect(h.rest.externalRequests.single.formBody, <String, String>{
+      'grant_type': 'client_credentials',
+      'client_id': appId,
+      'client_secret': appSecret,
+    });
     expect(h.secretWrites, isEmpty);
     expect(h.rest.countRequests('PATCH', idpPatchUrl), 1);
     expect(h.rest.countRequests('POST', idpCreateUrl), 0);

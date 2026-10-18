@@ -396,7 +396,8 @@ void main() {
         ok('$nativeKey\n'),
       ])
       ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')])
-      ..onSecretWrite(nativeSecret);
+      ..onSecretWrite(nativeSecret)
+      ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
     final int code = await h.run();
 
@@ -409,7 +410,14 @@ void main() {
       'firebase functions:secrets:set $nativeSecret --project $projectId --data-file -',
     ]);
     expect(h.secretWrites.single.stdinText, nativeKey);
-    expect(h.rest.externalRequests, isEmpty);
+    // 맞춤 전 어드민 키 서버 확인 1회 — Secret Manager 값을 헤더에만 싣는다.
+    expect(
+      h.rest.externalRequests.single.headers['Authorization'],
+      'KakaoAK $adminKey',
+    );
+    for (final text in <String>[h.output, h.log.text]) {
+      expect(countText(text, adminKey), 0);
+    }
     expect(h.output, contains('  ✓ ${KakaoStep.stepTitle} — '));
   });
 

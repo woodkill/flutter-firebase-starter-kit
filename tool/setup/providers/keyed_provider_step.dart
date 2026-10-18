@@ -163,7 +163,9 @@ final class PairFailed extends PairCheck {
 /// 보인 뒤 콘솔 작업을 마쳤는지 묻고 그 값만 받는다(비밀 값은 숨김 입력). 형식 ·
 /// 다른 flavor 중복 · 서버 확인이 틀리면 그 값만 [maxKeyAttempts] 회까지 다시
 /// 묻는다. 물을 값이 없으면(맞춤) 고칠 자리 이름 표만 보이고, 서버 확인이 있는
-/// 수단은 config 값으로 짝을 먼저 확인한 뒤 쓴다. 기록은 config → xcconfig →
+/// 수단은 config 값으로 짝을 먼저 확인한 뒤 쓴다. 두 경우 모두 서버 확인에는
+/// 묻지 않은 서버 전용 secret 의 Secret Manager 값(메모리만)도 함께 넘겨 옛 콘솔
+/// 앱의 secret 과 새 키가 짝 확인 없이 기록되지 않게 한다. 기록은 config → xcconfig →
 /// Secret Manager(표준 입력) 순서다. 원격 자리가 있는 수단은 검사 끝에
 /// [findRemoteProblem] 으로 그 자리를 보고, 기록 끝에 [writeRemote] 로 쓴다.
 abstract class KeyedProviderStep implements Step {
@@ -320,7 +322,8 @@ abstract class KeyedProviderStep implements Step {
             if (value.isEmpty || value == secretPlaceholderValue) {
               needsInput = true;
             } else {
-              // 원격 자리 비교 · 기록에만 쓴다 — 서버 확인에는 넘기지 않는다.
+              // 서버 확인 · 원격 자리 비교 · 원격 기록에만 쓴다(메모리만) — 묻지
+              // 않으므로 파일 · Secret Manager 에는 다시 쓰지 않는다.
               serverSecretValues[field] = value;
             }
           case SecretMissing():
@@ -474,9 +477,9 @@ abstract class KeyedProviderStep implements Step {
 
   /// 고칠 자리 이름 표 → (서버 확인이 있으면) config 값으로 짝 확인 → 기록.
   ///
-  /// 키는 묻지 않는다. 서버 확인에는 config 에서 읽은 값만 넘긴다 — 묻지 않은 서버
-  /// 전용 secret 의 Secret Manager 값은 넘기지 않는다. 짝이 틀리거나 확인하지
-  /// 못하면 아무것도 쓰지 않고 실패로 끝낸다.
+  /// 키는 묻지 않는다. 서버 확인에는 config 에서 읽은 값과 검사가 Secret Manager
+  /// 에서 읽은 서버 전용 secret 값(메모리만)을 함께 넘긴다 — 기록 값에는 섞지
+  /// 않는다. 짝이 틀리거나 확인하지 못하면 아무것도 쓰지 않고 실패로 끝낸다.
   Future<StepOutcome> _applyAlign(WizardContext context) async {
     writeSummary(
       context.terminal,
@@ -493,29 +496,63 @@ abstract class KeyedProviderStep implements Step {
     final values = Map<KeyField, String>.of(_knownValues);
     final PairCheck result = await verifyPair(
       context,
-      Map<KeyField, String>.of(values),
+      _buildVerifyValues(values),
     );
     switch (result) {
       case PairFailed(:final String reason):
         return Failed(reason);
       case PairMismatch(:final String reason) && final PairMismatch mismatch:
-        final String places = <String>[
-          for (final KeyField field in mismatch.pointedFields)
-            _describeFieldPlace(context, field),
-        ].join(' · ');
-        return Failed(
-          '$reason — $places 값을 고치거나, 자리표시로 되돌린 뒤 다시 실행해 새로 '
-          '입력하세요',
-        );
+        return _buildMismatchFailure(context, reason, mismatch.pointedFields);
       case PairOk() || PairNotAvailable():
         return await _writeValues(context, values);
     }
   }
 
-  /// [field] 를 고칠 자리 — config 키가 있으면 `<config 경로> <키>`, 없으면 이름.
-  static String _describeFieldPlace(WizardContext context, KeyField field) {
-    final String? configKey = field.configKey;
-    return configKey == null ? field.label : '${context.paths.json} $configKey';
+  /// 서버 확인에 넘길 값 — 검사가 읽은 서버 전용 secret 값 위에 [values] 를
+  /// 덮는다(입력값이 우선). [values] 자체는 바꾸지 않는다.
+  Map<KeyField, String> _buildVerifyValues(Map<KeyField, String> values) =>
+      <KeyField, String>{..._serverSecretValues, ...values};
+
+  /// 이번에 묻지 않은 값을 가리킨 짝 불일치의 실패 — 고칠 자리 이름과 되돌리는
+  /// 방법을 보인다(값은 넣지 않는다).
+  ///
+  /// config 키가 있는 값은 config 자리를 고치거나 자리표시로 되돌리게 하고,
+  /// 서버 전용 secret 은 `Secret Manager <이름>` 을 고치거나
+  /// [secretPlaceholderValue] 로 되돌리게 한다 — 다음 실행이 그 값을 새로 묻는다.
+  Failed _buildMismatchFailure(
+    WizardContext context,
+    String reason,
+    List<KeyField> pointedFields,
+  ) {
+    final configPlaces = <String>[];
+    final secretPlaces = <String>[];
+    for (final field in pointedFields) {
+      final String? configKey = field.configKey;
+      if (configKey != null) {
+        configPlaces.add('${context.paths.json} $configKey');
+      } else if (field.secretNames.isEmpty) {
+        configPlaces.add(field.label);
+      } else {
+        secretPlaces.addAll(<String>[
+          for (final String name in field.secretNames) 'Secret Manager $name',
+        ]);
+      }
+    }
+    final guides = <String>[];
+    if (configPlaces.isNotEmpty) {
+      guides.add(
+        '${configPlaces.join(' · ')} 값을 고치거나, 자리표시로 되돌린 뒤 다시 '
+        '실행해 새로 입력하세요',
+      );
+    }
+    if (secretPlaces.isNotEmpty) {
+      guides.add(
+        '${secretPlaces.join(' · ')} 값을 고치거나 $secretPlaceholderValue 으로 '
+        '되돌린 뒤 다시 실행하면 새로 묻습니다 '
+        '(${formatManualReference(providersManualHeading)} 「켜기」 ④)',
+      );
+    }
+    return Failed('$reason — ${guides.join(' · ')}');
   }
 
   /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내 — [heading] 절을 가리킨다.
@@ -568,15 +605,20 @@ abstract class KeyedProviderStep implements Step {
 
   /// 서버 확인을 하고, 틀린 값만 [maxKeyAttempts] 회까지 다시 묻는다.
   ///
-  /// 불일치가 가리킨 값([PairMismatch.pointedFields]) 가운데 이번에 물은 값만
-  /// 순서대로 다시 묻는다 — 하나도 없으면 실패로 끝낸다. 통과하면 null, 아니면
-  /// 단계 결과(거절 · 실패)를 돌려준다.
+  /// 서버 확인에는 [values] 와 검사가 Secret Manager 에서 읽은 서버 전용 secret
+  /// 값(메모리만 · 이번에 묻지 않은 값)을 함께 넘긴다. 불일치가 가리킨 값
+  /// ([PairMismatch.pointedFields]) 가운데 이번에 물은 값만 순서대로 다시 묻는다 —
+  /// 하나도 없으면 고칠 자리 이름과 되돌리는 방법을 보이고 실패로 끝낸다. 통과하면
+  /// null, 아니면 단계 결과(거절 · 실패)를 돌려준다.
   Future<StepOutcome?> _verifyValues(
     WizardContext context,
     Map<KeyField, String> values,
   ) async {
     for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
-      final PairCheck result = await verifyPair(context, values);
+      final PairCheck result = await verifyPair(
+        context,
+        _buildVerifyValues(values),
+      );
       switch (result) {
         case PairOk() || PairNotAvailable():
           return null;
@@ -588,7 +630,13 @@ abstract class KeyedProviderStep implements Step {
             for (final KeyField field in mismatch.pointedFields)
               if (_askFields.contains(field)) field,
           ];
-          if (retryFields.isEmpty) return Failed(reason);
+          if (retryFields.isEmpty) {
+            return _buildMismatchFailure(
+              context,
+              reason,
+              mismatch.pointedFields,
+            );
+          }
           if (attempt == maxKeyAttempts - 1) return const Declined();
           for (final field in retryFields) {
             final String? value = _askValue(context, field);

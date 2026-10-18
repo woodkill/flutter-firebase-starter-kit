@@ -11,6 +11,7 @@ import '../../../tool/setup/providers/key_formats.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/redactor.dart';
+import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/kakao_step.dart';
@@ -175,6 +176,19 @@ final class _Harness {
     ok(),
   );
 
+  /// 어드민 키 서버 확인 응답 큐에 [responses] 를 더한다.
+  void onAdminCheck(List<RestResponse> responses) {
+    for (final response in responses) {
+      rest.onExternal('GET', KakaoStep.adminKeyCheckUrl, response);
+    }
+  }
+
+  /// 서버 확인에 실린 어드민 키 헤더(요청마다 하나).
+  List<String?> get adminCheckHeaders => <String?>[
+    for (final ExternalRequest request in rest.externalRequests)
+      request.headers['Authorization'],
+  ];
+
   /// Secret Manager 쓰기 호출.
   List<FakeCall> get secretWrites => <FakeCall>[
     for (final FakeCall call in runner.calls)
@@ -308,7 +322,8 @@ void main() {
     final h = _Harness(root, const <String?>['y']);
     h
       ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
-      ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')]);
+      ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')])
+      ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
     final int code = await h.run();
 
@@ -329,7 +344,8 @@ void main() {
     expect(readXcconfigNativeKey(Flavor.dev), nativeKey);
     expect(File(configPathOf(Flavor.dev)).readAsStringSync(), configBefore);
     expect(h.secretWrites, isEmpty);
-    expect(h.rest.externalRequests, isEmpty);
+    // 맞춤 전 짝 확인 1회 — Secret Manager 의 어드민 키(메모리)를 헤더에만 싣는다.
+    expect(h.adminCheckHeaders, <String>['KakaoAK $adminKey']);
     for (final text in <String>[h.output, h.log.text]) {
       expect(countText(text, nativeKey), 0);
       expect(countText(text, adminKey), 0);
@@ -352,7 +368,8 @@ void main() {
         ok('$nativeKey\n'),
       ])
       ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')])
-      ..onSecretWrite(nativeSecret);
+      ..onSecretWrite(nativeSecret)
+      ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
     final int code = await h.run();
 
@@ -365,14 +382,16 @@ void main() {
     expect(h.secretWrites, hasLength(1));
     expect(h.secretWrites.single.stdinText, nativeKey);
     expect(h.secretWrites.single.isOutputSensitive, isTrue);
-    expect(h.rest.externalRequests, isEmpty);
+    expect(h.adminCheckHeaders, <String>['KakaoAK $adminKey']);
     for (final text in <String>[h.output, h.log.text]) {
       expect(countText(text, oldKey), 0);
       expect(countText(text, nativeKey), 0);
+      expect(countText(text, adminKey), 0);
     }
   });
 
-  group('T-20-BASE-03: 서버 전용 어드민 키가 unset 이 아니면 묻지 않고 서버 확인도 하지 않는다', () {
+  group('T-20-BASE-03: 서버 전용 어드민 키가 unset 이 아니면 묻지 않고 쓰지 않는다 — '
+      '맞춤 실행은 그 Secret Manager 값으로 서버 확인을 한 번 한다', () {
     test('맞출 자리가 있을 때', () async {
       final String nativeKey = buildNativeKey();
       final String adminKey = buildAdminKey();
@@ -385,14 +404,15 @@ void main() {
           ok('$nativeKey\n'),
         ])
         ..onSecretReads(adminSecret, <CommandResult>[ok('$adminKey\n')])
-        ..onSecretWrite(nativeSecret);
+        ..onSecretWrite(nativeSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
       final int code = await h.run();
 
       expect(code, wizardExitDone, reason: h.output);
       expect(countQuestions(h, KakaoStep.adminKeyField.label), 0);
       expect(h.screen.secretAsks, isEmpty);
-      expect(h.rest.externalRequests, isEmpty);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $adminKey']);
       expect(
         h.secretWrites.map((FakeCall call) => call.key),
         everyElement(isNot(contains(adminSecret))),
@@ -446,7 +466,8 @@ void main() {
         ok('$newKey\n'),
       ])
       ..onSecretReads(adminSecret, <CommandResult>[ok('${buildAdminKey()}\n')])
-      ..onSecretWrite(nativeSecret);
+      ..onSecretWrite(nativeSecret)
+      ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
     final int code = await h.run();
 
@@ -467,6 +488,7 @@ void main() {
     expect(readConfigNativeKey(Flavor.stg), newKey);
     expect(readXcconfigNativeKey(Flavor.stg), newKey);
     expect(h.secretWrites.single.stdinText, newKey);
+    expect(h.adminCheckHeaders, <String>['KakaoAK ${buildAdminKey()}']);
     expect(File(configPathOf(Flavor.dev)).readAsStringSync(), devConfigBefore);
     expect(
       File(xcconfigPathOf(Flavor.dev)).readAsStringSync(),
@@ -557,7 +579,8 @@ void main() {
         ..onSecretReads(adminSecret, <CommandResult>[
           ok('${buildAdminKey()}\n'),
         ])
-        ..onSecretWrite(nativeSecret);
+        ..onSecretWrite(nativeSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
 
       final int code = await h.run();
 
@@ -894,6 +917,92 @@ void main() {
         File(xcconfigPathOf(Flavor.dev)).readAsStringSync(),
         xcconfigBefore,
       );
+    });
+  });
+
+  group('T-20-BASE-10: Secret Manager 의 서버 전용 secret 이 옛 값이면 서버 확인이 '
+      '틀려 아무것도 쓰지 않고 그 자리 이름 · 되돌리는 방법을 보인다', () {
+    /// 어드민 키가 틀렸을 때의 실패 안내 — 자리 이름과 되돌리는 방법.
+    const staleGuide =
+        'Secret Manager $adminSecret 값을 고치거나 $secretPlaceholderValue 으로 '
+        '되돌린 뒤 다시 실행하면 새로 묻습니다 '
+        '(매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④)';
+
+    test('입력 실행 — 새 네이티브 앱 키 + 옛 어드민 키', () async {
+      final String newNative = buildNativeKey('5');
+      final String staleAdmin = buildAdminKey('6');
+      final String configBefore = File(
+        configPathOf(Flavor.dev),
+      ).readAsStringSync();
+      final String xcconfigBefore = File(
+        xcconfigPathOf(Flavor.dev),
+      ).readAsStringSync();
+      final h = _Harness(root, <String?>['y', '1', newNative, '2']);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$staleAdmin\n')])
+        ..onAdminCheck(<RestResponse>[const RestResponse(401, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $staleAdmin']);
+      expect(countQuestions(h, KakaoStep.adminKeyField.label), 0);
+      expect(h.screen.secretAsks, isEmpty);
+      expect(
+        h.output,
+        contains(
+          '${KakaoStep.adminKeyMismatchMessage} — HTTP 401 — $staleGuide',
+        ),
+      );
+      expect(h.screen.asks.last, failureChoiceQuestion);
+      expect(h.secretWrites, isEmpty);
+      expect(File(configPathOf(Flavor.dev)).readAsStringSync(), configBefore);
+      expect(
+        File(xcconfigPathOf(Flavor.dev)).readAsStringSync(),
+        xcconfigBefore,
+      );
+      // 네이티브 앱 키는 보이는 입력이라 기록에 남는다 — 비밀 값만 센다.
+      for (final text in <String>[h.output, h.log.text]) {
+        expect(countText(text, staleAdmin), 0);
+      }
+    });
+
+    test('맞춤 실행 — config 네이티브 앱 키 + 옛 어드민 키', () async {
+      final String nativeKey = buildNativeKey();
+      final String staleAdmin = buildAdminKey('6');
+      setConfigNativeKey(Flavor.dev, nativeKey);
+      final String xcconfigBefore = File(
+        xcconfigPathOf(Flavor.dev),
+      ).readAsStringSync();
+      final h = _Harness(root, const <String?>['y', '2']);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[ok('$nativeKey\n')])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$staleAdmin\n')])
+        ..onAdminCheck(<RestResponse>[const RestResponse(401, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $staleAdmin']);
+      expect(h.screen.secretAsks, isEmpty);
+      expect(
+        h.output,
+        contains(
+          '${KakaoStep.adminKeyMismatchMessage} — HTTP 401 — $staleGuide',
+        ),
+      );
+      expect(h.secretWrites, isEmpty);
+      expect(
+        File(xcconfigPathOf(Flavor.dev)).readAsStringSync(),
+        xcconfigBefore,
+      );
+      for (final text in <String>[h.output, h.log.text]) {
+        expect(countText(text, staleAdmin), 0);
+        expect(countText(text, nativeKey), 0);
+      }
     });
   });
 }
