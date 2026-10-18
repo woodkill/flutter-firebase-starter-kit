@@ -23,6 +23,7 @@ import 'provider_android_step.dart';
 import 'providers_step.dart';
 import 'rules_step.dart';
 import 'run_step.dart';
+import 'sign_in_check_step.dart';
 import 'sign_in_step.dart';
 import 'storage_step.dart';
 import 'tools_step.dart';
@@ -38,8 +39,9 @@ import 'xcode_step.dart';
 /// 끼운다 — 함수 배포는 Android 쪽 줄을 기다리지 않는다. Google 은 설정 파일을
 /// 다시 받아야 하므로 로그인 수단 단계 다음 · 앱 등록 앞에 두고, iOS · Android
 /// 쪽 줄은 앱 등록 다음에 둔다. Apple 은 iOS · Android 쪽 줄을 App Check 다음 ·
-/// 다른 로그인 수단 앞에 두고, 함수 배포는 iOS 쪽 줄만 기다린다. 새 단계는 진행
-/// 순서에 맞는 자리에 끼운다.
+/// 다른 로그인 수단 앞에 두고, 함수 배포는 iOS 쪽 줄만 기다린다. 켠 로그인
+/// 수단이 있으면 실행 단계 바로 다음에 소셜 로그인 확인 단계를 둔다. 새 단계는
+/// 진행 순서에 맞는 자리에 끼운다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
@@ -70,6 +72,8 @@ List<Step> buildSteps({
       ],
     ),
     RunStep(),
+    if (enabledProviders.isNotEmpty)
+      SignInCheckStep(enabledProviders: enabledProviders),
   ];
 }
 

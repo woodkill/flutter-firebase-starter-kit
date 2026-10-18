@@ -15,6 +15,7 @@ import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/providers/provider_selection.dart';
+import '../../../tool/setup/providers/sign_in_counts.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/secret_store.dart';
@@ -467,6 +468,22 @@ String buildSignInBody({bool isAnonymousEnabled = true}) =>
         'anonymous': <String, Object?>{'enabled': isAnonymousEnabled},
       },
     });
+
+/// Kakao 로그인 기록 문서 하나가 있는 identity_index 응답 본문.
+///
+/// 문서 ID 는 실행 시점에 조립한 가짜 값이다.
+String buildKakaoIndexBody() => jsonEncode(<String, Object?>{
+  'documents': <Object?>[
+    <String, Object?>{
+      'name':
+          'projects/$projectId/databases/(default)/documents/identity_index/'
+          'kakao:${'d' * 8}',
+      'fields': <String, Object?>{
+        'provider': <String, Object?>{'stringValue': 'kakao'},
+      },
+    },
+  ],
+});
 
 /// 인증된 이메일 사용자 한 명이 있는 batchGet 응답 본문.
 String buildVerifiedUsersBody() => jsonEncode(<String, Object?>{
@@ -1005,7 +1022,13 @@ void main() {
       // functions:list 는 [다시 짜기 전 점검표 · Functions 단계 머리 재검사 ·
       // 배포 뒤 공개 호출 확인 · 실행 뒤 재검사(마지막 응답 반복)] — 다시 짠
       // 점검표에서 Functions 는 Kakao 를 기다리는 ? 라 부르지 않는다.
+      // identity_index 는 소셜 로그인 확인 단계 머리 1회(다시 짠 점검표에서는
+      // 실행 단계를 기다리는 ? 라 부르지 않는다).
       _registerFinished(h);
+      h.onRest(
+        buildIdentityIndexRequest(projectId),
+        RestResponse(200, buildKakaoIndexBody()),
+      );
       h
         ..onCommand(
           FunctionsStep.buildFunctionsListCommand(projectId),
@@ -1165,6 +1188,10 @@ void main() {
     final h = _Harness(root, const <String?>[]);
     _registerFinished(h, deployedExtra: kakaoFunctions);
     _registerKakaoPolicies(h);
+    h.onRest(
+      buildIdentityIndexRequest(projectId),
+      RestResponse(200, buildKakaoIndexBody()),
+    );
     h
       ..onCommand(
         buildSecretReadCommand(kakaoNativeSecret, projectId),
@@ -1181,7 +1208,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(18),
+      hasLength(19),
     );
     expect(
       lines.where(
