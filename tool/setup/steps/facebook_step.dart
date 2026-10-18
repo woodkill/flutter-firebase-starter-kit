@@ -220,7 +220,8 @@ final class FacebookStep extends KeyedProviderStep {
   List<String> plannedCommandLines(WizardContext context) {
     final List<String> lines = super.plannedCommandLines(context);
     if (lines.isEmpty ||
-        (lines.length == 1 && lines.single == '(명령 원문을 보입니다)')) {
+        (lines.length == 1 &&
+            lines.single == KeyedProviderStep.failureCommandLine)) {
       return lines;
     }
     return <String>[...lines, _remoteWriteLine];

@@ -807,4 +807,21 @@ void main() {
       }
     });
   });
+
+  test('T-20-FB-07: Secret Manager 를 읽지 못한 검사 뒤 계획은 뼈대의 실패 줄 하나뿐이고 '
+      'Firebase 설정 줄을 덧붙이지 않는다', () async {
+    prepareLocalValues(buildAppId(), buildClientToken());
+    final h = _Harness(root, const <String?>[]);
+    h.onSecretReads(appIdSecret, <CommandResult>[
+      const CommandResult(1, '', 'PERMISSION_DENIED'),
+    ]);
+    final step = FacebookStep();
+    final WizardContext context = h.buildContext();
+
+    await step.check(context);
+
+    expect(step.plannedCommandLines(context), <String>[
+      KeyedProviderStep.failureCommandLine,
+    ]);
+  });
 }

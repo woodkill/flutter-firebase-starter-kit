@@ -173,6 +173,10 @@ abstract class KeyedProviderStep implements Step {
   /// 하위 클래스만 만든다.
   KeyedProviderStep();
 
+  /// Secret Manager 를 읽지 못한 검사 뒤의 계획 줄 — 이 한 줄만 있으면 실패
+  /// 모드다(하위 클래스가 계획 줄을 덧붙일지 가를 때 쓴다).
+  static const String failureCommandLine = '(명령 원문을 보입니다)';
+
   /// 이 단계가 다루는 로그인 수단의 표 행.
   ProviderEntry get entry;
 
@@ -404,7 +408,7 @@ abstract class KeyedProviderStep implements Step {
       '(${entry.displayName} — config 값으로 맞출 자리 이름을 보입니다 · 키는 묻지 않습니다)',
       ..._buildWriteLines(context),
     ],
-    _KeyedMode.failed => <String>['(명령 원문을 보입니다)'],
+    _KeyedMode.failed => const <String>[failureCommandLine],
     _KeyedMode.unreadable || _KeyedMode.done => const <String>[],
   };
 
