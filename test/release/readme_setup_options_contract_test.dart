@@ -2,9 +2,11 @@
 //
 // T-20-DOCS-04: Getting Started 절에 `./setup.sh --providers` 줄 1개 ·
 //   `./setup.sh --flavor stg` 줄 1개가 있다.
-// T-20-DOCS-05: 절의 모든 `./setup.sh --<이름>[ <값>]` 줄의 옵션 이름이
-//   `bin/setup.dart` 파서에 선언돼 있고, `--flavor` 값은 `Flavor.tryParse` 로 읽힌다.
-// T-20-DOCS-06: 판정 함수의 양성 · 음성 대조 — 가짜 옵션 이름 · 값이 걸러진다.
+// T-20-DOCS-05: 절에서 `./setup.sh --` 로 시작하는 모든 줄이
+//   `./setup.sh --<이름>[ <값>]` 꼴이고(아니면 실패), 옵션 이름이 `bin/setup.dart`
+//   파서에 선언돼 있고, `--flavor` 값은 `Flavor.tryParse` 로 읽힌다.
+// T-20-DOCS-06: 판정 함수의 양성 · 음성 대조 — 가짜 옵션 이름 · 값이 걸러지고
+//   옵션 두 개 줄처럼 읽지 못하는 줄은 조용히 빠지지 않고 실패한다.
 //
 // README 는 template 을 쓴 뒤 사용자 소유라 04 · 05 는 유지보수자 트리에서만 돈다.
 // 06 은 `bin/setup.dart` 만 읽어 어디서나 돈다.
@@ -38,13 +40,27 @@ String extractGettingStarted(String readme) {
   return readme.substring(bodyStart, next < 0 ? readme.length : next);
 }
 
+/// `./setup.sh` 옵션 줄의 머리 — 이 글자로 시작하는 줄은 모두 옵션 줄로 본다.
+const String _optionLinePrefix = './setup.sh --';
+
 /// [section] 의 `./setup.sh --…` 줄을 (옵션 이름, 값) 쌍으로 모은다.
-List<({String name, String? value})> collectOptionLines(String section) =>
-    <({String name, String? value})>[
-      for (final String line in section.split('\n'))
-        if (_optionLinePattern.firstMatch(line) case final RegExpMatch m)
-          (name: m.group(1)!, value: m.group(2)),
-    ];
+///
+/// 앞 공백을 뗀 줄이 `./setup.sh --` 로 시작하면 모두 모으고, 그 가운데
+/// [_optionLinePattern](옵션 하나 · 값 하나 꼴)에 맞지 않는 줄이 있으면 조용히
+/// 건너뛰지 않고 [fail] 한다.
+List<({String name, String? value})> collectOptionLines(String section) {
+  final options = <({String name, String? value})>[];
+  for (final String line in section.split('\n')) {
+    final String trimmed = line.trimLeft();
+    if (!trimmed.startsWith(_optionLinePrefix)) continue;
+    final RegExpMatch? match = _optionLinePattern.firstMatch(trimmed);
+    if (match == null) {
+      fail('옵션 줄을 읽지 못함(옵션 하나 · 값 하나 꼴만 받는다): $line');
+    }
+    options.add((name: match.group(1)!, value: match.group(2)));
+  }
+  return options;
+}
 
 /// [source] 의 파서가 옵션 [name] 을 선언하는지 본다(공백 · 줄바꿈 무관).
 bool isOptionDeclared(String source, String name) => RegExp(
@@ -108,6 +124,11 @@ void main() {
     expect(
       collectOptionLines('./setup.sh --fake x\n./setup.sh\ntext'),
       hasLength(1),
+    );
+    // 음성 대조: 옵션 두 개 줄은 조용히 빠지지 않고 읽지 못해 실패한다.
+    expect(
+      () => collectOptionLines('./setup.sh --flavor stg --providers'),
+      throwsA(isA<TestFailure>()),
     );
   });
 }
