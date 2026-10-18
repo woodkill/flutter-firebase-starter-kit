@@ -638,6 +638,22 @@ void main() {
       NaverStep.clientSecretField,
     )!;
     prepareFlavorFiles(Flavor.stg);
+    // 저장소의 세 example 은 config 자리표시가 같은 글자라, 임시 저장소의 stg
+    // example 사본만 다른 자리표시로 바꿔 두 config 가드가 각자의 example 과
+    // 대조되는지 따로 본다(저장소 example 은 그대로 · 첫 문맥 실 값과 무관).
+    const stgPlaceholder = 'YOUR_STG_NAVER_CLIENT_SECRET';
+    replaceJsonString(
+      '$root/${const FlavorPaths(Flavor.stg).jsonExample}',
+      NaverStep.clientSecretField.configKey!,
+      stgPlaceholder,
+    );
+    // 가림 함수는 부분 문자열까지 가리므로 두 자리표시는 서로를 품지 않아야 한다.
+    expect(
+      placeholder.contains(stgPlaceholder) ||
+          stgPlaceholder.contains(placeholder),
+      isFalse,
+      reason: 'dev · stg 자리표시가 서로의 부분 문자열',
+    );
     // dev xcconfig 에는 config 를 고치기 전의 옛 실 값이 남아 있다(맞출 자리).
     final String xcconfigSecret = buildClientSecret('X3');
     final String xcconfigVar = NaverStep.clientSecretField.xcconfigVar!;
@@ -684,10 +700,10 @@ void main() {
       );
     }
 
-    // dev config · stg config · dev xcconfig 가 모두 example 자리표시 그대로면
-    // 실 값이 아니라 가리지 않는다. 세 flavor example 의 config 자리표시는 같은
-    // 문자열이라 config · 다른 flavor config · xcconfig 가드 중 하나만 꺼져도
-    // 그 자리표시가 등록돼 RED 다(dev 는 물을 자리가 되지만 check 만 부른다).
+    // dev config · stg config · dev xcconfig 가 모두 제 example 의 자리표시
+    // 그대로면 실 값이 아니라 가리지 않는다. config 가드는 dev config 단언이,
+    // 다른 flavor config 가드는 stg config 단언이, xcconfig 가드는 xcconfig
+    // 단언이 잡는다(dev 는 물을 자리가 되지만 check 만 부른다).
     replaceJsonString(
       configPathOf(Flavor.dev),
       NaverStep.clientSecretField.configKey!,
@@ -696,7 +712,7 @@ void main() {
     replaceJsonString(
       configPathOf(Flavor.stg),
       NaverStep.clientSecretField.configKey!,
-      placeholder,
+      stgPlaceholder,
     );
     replaceXcconfigValue(
       xcconfigPathOf(Flavor.dev),
@@ -708,7 +724,12 @@ void main() {
     expect(
       placeholderContext.redactor.apply(placeholder),
       placeholder,
-      reason: 'dev · stg config 자리표시',
+      reason: 'dev config 자리표시(config 가드)',
+    );
+    expect(
+      placeholderContext.redactor.apply(stgPlaceholder),
+      stgPlaceholder,
+      reason: 'stg config 자리표시(다른 flavor config 가드)',
     );
     expect(
       placeholderContext.redactor.apply(xcconfigPlaceholder),
