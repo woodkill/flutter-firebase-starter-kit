@@ -628,4 +628,38 @@ void main() {
     expect(h.output, contains('  ✓ ${NaverStep.stepTitle} — '));
     expect(countText(h.output, clientSecret), 0);
   });
+
+  test('T-20-NAVER-07: config · 다른 flavor config 에서 읽은 Client Secret 은 '
+      '검사 뒤 가림 함수가 가리고 자리표시는 가리지 않는다', () async {
+    final String devSecret = buildClientSecret();
+    final String stgSecret = buildClientSecret('R8');
+    final String placeholder = readConfigValue(
+      Flavor.dev,
+      NaverStep.clientSecretField,
+    )!;
+    prepareFlavorFiles(Flavor.stg);
+    setFieldValue(Flavor.dev, NaverStep.clientSecretField, devSecret);
+    setFieldValue(Flavor.stg, NaverStep.clientSecretField, stgSecret);
+    // Secret Manager 는 비어 있다 — 가림 등록은 config 읽기에서만 온다.
+    final h = _Harness(root, const <String?>[]);
+    h
+      ..onSecretReads(clientIdSecret, <CommandResult>[
+        buildSecretMissing(clientIdSecret),
+      ])
+      ..onSecretReads(clientSecretSecret, <CommandResult>[
+        buildSecretMissing(clientSecretSecret),
+      ]);
+    final WizardContext context = h.buildContext();
+
+    await NaverStep().check(context);
+
+    for (final secret in <String>[devSecret, stgSecret]) {
+      expect(
+        context.redactor.apply('값 $secret 끝'),
+        '값 ${Redactor.mask} 끝',
+        reason: secret == devSecret ? 'dev config' : 'stg config',
+      );
+    }
+    expect(context.redactor.apply(placeholder), placeholder);
+  });
 }

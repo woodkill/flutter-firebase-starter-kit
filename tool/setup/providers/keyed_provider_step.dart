@@ -270,9 +270,16 @@ abstract class KeyedProviderStep implements Step {
         final Map<Flavor, String> others = _readOtherFlavorValues(
           context,
           configKey,
+          isHidden: field.isHidden,
         );
         if (others.isNotEmpty) otherFlavorValues[field] = others;
         final String? raw = readJsonString(jsonPath, configKey)?.trim();
+        // 숨김 값은 Secret Manager 에서 읽을 때와 같이 읽자마자 가림 함수에 등록한다.
+        if (raw != null &&
+            field.isHidden &&
+            !_isPlaceholder(context, raw, configKey)) {
+          context.redactor.register(raw);
+        }
         final Flavor? sameFlavor = raw == null
             ? null
             : _findSameFlavor(others, raw);
@@ -731,10 +738,13 @@ abstract class KeyedProviderStep implements Step {
 
   /// 지금 flavor 밖 flavor 들의 config(파일이 있을 때만)에서 [configKey] 의
   /// 자리표시가 아닌 값을 읽는다 — 읽기만 하고, 읽지 못한 파일은 건너뛴다.
+  ///
+  /// [isHidden] 이면 읽은 값을 바로 가림 함수에 등록한다.
   static Map<Flavor, String> _readOtherFlavorValues(
     WizardContext context,
-    String configKey,
-  ) {
+    String configKey, {
+    required bool isHidden,
+  }) {
     final values = <Flavor, String>{};
     for (final Flavor other in Flavor.values) {
       if (other == context.flavor) continue;
@@ -751,6 +761,7 @@ abstract class KeyedProviderStep implements Step {
           _isPlaceholderIn(context, paths.jsonExample, raw, configKey)) {
         continue;
       }
+      if (isHidden) context.redactor.register(raw);
       values[other] = raw;
     }
     return values;
