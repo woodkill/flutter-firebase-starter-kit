@@ -148,7 +148,9 @@ final class UserFilesStep implements Step {
   /// 새 flavor config 에 쓴다.
   ///
   /// dev config 가 없거나 켠 수단이 없으면 묻지 않는다. 입력이 끝나면 example
-  /// 값(이메일만)을 그대로 두고, 고른 수단이 있으면 단계 목록을 다시 짠다.
+  /// 값(이메일만)을 그대로 두고, 고른 수단이 있으면 단계 목록을 다시 짠다. 고른
+  /// 값을 쓰면 `--providers` 의 체크 목록 요청을 끈다 — 같은 실행에서 로그인
+  /// 수단 단계가 같은 질문을 다시 열지 않는다(입력이 끝났으면 그대로 둔다).
   StepOutcome _proposeDevProviders(WizardContext context) {
     final Set<String> devTokens = readEnabledProviders(
       context.resolve(const FlavorPaths(Flavor.dev).json),
@@ -170,6 +172,7 @@ final class UserFilesStep implements Step {
     } on ConfigEditException catch (e) {
       return Failed('$jsonPath 에 로그인 수단을 쓰지 못했습니다 — ${e.message}');
     }
+    context.session.isProviderSelectionRequested = false;
     return chosen.isEmpty ? const Applied() : const Replan();
   }
 

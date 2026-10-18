@@ -296,6 +296,36 @@ void main() {
       },
     );
 
+    group('T-20-FLAVOR-04: --providers 로 연 실행에서 dev 제안 체크 목록의 답', () {
+      test('답을 쓰면 체크 목록 요청을 꺼 로그인 수단 단계가 다시 열지 않는다', () async {
+        writeDevConfig('google,kakao');
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>[''],
+        );
+        context.session.isProviderSelectionRequested = true;
+
+        final StepOutcome outcome = await runStep(context);
+
+        expect(outcome, isA<Replan>());
+        expect(context.session.isProviderSelectionRequested, isFalse);
+      });
+
+      test('입력이 끝나면 체크 목록 요청을 그대로 둔다', () async {
+        writeDevConfig('google,kakao');
+        final WizardContext context = buildFlavorContext(
+          Flavor.stg,
+          const <String?>[],
+        );
+        context.session.isProviderSelectionRequested = true;
+
+        final StepOutcome outcome = await runStep(context);
+
+        expect(outcome, isA<Applied>());
+        expect(context.session.isProviderSelectionRequested, isTrue);
+      });
+    });
+
     test(
       'T-20-FLAVOR-05: stg config 가 이미 있으면 체크 목록을 열지 않고 빠진 키만 채운다',
       () async {
