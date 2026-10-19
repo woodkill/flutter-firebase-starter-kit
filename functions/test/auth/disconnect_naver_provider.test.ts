@@ -107,6 +107,8 @@ import {
 } from "../mocks/caller_auth";
 // eslint-disable-next-line import/first
 import type {CallerAuthFixture} from "../mocks/caller_auth";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const testEnv = functionsTest();
 
@@ -631,7 +633,9 @@ describe("disconnectNaverProvider — PII sentinel (NR17)", () => {
   it("NR17: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
     // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
     expect(accumulatedLogCalls.length).toBeGreaterThan(10);
-    const serialized = JSON.stringify(accumulatedLogCalls);
+    // Phase 20 리뷰 WR-07 — 운영 logger message 와 같은 inspect 직렬화.
+    // payload 에 Error 객체가 실려도 그 message · stack 원문이 보인다.
+    const serialized = serializeLogCalls(accumulatedLogCalls);
     for (const sentinel of [
       "PII_NAVER_ACCESS_TOKEN",
       "PII_NAVER_CODE",

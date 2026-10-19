@@ -71,7 +71,7 @@ import {
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
 // eslint-disable-next-line import/first
-import {inspect} from "util";
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const warnMock = logger.warn as jest.MockedFunction<typeof logger.warn>;
 // quick 260928-jwe — 연결 수단 재로그인 skip 로그(info) 검증용.
@@ -1716,11 +1716,15 @@ describe(
 
     /**
      * warn · info 호출 전체를 직렬화 — PII · 저장값 비노출 단언용.
+     * 직렬화는 공용 serializeLogCalls(운영 logger message 와 같은 inspect).
      *
-     * @return {string} 두 logger mock 의 호출 인자 JSON.
+     * @return {string} 두 logger mock 의 호출 인자 inspect 문자열.
      */
-    function serializeLogCalls(): string {
-      return JSON.stringify([warnMock.mock.calls, infoMock.mock.calls]);
+    function serializeJweLogCalls(): string {
+      return serializeLogCalls([
+        ...warnMock.mock.calls,
+        ...infoMock.mock.calls,
+      ]);
     }
 
     it(
@@ -1799,7 +1803,7 @@ describe(
           }),
           expect.any(String),
         );
-        const logged = serializeLogCalls();
+        const logged = serializeJweLogCalls();
         expect(logged).not.toContain("PII_JWE");
         expect(logged).not.toContain("PII JWE");
         expect(logged).not.toContain("kakao");
@@ -1864,7 +1868,7 @@ describe(
           }),
           expect.any(String),
         );
-        const logged = serializeLogCalls();
+        const logged = serializeJweLogCalls();
         expect(logged).not.toContain("PII_JWE");
         expect(logged).not.toContain("PII JWE");
       },
@@ -1906,7 +1910,7 @@ describe(
           expect.any(String),
         );
         // Pitfall 7 — err.message 본문 미노출.
-        const logged = serializeLogCalls();
+        const logged = serializeJweLogCalls();
         expect(logged).not.toContain("PII_JWE_READ_ERR");
         expect(logged).not.toContain("PII JWE");
       },
@@ -3614,8 +3618,8 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
   /**
    * IN-11 — 오류 원문(PII 모형)이 어느 logger 메서드에도 실리지 않았는지
    * 단언한다. helper 는 세 provider 가 공유하므로 helper 단에서 막는다.
-   * 직렬화는 inspect — Error 의 message · stack 은 열거 불가라
-   * JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
+   * 직렬화는 serializeLogCalls(inspect) — Error 의 message · stack 은 열거
+   * 불가라 JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
    *
    * @param {string} sentinel 실리면 안 되는 원문 (기본 = 발급 실패 message).
    */
@@ -3627,7 +3631,7 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    expect(inspect(allLogCalls, {depth: null})).not.toContain(sentinel);
+    expect(serializeLogCalls(allLogCalls)).not.toContain(sentinel);
   };
 
   beforeEach(() => {

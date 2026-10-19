@@ -166,8 +166,6 @@ jest.mock("firebase-admin/firestore", () => {
 
 // 위 mock 셋업 이후에 testEnv + src import.
 // eslint-disable-next-line import/first
-import {inspect} from "util";
-// eslint-disable-next-line import/first
 import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
@@ -185,6 +183,8 @@ import {
   anonymousCallerAuth,
   signedInCallerAuth,
 } from "../mocks/caller_auth";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -885,6 +885,8 @@ describe("kakaoCustomToken onCall", () => {
       expect(mockDeleteUser).toHaveBeenCalledWith("new-uid-pre");
       // PII 회귀 — err.message 본문 logger 미노출.
       // WR-02 mirror — debug/log 도 sentinel 배열 포함.
+      // Phase 20 리뷰 WR-07 — 직렬화는 운영 logger message 와 같은 inspect
+      // (serializeLogCalls). payload 에 Error 객체가 실려도 원문이 보인다.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
@@ -892,11 +894,9 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain(
-          "PII_SENTINEL_KAKAO_TOKEN_FAIL_MSG",
-        );
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "PII_SENTINEL_KAKAO_TOKEN_FAIL_MSG",
+      );
     },
   );
 
@@ -943,8 +943,8 @@ describe("kakaoCustomToken onCall", () => {
       );
       // IN-11 — 같은 catch 에 다른 logger 메서드로 원문이 새도 잡도록 다섯
       // 메서드 전부를 훑는다 (RETRO-02 의 allLogCalls 와 같은 꼴). 직렬화는
-      // JSON.stringify 가 아니라 inspect — Error 의 message · stack 은 열거
-      // 불가라 JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
+      // serializeLogCalls(inspect) — Error 의 message · stack 은 열거 불가라
+      // JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,
@@ -952,7 +952,7 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      expect(inspect(allLogCalls, {depth: null})).not.toContain(
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
         "PII_SENTINEL_GAP4_MSG",
       );
     },
