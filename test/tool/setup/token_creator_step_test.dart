@@ -895,6 +895,131 @@ void main() {
     });
   });
 
+  test('T-20-TC-10: Custom Token 수단과 아닌 수단을 함께 켜면 Custom Token 함수만 '
+      '확인 · 부여 · 안내 이름도 그 수단만', () async {
+    // 이 시험만 쓰는 함수 목록 — facebook 에 함수가 있고 google · apple 은 비어 있다.
+    writeFixture(
+      FunctionsStep.manifestPath,
+      '${jsonEncode(<String, Object?>{
+        FunctionsStep.manifestCommonKey: commonFunctions,
+        FunctionsStep.manifestProvidersKey: <String, Object?>{
+          'kakao': providerFunctions['kakao'],
+          'facebook': <String>['disconnectFacebookProvider'],
+          'google': <String>[],
+          'apple': <String>[],
+        },
+      })}\n',
+    );
+    const facebookFunction = 'disconnectFacebookProvider';
+    final String kakaoAccount = buildFakeServiceAccount('1');
+    final String facebookAccount = buildFakeServiceAccount('2');
+    final h = _Harness(root, const <String?>['y']);
+    h.fake.on(
+      buildFunctionsListKey(projectId),
+      ok(
+        jsonEncode(<String, Object?>{
+          'status': 'success',
+          'result': <Object?>[
+            for (final String id in <String>[
+              ...commonFunctions,
+              ...providerFunctions['kakao']!,
+              facebookFunction,
+            ])
+              <String, Object?>{
+                'id': id,
+                'project': projectId,
+                'region': region,
+                'platform': 'gcfv2',
+                'runServiceId': buildServiceId(id),
+              },
+          ],
+        }),
+      ),
+    );
+    h.registerAccount('kakao', kakaoAccount, region: region);
+    final Command facebookDescribe =
+        TokenCreatorStep.buildServiceAccountCommand(
+          buildServiceId(facebookFunction),
+          region,
+          projectId,
+        );
+    final Command facebookPolicy = TokenCreatorStep.buildPolicyCommand(
+      facebookAccount,
+      projectId,
+    );
+    final Command facebookGrant = TokenCreatorStep.buildGrantCommand(
+      facebookAccount,
+      projectId,
+    );
+    h
+      ..onCommand(facebookDescribe, ok('$facebookAccount\n'))
+      ..onCommand(facebookPolicy, buildEmptyPolicy())
+      ..onCommand(facebookGrant, buildGrantOk(facebookAccount));
+    registerPolicies(h, kakaoAccount, <CommandResult>[
+      buildEmptyPolicy(),
+      buildEmptyPolicy(),
+      buildBoundPolicy(kakaoAccount),
+    ]);
+    final Command kakaoGrant = TokenCreatorStep.buildGrantCommand(
+      kakaoAccount,
+      projectId,
+    );
+    h.onCommand(kakaoGrant, buildGrantOk(kakaoAccount));
+
+    final int code = await h.run(const <String>{
+      'kakao',
+      'facebook',
+      'google',
+      'apple',
+    });
+
+    expect(code, wizardExitDone, reason: h.output);
+    // 서비스 설명은 Kakao 함수의 서비스만 — Facebook 서비스 · 계정은 한 번도 없다.
+    final describes = h.fake.calls
+        .where(
+          (FakeCall call) =>
+              call.key.startsWith('gcloud run services describe '),
+        )
+        .map((FakeCall call) => call.key)
+        .toSet();
+    expect(describes, <String>{
+      for (final String function in providerFunctions['kakao']!)
+        FakeCommandRunner.buildKey(
+          TokenCreatorStep.buildServiceAccountCommand(
+            buildServiceId(function),
+            region,
+            projectId,
+          ),
+        ),
+    });
+    expect(h.count(RunMode.capture, facebookDescribe), 0);
+    expect(h.count(RunMode.capture, facebookPolicy), 0);
+    expect(h.count(RunMode.stream, facebookGrant), 0);
+    expect(
+      h.fake.calls.where(
+        (FakeCall call) =>
+            call.key.contains(facebookAccount) ||
+            call.key.contains(buildServiceId(facebookFunction)),
+      ),
+      isEmpty,
+    );
+    // 부여는 Kakao 계정에만 한 번.
+    expect(countGrantCalls(h), 1);
+    expect(h.count(RunMode.stream, kakaoGrant), 1);
+    // 안내 · 계획 줄에는 Kakao 이름만.
+    expect(h.output, contains('Kakao'));
+    for (final name in <String>['Facebook', 'Google', 'Apple']) {
+      expect(h.output, isNot(contains(name)), reason: name);
+    }
+    expect(
+      countText(
+        h.output,
+        TokenCreatorStep.buildPropagationNotice(<String>['Kakao']),
+      ),
+      1,
+    );
+  });
+
   test('T-20-TC-09: 매뉴얼 「켜기」 ⑦ 의 명령 줄이 위저드 명령과 같고 거절 안내가 그 단계를 가리킨다', () async {
     const manualPath = 'docs/manual.md';
     const account = '<service-account-email>';
