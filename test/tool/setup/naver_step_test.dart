@@ -671,6 +671,19 @@ void main() {
       '$root/${const FlavorPaths(Flavor.dev).xcconfigExample}',
       xcconfigVar,
     )!;
+    // 가림 함수는 minSecretLength 미만 값을 조용히 버리므로, 비등록 단언이
+    // 공허해지지 않으려면 저장소 example 의 자리표시가 그 길이 이상이어야 한다.
+    for (final MapEntry<String, String> entry in <String, String>{
+      placeholder: 'dev config 자리표시',
+      stgPlaceholder: 'stg example 사본 자리표시',
+      xcconfigPlaceholder: 'dev xcconfig 자리표시',
+    }.entries) {
+      expect(
+        entry.key.length,
+        greaterThanOrEqualTo(Redactor.minSecretLength),
+        reason: '${entry.value}가 minSecretLength 미만 — 비등록 단언이 공허해진다',
+      );
+    }
     setFieldValue(Flavor.dev, NaverStep.clientSecretField, devSecret);
     setFieldValue(Flavor.stg, NaverStep.clientSecretField, stgSecret);
     replaceXcconfigValue(
