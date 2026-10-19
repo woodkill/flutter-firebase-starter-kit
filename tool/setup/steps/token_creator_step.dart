@@ -49,6 +49,20 @@ final class TokenCreatorStep implements Step {
   static const String serviceAccountFormat =
       'value(spec.template.spec.serviceAccountName)';
 
+  /// 부여가 거절됐을 때 원문 뒤에 보이는 할 일 — 권한 부족 · 조직 정책 두 경우를
+  /// 한 문단으로 안내한다.
+  static const String grantFailureGuidance =
+      '서비스 계정의 IAM 정책을 바꿀 수 있는 계정(예: 프로젝트 소유자)으로 gcloud 에 '
+      '로그인했는지 확인하세요. 조직 정책이 막으면 조직 관리자에게 이 프로젝트의 '
+      '예외를 요청하세요. 권한이 생긴 뒤 다시 실행하면 이어집니다.';
+
+  /// 부여 뒤 권한 반영을 기다리라는 안내 줄 — [displayNames] 는 켠 Custom Token
+  /// 수단의 표시 이름(표 순서)이다.
+  static String buildPropagationNotice(List<String> displayNames) =>
+      '  Token Creator 를 붙였습니다 — 반영에 몇 분 걸릴 수 있어 그 사이 '
+      '${displayNames.join(' · ')} 로그인이 실패할 수 있습니다. 몇 분 뒤 다시 '
+      '시도하세요.';
+
   /// 서비스 계정 [serviceAccount] 를 IAM 구성원 표기로 바꾼다.
   static String buildMember(String serviceAccount) =>
       'serviceAccount:$serviceAccount';
@@ -295,9 +309,12 @@ final class TokenCreatorStep implements Step {
     };
   }
 
-  /// 빠진 계정마다 부여 명령을 흘려 실행한다.
+  /// 빠진 계정마다 부여 명령을 흘려 실행하고, 모두 성공하면 반영 대기 안내를
+  /// 한 번 보인다.
   ///
-  /// 실패하면 그 자리에서 끝내고 남은 계정에 같은 명령을 더 하지 않는다.
+  /// 실패하면 그 자리에서 할 일([grantFailureGuidance])로 끝내고 남은 계정에
+  /// 같은 명령을 더 하지 않는다 — 거절 종류를 출력 문자열로 가르지 않고 다른
+  /// 방법으로 우회하지 않는다.
   Future<StepOutcome> _applyGrants(WizardContext context) async {
     for (final String account in _missingAccounts) {
       final CommandResult result = await context.runner.stream(
@@ -306,10 +323,11 @@ final class TokenCreatorStep implements Step {
       if (result.isSuccess) continue;
       return Failed(
         '함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다 '
-        '(종료 코드 ${result.exitCode})',
+        '(종료 코드 ${result.exitCode}) — $grantFailureGuidance',
         result: result,
       );
     }
+    context.terminal.writeLine(buildPropagationNotice(_buildDisplayNames()));
     return const Applied();
   }
 
@@ -320,10 +338,13 @@ final class TokenCreatorStep implements Step {
       '프로젝트 수준 역할은 바꾸지 않습니다)';
 
   /// 켠 Custom Token 수단의 표시 이름을 표 순서로 ` · ` 로 잇는다.
-  String _describeProviders() => <String>[
+  String _describeProviders() => _buildDisplayNames().join(' · ');
+
+  /// 켠 Custom Token 수단의 표시 이름 목록(표 순서)을 만든다.
+  List<String> _buildDisplayNames() => <String>[
     for (final String token in _tokens)
       findProvider(token)?.displayName ?? token,
-  ].join(' · ');
+  ];
 
   /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.
   CheckResult _mark(

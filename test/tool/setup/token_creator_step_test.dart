@@ -394,4 +394,503 @@ void main() {
       });
     }
   });
+
+  /// [account] 의 정책 응답 [policies] 를 등록 순서대로 더한다.
+  void registerPolicies(
+    _Harness h,
+    String account,
+    List<CommandResult> policies, {
+    String project = projectId,
+  }) {
+    for (final policy in policies) {
+      h.onCommand(
+        TokenCreatorStep.buildPolicyCommand(account, project),
+        policy,
+      );
+    }
+  }
+
+  /// 부여 명령(어느 계정이든)이 불린 횟수를 센다.
+  int countGrantCalls(_Harness h) => h.fake.calls
+      .where(
+        (FakeCall call) => call.key.startsWith(
+          'gcloud iam service-accounts add-iam-policy-binding ',
+        ),
+      )
+      .length;
+
+  test('T-20-TC-03: 바인딩이 이미 있으면 점검표부터 ✓ · 질문 · 부여 · 흘려 실행 0', () async {
+    final String account = buildFakeServiceAccount('1');
+    final h = _Harness(root, const <String?>[]);
+    h
+      ..registerDeployed(const <String>{'kakao'}, region: region)
+      ..registerAccount('kakao', account, region: region);
+    registerPolicies(h, account, <CommandResult>[buildBoundPolicy(account)]);
+
+    final int code = await h.run(const <String>{'kakao'});
+
+    expect(code, wizardExitDone, reason: h.output);
+    expect(
+      h.lines,
+      contains(
+        '  ✓ ${TokenCreatorStep.stepTitle} — 함수 런타임 서비스 계정 1개 · '
+        'Token Creator 있음',
+      ),
+    );
+    expect(h.screen.asks, isEmpty);
+    expect(countGrantCalls(h), 0);
+    expect(h.fake.countMode(RunMode.stream), 0);
+  });
+
+  group('T-20-TC-04: 계정마다 한 번 · 빠진 계정에만 · stg 프로젝트', () {
+    test('세 수단의 서비스가 한 계정이면 정책 읽기 · 부여가 검사마다 한 번', () async {
+      final String account = buildFakeServiceAccount('1');
+      final h = _Harness(root, const <String?>['y']);
+      h.registerDeployed(const <String>{
+        'kakao',
+        'naver',
+        'line',
+      }, region: region);
+      for (final token in providerFunctions.keys) {
+        h.registerAccount(token, account, region: region);
+      }
+      registerPolicies(h, account, <CommandResult>[
+        buildEmptyPolicy(),
+        buildEmptyPolicy(),
+        buildBoundPolicy(account),
+      ]);
+      final Command grant = TokenCreatorStep.buildGrantCommand(
+        account,
+        projectId,
+      );
+      h.onCommand(grant, buildGrantOk(account));
+
+      final int code = await h.run(const <String>{'kakao', 'naver', 'line'});
+
+      expect(code, wizardExitDone, reason: h.output);
+      for (final List<String> functions in providerFunctions.values) {
+        for (final function in functions) {
+          expect(
+            h.count(
+              RunMode.capture,
+              TokenCreatorStep.buildServiceAccountCommand(
+                buildServiceId(function),
+                region,
+                projectId,
+              ),
+            ),
+            3,
+            reason: function,
+          );
+        }
+      }
+      expect(
+        h.count(
+          RunMode.capture,
+          TokenCreatorStep.buildPolicyCommand(account, projectId),
+        ),
+        3,
+      );
+      expect(h.count(RunMode.stream, grant), 1);
+      expect(countGrantCalls(h), 1);
+    });
+
+    test('서비스 하나만 다른 계정이고 그 계정만 빠지면 그 계정에만 붙인다', () async {
+      final String shared = buildFakeServiceAccount('1');
+      final String other = buildFakeServiceAccount('2');
+      final h = _Harness(root, const <String?>['y']);
+      h
+        ..registerDeployed(const <String>{'kakao', 'line'}, region: region)
+        ..registerAccount('kakao', shared, region: region);
+      final List<String> lineFunctions = providerFunctions['line']!;
+      for (final function in lineFunctions) {
+        h.onCommand(
+          TokenCreatorStep.buildServiceAccountCommand(
+            buildServiceId(function),
+            region,
+            projectId,
+          ),
+          ok('${function == lineFunctions.first ? other : shared}\n'),
+        );
+      }
+      registerPolicies(h, shared, <CommandResult>[buildBoundPolicy(shared)]);
+      registerPolicies(h, other, <CommandResult>[
+        buildEmptyPolicy(),
+        buildEmptyPolicy(),
+        buildBoundPolicy(other),
+      ]);
+      final Command grant = TokenCreatorStep.buildGrantCommand(
+        other,
+        projectId,
+      );
+      h.onCommand(grant, buildGrantOk(other));
+
+      final int code = await h.run(const <String>{'kakao', 'line'});
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(
+        h.lines,
+        contains(
+          '  ✗ ${TokenCreatorStep.stepTitle} — ${TokenCreatorStep.stepTitle}'
+          '(Token Creator)이 없는 함수 런타임 서비스 계정이 있습니다 (1개)',
+        ),
+      );
+      expect(h.count(RunMode.stream, grant), 1);
+      expect(countGrantCalls(h), 1);
+      expect(
+        h.lines,
+        contains(
+          '  ✓ ${TokenCreatorStep.stepTitle} — 함수 런타임 서비스 계정 2개 · '
+          'Token Creator 있음',
+        ),
+      );
+    });
+
+    test('stg 문맥이면 모든 명령이 stg 프로젝트 ID 를 쓴다', () async {
+      const paths = FlavorPaths(Flavor.stg);
+      final config = File('$root/${paths.json}')
+        ..parent.createSync(recursive: true);
+      File(paths.jsonExample).copySync(config.path);
+      replaceJsonString(config.path, 'firebaseProjectId', stgProjectId);
+      final String stgRegion = readJsonString(
+        paths.jsonExample,
+        FirestoreStep.functionsRegionKey,
+      )!;
+      final String account = buildFakeServiceAccount('3');
+      final h = _Harness(root, const <String?>['y']);
+      h
+        ..registerDeployed(
+          const <String>{'kakao'},
+          project: stgProjectId,
+          region: stgRegion,
+        )
+        ..registerAccount(
+          'kakao',
+          account,
+          project: stgProjectId,
+          region: stgRegion,
+        );
+      registerPolicies(h, account, project: stgProjectId, <CommandResult>[
+        buildEmptyPolicy(),
+        buildEmptyPolicy(),
+        buildBoundPolicy(account),
+      ]);
+      final Command grant = TokenCreatorStep.buildGrantCommand(
+        account,
+        stgProjectId,
+      );
+      h.onCommand(grant, buildGrantOk(account));
+
+      final int code = await h.run(const <String>{'kakao'}, flavor: Flavor.stg);
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.count(RunMode.stream, grant), 1);
+      expect(h.fake.calls, isNotEmpty);
+      for (final FakeCall call in h.fake.calls) {
+        expect(call.key, contains('--project $stgProjectId'), reason: call.key);
+        expect(call.key, isNot(contains(projectId)), reason: call.key);
+      }
+    });
+  });
+
+  group('T-20-TC-05: 바인딩 모양 — 역할 · 그 계정 자신 · 조건 없음 셋 다', () {
+    final String account = buildFakeServiceAccount('1');
+    final String stranger = buildFakeServiceAccount('2');
+    final cases =
+        <({String label, Map<String, Object?> binding, bool isPresent})>[
+          (
+            label: '구성원이 다른 서비스 계정뿐',
+            binding: buildBinding(TokenCreatorStep.tokenCreatorRole, <String>[
+              TokenCreatorStep.buildMember(stranger),
+            ]),
+            isPresent: false,
+          ),
+          (
+            label: '같은 계정이지만 조건이 붙음',
+            binding: buildBinding(
+              TokenCreatorStep.tokenCreatorRole,
+              <String>[TokenCreatorStep.buildMember(account)],
+              condition: <String, Object?>{
+                'title': 'temporary',
+                'expression':
+                    'request.time < timestamp("2100-01-01T00:00:00Z")',
+              },
+            ),
+            isPresent: false,
+          ),
+          (
+            label: '같은 계정 · 다른 역할',
+            binding: buildBinding('roles/iam.serviceAccountUser', <String>[
+              TokenCreatorStep.buildMember(account),
+            ]),
+            isPresent: false,
+          ),
+          (
+            label: '같은 바인딩에 다른 구성원과 그 계정이 함께 있음',
+            binding: buildBinding(TokenCreatorStep.tokenCreatorRole, <String>[
+              TokenCreatorStep.buildMember(stranger),
+              TokenCreatorStep.buildMember(account),
+            ]),
+            isPresent: true,
+          ),
+        ];
+
+    for (final shape in cases) {
+      test(
+        '${shape.label} → ${shape.isPresent ? '있음 · 부여 0' : '없음 · 부여'}',
+        () async {
+          final CommandResult policy = buildPolicyResult(<Map<String, Object?>>[
+            shape.binding,
+          ]);
+          expect(
+            TokenCreatorStep.hasSelfTokenCreator(policy, account),
+            shape.isPresent,
+          );
+          final h = _Harness(root, <String?>[if (!shape.isPresent) 'y']);
+          h
+            ..registerDeployed(const <String>{'kakao'}, region: region)
+            ..registerAccount('kakao', account, region: region);
+          registerPolicies(h, account, <CommandResult>[
+            policy,
+            if (!shape.isPresent) ...<CommandResult>[
+              policy,
+              buildBoundPolicy(account),
+            ],
+          ]);
+          final Command grant = TokenCreatorStep.buildGrantCommand(
+            account,
+            projectId,
+          );
+          h.onCommand(grant, buildGrantOk(account));
+
+          final int code = await h.run(const <String>{'kakao'});
+
+          expect(code, wizardExitDone, reason: h.output);
+          expect(h.count(RunMode.stream, grant), shape.isPresent ? 0 : 1);
+          expect(h.countProjectLevelCalls(), 0);
+        },
+      );
+    }
+  });
+
+  group('T-20-TC-06: 읽기 실패 — 사유의 ✗ · 원문 · 부여 0', () {
+    final String account = buildFakeServiceAccount('1');
+    final String firstService = buildServiceId(
+      providerFunctions['kakao']!.first,
+    );
+    final String failureText = <String>['ERROR:', ' fake read failure'].join();
+
+    /// 실패 갈래 하나를 돌려 화면 출력을 돌려준다.
+    Future<String> runFailure(
+      void Function(_Harness h) register,
+      String reason, {
+      bool isRawShown = false,
+    }) async {
+      final h = _Harness(root, const <String?>['y']);
+      register(h);
+
+      final int code = await h.run(const <String>{'kakao'});
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(h.lines, contains('  ✗ ${TokenCreatorStep.stepTitle} — $reason'));
+      final int failed = h.lines.indexOf('  실패 — $reason');
+      expect(failed, greaterThanOrEqualTo(0), reason: h.output);
+      if (isRawShown) {
+        expect(
+          h.lines
+              .skip(failed + 1)
+              .any((String line) => line.contains(failureText)),
+          isTrue,
+          reason: h.output,
+        );
+      }
+      expect(countGrantCalls(h), 0);
+      return h.output;
+    }
+
+    test('서비스 계정 읽기 실패(종료 코드 1) → 원문', () async {
+      await runFailure(
+        (_Harness h) {
+          h.registerDeployed(const <String>{'kakao'}, region: region);
+          h.onCommand(
+            TokenCreatorStep.buildServiceAccountCommand(
+              firstService,
+              region,
+              projectId,
+            ),
+            CommandResult(1, '', '$failureText\n'),
+          );
+        },
+        '$firstService 서비스의 런타임 서비스 계정을 읽지 못했습니다',
+        isRawShown: true,
+      );
+    });
+
+    test('서비스 계정 읽기 빈 출력', () async {
+      await runFailure((_Harness h) {
+        h.registerDeployed(const <String>{'kakao'}, region: region);
+        h.onCommand(
+          TokenCreatorStep.buildServiceAccountCommand(
+            firstService,
+            region,
+            projectId,
+          ),
+          ok('\n'),
+        );
+      }, '$firstService 서비스의 런타임 서비스 계정을 읽지 못했습니다');
+    });
+
+    test('정책 읽기 실패(종료 코드 1) → 원문', () async {
+      await runFailure(
+        (_Harness h) {
+          h
+            ..registerDeployed(const <String>{'kakao'}, region: region)
+            ..registerAccount('kakao', account, region: region);
+          registerPolicies(h, account, <CommandResult>[
+            CommandResult(1, '', '$failureText\n'),
+          ]);
+        },
+        '서비스 계정 $account 의 IAM 정책을 읽지 못했습니다',
+        isRawShown: true,
+      );
+    });
+
+    test('정책이 JSON 이 아님 → 원문', () async {
+      await runFailure(
+        (_Harness h) {
+          h
+            ..registerDeployed(const <String>{'kakao'}, region: region)
+            ..registerAccount('kakao', account, region: region);
+          registerPolicies(h, account, <CommandResult>[ok('$failureText\n')]);
+        },
+        '서비스 계정 $account 의 IAM 정책을 읽지 못했습니다',
+        isRawShown: true,
+      );
+    });
+
+    test('함수 목록에 켠 수단의 함수가 없음', () async {
+      await runFailure((_Harness h) {
+        h.registerDeployed(const <String>{}, region: region);
+      }, '배포된 함수 목록에 ${providerFunctions['kakao']!.first} 함수가 없습니다');
+    });
+
+    test('config 의 리전 키가 비어 있음', () async {
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        FirestoreStep.functionsRegionKey,
+        '',
+      );
+      await runFailure(
+        (_Harness h) {},
+        '${UserFilesStep.jsonUserPath} 에서 Functions '
+        '리전(${FirestoreStep.functionsRegionKey})을 읽지 못했습니다',
+      );
+    });
+  });
+
+  test(
+    'T-20-TC-07: 부여가 거절되면 흘린 원문 뒤 할 일 · 남은 계정 부여 0 · 프로젝트 수준 0 · 멈춤',
+    () async {
+      final String first = buildFakeServiceAccount('1');
+      final String second = buildFakeServiceAccount('2');
+      final List<String> kakaoFunctions = providerFunctions['kakao']!;
+      final h = _Harness(root, const <String?>['y']);
+      h.registerDeployed(const <String>{'kakao'}, region: region);
+      for (final function in kakaoFunctions) {
+        h.onCommand(
+          TokenCreatorStep.buildServiceAccountCommand(
+            buildServiceId(function),
+            region,
+            projectId,
+          ),
+          ok('${function == kakaoFunctions.first ? first : second}\n'),
+        );
+      }
+      registerPolicies(h, first, <CommandResult>[buildEmptyPolicy()]);
+      registerPolicies(h, second, <CommandResult>[buildEmptyPolicy()]);
+      final String rejection = <String>[
+        'fake rejection:',
+        ' the caller may not change this policy',
+      ].join();
+      final Command firstGrant = TokenCreatorStep.buildGrantCommand(
+        first,
+        projectId,
+      );
+      final Command secondGrant = TokenCreatorStep.buildGrantCommand(
+        second,
+        projectId,
+      );
+      h
+        ..onCommand(firstGrant, CommandResult(1, '', '$rejection\n'))
+        ..onCommand(secondGrant, buildGrantOk(second));
+
+      final int code = await h.run(const <String>{'kakao'});
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(countText(h.output, rejection), 1);
+      final int raw = h.lines.indexOf(rejection);
+      final int failed = h.lines.indexWhere(
+        (String line) => line.startsWith(
+          '  실패 — 함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다 '
+          '(종료 코드 1) — ${TokenCreatorStep.grantFailureGuidance}',
+        ),
+      );
+      expect(raw, greaterThanOrEqualTo(0), reason: h.output);
+      expect(failed, greaterThan(raw), reason: h.output);
+      expect(h.count(RunMode.stream, firstGrant), 1);
+      expect(h.count(RunMode.stream, secondGrant), 0);
+      expect(h.countProjectLevelCalls(), 0);
+      expect(h.lines.last, stopLine);
+    },
+  );
+
+  group('T-20-TC-08: 부여 뒤 반영 대기 안내', () {
+    test('부여가 모두 성공하면 켠 수단 이름을 넣은 안내 줄이 한 번', () async {
+      final String account = buildFakeServiceAccount('1');
+      final h = _Harness(root, const <String?>['y']);
+      h.registerDeployed(const <String>{'kakao', 'line'}, region: region);
+      for (final token in <String>['kakao', 'line']) {
+        h.registerAccount(token, account, region: region);
+      }
+      registerPolicies(h, account, <CommandResult>[
+        buildEmptyPolicy(),
+        buildEmptyPolicy(),
+        buildBoundPolicy(account),
+      ]);
+      h.onCommand(
+        TokenCreatorStep.buildGrantCommand(account, projectId),
+        buildGrantOk(account),
+      );
+
+      final int code = await h.run(const <String>{'line', 'kakao'});
+
+      expect(code, wizardExitDone, reason: h.output);
+      final String notice = TokenCreatorStep.buildPropagationNotice(<String>[
+        'Kakao',
+        'LINE',
+      ]);
+      expect(notice, contains('Kakao · LINE'));
+      expect(countText(h.output, notice), 1);
+    });
+
+    test('이미 있으면 안내 줄 0', () async {
+      final String account = buildFakeServiceAccount('1');
+      final h = _Harness(root, const <String?>[]);
+      h
+        ..registerDeployed(const <String>{'kakao'}, region: region)
+        ..registerAccount('kakao', account, region: region);
+      registerPolicies(h, account, <CommandResult>[buildBoundPolicy(account)]);
+
+      final int code = await h.run(const <String>{'kakao'});
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(
+        countText(
+          h.output,
+          TokenCreatorStep.buildPropagationNotice(<String>['Kakao']),
+        ),
+        0,
+      );
+    });
+  });
 }
