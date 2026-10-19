@@ -51,9 +51,11 @@ final class KakaoStep extends KeyedProviderStep {
   /// 값 표의 Android 키 해시 행 라벨.
   static const String keyHashRowLabel = 'Android 키 해시';
 
-  /// 지문을 계산할 수 없을 때 값 표의 키 해시 행 값.
+  /// 지문을 계산할 수 없을 때 값 표의 키 해시 행 값 — 칸을 비워 두고, 콘솔이
+  /// 요구하면 Android 쪽 줄 안내대로 나중에 등록하라는 뜻이다.
   static const String keyHashUnavailableValue =
-      '(Android 쪽 줄 참고 — 지금은 계산할 수 없음)';
+      '(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · 콘솔이 이 값을 요구하면 '
+      '그 Android 등록은 Android 쪽 줄 안내대로 나중에)';
 
   /// [adminKey] 를 서버가 받아들이는지 확인하는 요청을 만든다.
   ///
@@ -119,8 +121,8 @@ final class KakaoStep extends KeyedProviderStep {
 
   @override
   List<String> get todoLines => <String>[
-    'flavor 마다 애플리케이션을 새로 만들기',
-    'Android 플랫폼에 패키지명 · 키 해시 등록 · iOS 플랫폼에 번들 ID 등록',
+    '애플리케이션 새로 만들기',
+    '네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록',
     '카카오 로그인 · OpenID Connect 켜기',
     '동의 항목에서 이메일을 받도록 설정 — ${formatManualReference(emailManualHeading)}',
   ];

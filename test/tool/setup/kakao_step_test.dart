@@ -479,9 +479,61 @@ void main() {
       <String, String>{
         'Android 패키지명': '$applicationId.dev',
         'iOS 번들 ID': devBundleId,
-        KakaoStep.keyHashRowLabel: '(Android 쪽 줄 참고 — 지금은 계산할 수 없음)',
+        KakaoStep.keyHashRowLabel: KakaoStep.keyHashUnavailableValue,
       },
     );
     expect(buildRows(null).keys, <String>['Android 패키지명', 'iOS 번들 ID']);
+  });
+
+  test('T-20-KAKAO-09: 첫 할 일 줄은 애플리케이션 하나 · 키 해시 칸은 비워 두고 나중에 '
+      '등록하라는 뜻', () async {
+    final List<String> todo = KakaoStep().todoLines;
+
+    expect(todo.first, '애플리케이션 새로 만들기');
+    for (final line in todo) {
+      expect(line, isNot(contains('flavor 마다')));
+    }
+    const String value = KakaoStep.keyHashUnavailableValue;
+    for (final word in <String>['계산할 수 없음', '비워 두세요', 'Android 쪽 줄', '나중에']) {
+      expect(value, contains(word));
+    }
+    expect(value, isNot(contains('지금은 계산할 수 없음')));
+
+    final h = _Harness(root, const <String?>['y', '2']);
+    registerFreshSecrets(h, buildNativeKey(), buildAdminKey());
+
+    final int code = await h.run();
+
+    expect(code, wizardExitForUser, reason: h.output);
+    final String keyHashRow = h.output
+        .split('\n')
+        .firstWhere(
+          (String line) => line.startsWith('  ${KakaoStep.keyHashRowLabel}'),
+          orElse: () => '',
+        );
+    expect(keyHashRow, endsWith('  $value'));
+  });
+
+  test('T-20-KAKAO-10: 둘째 할 일 줄은 네이티브 앱 키 아래 세 칸 · 옛 플랫폼 경로 0 · '
+      '네 줄 모두 화면에', () async {
+    final List<String> todo = KakaoStep().todoLines;
+
+    expect(todo, hasLength(4));
+    expect(todo[1], '네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록');
+    for (final line in todo) {
+      expect(line, isNot(contains('Android 플랫폼')));
+      expect(line, isNot(contains('iOS 플랫폼')));
+    }
+
+    final h = _Harness(root, const <String?>['y', '2']);
+    registerFreshSecrets(h, buildNativeKey(), buildAdminKey());
+
+    final int code = await h.run();
+
+    expect(code, wizardExitForUser, reason: h.output);
+    expect(h.output, contains(todo.map((String l) => '  · $l\n').join()));
+    expect(h.output, contains('  Android 패키지명'));
+    expect(h.output, contains('  iOS 번들 ID'));
+    expect(h.output, contains('  ${KakaoStep.keyHashRowLabel}'));
   });
 }

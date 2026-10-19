@@ -49,6 +49,19 @@ const Map<String, String> flavorAppManualHeadings = <String, String>{
 String findFlavorAppManualHeading(ProviderEntry entry) =>
     flavorAppManualHeadings[entry.token] ?? entry.manualSectionPrefix;
 
+/// [flavor] 문맥에서 지금 만들 콘솔 앱의 범위를 밝히는 안내 줄을 만든다.
+///
+/// 이번 실행은 [flavor] 용 앱 하나만 만들고, 다른 flavor 의 앱은 그 flavor 로
+/// 위저드를 실행할 때 만든다 — 다른 flavor 이름은 [Flavor.values] 순서로 잇는다.
+String buildConsoleAppScopeNote(Flavor flavor) {
+  final String others = Flavor.values
+      .where((Flavor other) => other != flavor)
+      .map((Flavor other) => other.name)
+      .join(' · ');
+  return '이번에 만들 콘솔 앱: ${flavor.name} 용 하나 — $others 앱은 그 flavor 로 '
+      '위저드를 실행할 때 따로 만듭니다';
+}
+
 /// [flavor] 의 키와 같다는 문장을 만든다(`<flavor> 의 키와 같습니다 — <detail>`).
 String buildDuplicateMessage(Flavor flavor, String detail) =>
     '${flavor.name} 의 키와 같습니다 — $detail';
@@ -468,6 +481,7 @@ abstract class KeyedProviderStep implements Step {
       notes: <String>[
         if (isDuplicate) _reason,
         '콘솔: ${entry.consoleUrl}',
+        buildConsoleAppScopeNote(context.flavor),
         ...todoLines,
         if (isDuplicate)
           'flavor 마다 새 앱 만들기: ${formatManualReference(newAppHeading)}',

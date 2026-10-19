@@ -1007,6 +1007,94 @@ void main() {
       }
     });
   });
+
+  group('T-20-BASE-11: 콘솔 앱 범위 안내 — 이번 flavor 하나 · 다른 flavor 는 이름으로', () {
+    /// 화면에서 콘솔 주소 줄 바로 다음 줄.
+    String findLineAfterConsole(String output) {
+      final List<String> lines = output.split('\n');
+      final int console = lines.indexWhere(
+        (String line) => line.startsWith('  · 콘솔: '),
+      );
+      if (console < 0 || console + 1 >= lines.length) return '';
+      return lines[console + 1];
+    }
+
+    test('flavor 셋의 문구 — 이번 flavor 용 하나 · 나머지 둘은 순서대로', () {
+      final String dev = buildConsoleAppScopeNote(Flavor.dev);
+      final String stg = buildConsoleAppScopeNote(Flavor.stg);
+      final String prod = buildConsoleAppScopeNote(Flavor.prod);
+
+      expect(
+        dev,
+        '이번에 만들 콘솔 앱: dev 용 하나 — stg · prod 앱은 그 flavor 로 위저드를 '
+        '실행할 때 따로 만듭니다',
+      );
+      expect(stg, contains('stg 용 하나'));
+      expect(stg, contains('dev · prod'));
+      expect(prod, contains('prod 용 하나'));
+      expect(prod, contains('dev · stg'));
+      for (final note in <String>[dev, stg, prod]) {
+        expect(note, isNot(contains('flavor 마다')));
+      }
+    });
+
+    test('일반 바퀴 — 값 표에서 콘솔 주소 줄 바로 다음 줄', () async {
+      final h = _Harness(root, const <String?>['y', '2']);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          buildSecretMissing(adminSecret),
+          buildSecretMissing(adminSecret),
+        ]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitForUser, reason: h.output);
+      expect(
+        findLineAfterConsole(h.output),
+        '  · ${buildConsoleAppScopeNote(Flavor.dev)}',
+      );
+      expect(h.output, isNot(contains('flavor 마다 새 앱 만들기:')));
+    });
+
+    test('중복 키 바퀴 — 범위 안내 줄이 있고 중복 안내 두 줄은 그대로', () async {
+      final String devKey = buildNativeKey();
+      prepareFlavorFiles(Flavor.stg);
+      // stg 문맥은 stg config 의 프로젝트 ID 를 읽는다.
+      replaceJsonString(
+        configPathOf(Flavor.stg),
+        'firebaseProjectId',
+        projectId,
+      );
+      setConfigNativeKey(Flavor.dev, devKey);
+      setXcconfigNativeKey(Flavor.dev, devKey);
+      setConfigNativeKey(Flavor.stg, devKey);
+      final h = _Harness(root, <String?>['y', '1', devKey], flavor: Flavor.stg);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          buildSecretMissing(nativeSecret),
+          buildSecretMissing(nativeSecret),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          ok('${buildAdminKey()}\n'),
+        ]);
+
+      await h.run();
+
+      expect(h.output, contains('── Kakao 콘솔에 넣을 값 — stg ──'));
+      expect(
+        findLineAfterConsole(h.output),
+        '  · ${buildConsoleAppScopeNote(Flavor.stg)}',
+      );
+      expect(h.output, contains('  · flavor 마다 새 앱 만들기: '));
+      expect(duplicateInputHint, 'flavor 마다 새 콘솔 앱의 키를 넣으세요');
+      expect(countText(h.output, devDuplicateInputLine), 1);
+      expect(h.secretWrites, isEmpty);
+    });
+  });
 }
 
 /// 맞춤 실행의 여러 값 불일치를 보려고 쓰는 둘째 느슨한 값 — config 에만 있다.
