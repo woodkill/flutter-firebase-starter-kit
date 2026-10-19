@@ -1174,4 +1174,82 @@ void main() {
       }
     },
   );
+
+  /// [steps] 를 실제 터미널 모양으로 진행하고 종료 코드와 화면을 돌려준다.
+  ///
+  /// 화면에는 번호 질문의 기본값 안내(`번호를 고르세요 [n]: `)까지 남고, 답은
+  /// [inputs] 에서 차례로 읽는다(떨어지면 입력 끝).
+  Future<({int code, String output})> runStepsOnStdio(
+    List<Step> steps,
+    List<String> inputs,
+  ) async {
+    final answers = List<String>.of(inputs);
+    final output = StringBuffer();
+    final redactor = Redactor();
+    final log = MemoryLogSink(redactor);
+    final int code = await runWizard(
+      WizardContext(
+        projectRoot: tempDir.path,
+        runner: FakeCommandRunner(),
+        terminal: RedactingTerminal(
+          StdioTerminal(
+            readLine: () => answers.isEmpty ? null : answers.removeAt(0),
+            output: output,
+          ),
+          redactor,
+          log,
+        ),
+        redactor: redactor,
+        log: log,
+        rest: FakeRestClient(),
+        homeDirectory: noKeystoreTestHome,
+        now: () => fixedTestNow,
+      ),
+      steps,
+    );
+    return (code: code, output: output.toString());
+  }
+
+  group('T-20-ENGINE-12: 실패 질문의 기본값은 멈춤이라 빈 Enter 면 다시 실행하지 않고 1 로 끝난다', () {
+    const retryPrompt =
+        '$failureChoiceQuestion\n  1) $retryOption\n  2) $stopOption\n'
+        '번호를 고르세요 [2]: ';
+
+    test('T-20-ENGINE-12: 실행이 실패한 단계', () async {
+      final a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a')],
+        outcomes: const <StepOutcome>[Failed('실행 실패')],
+      );
+
+      final ({int code, String output}) run = await runStepsOnStdio(
+        <Step>[a],
+        const <String>['y', ''],
+      );
+
+      expect(run.code, wizardExitStopped, reason: run.output);
+      expect(run.output, contains('  실패 — 실행 실패\n$retryPrompt'));
+      expect(run.output, contains(_stopLine));
+      expect(a.applyCount, 1);
+      expect(a.checkCount, 2);
+    });
+
+    test('T-20-ENGINE-12: 실행은 끝났는데 재검사가 아직 할 일인 단계', () async {
+      final a = _ScriptedStep(
+        'A',
+        checks: const <CheckResult>[Todo('a'), Todo('a'), Todo('남음')],
+      );
+
+      final ({int code, String output}) run = await runStepsOnStdio(
+        <Step>[a],
+        const <String>['y', ''],
+      );
+
+      expect(run.code, wizardExitStopped, reason: run.output);
+      expect(run.output, contains('  실패 — 남음\n$retryPrompt'));
+      expect(run.output, contains(_stopLine));
+      expect(a.applyCount, 1);
+      expect(a.checkCount, 3);
+    });
+  });
 }

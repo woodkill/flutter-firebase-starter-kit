@@ -1204,6 +1204,96 @@ void main() {
       expect(runner.countCalls(RunMode.stream, addFirebaseKey(existingId)), 1);
       expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
     });
+
+    group('T-20-PROJ-03: 첫 확인에서 보이면 기다리지 않고 계획 줄에 반영 대기 안내가 붙는다', () {
+      test('T-20-PROJ-03: 새로 만들기 → 추가 뒤 첫 확인에서 있음 → 대기 0 · 대기 안내 줄 0 · '
+          '✓ · 계획 줄 안내 1개', () async {
+        writeProjectFixture(root);
+        final runner = FakeCommandRunner()
+          ..on(_gitStatusKey, _cleanTree)
+          ..on(describeKey(suggestedId), _notFound)
+          ..on(createKey(suggestedId), _ok)
+          ..on(addFirebaseKey(suggestedId), _ok)
+          ..on(
+            _projectsListKey,
+            buildProjectsResult(const <String, String>{
+              suggestedId: suggestedId,
+            }),
+          );
+        final delays = <Duration>[];
+        final step = FirebaseProjectStep(
+          delay: (Duration duration) async {
+            delays.add(duration);
+          },
+        );
+        final terminal = ScriptedTerminal(const <String?>['y', '1', '', 'y']);
+
+        final int code = await runProjectStep(runner, terminal, step: step);
+
+        final output = terminal.output.toString();
+        expect(code, wizardExitDone, reason: output);
+        expect(delays, isEmpty);
+        expect(output, isNot(contains(FirebaseProjectStep.listWaitLine)));
+        expect(
+          output,
+          contains('  ✓ ${FirebaseProjectStep.stepTitle} — $suggestedId'),
+        );
+        expect(
+          RegExp(
+            RegExp.escape(FirebaseProjectStep.listWaitPlanLine),
+          ).allMatches(output).length,
+          1,
+        );
+        expect(terminal.asks, isNot(contains(failureChoiceQuestion)));
+        // 화면 문구 원문 — 숫자는 간격 · 횟수 상수에서 나온다.
+        const planLine =
+            '(Firebase 를 추가한 뒤 프로젝트 목록에 보일 때까지 5초 간격으로 '
+            '최대 55초 다시 확인합니다)';
+        expect(FirebaseProjectStep.listWaitPlanLine, planLine);
+        expect(
+          FirebaseProjectStep.listWaitLine,
+          '  Firebase 프로젝트 목록에 반영되기를 기다립니다(최대 55초)',
+        );
+      });
+
+      test(
+        'T-20-PROJ-03: Firebase 추가 모드 계획 줄에도 안내가 하나 붙고 별칭 쓰기 모드 줄은 그대로다',
+        () async {
+          writeProjectFixture(
+            root,
+            projectId: existingId,
+            aliases: matchingAliases,
+          );
+          final step = FirebaseProjectStep();
+          final WizardContext addContext = buildTestContext(
+            projectRoot: root,
+            runner: buildAddFirebaseRunner(lists: <CommandResult>[listWithout]),
+          );
+
+          expect(await step.check(addContext), isA<Todo>());
+          final List<String> addLines = step.plannedCommandLines(addContext);
+
+          expect(addLines.first, addFirebaseKey(existingId));
+          expect(
+            addLines.where(
+              (String line) => line == FirebaseProjectStep.listWaitPlanLine,
+            ),
+            hasLength(1),
+          );
+
+          writeProjectFixture(root, projectId: existingId);
+          final WizardContext aliasContext = buildTestContext(
+            projectRoot: root,
+            runner: FakeCommandRunner()..on(_projectsListKey, listWith),
+          );
+
+          expect(await step.check(aliasContext), isA<Todo>());
+          expect(step.plannedCommandLines(aliasContext), <String>[
+            '(.firebaserc 의 default · dev 를 $existingId 로 씀)',
+          ]);
+        },
+      );
+    });
   });
 
   test('buildDevSteps 는 로그인 다음에 프로젝트 단계를 둔다', () {
