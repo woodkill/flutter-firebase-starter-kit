@@ -832,4 +832,96 @@ void main() {
     expect(harness.screen.asks, isEmpty);
     expect(harness.launchCount, 0);
   });
+
+  group('T-20-SIGNIN-11: 로그인 대조 값은 화면 · 기록에 나오지 않는다', () {
+    /// 두 버퍼에 주인 uid · 문서 ID · 문서 시각 · 로그인 시각 원문이 0회이고
+    /// 요청이 모두 민감 응답인지 본다.
+    void expectNoComparedValues(_Harness harness, DateTime lastLoginAt) {
+      final values = <String>[
+        buildOwnerUid('kakao', 0),
+        buildDocId('kakao', 0),
+        indexCreateTime,
+        toEpochMs(lastLoginAt),
+      ];
+      for (final text in <String>[harness.output, harness.log.text]) {
+        for (final value in values) {
+          expect(countText(text, value), 0, reason: value);
+        }
+      }
+      expect(
+        harness.rest.countRequests('GET', harness.usersUrl),
+        greaterThan(0),
+      );
+      expect(
+        harness.rest.countRequests('GET', harness.buildIndexUrl()),
+        greaterThan(0),
+      );
+      expect(
+        harness.rest.requests.every((RestRequest r) => r.isResponseSensitive),
+        isTrue,
+      );
+      expect(
+        countText(harness.log.text, HttpRestClient.sensitiveResponseNotice),
+        harness.rest.requests.length,
+      );
+    }
+
+    test('T-20-SIGNIN-11: ✓ 줄은 수단 이름과 개수만', () async {
+      final DateTime lastLoginAt = indexCreatedAt.add(
+        const Duration(seconds: 2),
+      );
+      final harness = _Harness(root, const <String?>[]);
+      harness
+        ..onUsers(<RestResponse>[buildKakaoOwnerPage(lastLoginAt: lastLoginAt)])
+        ..onIndex(<RestResponse>[
+          buildIndexPage(const <String, int>{'kakao': 1}),
+        ]);
+
+      final int code = await harness.run(const <String>{
+        'kakao',
+      }, withNext: false);
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Kakao 1명'));
+      expectNoComparedValues(harness, lastLoginAt);
+    });
+
+    test('T-20-SIGNIN-11: Kakao 만 켜도 relaunch 계획 줄에 사용자 목록 · 로그인 대조 '
+        'identity_index 표시형 · 비교 값 0회', () async {
+      final DateTime lastLoginAt = indexCreatedAt.subtract(
+        const Duration(seconds: 60),
+      );
+      final harness = _Harness(root, const <String?>[]);
+      harness
+        ..onUsers(<RestResponse>[
+          buildKakaoOwnerPage(lastLoginAt: lastLoginAt, isCustomAuth: false),
+        ])
+        ..onIndex(<RestResponse>[
+          buildIndexPage(const <String, int>{'kakao': 1}),
+        ]);
+      final String usersLine = RunStep.buildBatchGetRequest(
+        projectId,
+      ).displayCurl();
+      final String signedInIndexLine = buildIdentityIndexRequest(
+        projectId,
+        basis: SignInBasis.signedIn,
+      ).displayCurl();
+      final String registeredIndexLine = buildIdentityIndexRequest(
+        projectId,
+      ).displayCurl();
+
+      final int code = await harness.run(const <String>{'kakao'});
+
+      expect(code, wizardExitStopped, reason: harness.output);
+      expect(
+        harness.lines,
+        containsAllInOrder(<String>[
+          '  \$ $usersLine',
+          '  \$ $signedInIndexLine',
+        ]),
+      );
+      expect(harness.output, isNot(contains(registeredIndexLine)));
+      expectNoComparedValues(harness, lastLoginAt);
+    });
+  });
 }
