@@ -93,7 +93,7 @@ final class FingerprintsAvailable extends DebugFingerprints {
   /// SHA-256 — 소문자 hex 64자 · 콜론 없음(Firebase 가 받는 형식).
   final String sha256Hex;
 
-  /// 키 해시 — SHA-1 바이트의 base64 28자(Kakao · Facebook · Naver 가 받는 형식).
+  /// 키 해시 — SHA-1 바이트의 base64 28자(Kakao · Facebook 이 받는 형식).
   final String keyHash;
 }
 

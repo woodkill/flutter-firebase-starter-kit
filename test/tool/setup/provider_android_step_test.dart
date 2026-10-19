@@ -8,10 +8,13 @@ import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/steps/facebook_step.dart';
 import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/functions_step.dart';
 import '../../../tool/setup/steps/identity_step.dart';
 import '../../../tool/setup/steps/kakao_step.dart';
+import '../../../tool/setup/steps/line_step.dart';
+import '../../../tool/setup/steps/naver_step.dart';
 import '../../../tool/setup/steps/provider_android_step.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fakes.dart';
@@ -277,5 +280,128 @@ void main() {
     expect(runner.calls, isEmpty);
     expect(step.plannedCommandLines(context), isEmpty);
     expect(await step.apply(context), isA<Applied>());
+  });
+
+  /// 세션에 fixture 지문이 이미 계산된 문맥.
+  WizardContext buildContextWithFingerprints(FakeCommandRunner runner) =>
+      buildTestContext(
+        projectRoot: root,
+        runner: runner,
+        session: WizardSession()
+          ..debugFingerprints = const FingerprintsAvailable(
+            sha1Hex: fixtureSha1Hex,
+            sha256Hex: '',
+            keyHash: fixtureKeyHash,
+          ),
+        homeDirectory: home,
+      );
+
+  test('T-20-AND-05: Naver Android 쪽 → 지문 없는 홈에서도 ✓ 패키지명 · keytool 0 · '
+      '지문이 있어도 키 해시 0회', () async {
+    final ProviderAndroidSideStep naverSide = buildSteps(
+      flavor: Flavor.dev,
+      enabledProviders: <String>{NaverStep.token},
+    ).whereType<ProviderAndroidSideStep>().single;
+    final runner = FakeCommandRunner();
+    final screen = ScriptedTerminal(const <String?>[]);
+
+    final int code = await runWizard(
+      buildTestContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: screen,
+        homeDirectory: home,
+      ),
+      <Step>[
+        _FinishedStep('providers', '로그인 수단'),
+        _FinishedStep('identity', '앱 정체성'),
+        naverSide,
+      ],
+    );
+    final output = screen.output.toString();
+    final List<String> lines = const LineSplitter().convert(output);
+
+    expect(code, wizardExitDone, reason: output);
+    expect(
+      lines,
+      contains(
+        '  ✓ Naver — Android 쪽 — 패키지명 $applicationId.dev '
+        '(콘솔 등록은 로그인 검사로 확인)',
+      ),
+    );
+    expect(lines, contains(allDoneLine));
+    expect(lines, isNot(contains(remainingHeading)));
+    expect(screen.asks, isEmpty);
+    expect(screen.secretAsks, isEmpty);
+    expect(runner.calls, isEmpty);
+    expect(output, isNot(contains('키 해시')));
+    expect(output, isNot(contains(unavailableFingerprintGuide)));
+
+    // 세션 지문이 있어도 Naver 줄에는 지문 값이 실리지 않는다.
+    final withFingerprints = FakeCommandRunner();
+    final CheckResult result = await naverSide.check(
+      buildContextWithFingerprints(withFingerprints),
+    );
+
+    expect(result, isA<Done>());
+    final String summary = (result as Done).summary;
+    expect(summary, '패키지명 $applicationId.dev $consoleRegistrationNote');
+    expect(summary, isNot(contains(fixtureKeyHash)));
+    expect(summary, isNot(contains('키 해시')));
+    expect(withFingerprints.calls, isEmpty);
+  });
+
+  test('T-20-AND-06: 네 수단의 Android 쪽 종류 표 · Kakao · Facebook 은 지문이 없으면 '
+      '미루고 있으면 키 해시를 보인다', () async {
+    final List<ProviderAndroidSideStep> sides = buildSteps(
+      flavor: Flavor.dev,
+      enabledProviders: <String>{
+        FacebookStep.token,
+        KakaoStep.token,
+        NaverStep.token,
+        LineStep.token,
+      },
+    ).whereType<ProviderAndroidSideStep>().toList();
+
+    expect(
+      <String, AndroidFingerprintKind>{
+        for (final ProviderAndroidSideStep side in sides) side.id: side.kind,
+      },
+      <String, AndroidFingerprintKind>{
+        'facebook_android': AndroidFingerprintKind.keyHash,
+        'kakao_android': AndroidFingerprintKind.keyHash,
+        'naver_android': AndroidFingerprintKind.packageNameOnly,
+        'line_android': AndroidFingerprintKind.sha1Colon,
+      },
+    );
+    for (final id in <String>['kakao_android', 'facebook_android']) {
+      final ProviderAndroidSideStep side = sides.singleWhere(
+        (ProviderAndroidSideStep step) => step.id == id,
+      );
+      final runner = FakeCommandRunner();
+
+      final CheckResult missing = await side.check(
+        buildTestContext(
+          projectRoot: root,
+          runner: runner,
+          homeDirectory: home,
+        ),
+      );
+
+      expect(missing, isA<Deferred>(), reason: id);
+      expect((missing as Deferred).reason, unavailableFingerprintGuide);
+      expect(runner.calls, isEmpty, reason: id);
+
+      final CheckResult available = await side.check(
+        buildContextWithFingerprints(FakeCommandRunner()),
+      );
+
+      expect(available, isA<Done>(), reason: id);
+      expect(
+        (available as Done).summary,
+        startsWith('키 해시 $fixtureKeyHash · 패키지명 '),
+        reason: id,
+      );
+    }
   });
 }
