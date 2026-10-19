@@ -10,8 +10,10 @@ import 'run_step.dart';
 /// 개수로 확인한다.
 ///
 /// 미룰 수 있는 단계([DeferrableStep])다. 검사는 [countSignIns] 로 켠 수단마다
-/// 가입자 수를 세어 모두 1명 이상이면 끝이다 — 응답의 이메일 · uid · 문서 이름은
-/// 화면 · 기록에 쓰지 않고 수단 이름과 개수만 보인다.
+/// 로그인한 사용자 수(Custom Token 수단은 문서 주인의 로그인 기록으로 —
+/// [SignInBasis.signedIn])를 세어 모두 1명 이상이면 끝이다 — 응답의 이메일 ·
+/// uid · 로그인 시각 · 문서 이름은 화면 · 기록에 쓰지 않고 수단 이름과 개수만
+/// 보인다.
 ///
 /// 아직 기록이 없는 수단이 있으면 실행 단계와 같은 경로([RunStep.launchAppForSignIn])
 /// 로 앱을 다시 띄워 그 수단으로 로그인하게 한 뒤 다시 센다. 그래도 남으면 단계
@@ -86,6 +88,7 @@ final class SignInCheckStep implements DeferrableStep {
       context,
       projectId,
       enabledProviders,
+      basis: SignInBasis.signedIn,
     );
     switch (count) {
       case SignInCountFailed(
@@ -113,14 +116,20 @@ final class SignInCheckStep implements DeferrableStep {
     _SignInMode.relaunch => <String>[
       ...RunStep.buildLaunchPlanLines(context, guideNote: relaunchPlanNote),
       recountPlanNote,
+      // Custom Token 수단도 문서 주인의 로그인 기록을 사용자 목록에서 읽는다.
       if (_enabledEntries.any(
-        (ProviderEntry entry) => authProviderIds.containsKey(entry.token),
+        (ProviderEntry entry) =>
+            authProviderIds.containsKey(entry.token) ||
+            identityIndexProviders.contains(entry.token),
       ))
         RunStep.buildBatchGetRequest(_projectId).displayCurl(),
       if (_enabledEntries.any(
         (ProviderEntry entry) => identityIndexProviders.contains(entry.token),
       ))
-        buildIdentityIndexRequest(_projectId).displayCurl(),
+        buildIdentityIndexRequest(
+          _projectId,
+          basis: SignInBasis.signedIn,
+        ).displayCurl(),
     ],
     _SignInMode.requestFailed => <String>['(응답 원문을 보입니다)'],
     _SignInMode.unreadable || _SignInMode.done => const <String>[],
@@ -154,6 +163,7 @@ final class SignInCheckStep implements DeferrableStep {
         context,
         _projectId,
         enabledProviders,
+        basis: SignInBasis.signedIn,
       );
       switch (count) {
         case SignInCountFailed(

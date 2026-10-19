@@ -748,7 +748,9 @@ void _registerBaseFinished(_Harness h, {required bool isPlayIntegrityApiOn}) {
     ]);
   }
   // 앱 실행 · 소셜 로그인 확인 — Google · Apple · Facebook 은 사용자 정보,
-  // Kakao · Naver · LINE 은 identity_index 문서로 센다.
+  // Kakao · Naver · LINE 은 identity_index 문서와 그 주인의 Custom Token 로그인
+  // 기록(문서가 생긴 뒤 로그인)으로 센다.
+  final indexCreatedAt = DateTime.utc(2031, 5, 6, 7, 8, 9);
   h
     ..onRest(RunStep.buildBatchGetRequest(projectId), <RestResponse>[
       RestResponse(
@@ -768,29 +770,50 @@ void _registerBaseFinished(_Harness h, {required bool isPlayIntegrityApiOn}) {
                   <String, Object?>{'providerId': id},
               ],
             },
-          ],
-        }),
-      ),
-    ])
-    ..onRest(buildIdentityIndexRequest(projectId), <RestResponse>[
-      RestResponse(
-        200,
-        jsonEncode(<String, Object?>{
-          'documents': <Object?>[
-            for (final provider in <String>['kakao', 'naver', 'line'])
+            for (final provider in identityIndexProviders)
               <String, Object?>{
-                'name':
-                    'projects/$projectId/databases/(default)/documents/'
-                    'identity_index/$provider:${'d' * 8}',
-                'fields': <String, Object?>{
-                  'provider': <String, Object?>{'stringValue': provider},
-                },
+                'localId': _buildOwnerUid(provider),
+                'customAuth': true,
+                'lastLoginAt': indexCreatedAt
+                    .add(const Duration(seconds: 2))
+                    .millisecondsSinceEpoch
+                    .toString(),
+                'createdAt': indexCreatedAt.millisecondsSinceEpoch.toString(),
               },
           ],
         }),
       ),
-    ]);
+    ])
+    ..onRest(
+      buildIdentityIndexRequest(projectId, basis: SignInBasis.signedIn),
+      <RestResponse>[
+        RestResponse(
+          200,
+          jsonEncode(<String, Object?>{
+            'documents': <Object?>[
+              for (final provider in <String>['kakao', 'naver', 'line'])
+                <String, Object?>{
+                  'name':
+                      'projects/$projectId/databases/(default)/documents/'
+                      'identity_index/$provider:${'d' * 8}',
+                  'fields': <String, Object?>{
+                    'provider': <String, Object?>{'stringValue': provider},
+                    'firebaseUid': <String, Object?>{
+                      'stringValue': _buildOwnerUid(provider),
+                    },
+                  },
+                  'createTime': indexCreatedAt.toIso8601String(),
+                  'updateTime': indexCreatedAt.toIso8601String(),
+                },
+            ],
+          }),
+        ),
+      ],
+    );
 }
+
+/// [provider] 식별 문서의 주인 uid(실행 시점 조립 · 가짜).
+String _buildOwnerUid(String provider) => 'owner-$provider-${'d' * 6}';
 
 /// Google 로그인 설정 응답(켜짐 · client secret 이 평문으로 실린다).
 RestResponse _buildGoogleIdp(_Values values) => RestResponse(

@@ -159,18 +159,63 @@ Map<String, Object?> buildUser(
   ],
 };
 
-/// 가짜 identity_index 문서 하나 — 마스크 덕에 provider 필드만 실린다.
-Map<String, Object?> buildIndexDocument(String docId, String provider) =>
-    <String, Object?>{
-      'name':
-          'projects/$projectId/databases/(default)/documents/identity_index/'
-          '$docId',
-      'fields': <String, Object?>{
-        'provider': <String, Object?>{'stringValue': provider},
-      },
-    };
+/// identity_index 문서가 생긴 기준 시각(가짜) — 로그인 시각은 이 값에서 더하고 뺀다.
+final DateTime indexCreatedAt = DateTime.utc(2031, 5, 6, 7, 8, 9);
 
-/// Google 사용자 [count] 명이 든 사용자 목록 한 페이지(마지막 페이지).
+/// 기준 시각 [indexCreatedAt] 의 RFC 3339 표기 — 문서 `createTime` 값.
+final String indexCreateTime = indexCreatedAt.toIso8601String();
+
+/// 한 수단에서 로그인 기록을 싣는 문서 주인 수(문서 번호 0 부터).
+const int ownerSlots = 3;
+
+/// [provider] 의 [n] 번째 문서 주인 uid(실행 시점 조립 · 가짜).
+String buildOwnerUid(String provider, int n) => 'owner-$provider-${'o' * 6}$n';
+
+/// [time] 을 Auth 사용자 기록의 epoch ms 문자열로 바꾼다.
+String toEpochMs(DateTime time) => time.millisecondsSinceEpoch.toString();
+
+/// 문서 주인 [uid] 의 Auth 사용자 기록 — 마지막 로그인 시각은 [lastLoginAt].
+///
+/// [isCustomAuth] 가 false 면 `customAuth` 를 싣지 않는다(익명 사용자 모양).
+/// 로그인 수단 정보는 비어 있다 — 실행 단계 · Google 개수에 영향이 없다.
+Map<String, Object?> buildOwner(
+  String uid, {
+  required DateTime lastLoginAt,
+  bool isCustomAuth = true,
+}) => <String, Object?>{
+  'localId': uid,
+  if (isCustomAuth) 'customAuth': true,
+  'lastLoginAt': toEpochMs(lastLoginAt),
+  'createdAt': toEpochMs(indexCreatedAt.subtract(const Duration(minutes: 5))),
+  'providerUserInfo': const <Object?>[],
+};
+
+/// 가짜 identity_index 문서 하나 — 마스크 덕에 provider · 주인 uid 필드만 실린다.
+///
+/// [ownerUid] 가 있으면 `firebaseUid` 필드를, [createTime] 이 있으면 문서
+/// 메타데이터 `createTime` · `updateTime` 을 싣는다.
+Map<String, Object?> buildIndexDocument(
+  String docId,
+  String provider, {
+  String? ownerUid,
+  String? createTime,
+}) => <String, Object?>{
+  'name':
+      'projects/$projectId/databases/(default)/documents/identity_index/'
+      '$docId',
+  'fields': <String, Object?>{
+    'provider': <String, Object?>{'stringValue': provider},
+    if (ownerUid != null)
+      'firebaseUid': <String, Object?>{'stringValue': ownerUid},
+  },
+  'createTime': ?createTime,
+  'updateTime': ?createTime,
+};
+
+/// Google 사용자 [count] 명과 문서 주인들이 든 사용자 목록 한 페이지(마지막 페이지).
+///
+/// 문서 주인은 Kakao · Naver · LINE 마다 [ownerSlots] 명이고 모두 문서가 생긴
+/// 뒤(기준 + 2초)에 Custom Token 으로 로그인했다.
 RestResponse buildGoogleUsersPage(int count) => RestResponse(
   200,
   jsonEncode(<String, Object?>{
@@ -181,11 +226,36 @@ RestResponse buildGoogleUsersPage(int count) => RestResponse(
           i == 0 ? fakeEmail : 'signin-user-${i + 1}@example.invalid',
           const <String>['google.com'],
         ),
+      for (final String provider in identityIndexProviders)
+        for (var i = 0; i < ownerSlots; i++)
+          buildOwner(
+            buildOwnerUid(provider, i),
+            lastLoginAt: indexCreatedAt.add(const Duration(seconds: 2)),
+          ),
+    ],
+  }),
+);
+
+/// Kakao 0 번 문서 주인만 든 사용자 목록 — 주인 모양은 [buildOwner] 의 인자 그대로.
+RestResponse buildKakaoOwnerPage({
+  required DateTime lastLoginAt,
+  bool isCustomAuth = true,
+}) => RestResponse(
+  200,
+  jsonEncode(<String, Object?>{
+    'users': <Object?>[
+      buildOwner(
+        buildOwnerUid('kakao', 0),
+        lastLoginAt: lastLoginAt,
+        isCustomAuth: isCustomAuth,
+      ),
     ],
   }),
 );
 
 /// provider → 문서 수 [counts] 만큼 identity_index 문서가 든 한 페이지.
+///
+/// 문서마다 주인 uid([buildOwnerUid])와 기준 시각 `createTime` 을 싣는다.
 RestResponse buildIndexPage(Map<String, int> counts, {String? nextPageToken}) =>
     RestResponse(
       200,
@@ -193,7 +263,12 @@ RestResponse buildIndexPage(Map<String, int> counts, {String? nextPageToken}) =>
         'documents': <Object?>[
           for (final MapEntry<String, int> entry in counts.entries)
             for (var i = 0; i < entry.value; i++)
-              buildIndexDocument(buildDocId(entry.key, i), entry.key),
+              buildIndexDocument(
+                buildDocId(entry.key, i),
+                entry.key,
+                ownerUid: buildOwnerUid(entry.key, i),
+                createTime: indexCreateTime,
+              ),
         ],
         'nextPageToken': ?nextPageToken,
       }),
@@ -241,9 +316,12 @@ final class _Harness {
   /// 사용자 목록 첫 페이지 주소.
   String get usersUrl => RunStep.buildBatchGetRequest(projectId).url.toString();
 
-  /// identity_index 페이지 주소 — [pageToken] 이 있으면 그 페이지.
-  String buildIndexUrl({String? pageToken}) =>
-      buildIdentityIndexRequest(projectId, pageToken: pageToken).url.toString();
+  /// 로그인 대조 identity_index 페이지 주소 — [pageToken] 이 있으면 그 페이지.
+  String buildIndexUrl({String? pageToken}) => buildIdentityIndexRequest(
+    projectId,
+    pageToken: pageToken,
+    basis: SignInBasis.signedIn,
+  ).url.toString();
 
   /// 사용자 목록 첫 페이지의 응답 큐에 [responses] 를 더한다.
   void onUsers(List<RestResponse> responses) {
@@ -541,7 +619,10 @@ void main() {
           'fvm flutter devices --machine',
           runLine,
           RunStep.buildBatchGetRequest(projectId).displayCurl(),
-          buildIdentityIndexRequest(projectId).displayCurl(),
+          buildIdentityIndexRequest(
+            projectId,
+            basis: SignInBasis.signedIn,
+          ).displayCurl(),
         ]),
       );
       expect(lines.where((String line) => line.contains('pub get')), isEmpty);
@@ -628,6 +709,7 @@ void main() {
     final delays = <Duration>[];
     final harness = _Harness(root, const <String?>['1']);
     harness
+      ..onUsers(<RestResponse>[const RestResponse(200, '{}')])
       ..onIndex(<RestResponse>[buildEmptyIndexPage()])
       ..runner.on(
         FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
@@ -683,6 +765,71 @@ void main() {
     expect(code, wizardExitStopped, reason: harness.output);
     expect(delays, hasLength(RunStep.maxLaunchPolls));
     expect(harness.output, contains('  실패 — ${RunStep.noTargetSummary}'));
+    expect(harness.launchCount, 0);
+  });
+
+  group('T-20-SIGNIN-09: 문서는 있지만 주인의 로그인 기록이 없으면 ✗', () {
+    /// Kakao 를 켜고 위저드를 돌려 ✗ 줄 · 고르기 3 선택지를 본다.
+    Future<void> expectNoKakaoRecord(_Harness harness) async {
+      final int code = await harness.run(const <String>{'kakao'});
+
+      expect(code, wizardExitStopped, reason: harness.output);
+      expect(harness.lines, contains('  ✗ 소셜 로그인 확인 — 아직 로그인 기록이 없습니다: Kakao'));
+      expect(harness.output, isNot(contains('Kakao 1명')));
+      expect(harness.screen.asks, <String>[failureChoiceQuestion]);
+      expect(harness.output, contains('$failureChoiceQuestion\n$choiceLines'));
+      expect(harness.launchCount, 0);
+    }
+
+    test('T-20-SIGNIN-09: 주인 = 익명 사용자 모양(Custom Token 로그인 없음 · '
+        '로그인 시각이 문서보다 앞섬) → ✗ Kakao · 고르기 3 선택지', () async {
+      final harness = _Harness(root, const <String?>[]);
+      harness
+        ..onUsers(<RestResponse>[
+          buildKakaoOwnerPage(
+            lastLoginAt: indexCreatedAt.subtract(const Duration(seconds: 60)),
+            isCustomAuth: false,
+          ),
+        ])
+        ..onIndex(<RestResponse>[
+          buildIndexPage(const <String, int>{'kakao': 1}),
+        ]);
+
+      await expectNoKakaoRecord(harness);
+    });
+
+    test('T-20-SIGNIN-09: 주인이 사용자 목록에 없음 → ✗ Kakao', () async {
+      final harness = _Harness(root, const <String?>[]);
+      harness
+        ..onUsers(<RestResponse>[const RestResponse(200, '{}')])
+        ..onIndex(<RestResponse>[
+          buildIndexPage(const <String, int>{'kakao': 1}),
+        ]);
+
+      await expectNoKakaoRecord(harness);
+    });
+  });
+
+  test('T-20-SIGNIN-10: 같은 문서의 주인에게 문서 뒤 Custom Token 로그인 기록이 '
+      '있으면 ✓ Kakao 1명 · 질문 0', () async {
+    final harness = _Harness(root, const <String?>[]);
+    harness
+      ..onUsers(<RestResponse>[
+        buildKakaoOwnerPage(
+          lastLoginAt: indexCreatedAt.add(const Duration(seconds: 2)),
+        ),
+      ])
+      ..onIndex(<RestResponse>[
+        buildIndexPage(const <String, int>{'kakao': 1}),
+      ]);
+
+    final int code = await harness.run(const <String>{
+      'kakao',
+    }, withNext: false);
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Kakao 1명'));
+    expect(harness.screen.asks, isEmpty);
     expect(harness.launchCount, 0);
   });
 }

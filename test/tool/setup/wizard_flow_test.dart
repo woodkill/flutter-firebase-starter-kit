@@ -484,9 +484,16 @@ String buildSignInBody({bool isAnonymousEnabled = true}) =>
       },
     });
 
+/// Kakao 식별 문서가 생긴 기준 시각(가짜).
+final DateTime kakaoIndexCreatedAt = DateTime.utc(2031, 5, 6, 7, 8, 9);
+
+/// Kakao 식별 문서 주인 uid(실행 시점 조립 · 가짜).
+final String kakaoOwnerUid = 'owner-kakao-${'d' * 6}';
+
 /// Kakao 로그인 기록 문서 하나가 있는 identity_index 응답 본문.
 ///
-/// 문서 ID 는 실행 시점에 조립한 가짜 값이다.
+/// 문서 ID · 주인 uid 는 실행 시점에 조립한 가짜 값이고, 문서 메타데이터
+/// `createTime` 은 기준 시각 [kakaoIndexCreatedAt] 이다.
 String buildKakaoIndexBody() => jsonEncode(<String, Object?>{
   'documents': <Object?>[
     <String, Object?>{
@@ -495,12 +502,18 @@ String buildKakaoIndexBody() => jsonEncode(<String, Object?>{
           'kakao:${'d' * 8}',
       'fields': <String, Object?>{
         'provider': <String, Object?>{'stringValue': 'kakao'},
+        'firebaseUid': <String, Object?>{'stringValue': kakaoOwnerUid},
       },
+      'createTime': kakaoIndexCreatedAt.toIso8601String(),
+      'updateTime': kakaoIndexCreatedAt.toIso8601String(),
     },
   ],
 });
 
-/// 인증된 이메일 사용자 한 명이 있는 batchGet 응답 본문.
+/// 인증된 이메일 사용자 한 명과 Kakao 문서 주인이 있는 batchGet 응답 본문.
+///
+/// Kakao 문서 주인은 문서가 생긴 뒤 Custom Token 으로 로그인한 사용자 모양이다
+/// — 이메일 · 비밀번호 정보가 없어 인증된 이메일 사용자 수는 그대로 1 이다.
 String buildVerifiedUsersBody() => jsonEncode(<String, Object?>{
   'users': <Object?>[
     <String, Object?>{
@@ -510,6 +523,15 @@ String buildVerifiedUsersBody() => jsonEncode(<String, Object?>{
       'providerUserInfo': <Object?>[
         <String, Object?>{'providerId': 'password'},
       ],
+    },
+    <String, Object?>{
+      'localId': kakaoOwnerUid,
+      'customAuth': true,
+      'lastLoginAt': kakaoIndexCreatedAt
+          .add(const Duration(seconds: 2))
+          .millisecondsSinceEpoch
+          .toString(),
+      'createdAt': kakaoIndexCreatedAt.millisecondsSinceEpoch.toString(),
     },
   ],
 });
@@ -1089,7 +1111,7 @@ void main() {
       // 실행 단계를 기다리는 ? 라 부르지 않는다).
       _registerFinished(h);
       h.onRest(
-        buildIdentityIndexRequest(projectId),
+        buildIdentityIndexRequest(projectId, basis: SignInBasis.signedIn),
         RestResponse(200, buildKakaoIndexBody()),
       );
       h
@@ -1252,7 +1274,7 @@ void main() {
     _registerFinished(h, deployedExtra: kakaoFunctions);
     _registerKakaoPolicies(h);
     h.onRest(
-      buildIdentityIndexRequest(projectId),
+      buildIdentityIndexRequest(projectId, basis: SignInBasis.signedIn),
       RestResponse(200, buildKakaoIndexBody()),
     );
     h
