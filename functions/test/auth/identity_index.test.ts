@@ -54,6 +54,9 @@ jest.mock("firebase-functions/logger", () => ({
   warn: jest.fn(),
   info: jest.fn(),
   error: jest.fn(),
+  // Phase 20 리뷰 IN-11 — PII sentinel 이 다섯 메서드 전부를 훑도록.
+  debug: jest.fn(),
+  log: jest.fn(),
 }));
 
 // helper import 는 mock 셋업 이후.
@@ -67,10 +70,16 @@ import {
 } from "../../src/auth/identity_index";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
+// eslint-disable-next-line import/first
+import {inspect} from "util";
 
 const warnMock = logger.warn as jest.MockedFunction<typeof logger.warn>;
 // quick 260928-jwe — 연결 수단 재로그인 skip 로그(info) 검증용.
 const infoMock = logger.info as jest.MockedFunction<typeof logger.info>;
+// Phase 20 리뷰 IN-11 — GAP 4 묶음의 PII sentinel 이 다섯 메서드 전부를 훑는다.
+const errorMock = logger.error as jest.MockedFunction<typeof logger.error>;
+const debugMock = logger.debug as jest.MockedFunction<typeof logger.debug>;
+const logMock = logger.log as jest.MockedFunction<typeof logger.log>;
 
 type MockDoc = {
   exists: boolean;
@@ -3602,6 +3611,25 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
       code: "auth/insufficient-permission",
     });
 
+  /**
+   * IN-11 — 오류 원문(PII 모형)이 어느 logger 메서드에도 실리지 않았는지
+   * 단언한다. helper 는 세 provider 가 공유하므로 helper 단에서 막는다.
+   * 직렬화는 inspect — Error 의 message · stack 은 열거 불가라
+   * JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
+   *
+   * @param {string} sentinel 실리면 안 되는 원문 (기본 = 발급 실패 message).
+   */
+  const expectSentinelNotLogged = (sentinel = "PII_GAP4_SIGN"): void => {
+    const allLogCalls = [
+      ...infoMock.mock.calls,
+      ...warnMock.mock.calls,
+      ...errorMock.mock.calls,
+      ...debugMock.mock.calls,
+      ...logMock.mock.calls,
+    ];
+    expect(inspect(allLogCalls, {depth: null})).not.toContain(sentinel);
+  };
+
   beforeEach(() => {
     jest.clearAllMocks();
     mockCreateUser.mockReset();
@@ -3637,6 +3665,7 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
     expect(tx.set).not.toHaveBeenCalled();
     expect(mockUpdateUser).not.toHaveBeenCalled();
     expect(mockDeleteUser).not.toHaveBeenCalled();
+    expectSentinelNotLogged();
   });
 
   it("미인증 신규 등록 — 발급 실패면 쓰기 0 · 미리 만든 사용자 삭제", async () => {
@@ -3655,6 +3684,43 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
     expect(tx.set).not.toHaveBeenCalled();
     expect(mockDeleteUser).toHaveBeenCalledTimes(1);
     expect(mockDeleteUser).toHaveBeenCalledWith("pre-gap4");
+    expectSentinelNotLogged();
+  });
+
+  // IN-11 덤 — 토큰 실패 경로의 정리 실패도 race-loser 경로와 같은 계약:
+  // `identity_index_orphan_cleanup_failed` 는 fingerprint code 만 싣고(삭제
+  // 오류 message 미로깅) 던지지 않으며, 호출자에는 원래 발급 오류가 간다.
+  it("미인증 신규 등록 — 미리 만든 사용자 삭제가 실패해도 원래 발급 오류 · code 만 로깅", async () => {
+    mockCreateUser.mockResolvedValueOnce({uid: "pre-gap4-del"});
+    mockDeleteUser.mockRejectedValueOnce(
+      Object.assign(new Error("PII_GAP4_DEL"), {code: "auth/internal-error"}),
+    );
+    const {db, tx} = makeDb({preExists: false, txExists: false});
+    const err = signErr();
+
+    const promise = resolveIdentity(db, {
+      provider: "line",
+      providerUserId: "line-gap4-del",
+      callerUid: undefined,
+      issueCustomToken: jest.fn().mockRejectedValue(err),
+    });
+    await expect(promise).rejects.toBeInstanceOf(CustomTokenIssueError);
+    await expect(promise).rejects.toMatchObject({tokenError: err});
+
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(mockDeleteUser).toHaveBeenCalledTimes(1);
+    expect(mockDeleteUser).toHaveBeenCalledWith("pre-gap4-del");
+    expect(warnMock).toHaveBeenCalledTimes(1);
+    expect(warnMock).toHaveBeenCalledWith(
+      {
+        event: "identity_index_orphan_cleanup_failed",
+        uid: "pre-gap4-del",
+        code: "auth/internal-error",
+      },
+      expect.any(String),
+    );
+    expectSentinelNotLogged();
+    expectSentinelNotLogged("PII_GAP4_DEL");
   });
 
   it("기존 identity 재로그인 — 발급 실패면 lastSeenAt 쓰기 0", async () => {
@@ -3676,6 +3742,7 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
 
     expect(tx.update).not.toHaveBeenCalled();
     expect(tx.set).not.toHaveBeenCalled();
+    expectSentinelNotLogged();
   });
 
   it("성공 — 신규 · 재사용 모두 결과 uid 로 1회 발급해 customToken 에 싣는다", async () => {

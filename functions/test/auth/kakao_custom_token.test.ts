@@ -166,6 +166,8 @@ jest.mock("firebase-admin/firestore", () => {
 
 // 위 mock 셋업 이후에 testEnv + src import.
 // eslint-disable-next-line import/first
+import {inspect} from "util";
+// eslint-disable-next-line import/first
 import functionsTest from "firebase-functions-test";
 // eslint-disable-next-line import/first
 import * as logger from "firebase-functions/logger";
@@ -939,7 +941,18 @@ describe("kakaoCustomToken onCall", () => {
         },
         expect.any(String),
       );
-      expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+      // IN-11 — 같은 catch 에 다른 logger 메서드로 원문이 새도 잡도록 다섯
+      // 메서드 전부를 훑는다 (RETRO-02 의 allLogCalls 와 같은 꼴). 직렬화는
+      // JSON.stringify 가 아니라 inspect — Error 의 message · stack 은 열거
+      // 불가라 JSON.stringify 로는 Error 객체째 실린 원문이 보이지 않는다.
+      const allLogCalls = [
+        ...infoMock.mock.calls,
+        ...warnMock.mock.calls,
+        ...errorMock.mock.calls,
+        ...debugMock.mock.calls,
+        ...logMock.mock.calls,
+      ];
+      expect(inspect(allLogCalls, {depth: null})).not.toContain(
         "PII_SENTINEL_GAP4_MSG",
       );
     },
