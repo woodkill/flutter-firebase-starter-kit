@@ -14,6 +14,7 @@ import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/secret_store.dart';
 import '../../../tool/setup/step.dart';
+import '../../../tool/setup/steps/facebook_step.dart';
 import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/kakao_step.dart';
 import '../../../tool/setup/steps/naver_step.dart';
@@ -324,7 +325,7 @@ void main() {
 
         expect(rows.containsKey('iOS 번들 ID'), isFalse, reason: reason);
         expect(
-          rows.containsKey(NaverStep.classNameRowLabel),
+          rows.containsKey(FacebookStep.classNameRowLabel),
           isFalse,
           reason: reason,
         );

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import '../confirm.dart';
 import '../firebase_app_files.dart';
@@ -11,8 +12,8 @@ import '../rest_client.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
+import 'identity_step.dart';
 import 'kakao_step.dart';
-import 'naver_step.dart';
 
 /// Facebook 로그인 단계 — App ID · Client Token · App Secret 을 한 번 입력받아
 /// config · xcconfig · Secret Manager 와 Firebase 의 Facebook 로그인 설정에 쓴다.
@@ -94,9 +95,37 @@ final class FacebookStep extends KeyedProviderStep {
   /// 읽지 못한 값 자리.
   static const String unreadableValue = '(읽지 못했습니다)';
 
+  /// 값 표의 Android 클래스 이름 행 라벨 — Meta 콘솔 Android 플랫폼에 패키지명 ·
+  /// 키 해시와 함께 등록하는 Activity 클래스 이름이다.
+  static const String classNameRowLabel = 'Android 클래스 이름';
+
+  /// Android 클래스 이름의 Activity 이름 — Gradle namespace 뒤에 붙는다.
+  static const String mainActivityName = 'MainActivity';
+
+  /// Gradle 의 `namespace = "…"` 줄 — group 1 = namespace.
+  static final RegExp _namespacePattern = RegExp(r'namespace\s*=\s*"([^"]+)"');
+
   /// [projectId] 의 Firebase 인증 핸들러 주소(OAuth redirect URI)를 만든다.
   static String buildRedirectUri(String projectId) =>
       'https://$projectId.firebaseapp.com/__/auth/handler';
+
+  /// [projectRoot] 의 Gradle namespace 로 값 표의 Android 클래스 이름
+  /// (`<namespace>.MainActivity`)을 만든다 — 파일이 없거나 namespace 줄이 없으면
+  /// null.
+  ///
+  /// flavor 접미사는 붙이지 않는다(Activity 클래스는 flavor 와 무관하다).
+  static String? readMainActivityClass(String projectRoot) {
+    final file = File('$projectRoot/${IdentityStep.gradlePath}');
+    try {
+      if (!file.existsSync()) return null;
+      final String? namespace = _namespacePattern
+          .firstMatch(file.readAsStringSync())
+          ?.group(1);
+      return namespace == null ? null : '$namespace.$mainActivityName';
+    } on FileSystemException {
+      return null;
+    }
+  }
 
   /// App ID · App Secret 짝을 확인하는 앱 토큰 요청을 만든다.
   ///
@@ -184,8 +213,8 @@ final class FacebookStep extends KeyedProviderStep {
             unreadableValue,
       ),
       SummaryRow(
-        NaverStep.classNameRowLabel,
-        NaverStep.readMainActivityClass(context.projectRoot) ?? unreadableValue,
+        classNameRowLabel,
+        readMainActivityClass(context.projectRoot) ?? unreadableValue,
       ),
       ...?switch (context.session.debugFingerprints) {
         FingerprintsAvailable(:final String keyHash) => <SummaryRow>[

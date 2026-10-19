@@ -10,7 +10,6 @@ import '../providers/keyed_provider_step.dart';
 import '../providers/provider_catalog.dart';
 import '../rest_client.dart';
 import '../wizard.dart';
-import 'identity_step.dart';
 
 /// Naver 로그인 단계 — Client ID · Client Secret · URL Scheme 을 한 번 입력받아
 /// config · xcconfig · Secret Manager 에 쓴다.
@@ -74,13 +73,6 @@ final class NaverStep extends KeyedProviderStep {
   /// 값 표의 URL Scheme 행 라벨 — config 값이 없어 제안값을 보일 때.
   static const String suggestedUrlSchemeRowLabel = 'iOS URL Scheme (제안)';
 
-  /// Facebook 값 표가 쓰는 Android 클래스 이름 행 라벨.
-  static const String classNameRowLabel = 'Android 클래스 이름';
-
-  /// Facebook 값 표가 쓰는 Android 클래스 이름의 Activity 이름 — Gradle
-  /// namespace 뒤에 붙는다.
-  static const String mainActivityName = 'MainActivity';
-
   /// URL Scheme 제안에서 앱 이름 뒤에 붙는 말.
   static const String urlSchemeProviderPart = 'naver';
 
@@ -90,9 +82,6 @@ final class NaverStep extends KeyedProviderStep {
   /// 임의 토큰 글자.
   static const String _probeTokenAlphabet =
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-
-  /// Gradle 의 `namespace = "…"` 줄 — group 1 = namespace.
-  static final RegExp _namespacePattern = RegExp(r'namespace\s*=\s*"([^"]+)"');
 
   /// Client ID · Client Secret 짝을 확인하는 토큰 폐기 요청을 만든다.
   ///
@@ -149,23 +138,6 @@ final class NaverStep extends KeyedProviderStep {
         ? cleaned
         : '$urlSchemeFallbackPrefix$cleaned';
     return '$head$urlSchemeProviderPart${flavor.name}';
-  }
-
-  /// [projectRoot] 의 Gradle namespace 로 Facebook 값 표가 쓰는 Android 클래스
-  /// 이름을 만든다 — 파일이 없거나 namespace 줄이 없으면 null.
-  ///
-  /// flavor 접미사는 붙이지 않는다(Activity 클래스는 flavor 와 무관하다).
-  static String? readMainActivityClass(String projectRoot) {
-    final file = File('$projectRoot/${IdentityStep.gradlePath}');
-    try {
-      if (!file.existsSync()) return null;
-      final String? namespace = _namespacePattern
-          .firstMatch(file.readAsStringSync())
-          ?.group(1);
-      return namespace == null ? null : '$namespace.$mainActivityName';
-    } on FileSystemException {
-      return null;
-    }
   }
 
   @override
