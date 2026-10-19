@@ -824,4 +824,28 @@ void main() {
       KeyedProviderStep.failureCommandLine,
     ]);
   });
+
+  test('T-20-FB-08: 첫 할 일 줄은 이번 flavor 의 앱 하나를 만들고 「flavor 마다」 가 '
+      '없으며 지문 없는 바퀴의 키 해시 칸은 비워 두라는 뜻이다', () {
+    final List<String> lines = FacebookStep().todoLines;
+
+    expect(lines.first, '앱 만들기 · Facebook 로그인 사용 사례 추가');
+    for (final line in lines) {
+      expect(line, isNot(contains('flavor 마다')));
+    }
+    expect(lines.length, lessThanOrEqualTo(5));
+
+    final session = WizardSession()
+      ..debugFingerprints = const FingerprintsUnavailable('keytool 을 찾지 못했습니다');
+    final h = _Harness(root, const <String?>[]);
+    final rows = <String, String>{
+      for (final SummaryRow row in FacebookStep().buildValueRows(
+        h.buildContext(session: session),
+      ))
+        row.label: row.value,
+    };
+
+    expect(rows[KakaoStep.keyHashRowLabel], KakaoStep.keyHashUnavailableValue);
+    expect(KakaoStep.keyHashUnavailableValue, contains('비워 두세요'));
+  });
 }

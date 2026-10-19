@@ -208,7 +208,7 @@ final class FacebookStep extends KeyedProviderStep {
 
   @override
   List<String> get todoLines => <String>[
-    'flavor 마다 앱 만들기 · Facebook 로그인 사용 사례 추가',
+    '앱 만들기 · Facebook 로그인 사용 사례 추가',
     'Android 플랫폼에 패키지명 · 클래스 이름 · 키 해시, iOS 플랫폼에 번들 ID 등록',
     'Facebook 로그인 설정의 OAuth redirect URI 에 위 주소 등록',
     '이메일 권한 받기 — ${formatManualReference(emailManualHeading)}',

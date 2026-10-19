@@ -298,7 +298,7 @@ void main() {
   final secretQuestion =
       '${LineStep.channelSecretField.label} $hiddenInputHint';
 
-  group('T-20-LINE-01: 값 표에 번들 ID · line3rdp scheme · 패키지명 · 대문자 콜론 SHA-1 · '
+  group('T-20-LINE-01: 값 표에 번들 ID · 패키지명 · 대문자 콜론 SHA-1 · '
       '할 일 · 매뉴얼 절이 있다', () {
     /// 세션 [fingerprints] 로 dev 값 표를 라벨 → 값으로 모은다.
     Map<String, String> buildRows(DebugFingerprints? fingerprints) {
@@ -323,7 +323,6 @@ void main() {
         ),
         <String, String>{
           'iOS 번들 ID': '$bundleBase.dev',
-          LineStep.iosSchemeRowLabel: 'line3rdp.$bundleBase.dev',
           'Android 패키지명': '$applicationId.dev',
           LineStep.sha1RowLabel:
               'AB:50:05:84:B2:5E:D6:36:C9:C9:1B:03:70:54:6C:38:31:85:0F:16',
@@ -335,11 +334,7 @@ void main() {
         )[LineStep.sha1RowLabel],
         KakaoStep.keyHashUnavailableValue,
       );
-      expect(buildRows(null).keys, <String>[
-        'iOS 번들 ID',
-        LineStep.iosSchemeRowLabel,
-        'Android 패키지명',
-      ]);
+      expect(buildRows(null).keys, <String>['iOS 번들 ID', 'Android 패키지명']);
     });
 
     test('실행 화면에 콘솔 주소 · 할 일 · 매뉴얼 절이 있다', () async {
@@ -360,9 +355,10 @@ void main() {
         expect(output, contains(line));
       }
       expect(output, contains('OpenID Connect'));
-      expect(output, contains('테스터'));
+      expect(output, contains('Tester'));
+      expect(output, contains('Admin'));
       expect(output, contains('매뉴얼 「LINE Login」'));
-      expect(output, contains('line3rdp.$bundleBase.dev'));
+      expect(countText(output, 'line3rdp.'), 0);
       for (final text in <String>[output, h.log.text]) {
         expect(RegExp(r'\bD-[0-9]{2}\b').hasMatch(text), isFalse);
         expect(RegExp('Phase [0-9]').hasMatch(text), isFalse);
@@ -626,5 +622,55 @@ void main() {
       (Step step) => step.id == LineStep.token,
     );
     expect(lineStep.dependsOn, <String>['providers', 'configure', 'apis']);
+  });
+
+  test('T-20-LINE-07: 할 일 줄은 채널 만들기 · 등록 · 이메일 주소 권한 신청 · '
+      'Admin · Tester 계정 4줄이고 값 표 · 화면에 Channel Secret 이 없다', () async {
+    final List<String> lines = LineStep().todoLines;
+
+    expect(lines, hasLength(4));
+    for (final line in lines) {
+      expect(line, isNot(contains('flavor 마다')));
+      expect(line, isNot(contains('OpenID Connect 켜기')));
+      expect(line, isNot(contains('scheme')));
+    }
+    expect(
+      lines.where((String line) => line.contains('이메일 주소 권한 신청')),
+      hasLength(1),
+    );
+    expect(
+      lines.where(
+        (String line) => line.contains('Admin') && line.contains('Tester'),
+      ),
+      hasLength(1),
+    );
+
+    final String channelId = buildChannelId();
+    final String channelSecret = buildChannelSecret();
+    final h = _Harness(root, <String?>['y', '1', channelId, channelSecret]);
+    h
+      ..registerFreshSecrets(channelId, channelSecret)
+      ..onPairCheck(<RestResponse>[const RestResponse(200, '{}')]);
+    final session = WizardSession()
+      ..debugFingerprints = const FingerprintsAvailable(
+        sha1Hex: fakeSha1Hex,
+        sha256Hex: '',
+        keyHash: 'q1AFhLJe1jbJyRsDcFRsODGFDxY=',
+      );
+
+    final int code = await h.run();
+    final String output = h.output;
+    final List<SummaryRow> rows = LineStep().buildValueRows(
+      h.buildContext(session: session),
+    );
+
+    expect(code, wizardExitDone, reason: output);
+    expect(output, contains(buildConsoleAppScopeNote(Flavor.dev)));
+    for (final row in rows) {
+      expect(row.value, isNot(contains(channelSecret)));
+    }
+    for (final text in <String>[output, h.log.text]) {
+      expect(countText(text, channelSecret), 0);
+    }
   });
 }

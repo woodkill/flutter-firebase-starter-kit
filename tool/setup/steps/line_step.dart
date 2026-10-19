@@ -45,12 +45,6 @@ final class LineStep extends KeyedProviderStep {
   /// 짝 확인에 쓰는 stateless 채널 액세스 토큰 발급 주소.
   static const String pairCheckUrl = 'https://api.line.me/oauth2/v3/token';
 
-  /// iOS scheme 의 앞부분 — 뒤에 번들 ID 가 그대로 붙는다.
-  static const String iosSchemePrefix = 'line3rdp.';
-
-  /// 값 표의 iOS scheme 행 라벨.
-  static const String iosSchemeRowLabel = 'iOS scheme';
-
   /// 값 표의 Android 서명 SHA-1 행 라벨.
   static const String sha1RowLabel = 'Android 서명 SHA-1';
 
@@ -107,21 +101,18 @@ final class LineStep extends KeyedProviderStep {
     channelSecretField,
   ];
 
-  /// 번들 ID · iOS scheme · 패키지명과 이번 실행에서 계산한 서명 SHA-1 행을
-  /// 만든다.
+  /// 번들 ID · 패키지명과 이번 실행에서 계산한 서명 SHA-1 행을 만든다.
   ///
-  /// SHA-1 은 LINE 콘솔이 받는 대문자 · 콜론 형식이다. 세션에 담긴 지문만 읽는다
-  /// (keytool 을 부르지 않는다) — 계산했으면 SHA-1, 계산할 수 없었으면
-  /// [KakaoStep.keyHashUnavailableValue], 아직 계산 전이면 행을 넣지 않는다.
+  /// 콘솔에는 iOS scheme 칸이 없어 그 행을 두지 않는다 — 앱의 scheme 은
+  /// Info.plist 가 이미 갖고 있다. SHA-1 은 LINE 콘솔이 받는 대문자 · 콜론
+  /// 형식이다. 세션에 담긴 지문만 읽는다(keytool 을 부르지 않는다) — 계산했으면
+  /// SHA-1, 계산할 수 없었으면 [KakaoStep.keyHashUnavailableValue], 아직 계산
+  /// 전이면 행을 넣지 않는다.
   @override
   List<SummaryRow> buildValueRows(WizardContext context) {
     final String? bundleId = readBundleId(context.projectRoot, context.flavor);
     return <SummaryRow>[
       SummaryRow('iOS 번들 ID', bundleId ?? '(읽지 못했습니다)'),
-      SummaryRow(
-        iosSchemeRowLabel,
-        bundleId == null ? '(읽지 못했습니다)' : '$iosSchemePrefix$bundleId',
-      ),
       SummaryRow(
         'Android 패키지명',
         readAndroidPackage(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
@@ -140,10 +131,10 @@ final class LineStep extends KeyedProviderStep {
 
   @override
   List<String> get todoLines => const <String>[
-    'flavor 마다 LINE Login 채널 만들기',
-    'iOS 번들 ID · scheme · Android 패키지명 · 서명 SHA-1 등록',
-    'OpenID Connect 켜기 · 이메일 주소 권한',
-    '개발 중인 채널은 테스터로 등록한 계정만 로그인할 수 있습니다',
+    'LINE Login 채널 만들기',
+    'iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록',
+    'OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다',
+    '개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다',
   ];
 
   /// Channel ID · Channel Secret 이 둘 다 있을 때만 서버로 확인한다.
