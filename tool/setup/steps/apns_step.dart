@@ -1,4 +1,5 @@
 import '../confirm.dart';
+import '../firebase_app_files.dart';
 import '../providers/apple_key_input.dart';
 import '../providers/provider_catalog.dart';
 import '../step.dart';
@@ -28,6 +29,13 @@ final class ApnsStep implements DeferrableStep {
   /// 값 표 뒤의 할 일 줄 — 기능 이름만 쓴다.
   static const String uploadTodoLine =
       'Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키';
+
+  /// 값 표 첫 행의 라벨 — 키를 올릴 iOS 앱을 번들 ID 로 가리킨다.
+  static const String targetAppRowLabel = 'iOS 앱 (번들 ID)';
+
+  /// 할 일 줄 다음의 안내 — 프로젝트에 iOS 앱이 여럿일 때 올릴 앱.
+  static const String multipleAppsNote =
+      'Firebase 프로젝트에 iOS 앱이 여럿이면 위 번들 ID 의 앱에 올리기';
 
   /// 화면 단계를 맡는 매뉴얼 절.
   static const String manualHeading = '### FCM 알림';
@@ -84,6 +92,11 @@ final class ApnsStep implements DeferrableStep {
       title: 'Firebase 콘솔에 올릴 APNs 인증 키',
       rows: <SummaryRow>[
         SummaryRow(
+          targetAppRowLabel,
+          readBundleId(context.projectRoot, context.flavor) ??
+              AppleAndroidStep.unreadValue,
+        ),
+        SummaryRow(
           '.p8',
           keyId == null ? AppleAndroidStep.unreadValue : 'Key ID $keyId 의 .p8',
         ),
@@ -95,6 +108,7 @@ final class ApnsStep implements DeferrableStep {
       ],
       notes: <String>[
         uploadTodoLine,
+        multipleAppsNote,
         '자세한 절차: ${formatManualReference(manualHeading)}',
       ],
     );
