@@ -615,7 +615,7 @@ void main() {
     };
     expect(kinds, <String, AndroidFingerprintKind>{
       'kakao_android': AndroidFingerprintKind.keyHash,
-      'naver_android': AndroidFingerprintKind.keyHash,
+      'naver_android': AndroidFingerprintKind.packageNameOnly,
       'line_android': AndroidFingerprintKind.sha1Colon,
     });
     final Step lineStep = steps.firstWhere(

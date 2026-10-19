@@ -6,11 +6,14 @@ import '../wizard.dart';
 
 /// 로그인 수단 콘솔이 받는 Android 서명 지문 형식.
 enum AndroidFingerprintKind {
-  /// 키 해시 — SHA-1 바이트의 base64 28자(Kakao · Facebook · Naver).
+  /// 키 해시 — SHA-1 바이트의 base64 28자(Kakao · Facebook).
   keyHash,
 
   /// SHA-1 — 대문자 · 콜론 59자(LINE).
   sha1Colon,
+
+  /// 지문 없음 — 패키지명만(콘솔의 Android 칸이 패키지 이름만 받는다).
+  packageNameOnly,
 }
 
 /// Android 쪽 ✓ 줄 끝에 붙는 안내.
@@ -19,11 +22,12 @@ enum AndroidFingerprintKind {
 /// API 가 없어 앱 로그인 검사가 확인한다.
 const String consoleRegistrationNote = '(콘솔 등록은 로그인 검사로 확인)';
 
-/// 콘솔형 로그인 수단의 「Android 쪽」 줄 — 콘솔에 넣을 서명 지문을 보인다.
+/// 콘솔형 로그인 수단의 「Android 쪽」 줄 — 콘솔에 넣을 서명 지문 · 패키지명을 보인다.
 ///
-/// 지문을 계산할 수 있으면 콘솔이 받는 형식의 값 · 패키지명을 ✓ 로 보이고,
-/// 없으면 이 줄만 할 수 없음(✗)으로 남긴다 — 함수 배포 · 앱 실행은 이 단계를
-/// 기다리지 않는다. 실행할 것은 없다.
+/// 지문을 받는 콘솔이면 지문을 계산할 수 있을 때 콘솔이 받는 형식의 값 ·
+/// 패키지명을 ✓ 로 보이고, 없으면 이 줄만 할 수 없음(✗)으로 남긴다. 패키지명만
+/// 받는 콘솔이면 지문을 읽지 않고 지문과 무관하게 패키지명을 ✓ 로 보인다.
+/// 함수 배포 · 앱 실행은 이 단계를 기다리지 않는다. 실행할 것은 없다.
 final class ProviderAndroidSideStep implements Step {
   /// [entry] 로그인 수단의 Android 쪽 줄을 [kind] 형식으로 만든다.
   const ProviderAndroidSideStep(this.entry, this.kind);
@@ -51,6 +55,10 @@ final class ProviderAndroidSideStep implements Step {
 
   @override
   Future<CheckResult> check(WizardContext context) async {
+    // 패키지명만 받는 콘솔은 지문을 읽지 않는다 — 도구 · 키가 없어도 ✓ 다.
+    if (kind == AndroidFingerprintKind.packageNameOnly) {
+      return Done(_buildPackageNameSummary(context));
+    }
     final DebugFingerprints fingerprints = await readDebugFingerprints(context);
     return switch (fingerprints) {
       FingerprintsAvailable() => Done(buildDoneSummary(context, fingerprints)),
@@ -58,21 +66,30 @@ final class ProviderAndroidSideStep implements Step {
     };
   }
 
-  /// 지문을 계산했을 때의 ✓ 줄 요약을 만든다.
+  /// ✓ 줄 요약을 만든다.
   ///
-  /// `<키 해시|SHA-1> <값> · 패키지명 <패키지명> (콘솔 등록은 로그인 검사로 확인)`.
+  /// 지문을 받는 콘솔이면
+  /// `<키 해시|SHA-1> <값> · 패키지명 <패키지명> (콘솔 등록은 로그인 검사로 확인)`,
+  /// 패키지명만 받는 콘솔이면 `패키지명 <패키지명> (콘솔 등록은 로그인 검사로 확인)`.
   String buildDoneSummary(
     WizardContext context,
     FingerprintsAvailable fingerprints,
   ) {
-    final String packageName =
-        readAndroidPackage(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)';
     final String value = switch (kind) {
       AndroidFingerprintKind.keyHash => '키 해시 ${fingerprints.keyHash}',
       AndroidFingerprintKind.sha1Colon =>
         'SHA-1 ${formatSha1Colon(fingerprints.sha1Hex)}',
+      AndroidFingerprintKind.packageNameOnly => '',
     };
-    return '$value · 패키지명 $packageName $consoleRegistrationNote';
+    final String packageSummary = _buildPackageNameSummary(context);
+    return value.isEmpty ? packageSummary : '$value · $packageSummary';
+  }
+
+  /// `패키지명 <패키지명> (콘솔 등록은 로그인 검사로 확인)` 문장을 만든다.
+  String _buildPackageNameSummary(WizardContext context) {
+    final String packageName =
+        readAndroidPackage(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)';
+    return '패키지명 $packageName $consoleRegistrationNote';
   }
 
   @override

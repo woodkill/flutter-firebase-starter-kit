@@ -374,7 +374,7 @@ void main() {
       }
     });
 
-    test('실행 화면에 콘솔 주소 · 할 일 · 매뉴얼 절이 있고 Android 쪽 줄은 키 해시 형식이다', () async {
+    test('실행 화면에 콘솔 주소 · 할 일 · 매뉴얼 절이 있고 Android 쪽 줄은 패키지명만 보인다', () async {
       final String clientId = buildClientId();
       final String clientSecret = buildClientSecret();
       final h = _Harness(root, <String?>[
@@ -415,7 +415,7 @@ void main() {
       final ProviderAndroidSideStep androidSide = steps
           .whereType<ProviderAndroidSideStep>()
           .single;
-      expect(androidSide.kind, AndroidFingerprintKind.keyHash);
+      expect(androidSide.kind, AndroidFingerprintKind.packageNameOnly);
       expect(androidSide.title, 'Naver — Android 쪽');
     });
   });

@@ -90,9 +90,8 @@ List<Step> buildSteps({
 /// Android 쪽 단계는 함수 배포가 기다리는 로그인 수단 단계 목록에 넣지 않는다.
 List<Step>? _buildAndroidSideSteps(String token) {
   final AndroidFingerprintKind? kind = switch (token) {
-    FacebookStep.token ||
-    KakaoStep.token ||
-    NaverStep.token => AndroidFingerprintKind.keyHash,
+    FacebookStep.token || KakaoStep.token => AndroidFingerprintKind.keyHash,
+    NaverStep.token => AndroidFingerprintKind.packageNameOnly,
     LineStep.token => AndroidFingerprintKind.sha1Colon,
     _ => null,
   };

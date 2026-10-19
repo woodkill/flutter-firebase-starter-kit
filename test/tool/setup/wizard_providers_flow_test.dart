@@ -37,6 +37,7 @@ import '../../../tool/setup/steps/line_step.dart';
 import '../../../tool/setup/steps/login_step.dart';
 import '../../../tool/setup/steps/naver_step.dart';
 import '../../../tool/setup/steps/play_integrity_step.dart';
+import '../../../tool/setup/steps/provider_android_step.dart';
 import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
@@ -1203,8 +1204,8 @@ void main() {
     expect(h.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
   });
 
-  test('T-20-ALL-03: 끝 목록에 Apple Android 쪽 · Play Integrity · APNs · 각 '
-      'Android 쪽 ✗ 줄이 있고 모두 끝남 줄이 없다', () async {
+  test('T-20-ALL-03: 끝 목록에 Apple Android 쪽 · Play Integrity · APNs · '
+      '지문 수단의 Android 쪽 ✗ 줄이 있고 모두 끝남 줄이 없다', () async {
     final _FirstRun first = await runFirst();
     final _Harness h = first.h;
 
@@ -1218,12 +1219,20 @@ void main() {
     expect(remaining, <String>[
       '  ✗ Google — Android 쪽 — $unavailableFingerprintGuide',
       '  ✗ ${AppleAndroidStep.stepTitle} — 지금 안 함',
-      for (final name in <String>['Facebook', 'Kakao', 'Naver', 'LINE'])
+      for (final name in <String>['Facebook', 'Kakao', 'LINE'])
         '  ✗ $name — Android 쪽 — $unavailableFingerprintGuide',
       '  ✗ ${PlayIntegrityStep.stepTitle} — 지금 안 함',
       '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}',
     ]);
     expect(remaining.length, greaterThanOrEqualTo(3));
+    // Naver 콘솔의 Android 칸은 패키지명만 받는다 — 지문이 없어도 ✓ 다.
+    expect(
+      lines,
+      contains(
+        '  ✓ Naver — Android 쪽 — 패키지명 '
+        '$applicationId$devPackageSuffix $consoleRegistrationNote',
+      ),
+    );
   });
 
   test('T-20-ALL-04: 화면 · 기록 두 버퍼에 입력한 비밀 값 · .p8 본문 · PEM 머리 · '
@@ -1272,13 +1281,7 @@ void main() {
     // 지문 없는 홈 — Android 쪽 · Play Integrity 는 질문 없는 ✗, APNs 는 ? 다.
     final int heading = lines.indexOf(remainingHeading);
     expect(lines.sublist(heading + 1), <String>[
-      for (final name in <String>[
-        'Google',
-        'Facebook',
-        'Kakao',
-        'Naver',
-        'LINE',
-      ])
+      for (final name in <String>['Google', 'Facebook', 'Kakao', 'LINE'])
         '  ✗ $name — Android 쪽 — $unavailableFingerprintGuide',
       playIntegrityDeferredLine,
       '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}',
