@@ -829,7 +829,9 @@ describe("disconnectLineProvider — PII sentinel (LR16)", () => {
   it("LR16: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
     // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
     expect(accumulatedLogCalls.length).toBeGreaterThan(10);
-    // Phase 20 리뷰 WR-07 — 운영 logger message 와 같은 inspect 직렬화.
+    // Phase 20 리뷰 WR-07 — 운영 logger message 를 포함하는(상한 없는)
+    // inspect 직렬화. 운영은 inspect 기본 옵션(depth 2 · 문자열 10000자 ·
+    // 배열 100개)으로 자르고 serializeLogCalls 는 그 부분까지 더 본다.
     // payload 에 Error 객체가 실려도 그 message · stack 원문이 보인다.
     const serialized = serializeLogCalls(accumulatedLogCalls);
     for (const sentinel of [

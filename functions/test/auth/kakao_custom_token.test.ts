@@ -885,8 +885,10 @@ describe("kakaoCustomToken onCall", () => {
       expect(mockDeleteUser).toHaveBeenCalledWith("new-uid-pre");
       // PII 회귀 — err.message 본문 logger 미노출.
       // WR-02 mirror — debug/log 도 sentinel 배열 포함.
-      // Phase 20 리뷰 WR-07 — 직렬화는 운영 logger message 와 같은 inspect
-      // (serializeLogCalls). payload 에 Error 객체가 실려도 원문이 보인다.
+      // Phase 20 리뷰 WR-07 — 직렬화는 운영 logger message 를 포함하는(상한
+      // 없는) inspect(serializeLogCalls). 운영은 inspect 기본 옵션(depth 2 ·
+      // 문자열 10000자 · 배열 100개)으로 자른다. payload 에 Error 객체가
+      // 실려도 원문이 보인다.
       const allLogCalls = [
         ...infoMock.mock.calls,
         ...warnMock.mock.calls,

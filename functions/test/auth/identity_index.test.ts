@@ -1716,7 +1716,9 @@ describe(
 
     /**
      * warn · info 호출 전체를 직렬화 — PII · 저장값 비노출 단언용.
-     * 직렬화는 공용 serializeLogCalls(운영 logger message 와 같은 inspect).
+     * 직렬화는 공용 serializeLogCalls — 운영 logger message 를 포함하는(상한
+     * 없는) inspect. 운영은 inspect 기본 옵션(depth 2 · 문자열 10000자 ·
+     * 배열 100개)으로 자른다.
      *
      * @return {string} 두 logger mock 의 호출 인자 inspect 문자열.
      */
