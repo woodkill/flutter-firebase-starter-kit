@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/firestore_step.dart';
@@ -892,5 +893,76 @@ void main() {
         0,
       );
     });
+  });
+
+  test('T-20-TC-09: 매뉴얼 「켜기」 ⑦ 의 명령 줄이 위저드 명령과 같고 거절 안내가 그 단계를 가리킨다', () async {
+    const manualPath = 'docs/manual.md';
+    const account = '<service-account-email>';
+    const project = '<your-project-id>';
+    final List<String> manual = File(manualPath).readAsLinesSync();
+    final int start = manual.indexOf(providersManualHeading);
+    expect(start, greaterThanOrEqualTo(0));
+    final int next = manual.indexWhere(
+      (String line) => line.startsWith('## '),
+      start + 1,
+    );
+    final List<String> section = manual.sublist(
+      start,
+      next < 0 ? manual.length : next,
+    );
+    int countLines(bool Function(String line) isMatch) =>
+        section.where(isMatch).length;
+
+    expect(countLines((String line) => line.startsWith('**⑦ ')), 1);
+    expect(countLines((String line) => line.startsWith('**⑧ ')), 1);
+    final int seventh = section.indexWhere(
+      (String line) => line.startsWith('**⑦ '),
+    );
+    final int eighth = section.indexWhere(
+      (String line) => line.startsWith('**⑧ '),
+    );
+    expect(eighth, greaterThan(seventh));
+    final String paragraph = section.sublist(seventh, eighth).join('\n');
+    expect(paragraph, contains(TokenCreatorStep.tokenCreatorRole));
+    expect(paragraph, contains('--condition=None'));
+    final String policyKey = FakeCommandRunner.buildKey(
+      TokenCreatorStep.buildPolicyCommand(account, project),
+    );
+    final String grantKey = FakeCommandRunner.buildKey(
+      TokenCreatorStep.buildGrantCommand(account, project),
+    );
+    final String describeKey = FakeCommandRunner.buildKey(
+      TokenCreatorStep.buildServiceAccountCommand(
+        'kakaocustomtoken',
+        region,
+        project,
+      ),
+    );
+    expect(countLines((String line) => line == policyKey), 1);
+    expect(countLines((String line) => line == grantKey), 1);
+    expect(
+      countLines((String line) => line.replaceAll("'", '') == describeKey),
+      1,
+    );
+
+    final String target = buildFakeServiceAccount('1');
+    final h = _Harness(root, const <String?>['y']);
+    h
+      ..registerDeployed(const <String>{'kakao'}, region: region)
+      ..registerAccount('kakao', target, region: region);
+    registerPolicies(h, target, <CommandResult>[buildEmptyPolicy()]);
+    h.onCommand(
+      TokenCreatorStep.buildGrantCommand(target, projectId),
+      const CommandResult(1, '', 'denied\n'),
+    );
+
+    final int code = await h.run(const <String>{'kakao'});
+
+    expect(code, wizardExitStopped, reason: h.output);
+    final String failure = h.lines.singleWhere(
+      (String line) => line.startsWith('  실패 — '),
+    );
+    expect(failure, contains('「켜기」 ⑦'));
+    expect(failure, contains('로그인 수단 켜고 끄기'));
   });
 }

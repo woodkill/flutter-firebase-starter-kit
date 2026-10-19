@@ -351,7 +351,29 @@ bash scripts/deploy_functions.sh dev --apply
 
 **⑥ 처음 만든 함수의 Cloud Run invoker 를 확인한다.** 새로 생긴 함수는 Cloud Run 서비스에 `allUsers` · `roles/run.invoker` 바인딩이 있어야 앱에서 호출된다. 확인 명령과 바인딩이 빠졌을 때의 조치는 [Naver Login 10단계](#10단계--cloud-function-배포) 의 `linkNaverProvider` 항목과 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절의 「배포 (연결 끊기 함수)」 문단에 있다.
 
-**⑦ 앱을 다시 빌드해 실행한다.** `enabledAuthProviders` 와 키는 빌드 때 들어가므로 바꾼 뒤에는 다시 빌드한다.
+**⑦ Kakao · Naver · LINE 을 켰으면 함수의 서비스 계정에 토큰 서명 권한을 준다.** 이 세 provider 의 함수는 로그인 때 Firebase Custom Token 을 만들어 서명하므로, 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다. 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 provider 로그인이 앱에서 오류 배너로 끝난다. 프로젝트마다 한 번 하고, 셋 가운데 하나도 켜지 않으면 건너뛴다. `./setup.sh --providers` 로 켜면 위저드가 확인하고 없을 때만 붙인다.
+
+먼저 함수의 서비스 계정을 읽는다. 서비스 이름은 함수 이름을 소문자로 쓴 것이다(Kakao `kakaocustomtoken` · Naver `navercustomtoken` · LINE `linecustomtoken`). `--region` 은 `config/dev.json` 의 `functionsRegion` 값이다. 출력된 이메일이 아래 명령의 `<service-account-email>` 자리에 들어간다.
+
+```bash
+gcloud run services describe kakaocustomtoken --region asia-northeast3 --project <your-project-id> --format='value(spec.template.spec.serviceAccountName)'
+```
+
+그 계정의 IAM 정책에 `roles/iam.serviceAccountTokenCreator` 역할과 `serviceAccount:<service-account-email>` 구성원이 함께 든, 조건(`condition`)이 없는 바인딩이 있는지 본다.
+
+```bash
+gcloud iam service-accounts get-iam-policy <service-account-email> --project <your-project-id> --format=json
+```
+
+없으면 붙인다. 그 서비스 계정에만 붙고 프로젝트 수준 역할은 바뀌지 않는다.
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding <service-account-email> --member=serviceAccount:<service-account-email> --role=roles/iam.serviceAccountTokenCreator --condition=None --project <your-project-id>
+```
+
+성공하면 `Updated IAM policy for serviceAccount` 로 시작하는 줄이 나온다. 권한이 반영되기까지 몇 분 걸릴 수 있다. 켠 provider 의 함수가 서로 다른 서비스 계정을 쓰면 계정마다 한다.
+
+**⑧ 앱을 다시 빌드해 실행한다.** `enabledAuthProviders` 와 키는 빌드 때 들어가므로 바꾼 뒤에는 다시 빌드한다.
 
 ```bash
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
@@ -416,6 +438,7 @@ bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|goog
   ```
 
   `unset` 이면 「켜기」 ④ 의 등록 명령으로 실제 값을 넣는다. 그 secret 을 쓰는 함수가 이미 배포돼 있으면 등록 명령은 값을 저장한 뒤 `functions are using stale version of secret` 줄에 그 함수 목록을 출력하고 `Do you want to re-deploy the functions and destroy the stale version of secret <secret 이름>?` 를 묻는다(기본값 Yes). Yes 를 고르면 등록 명령이 그 함수들이 새 값을 쓰도록 바꾸고 `unset` 버전을 없애므로 「켜기」 ⑤ 는 하지 않아도 된다. No 를 고르거나 등록 명령이 `Please deploy your functions` 로 시작하는 안내를 출력하면 「켜기」 ⑤ 로 함수를 다시 배포한다 — 함수는 배포할 때의 secret 버전을 쓰므로 다시 배포해야 새 값이 적용된다. 그 안내에 나오는 `firebase deploy --only functions` 는 끈 provider 의 함수까지 배포하므로 쓰지 않는다.
+- **Kakao · Naver · LINE 로그인만 오류 배너로 끝난다.** 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 함수의 서비스 계정에 토큰 서명 권한이 없는 것이다. 「켜기」 ⑦ 의 명령으로 확인하고 붙인다. 막 붙였다면 몇 분 기다린 뒤 다시 로그인한다.
 - **켠 provider 의 버튼이 로그인 화면에 없다.** 앱을 다시 빌드했는지, Remote Config 의 `auth_provider_<provider>_enabled` 가 `false` 로 게시돼 있지 않은지 확인한다.
 - **배포 중 Firebase CLI 가 secret 값을 묻는다.** 코드에 선언된 secret 가운데 그 프로젝트에 아직 없는 것이 있다는 뜻이다 — 끈 provider 의 secret 도 묻는다. Firebase CLI 의 표준 동작이다. 「켜기」 ④ 의 반복문으로 없는 secret 을 만든 뒤 다시 배포한다. 켠 provider 의 secret 이면 실제 값을 등록한다.
 - **「켜기」 ④ 의 반복문이 오류 메시지를 출력하고 멈춘다.** secret 이 없다는 응답(`HTTP Error: 404`)이 아닌 오류다. 메시지에 든 문구로 조치를 고른다. `Failed to authenticate` 가 있으면 이 컴퓨터의 Firebase CLI 에 로그인한 계정이 없으므로 `firebase login` 을 실행한다. `Your credentials are no longer valid` 나 `HTTP Error: 401` 이 있으면 로그인이 만료된 것이므로 `firebase login --reauth` 를 실행한다 — 네트워크 연결이 끊겨 있을 때도 `Your credentials are no longer valid` 가 나올 수 있으니 연결도 확인한다. `HTTP Error: 403` 이 있으면 로그인한 계정에 그 프로젝트의 Secret Manager 권한(예: `roles/secretmanager.admin`)이 있는지 확인한다. `Failed to make request to` 가 있으면 Firebase CLI 가 서버에 닿지 못한 것이므로 네트워크 연결을 확인한다. 원인을 고친 뒤 반복문을 다시 실행하면 이미 만든 secret 은 건너뛴다.

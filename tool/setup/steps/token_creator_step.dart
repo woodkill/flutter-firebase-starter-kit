@@ -323,7 +323,8 @@ final class TokenCreatorStep implements Step {
       if (result.isSuccess) continue;
       return Failed(
         '함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다 '
-        '(종료 코드 ${result.exitCode}) — $grantFailureGuidance',
+        '(종료 코드 ${result.exitCode}) — $grantFailureGuidance '
+        '(${formatManualReference(providersManualHeading)} 「켜기」 ⑦)',
         result: result,
       );
     }
