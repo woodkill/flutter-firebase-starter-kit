@@ -169,6 +169,13 @@ final class RunStep implements Step {
     deviceId,
   ], workingDirectory: workingDirectory);
 
+  /// 앱을 띄우기 전 준비([prepareAppBuild])의 계획 줄을 만든다 — 패키지 받기 ·
+  /// 코드 생성 순이다.
+  static List<String> buildPrepareBuildPlanLines() => <String>[
+    buildPubGetCommand().render(),
+    buildCodegenCommand().render(),
+  ];
+
   /// 앱을 띄우는 경로([launchAppForSignIn])의 계획 줄을 만든다 — 기기 목록 ·
   /// 시뮬레이터 켜기 · [guideNote] · `flutter run` 순이다.
   ///
@@ -421,8 +428,7 @@ final class RunStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _RunMode.run => <String>[
-      buildPubGetCommand().render(),
-      buildCodegenCommand().render(),
+      ...buildPrepareBuildPlanLines(),
       ...buildLaunchPlanLines(
         context,
         guideNote: '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
@@ -447,6 +453,18 @@ final class RunStep implements Step {
 
   /// 패키지 받기 → 코드 생성 → 대상 고르기 → 할 일 안내 → 앱 실행.
   Future<StepOutcome> _runApp(WizardContext context) async {
+    final Failed? prepared = await prepareAppBuild(context);
+    if (prepared != null) return prepared;
+
+    return await launchAppForSignIn(context, guideLines: signUpGuideLines);
+  }
+
+  /// 앱을 띄우기 전에 저장소 루트에서 패키지를 받고 코드를 생성한다.
+  ///
+  /// 실행 단계와 소셜 로그인 확인 단계가 [launchAppForSignIn] 앞에 함께 쓴다.
+  /// 패키지 받기가 실패하면 코드 생성을 하지 않고 그 실패를, 코드 생성이
+  /// 실패하면 그 실패를 출력 원문과 함께 돌려주고, 둘 다 성공하면 null 이다.
+  Future<Failed?> prepareAppBuild(WizardContext context) async {
     final String root = context.projectRoot;
     final CommandResult pubGet = await context.runner.stream(
       buildPubGetCommand(workingDirectory: root),
@@ -460,12 +478,12 @@ final class RunStep implements Step {
     if (!codegen.isSuccess) {
       return Failed('코드 생성이 실패했습니다', result: codegen);
     }
-
-    return await launchAppForSignIn(context, guideLines: signUpGuideLines);
+    return null;
   }
 
   /// 실행 대상을 고르고 [guideLines] 를 보인 뒤 대화형 `flutter run` 으로 앱을
-  /// 띄운다 — 패키지 받기 · 코드 생성은 하지 않는다.
+  /// 띄운다 — 패키지 받기 · 코드 생성은 하지 않는다(부르는 쪽이
+  /// [prepareAppBuild] 를 먼저 부른다).
   ///
   /// 실행 단계와 소셜 로그인 확인 단계가 함께 쓴다. [guideLines] 는 한 줄씩
   /// 그대로 쓴다(들여쓰기는 넘기는 쪽 몫). 대상 목록을 읽지 못하거나 대상이

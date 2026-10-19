@@ -30,6 +30,21 @@ const String runKey =
     'fvm flutter run --flavor dev --dart-define-from-file=config/dev.json '
     '-d $simulatorId';
 
+/// 패키지 받기 명령 키.
+final String pubGetKey = FakeCommandRunner.buildKey(
+  RunStep.buildPubGetCommand(),
+);
+
+/// 코드 생성 명령 키.
+final String codegenKey = FakeCommandRunner.buildKey(
+  RunStep.buildCodegenCommand(),
+);
+
+/// 기기 목록 명령 키.
+final String devicesKey = FakeCommandRunner.buildKey(
+  RunStep.buildDevicesCommand(),
+);
+
 /// 점검표 · 단계 머리의 고르기 선택지 세 줄.
 const String choiceLines = '  1) 앱을 다시 실행\n  2) 나중에\n  3) 멈춤\n';
 
@@ -337,8 +352,17 @@ final class _Harness {
     }
   }
 
-  /// 다시 실행할 때의 기기 목록(시뮬레이터 하나)과 실행 명령을 등록한다.
+  /// 앱을 띄우기 전의 패키지 받기 · 코드 생성 명령을 성공으로 등록한다.
+  void registerPrepareBuild() {
+    runner
+      ..on(pubGetKey, const CommandResult(0, '', ''))
+      ..on(codegenKey, const CommandResult(0, '', ''));
+  }
+
+  /// 다시 실행할 때의 준비 명령 · 기기 목록(시뮬레이터 하나) · 실행 명령을
+  /// 등록한다.
   void registerLaunch() {
+    registerPrepareBuild();
     runner
       ..on(
         FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
@@ -521,7 +545,14 @@ void main() {
     expect(harness.screen.asks, contains(RunStep.targetChoiceQuestion));
     expect(lines, contains('  ✓ 소셜 로그인 확인 — Google 1명 · Kakao 1명 · LINE 1명'));
     expect(harness.rest.countRequests('GET', harness.buildIndexUrl()), 4);
-    expect(harness.runner.countMode(RunMode.stream), 0);
+    expect(harness.runner.countMode(RunMode.stream), 2);
+    expect(
+      <String>[
+        for (final FakeCall call in harness.runner.calls)
+          if (call.mode == RunMode.stream) call.key,
+      ],
+      <String>[pubGetKey, codegenKey],
+    );
     expect(harness.output, isNot(contains('  실패 — ')));
     expect(harness.output, isNot(contains(RunStep.quitLine)));
     expect(harness.next.applyCount, 1);
@@ -616,6 +647,8 @@ void main() {
       expect(
         lines,
         containsAllInOrder(<String>[
+          'fvm flutter pub get',
+          'fvm dart run build_runner build --delete-conflicting-outputs',
           'fvm flutter devices --machine',
           runLine,
           RunStep.buildBatchGetRequest(projectId).displayCurl(),
@@ -625,7 +658,6 @@ void main() {
           ).displayCurl(),
         ]),
       );
-      expect(lines.where((String line) => line.contains('pub get')), isEmpty);
     });
   });
 
@@ -711,6 +743,7 @@ void main() {
     harness
       ..onUsers(<RestResponse>[const RestResponse(200, '{}')])
       ..onIndex(<RestResponse>[buildEmptyIndexPage()])
+      ..registerPrepareBuild()
       ..runner.on(
         FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
         const CommandResult(0, '[]', ''),
@@ -923,5 +956,42 @@ void main() {
       expect(harness.output, isNot(contains(registeredIndexLine)));
       expectNoComparedValues(harness, lastLoginAt);
     });
+  });
+
+  test('T-20-SIGNIN-12: 생성 파일 없는 저장소에서 다시 실행 → 패키지 받기 → '
+      '코드 생성 → 기기 목록 → 앱 실행 순 · 준비는 저장소 루트에서 · 다시 센 뒤 ✓', () async {
+    // 새 clone 모양 — config 만 있고 패키지 설정 · 생성 파일이 없다.
+    expect(Directory('$root/.dart_tool').existsSync(), isFalse);
+    expect(Directory('$root/lib').existsSync(), isFalse);
+    final harness = _Harness(root, const <String?>['1', '', 'y']);
+    harness
+      ..onUsers(<RestResponse>[buildGoogleUsersPage(1)])
+      ..onIndex(<RestResponse>[
+        buildEmptyIndexPage(),
+        buildEmptyIndexPage(),
+        buildIndexPage(const <String, int>{'kakao': 1}),
+      ])
+      ..registerLaunch();
+
+    final int code = await harness.run(const <String>{'kakao'});
+    final List<FakeCall> calls = harness.runner.calls;
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(
+      <(RunMode, String)>[
+        for (final FakeCall call in calls) (call.mode, call.key),
+      ],
+      <(RunMode, String)>[
+        (RunMode.stream, pubGetKey),
+        (RunMode.stream, codegenKey),
+        (RunMode.capture, devicesKey),
+        (RunMode.interactive, runKey),
+      ],
+    );
+    expect(calls[0].workingDirectory, root);
+    expect(calls[1].workingDirectory, root);
+    expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Kakao 1명'));
+    expect(harness.output, isNot(contains('  실패 — ')));
+    expect(harness.next.applyCount, 1);
   });
 }
