@@ -39,6 +39,7 @@ import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
 import '../../../tool/setup/steps/storage_step.dart';
+import '../../../tool/setup/steps/token_creator_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
@@ -588,8 +589,61 @@ void writeKakaoManifest(String root) => writeFixture(
   })}\n',
 );
 
-/// Kakao 함수의 Cloud Run 서비스 IAM 정책(공개 호출 붙음)을 등록한다.
-void _registerKakaoPolicies(_Harness h) {
+/// 함수 런타임 서비스 계정(가짜 — 12자리 프로젝트 번호의 기본 Compute 계정).
+String buildFakeRuntimeServiceAccount() =>
+    '${'1' * 12}-compute@developer.gserviceaccount.com';
+
+/// 런타임 서비스 계정에 그 계정 자신을 구성원으로 한 Token Creator 가 붙은
+/// 서비스 계정 IAM 정책 결과.
+CommandResult buildTokenCreatorPolicyResult() => ok(
+  jsonEncode(<String, Object?>{
+    'bindings': <Object?>[
+      <String, Object?>{
+        'role': TokenCreatorStep.tokenCreatorRole,
+        'members': <String>[
+          TokenCreatorStep.buildMember(buildFakeRuntimeServiceAccount()),
+        ],
+      },
+    ],
+  }),
+);
+
+/// 바인딩이 없는 서비스 계정 IAM 정책 결과.
+CommandResult buildEmptyServiceAccountPolicyResult() => ok('{}');
+
+/// Kakao 함수 서비스마다 런타임 서비스 계정(같은 가짜 계정)과 그 계정의 IAM
+/// 정책 [policies](등록 순서대로 쓰고 마지막을 되풀이)를 등록한다.
+///
+/// [policies] 를 주지 않으면 Token Creator 가 이미 붙은 정책 하나다.
+void _registerTokenCreator(_Harness h, {List<CommandResult>? policies}) {
+  final String account = buildFakeRuntimeServiceAccount();
+  for (final String function in kakaoFunctions) {
+    h.onCommand(
+      TokenCreatorStep.buildServiceAccountCommand(
+        buildServiceId(function),
+        region,
+        projectId,
+      ),
+      ok('$account\n'),
+    );
+  }
+  for (final CommandResult policy
+      in policies ?? <CommandResult>[buildTokenCreatorPolicyResult()]) {
+    h.onCommand(
+      TokenCreatorStep.buildPolicyCommand(account, projectId),
+      policy,
+    );
+  }
+}
+
+/// Kakao 함수의 Cloud Run 서비스 IAM 정책(공개 호출 붙음)과 런타임 서비스 계정 ·
+/// 그 계정의 IAM 정책을 등록한다.
+///
+/// [tokenCreatorPolicies] 는 [_registerTokenCreator] 에 넘긴다.
+void _registerKakaoPolicies(
+  _Harness h, {
+  List<CommandResult>? tokenCreatorPolicies,
+}) {
   for (final String function in kakaoFunctions) {
     h.onCommand(
       FunctionsStep.buildIamPolicyCommand(
@@ -600,6 +654,77 @@ void _registerKakaoPolicies(_Harness h) {
       buildPublicPolicyResult(),
     );
   }
+  _registerTokenCreator(h, policies: tokenCreatorPolicies);
+}
+
+/// Kakao 를 고르는 첫 실행의 입력 — 로그인 수단 · 체크 목록 · 값 표 · Kakao 단계 ·
+/// 키 두 개 · Functions 단계 순서다.
+List<String?> buildKakaoFirstRunInputs(String nativeKey, String adminKey) =>
+    <String?>[
+      'y', // 로그인 수단 단계
+      '4', // 체크 목록 — Kakao
+      'y', // 값 표
+      'y', // Kakao 단계(다시 짠 뒤)
+      '1', // 콘솔에서 키를 받았다
+      nativeKey,
+      adminKey,
+      'y', // Functions 단계
+    ];
+
+/// Kakao 를 고르는 첫 실행의 함수 목록 파일 · 응답을 등록한다.
+///
+/// [tokenCreatorPolicies] 는 런타임 서비스 계정 IAM 정책 응답(등록 순서대로)으로,
+/// 주지 않으면 Token Creator 가 이미 붙은 정책 하나다.
+void _prepareKakaoFirstRun(
+  _Harness h, {
+  required String nativeKey,
+  required String adminKey,
+  List<CommandResult>? tokenCreatorPolicies,
+}) {
+  writeKakaoManifest(h.root);
+  h.context.session.isProviderSelectionRequested = true;
+  _registerFinished(h);
+  h.onRest(
+    buildIdentityIndexRequest(projectId, basis: SignInBasis.signedIn),
+    RestResponse(200, buildKakaoIndexBody()),
+  );
+  h
+    ..onCommand(
+      FunctionsStep.buildFunctionsListCommand(projectId),
+      buildFunctionsListResult(),
+    )
+    ..onCommand(
+      FunctionsStep.buildFunctionsListCommand(projectId),
+      buildFunctionsListResult(extra: kakaoFunctions),
+    );
+  _registerKakaoPolicies(h, tokenCreatorPolicies: tokenCreatorPolicies);
+  for (final (String name, String value) in <(String, String)>[
+    (kakaoNativeSecret, nativeKey),
+    (kakaoAdminSecret, adminKey),
+  ]) {
+    final Command read = buildSecretReadCommand(name, projectId);
+    h
+      ..onCommand(read, buildSecretMissingResult(name))
+      ..onCommand(read, buildSecretMissingResult(name))
+      ..onCommand(read, ok('$value\n'))
+      ..onCommand(
+        buildSecretWriteCommand(name, projectId, value: value, valueLabel: ''),
+        ok(),
+      );
+  }
+  h
+    ..onCommand(
+      FunctionsStep.buildDeployCommand(),
+      // 배포 출력에 어드민 키를 섞어 가림을 확인한다.
+      ok('i  secret check $adminKey\nDEPLOY OK dev functions=5 batches=1\n'),
+    )
+    ..on(gitStatusKey, ok())
+    ..on(untrackedKey, ok());
+  h.rest.onExternal(
+    'GET',
+    KakaoStep.adminKeyCheckUrl,
+    const RestResponse(200, '{"elements":[1]}'),
+  );
 }
 
 /// 모든 단계의 「끝남」 응답을 등록한다.
@@ -1090,74 +1215,17 @@ void main() {
     () async {
       final String nativeKey = buildFakeKakaoNativeKey();
       final String adminKey = buildFakeKakaoAdminKey();
-      writeKakaoManifest(root);
-      final h = _Harness(root, <String?>[
-        'y', // 로그인 수단 단계
-        '4', // 체크 목록 — Kakao
-        'y', // 값 표
-        'y', // Kakao 단계(다시 짠 뒤)
-        '1', // 콘솔에서 키를 받았다
-        nativeKey,
-        adminKey,
-        'y', // Functions 단계
-      ]);
-      h.context.session.isProviderSelectionRequested = true;
+      final h = _Harness(root, buildKakaoFirstRunInputs(nativeKey, adminKey));
       // 큐 세기 — Secret Manager 읽기는 이름마다 [다시 짠 점검표 · Kakao 단계 머리
       // 재검사 · 실행 뒤 재검사] 3회(다시 짜기 전 목록에는 Kakao 단계가 없다).
       // functions:list 는 [다시 짜기 전 점검표 · Functions 단계 머리 재검사 ·
-      // 배포 뒤 공개 호출 확인 · 실행 뒤 재검사(마지막 응답 반복)] — 다시 짠
-      // 점검표에서 Functions 는 Kakao 를 기다리는 ? 라 부르지 않는다.
+      // 배포 뒤 공개 호출 확인 · 실행 뒤 재검사(마지막 응답 반복) · Custom Token
+      // 서명 권한 단계 머리 검사(바인딩이 있어 ✓ — 실행 뒤 재검사 없음)] — 다시 짠
+      // 점검표에서 Functions 는 Kakao 를, 서명 권한 단계는 Functions 를 기다리는
+      // ? 라 부르지 않는다.
       // identity_index 는 소셜 로그인 확인 단계 머리 1회(다시 짠 점검표에서는
       // 실행 단계를 기다리는 ? 라 부르지 않는다).
-      _registerFinished(h);
-      h.onRest(
-        buildIdentityIndexRequest(projectId, basis: SignInBasis.signedIn),
-        RestResponse(200, buildKakaoIndexBody()),
-      );
-      h
-        ..onCommand(
-          FunctionsStep.buildFunctionsListCommand(projectId),
-          buildFunctionsListResult(),
-        )
-        ..onCommand(
-          FunctionsStep.buildFunctionsListCommand(projectId),
-          buildFunctionsListResult(extra: kakaoFunctions),
-        );
-      _registerKakaoPolicies(h);
-      for (final (String name, String value) in <(String, String)>[
-        (kakaoNativeSecret, nativeKey),
-        (kakaoAdminSecret, adminKey),
-      ]) {
-        final Command read = buildSecretReadCommand(name, projectId);
-        h
-          ..onCommand(read, buildSecretMissingResult(name))
-          ..onCommand(read, buildSecretMissingResult(name))
-          ..onCommand(read, ok('$value\n'))
-          ..onCommand(
-            buildSecretWriteCommand(
-              name,
-              projectId,
-              value: value,
-              valueLabel: '',
-            ),
-            ok(),
-          );
-      }
-      h
-        ..onCommand(
-          FunctionsStep.buildDeployCommand(),
-          // 배포 출력에 어드민 키를 섞어 가림을 확인한다.
-          ok(
-            'i  secret check $adminKey\nDEPLOY OK dev functions=5 batches=1\n',
-          ),
-        )
-        ..on(gitStatusKey, ok())
-        ..on(untrackedKey, ok());
-      h.rest.onExternal(
-        'GET',
-        KakaoStep.adminKeyCheckUrl,
-        const RestResponse(200, '{"elements":[1]}'),
-      );
+      _prepareKakaoFirstRun(h, nativeKey: nativeKey, adminKey: adminKey);
 
       final int code = await h.run(onCompleted: showCompletionSummary);
       final String output = h.output;
@@ -1203,7 +1271,7 @@ void main() {
             FunctionsStep.buildFunctionsListCommand(projectId),
           ),
         ),
-        4,
+        5,
       );
       expect(h.rest.externalRequests, hasLength(1));
       final ExternalRequest check = h.rest.externalRequests.single;
@@ -1293,7 +1361,14 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(20),
+      hasLength(21),
+    );
+    expect(
+      lines.where(
+        (String line) =>
+            line.startsWith('  ✓ ${TokenCreatorStep.stepTitle} — '),
+      ),
+      hasLength(1),
     );
     expect(
       lines.where(
@@ -1324,4 +1399,118 @@ void main() {
     expect(lines[remaining + 1], kakaoAndroidUnavailableLine);
     expect(lines, isNot(contains(allDoneLine)));
   });
+
+  test(
+    'T-20-FLOW-03: Kakao 를 고른 첫 실행이 함수 배포 뒤 런타임 서비스 계정에 Token Creator 를 붙이고 ✓ 로 끝난다',
+    () async {
+      final String nativeKey = buildFakeKakaoNativeKey();
+      final String adminKey = buildFakeKakaoAdminKey();
+      final h = _Harness(root, <String?>[
+        ...buildKakaoFirstRunInputs(nativeKey, adminKey),
+        'y', // Custom Token 서명 권한 단계
+      ]);
+      _prepareKakaoFirstRun(
+        h,
+        nativeKey: nativeKey,
+        adminKey: adminKey,
+        tokenCreatorPolicies: <CommandResult>[
+          buildEmptyServiceAccountPolicyResult(),
+          buildTokenCreatorPolicyResult(),
+        ],
+      );
+      final String account = buildFakeRuntimeServiceAccount();
+      final Command grant = TokenCreatorStep.buildGrantCommand(
+        account,
+        projectId,
+      );
+      h.onCommand(
+        grant,
+        ok('Updated IAM policy for serviceAccount [$account].\n'),
+      );
+
+      final int code = await h.run(onCompleted: showCompletionSummary);
+      final String output = h.output;
+
+      expect(code, wizardExitDone, reason: output);
+      final configPath = '$root/${UserFilesStep.jsonUserPath}';
+      expect(readJsonString(configPath, enabledProvidersKey), 'kakao');
+      expect(readJsonString(configPath, 'kakaoNativeAppKey'), nativeKey);
+      for (final name in <String>[kakaoNativeSecret, kakaoAdminSecret]) {
+        expect(
+          h.runner.countCalls(
+            RunMode.capture,
+            FakeCommandRunner.buildKey(buildSecretReadCommand(name, projectId)),
+          ),
+          3,
+          reason: name,
+        );
+      }
+      expect(h.rest.externalRequests, hasLength(1));
+      expect(
+        h.runner.countCalls(
+          RunMode.stream,
+          FakeCommandRunner.buildKey(FunctionsStep.buildDeployCommand()),
+        ),
+        1,
+      );
+      final List<String> lines = const LineSplitter().convert(output);
+      expect(
+        lines.where((String line) => line == checklistHeading),
+        hasLength(2),
+      );
+      final int deployed = lines.indexWhere(
+        (String line) =>
+            line.startsWith('  \$ bash ${FunctionsStep.deployScriptPath}'),
+      );
+      final int header = lines.indexOf('▶ ${TokenCreatorStep.stepTitle}');
+      expect(deployed, greaterThanOrEqualTo(0));
+      expect(header, greaterThan(deployed));
+      expect(
+        lines.where(
+          (String line) =>
+              line.startsWith('  ✓ ${TokenCreatorStep.stepTitle} — '),
+        ),
+        hasLength(1),
+      );
+      expect(
+        h.runner.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(
+            FunctionsStep.buildFunctionsListCommand(projectId),
+          ),
+        ),
+        6,
+      );
+      for (final String function in kakaoFunctions) {
+        expect(
+          h.runner.countCalls(
+            RunMode.capture,
+            FakeCommandRunner.buildKey(
+              TokenCreatorStep.buildServiceAccountCommand(
+                buildServiceId(function),
+                region,
+                projectId,
+              ),
+            ),
+          ),
+          2,
+          reason: function,
+        );
+      }
+      expect(
+        h.runner.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(
+            TokenCreatorStep.buildPolicyCommand(account, projectId),
+          ),
+        ),
+        2,
+      );
+      expect(
+        h.runner.countCalls(RunMode.stream, FakeCommandRunner.buildKey(grant)),
+        1,
+      );
+      expect(h.runner.countMode(RunMode.stream), 2);
+    },
+  );
 }

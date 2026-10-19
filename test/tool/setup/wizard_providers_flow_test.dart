@@ -42,6 +42,7 @@ import '../../../tool/setup/steps/rules_step.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/sign_in_step.dart';
 import '../../../tool/setup/steps/storage_step.dart';
+import '../../../tool/setup/steps/token_creator_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
@@ -674,6 +675,36 @@ void _registerBaseFinished(_Harness h, {required bool isPlayIntegrityApiOn}) {
       ],
     );
   }
+  // Custom Token 수단 함수의 런타임 서비스 계정(같은 가짜 계정) · 그 계정에
+  // 이미 붙은 Token Creator.
+  final runtimeAccount = '${'1' * 12}-compute@developer.gserviceaccount.com';
+  for (final String token in identityIndexProviders) {
+    for (final String function in providerFunctions[token]!) {
+      h.onCommand(
+        TokenCreatorStep.buildServiceAccountCommand(
+          function,
+          region,
+          projectId,
+        ),
+        <CommandResult>[ok('$runtimeAccount\n')],
+      );
+    }
+  }
+  h.onCommand(
+    TokenCreatorStep.buildPolicyCommand(runtimeAccount, projectId),
+    <CommandResult>[
+      ok(
+        jsonEncode(<String, Object?>{
+          'bindings': <Object?>[
+            <String, Object?>{
+              'role': TokenCreatorStep.tokenCreatorRole,
+              'members': <String>[TokenCreatorStep.buildMember(runtimeAccount)],
+            },
+          ],
+        }),
+      ),
+    ],
+  );
 
   h
     ..onRest(StorageStep.buildGetRequest(projectId), <RestResponse>[

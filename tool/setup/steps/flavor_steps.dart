@@ -29,6 +29,7 @@ import 'run_step.dart';
 import 'sign_in_check_step.dart';
 import 'sign_in_step.dart';
 import 'storage_step.dart';
+import 'token_creator_step.dart';
 import 'tools_step.dart';
 import 'user_files_step.dart';
 import 'xcode_step.dart';
@@ -43,7 +44,9 @@ import 'xcode_step.dart';
 /// 다시 받아야 하므로 로그인 수단 단계 다음 · 앱 등록 앞에 두고, iOS · Android
 /// 쪽 줄은 앱 등록 다음에 둔다. Apple 은 iOS · Android 쪽 줄을 App Check 다음 ·
 /// 다른 로그인 수단 앞에 두고, 함수 배포는 iOS 쪽 줄만 기다린다. 켠 로그인
-/// 수단이 있으면 실행 단계 바로 다음에 소셜 로그인 확인 단계를 둔다. 출시용
+/// 수단에 Custom Token 수단(Kakao · Naver · LINE)이 있으면 Functions 단계 바로
+/// 다음에 서명 권한 단계를 둔다. 켠 로그인 수단이 있으면 실행 단계 바로 다음에
+/// 소셜 로그인 확인 단계를 둔다. 출시용
 /// 단계([PlayIntegrityStep] · [DeviceCheckStep] · [ApnsStep])는 flavor · 켠 로그인
 /// 수단과 무관하게 맨 끝에 둔다 — release 빌드 전에만 필요해 미룰 수 있다. 새
 /// 단계는 진행 순서에 맞는 자리에 끼운다.
@@ -76,6 +79,8 @@ List<Step> buildSteps({
         for (final Step step in providerSteps) step.id,
       ],
     ),
+    if (TokenCreatorStep.isRequiredFor(enabledProviders))
+      TokenCreatorStep(enabledProviders: enabledProviders),
     RunStep(),
     if (enabledProviders.isNotEmpty)
       SignInCheckStep(enabledProviders: enabledProviders),
