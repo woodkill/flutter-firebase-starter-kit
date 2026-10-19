@@ -13,8 +13,10 @@ import 'functions_step.dart';
 /// 함수의 런타임 서비스 계정마다 그 계정 자신을 구성원으로 한 조건 없는 Token
 /// Creator([tokenCreatorRole])를 확인하고 없으면 붙인다.
 ///
-/// 함수는 로그인 때 Firebase Custom Token 을 만들어 서명하므로 런타임 서비스
-/// 계정에 이 권한이 있어야 한다. 서비스 이름은 Functions 단계와 같은 함수 목록
+/// 함수는 로그인 때(Naver · LINE 은 연결 해제 · 회원탈퇴 때도) Firebase Custom
+/// Token 을 만들어 서명하므로 런타임 서비스 계정에 이 권한이 있어야 한다 —
+/// 빠지면 그 수단의 로그인과 Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로
+/// 끝난다. 서비스 이름은 Functions 단계와 같은 함수 목록
 /// 해석([FunctionsStep.parseDeployedFunctions])으로 읽고, 런타임 서비스 계정은
 /// 서비스 설정에서 읽는다 — 계정을 짐작하지 않는다. 계정이 여럿이면 계정마다
 /// 한 번씩 정책을 읽고 빠진 계정에만 붙인다. 이미 있으면 바꾸지 않고, 프로젝트

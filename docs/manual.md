@@ -351,7 +351,7 @@ bash scripts/deploy_functions.sh dev --apply
 
 **⑥ 처음 만든 함수의 Cloud Run invoker 를 확인한다.** 새로 생긴 함수는 Cloud Run 서비스에 `allUsers` · `roles/run.invoker` 바인딩이 있어야 앱에서 호출된다. 확인 명령과 바인딩이 빠졌을 때의 조치는 [Naver Login 10단계](#10단계--cloud-function-배포) 의 `linkNaverProvider` 항목과 [provider 측 연결 끊기](#provider-측-연결-끊기-phase-1610) 절의 「배포 (연결 끊기 함수)」 문단에 있다.
 
-**⑦ Kakao · Naver · LINE 을 켰으면 함수의 서비스 계정에 토큰 서명 권한을 준다.** 이 세 provider 의 함수는 로그인 때 Firebase Custom Token 을 만들어 서명하므로, 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다. 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 provider 로그인이 앱에서 오류 배너로 끝난다. 프로젝트마다 한 번 하고, 셋 가운데 하나도 켜지 않으면 건너뛴다. `./setup.sh --providers` 로 켜면 위저드가 확인하고 없을 때만 붙인다.
+**⑦ Kakao · Naver · LINE 을 켰으면 함수의 서비스 계정에 토큰 서명 권한을 준다.** 이 세 provider 의 함수는 로그인 때(Naver · LINE 은 연결 해제 · 회원탈퇴 때도) Firebase Custom Token 을 만들어 서명하므로, 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다. 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 provider 로그인이 앱에서 오류 배너로 끝나고 Naver · LINE 의 연결 해제 · 회원탈퇴도 오류로 끝난다(문제 해결 절 참조). 프로젝트마다 한 번 하고, 셋 가운데 하나도 켜지 않으면 건너뛴다. `./setup.sh --providers` 로 켜면 위저드가 확인하고 없을 때만 붙인다.
 
 먼저 함수의 서비스 계정을 읽는다. 서비스 이름은 함수 이름을 소문자로 쓴 것이다(Kakao `kakaocustomtoken` · Naver `navercustomtoken` · LINE `linecustomtoken`). `--region` 은 `config/dev.json` 의 `functionsRegion` 값이다. 출력된 이메일이 아래 명령의 `<service-account-email>` 자리에 들어간다.
 
