@@ -994,4 +994,96 @@ void main() {
     expect(harness.output, isNot(contains('  실패 — ')));
     expect(harness.next.applyCount, 1);
   });
+
+  group('T-20-SIGNIN-13: 다시 실행 준비가 실패하면 앱을 띄우지 않고 멈춤이 기본값', () {
+    /// 준비 명령 결과를 [registerPreparation] 으로 등록하고 기록 없는 Kakao 로
+    /// 다시 실행을 고른 뒤, 실패 질문에 빈 입력을 준다.
+    ///
+    /// 빈 입력 뒤의 `1`(다시 시도)은 실패 질문에 기본값이 없을 때만 쓰인다 —
+    /// 기본값이 멈춤이면 쓰이지 않고 위저드가 멈춘다.
+    Future<_Harness> runFailedPreparation(
+      void Function(FakeCommandRunner runner) registerPreparation,
+    ) async {
+      final harness = _Harness(root, const <String?>['1', '', '1']);
+      harness
+        ..onUsers(<RestResponse>[buildGoogleUsersPage(1)])
+        ..onIndex(<RestResponse>[buildEmptyIndexPage()]);
+      registerPreparation(harness.runner);
+      expect(
+        await harness.run(const <String>{'kakao'}),
+        wizardExitStopped,
+        reason: harness.output,
+      );
+      return harness;
+    }
+
+    /// 실패 질문이 다시 시도 · 멈춤 두 선택지로 나왔는지 본다.
+    void expectRetryOrStopQuestion(_Harness harness) {
+      expect(
+        harness.output,
+        contains(
+          '$failureChoiceQuestion\n  1) $retryOption\n  2) $stopOption\n',
+        ),
+      );
+      expect(harness.next.applyCount, 0);
+    }
+
+    test('T-20-SIGNIN-13: 코드 생성 종료 코드 1 → 실패 문장 · 출력 원문 · '
+        '앱 실행 0 · 빈 입력이면 멈춤', () async {
+      final _Harness harness = await runFailedPreparation(
+        (FakeCommandRunner runner) => runner
+          ..on(pubGetKey, const CommandResult(0, '', ''))
+          ..on(codegenKey, const CommandResult(1, '', 'build_runner failed\n')),
+      );
+
+      expect(harness.lines, contains('  실패 — 코드 생성이 실패했습니다'));
+      expect(harness.output, contains('build_runner failed'));
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 1);
+      expect(harness.runner.countCalls(RunMode.capture, devicesKey), 0);
+      expect(harness.launchCount, 0);
+      expectRetryOrStopQuestion(harness);
+    });
+
+    test('T-20-SIGNIN-13: 패키지 받기 실패 → 실패 문장 · 코드 생성 0 · '
+        '앱 실행 0 · 빈 입력이면 멈춤', () async {
+      final _Harness harness = await runFailedPreparation(
+        (FakeCommandRunner runner) => runner.on(
+          pubGetKey,
+          const CommandResult(1, '', 'pub get failed\n'),
+        ),
+      );
+
+      expect(harness.lines, contains('  실패 — 패키지를 받지 못했습니다'));
+      expect(harness.output, contains('pub get failed'));
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 0);
+      expect(harness.runner.countCalls(RunMode.capture, devicesKey), 0);
+      expect(harness.launchCount, 0);
+      expectRetryOrStopQuestion(harness);
+    });
+  });
+
+  test('T-20-SIGNIN-14: 다시 실행 → 기록 없음 → 다시 실행 → ✓ 의 한 번 실행에서 '
+      '패키지 받기 · 코드 생성 각 1회 · 앱 실행 2회', () async {
+    final harness = _Harness(root, const <String?>['1', '', '1', '', 'y']);
+    harness
+      ..onUsers(<RestResponse>[buildGoogleUsersPage(1)])
+      ..onIndex(<RestResponse>[
+        buildEmptyIndexPage(),
+        buildEmptyIndexPage(),
+        buildEmptyIndexPage(),
+        buildIndexPage(const <String, int>{'kakao': 1}),
+      ])
+      ..registerLaunch();
+
+    final int code = await harness.run(const <String>{'kakao'});
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+    expect(harness.runner.countCalls(RunMode.stream, codegenKey), 1);
+    expect(harness.launchCount, 2);
+    expect(harness.lines, contains('  아직 로그인 기록이 없습니다: Kakao'));
+    expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Kakao 1명'));
+  });
 }

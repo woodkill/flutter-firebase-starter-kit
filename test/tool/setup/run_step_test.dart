@@ -1790,4 +1790,85 @@ void main() {
       RunStep.buildBatchGetRequest(projectId).displayCurl(),
     ]);
   });
+
+  group('T-20-RUN-03: 앱을 띄우기 전 준비 메서드', () {
+    final String pubGetKey = FakeCommandRunner.buildKey(
+      RunStep.buildPubGetCommand(),
+    );
+    final String codegenKey = FakeCommandRunner.buildKey(
+      RunStep.buildCodegenCommand(),
+    );
+
+    /// [runner] 를 쓰는 문맥으로 준비 메서드를 한 번 부른다.
+    Future<Failed?> runPreparation(FakeCommandRunner runner) => RunStep()
+        .prepareAppBuild(buildTestContext(projectRoot: root, runner: runner));
+
+    test('T-20-RUN-03: 성공 → null · 패키지 받기 → 코드 생성 stream 2회 · '
+        '저장소 루트에서', () async {
+      final runner = FakeCommandRunner()
+        ..on(pubGetKey, const CommandResult(0, '', ''))
+        ..on(codegenKey, const CommandResult(0, '', ''));
+
+      expect(await runPreparation(runner), isNull);
+      expect(
+        <(RunMode, String, String?)>[
+          for (final FakeCall call in runner.calls)
+            (call.mode, call.key, call.workingDirectory),
+        ],
+        <(RunMode, String, String?)>[
+          (RunMode.stream, pubGetKey, root),
+          (RunMode.stream, codegenKey, root),
+        ],
+      );
+    });
+
+    test('T-20-RUN-03: 패키지 받기 실패 → 「패키지를 받지 못했습니다」 · '
+        '출력 원문 · 코드 생성 0', () async {
+      const failure = CommandResult(1, '', 'pub get failed\n');
+      final runner = FakeCommandRunner()..on(pubGetKey, failure);
+
+      final Failed? failed = await runPreparation(runner);
+
+      expect(failed?.summary, '패키지를 받지 못했습니다');
+      expect(failed?.result, same(failure));
+      expect(runner.countCalls(RunMode.stream, codegenKey), 0);
+    });
+
+    test('T-20-RUN-03: 코드 생성 실패 → 「코드 생성이 실패했습니다」 · 출력 원문', () async {
+      const failure = CommandResult(1, '', 'build_runner failed\n');
+      final runner = FakeCommandRunner()
+        ..on(pubGetKey, const CommandResult(0, '', ''))
+        ..on(codegenKey, failure);
+
+      final Failed? failed = await runPreparation(runner);
+
+      expect(failed?.summary, '코드 생성이 실패했습니다');
+      expect(failed?.result, same(failure));
+      expect(runner.countMode(RunMode.stream), 2);
+    });
+
+    test('T-20-RUN-03: 실행 단계 계획 줄의 앞 두 줄 = 준비 계획 줄', () async {
+      final rest = FakeRestClient()
+        ..on(
+          'GET',
+          RunStep.buildBatchGetRequest(projectId).url.toString(),
+          buildPage(const <Map<String, Object?>>[]),
+        );
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        rest: rest,
+      );
+      final step = RunStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(RunStep.buildPrepareBuildPlanLines(), <String>[
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      expect(
+        step.plannedCommandLines(context).take(2),
+        RunStep.buildPrepareBuildPlanLines(),
+      );
+    });
+  });
 }
