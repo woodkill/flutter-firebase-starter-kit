@@ -5,14 +5,12 @@ import '../config_files.dart';
 import '../confirm.dart';
 import '../firebase_app_files.dart';
 import '../flavor.dart';
-import '../providers/fingerprints.dart';
 import '../providers/key_formats.dart';
 import '../providers/keyed_provider_step.dart';
 import '../providers/provider_catalog.dart';
 import '../rest_client.dart';
 import '../wizard.dart';
 import 'identity_step.dart';
-import 'kakao_step.dart';
 
 /// Naver 로그인 단계 — Client ID · Client Secret · URL Scheme 을 한 번 입력받아
 /// config · xcconfig · Secret Manager 에 쓴다.
@@ -76,10 +74,11 @@ final class NaverStep extends KeyedProviderStep {
   /// 값 표의 URL Scheme 행 라벨 — config 값이 없어 제안값을 보일 때.
   static const String suggestedUrlSchemeRowLabel = 'iOS URL Scheme (제안)';
 
-  /// 값 표의 Android 클래스 이름 행 라벨.
+  /// Facebook 값 표가 쓰는 Android 클래스 이름 행 라벨.
   static const String classNameRowLabel = 'Android 클래스 이름';
 
-  /// Naver 콘솔에 넣는 Android Activity 이름 — Gradle namespace 뒤에 붙는다.
+  /// Facebook 값 표가 쓰는 Android 클래스 이름의 Activity 이름 — Gradle
+  /// namespace 뒤에 붙는다.
   static const String mainActivityName = 'MainActivity';
 
   /// URL Scheme 제안에서 앱 이름 뒤에 붙는 말.
@@ -152,8 +151,8 @@ final class NaverStep extends KeyedProviderStep {
     return '$head$urlSchemeProviderPart${flavor.name}';
   }
 
-  /// [projectRoot] 의 Gradle namespace 로 Naver 콘솔의 Android 클래스 이름을
-  /// 만든다 — 파일이 없거나 namespace 줄이 없으면 null.
+  /// [projectRoot] 의 Gradle namespace 로 Facebook 값 표가 쓰는 Android 클래스
+  /// 이름을 만든다 — 파일이 없거나 namespace 줄이 없으면 null.
   ///
   /// flavor 접미사는 붙이지 않는다(Activity 클래스는 flavor 와 무관하다).
   static String? readMainActivityClass(String projectRoot) {
@@ -192,13 +191,10 @@ final class NaverStep extends KeyedProviderStep {
     urlSchemeField,
   ];
 
-  /// 번들 ID · URL Scheme · 패키지명 · 클래스 이름과 이번 실행에서 계산한 Android
-  /// 키 해시 행을 만든다.
+  /// Naver 콘솔의 iOS · Android 환경 칸(URL Scheme · 패키지명) 행을 만든다 —
+  /// 콘솔에 번들 ID · 클래스 이름 · 키 해시 칸이 없다.
   ///
-  /// URL Scheme 은 config 값이 형식에 맞으면 그 값, 아니면 제안값이다. 키 해시
-  /// 행은 세션에 담긴 지문만 읽는다(keytool 을 부르지 않는다) — 계산했으면 키
-  /// 해시, 계산할 수 없었으면 [KakaoStep.keyHashUnavailableValue], 아직 계산
-  /// 전이면 행을 넣지 않는다.
+  /// URL Scheme 은 config 값이 형식에 맞으면 그 값, 아니면 제안값이다.
   @override
   List<SummaryRow> buildValueRows(WizardContext context) {
     final String? configScheme = _readConfigString(
@@ -208,10 +204,6 @@ final class NaverStep extends KeyedProviderStep {
     final bool hasConfigScheme =
         configScheme != null && naverUrlScheme.matches(configScheme);
     return <SummaryRow>[
-      SummaryRow(
-        'iOS 번들 ID',
-        readBundleId(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
-      ),
       if (hasConfigScheme)
         SummaryRow(urlSchemeRowLabel, configScheme)
       else
@@ -220,31 +212,16 @@ final class NaverStep extends KeyedProviderStep {
         'Android 패키지명',
         readAndroidPackage(context.projectRoot, context.flavor) ?? '(읽지 못했습니다)',
       ),
-      SummaryRow(
-        classNameRowLabel,
-        readMainActivityClass(context.projectRoot) ?? '(읽지 못했습니다)',
-      ),
-      ...?switch (context.session.debugFingerprints) {
-        FingerprintsAvailable(:final String keyHash) => <SummaryRow>[
-          SummaryRow(KakaoStep.keyHashRowLabel, keyHash),
-        ],
-        FingerprintsUnavailable() => const <SummaryRow>[
-          SummaryRow(
-            KakaoStep.keyHashRowLabel,
-            KakaoStep.keyHashUnavailableValue,
-          ),
-        ],
-        null => null,
-      },
     ];
   }
 
   @override
   List<String> get todoLines => <String>[
-    'flavor 마다 애플리케이션 등록 · 네이버 로그인 API 사용',
-    'iOS 환경에 번들 ID · URL Scheme 등록',
-    'Android 환경에 패키지명 · 클래스 이름 · 키 해시 등록',
+    '애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)',
+    'iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록',
+    '다운로드 URL 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 바꿉니다',
     '제공 정보에서 이메일 주소 받기 — ${formatManualReference(emailManualHeading)}',
+    '개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다',
   ];
 
   /// URL Scheme 입력의 Enter 기본값은 제안값이다 — 다른 값은 제안이 없다.

@@ -288,8 +288,8 @@ void main() {
   final secretQuestion =
       '${NaverStep.clientSecretField.label} $hiddenInputHint';
 
-  group('T-20-NAVER-01: 값 표에 번들 ID · URL Scheme 제안 · 패키지명 · 클래스 이름 · '
-      '키 해시와 매뉴얼 절이 있다', () {
+  group('T-20-NAVER-01: 값 표는 URL Scheme 제안 · 패키지명 두 행이고 콘솔에 없는 칸 행은 '
+      '없으며 실행 화면에 매뉴얼 절이 있다', () {
     test('stg · dev 문맥의 값 표가 그 flavor 값이다', () {
       prepareFlavorFiles(Flavor.stg);
       const available = FingerprintsAvailable(
@@ -299,49 +299,59 @@ void main() {
       );
 
       expect(buildRows(Flavor.stg, available), <String, String>{
-        'iOS 번들 ID': '$bundleBase.stg',
         NaverStep.suggestedUrlSchemeRowLabel: 'starterkitnaverstg',
         'Android 패키지명': '$applicationId.stg',
-        NaverStep.classNameRowLabel: '$gradleNamespace.MainActivity',
-        KakaoStep.keyHashRowLabel: fakeKeyHash,
       });
       expect(buildRows(Flavor.dev, available), <String, String>{
-        'iOS 번들 ID': '$bundleBase.dev',
         NaverStep.suggestedUrlSchemeRowLabel: 'starterkitnaverdev',
         'Android 패키지명': '$applicationId.dev',
-        NaverStep.classNameRowLabel: '$gradleNamespace.MainActivity',
-        KakaoStep.keyHashRowLabel: fakeKeyHash,
       });
     });
 
-    test('키 해시 행은 계산함 · 계산할 수 없음 · 계산 전 세 갈래다', () {
-      expect(
-        buildRows(
-          Flavor.dev,
-          const FingerprintsUnavailable('keytool 을 찾지 못했습니다'),
-        )[KakaoStep.keyHashRowLabel],
-        KakaoStep.keyHashUnavailableValue,
-      );
-      expect(
-        buildRows(Flavor.dev, null).containsKey(KakaoStep.keyHashRowLabel),
-        isFalse,
-      );
+    test('지문이 있든 · 계산할 수 없든 · 계산 전이든 번들 ID · 클래스 이름 · 키 해시 행이 없다', () {
+      final states = <DebugFingerprints?>[
+        const FingerprintsAvailable(
+          sha1Hex: 'ab500584b25ed636c9c91b0370546c3831850f16',
+          sha256Hex: '',
+          keyHash: fakeKeyHash,
+        ),
+        const FingerprintsUnavailable('keytool 을 찾지 못했습니다'),
+        null,
+      ];
+      for (final state in states) {
+        final Map<String, String> rows = buildRows(Flavor.dev, state);
+        final reason = '$state';
+
+        expect(rows.containsKey('iOS 번들 ID'), isFalse, reason: reason);
+        expect(
+          rows.containsKey(NaverStep.classNameRowLabel),
+          isFalse,
+          reason: reason,
+        );
+        expect(
+          rows.containsKey(KakaoStep.keyHashRowLabel),
+          isFalse,
+          reason: reason,
+        );
+        expect(
+          rows.values,
+          isNot(contains(KakaoStep.keyHashUnavailableValue)),
+          reason: reason,
+        );
+      }
     });
 
-    test('config 의 URL Scheme 이 형식에 맞으면 그 값을 보이고 Gradle 을 읽지 못하면 '
-        '클래스 이름은 읽지 못했다고 보인다', () {
+    test('config 의 URL Scheme 이 형식에 맞으면 그 값을 보이고 제안 행은 없다', () {
       replaceJsonString(
         configPathOf(Flavor.dev),
         NaverStep.urlSchemeField.configKey!,
         'myappnaverdev',
       );
-      File('$root/android/app/build.gradle.kts').deleteSync();
 
-      final Map<String, String> rows = buildRows(Flavor.dev, null);
-
-      expect(rows[NaverStep.urlSchemeRowLabel], 'myappnaverdev');
-      expect(rows.containsKey(NaverStep.suggestedUrlSchemeRowLabel), isFalse);
-      expect(rows[NaverStep.classNameRowLabel], '(읽지 못했습니다)');
+      expect(buildRows(Flavor.dev, null), <String, String>{
+        NaverStep.urlSchemeRowLabel: 'myappnaverdev',
+        'Android 패키지명': '$applicationId.dev',
+      });
     });
 
     test('URL Scheme 제안은 flavor 접미사를 떼고 소문자 영숫자 + naver + flavor 이름이다', () {
@@ -389,7 +399,7 @@ void main() {
       }
       expect(output, contains('매뉴얼 「Naver Login」'));
       expect(output, contains('매뉴얼 「로그인 수단에서 이메일 받기」'));
-      expect(output, contains('$gradleNamespace.MainActivity'));
+      expect(output, isNot(contains('MainActivity')));
       expect(output, isNot(contains('Callback')));
       for (final text in <String>[output, h.log.text]) {
         expect(RegExp(r'\bD-[0-9]{2}\b').hasMatch(text), isFalse);
@@ -776,6 +786,75 @@ void main() {
         '값 ${entry.key} 끝',
         reason: entry.value,
       );
+    }
+  });
+
+  test('T-20-NAVER-09: 할 일 줄은 로고 이미지 · 다운로드 URL · 임의 주소 · 이메일 · '
+      '멤버관리 5줄이고 실행 화면의 콘솔 주소 다음 줄이 범위 안내다', () async {
+    final List<String> lines = NaverStep().todoLines;
+
+    expect(lines, <String>[
+      '애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)',
+      'iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록',
+      '다운로드 URL 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 바꿉니다',
+      '제공 정보에서 이메일 주소 받기 — 매뉴얼 「로그인 수단에서 이메일 받기」',
+      '개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다',
+    ]);
+    for (final line in lines) {
+      for (final absent in <String>['flavor 마다', '번들 ID', '클래스 이름', '키 해시']) {
+        expect(line, isNot(contains(absent)), reason: line);
+      }
+    }
+    for (final present in <String>[
+      '로고 이미지',
+      '다운로드 URL',
+      '임의 주소',
+      '멤버관리',
+      '테스터 ID',
+    ]) {
+      expect(
+        lines.where((String line) => line.contains(present)),
+        isNotEmpty,
+        reason: present,
+      );
+    }
+
+    final String clientId = buildClientId();
+    final String clientSecret = buildClientSecret();
+    final h = _Harness(root, <String?>[
+      'y',
+      '1',
+      clientId,
+      clientSecret,
+      'myappnaverdev',
+    ]);
+    h
+      ..registerFreshSecrets(clientId, clientSecret)
+      ..onPairCheck(<RestResponse>[const RestResponse(200, '')]);
+
+    final int code = await h.run();
+    final String output = h.output;
+    final List<String> screenLines = output.split('\n');
+    final int titleIndex = screenLines.indexOf('── Naver 콘솔에 넣을 값 — dev ──');
+    final int consoleIndex = screenLines.indexWhere(
+      (String line) => line.startsWith('  · 콘솔: '),
+      titleIndex,
+    );
+
+    expect(code, wizardExitDone, reason: output);
+    expect(titleIndex, isNot(-1), reason: output);
+    expect(consoleIndex, isNot(-1), reason: output);
+    expect(
+      screenLines[consoleIndex + 1],
+      '  · ${buildConsoleAppScopeNote(Flavor.dev)}',
+    );
+    for (final line in lines) {
+      expect(output, contains(line));
+    }
+    expect(countText(output, KakaoStep.keyHashUnavailableValue), 0);
+    expect(countText(output, KakaoStep.keyHashRowLabel), 0);
+    for (final text in <String>[output, h.log.text]) {
+      expect(countText(text, clientSecret), 0);
     }
   });
 }
