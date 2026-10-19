@@ -3,6 +3,8 @@ import {Firestore, FieldValue} from "firebase-admin/firestore";
 import type {DocumentSnapshot} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
+import {fingerprintError} from "../shared/error_fingerprint";
+
 /**
  * IdP 측 프로필 변경의 starter-kit 측 동기화 정책 (R10-FOLLOWUP, 2026-05-08).
  *
@@ -109,43 +111,11 @@ export function identityIndexDocId(
   return `${provider}:${providerUserId}`;
 }
 
-/**
- * unknown 에러를 logger.code 필드용 fingerprint 문자열로 변환 (WR-07).
- *
- * 비-Error throw (Symbol / null / undefined / primitive) 도 명시 fingerprint
- * 부여하여 firebase-admin 비정상 throw 경로를 ops triage 에서 분간 가능하게
- * 한다. `err as {code?: string}` 식 unchecked assertion 패턴을 본 helper 로
- * 일원화 — cloud-functions-typescript.md "as 타입 단언 최소화" / "any 사용
- * 금지" 규칙 정합.
- *
- * **PII 정책 (D-51 / Pitfall 7)**: 본 함수는 fingerprint *문자열* 만 반환
- * 하며 err.message / payload / claim 등 본문은 절대 노출하지 않는다.
- *
- * **숫자 code (Phase 17 리뷰 IN-02)**: `@google-cloud/storage` 의 `ApiError.code`
- * 는 HTTP 상태 숫자(404 · 503 …)이고, Firestore Admin(google-gax
- * `GoogleError.code`)은 gRPC status 숫자다. 이전에는 문자열 code 만 써서 두
- * 경우 모두 `"Error"`/`"ApiError"` 로 뭉개졌다 — 이제 숫자를 문자열로 남겨
- * ops 가 「영구(404) vs 일시(503)」 를 가를 수 있다.
- *
- * @param {unknown} err catch (err: unknown) 의 err.
- * @return {string} logger.code 필드용 short fingerprint
- *     ('auth/user-not-found' / '503' / 'TypeError' / 'string-thrown' /
- *      'null-thrown' / 'non-error-thrown' / 'unknown' 등).
- */
-export function fingerprintError(err: unknown): string {
-  if (err instanceof Error) {
-    // firebase-admin / firebase-functions Error 는 code 프로퍼티가 stable
-    // public API. instanceof Error 가드 통과 후 code 안전 접근.
-    const code = (err as Error & {code?: unknown}).code;
-    if (typeof code === "string" && code.length > 0) return code;
-    if (typeof code === "number" && Number.isFinite(code)) return String(code);
-    return err.name;
-  }
-  if (typeof err === "string") return "string-thrown";
-  if (err === null) return "null-thrown";
-  if (err === undefined) return "undefined-thrown";
-  return "non-error-thrown";
-}
+// `fingerprintError` (WR-07) 는 `shared/error_fingerprint.ts` 로 옮겼다 (Phase
+// 20 리뷰 WR-06 — `shared/relogin_token.ts` 도 써야 하고 shared → auth 역방향
+// 의존은 만들지 않는다). 기존 importer 가 import 경로를 바꾸지 않도록 여기서
+// re-export 한다.
+export {fingerprintError};
 
 /**
  * 재로그인 계정의 가입 수단 read 결과 (quick 260928-jwe).

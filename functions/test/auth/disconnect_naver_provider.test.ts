@@ -601,8 +601,14 @@ describe("disconnectNaverProvider — custom token 발급 실패", () => {
   it("NR16: createCustomToken 던짐 → internal · 실패 로그", async () => {
     mockProfileOk();
     mockRevokeOk();
+    // Phase 20 리뷰 WR-06 — firebase-admin 은 원인을 err.code 에 싣는다
+    // (name 은 언제나 "Error"). 서명 권한 결핍이 이 경로를 막을 때 로그
+    // code 가 매뉴얼 「문제 해결」 의 판별 기준과 같아야 한다. message 의
+    // PII fixture 는 마지막 describe 의 누적 sentinel 이 다섯 메서드로 훑는다.
     mockCreateCustomToken.mockRejectedValueOnce(
-      new Error("PII_MINTED_CUSTOM_TOKEN signer failed"),
+      Object.assign(new Error("PII_MINTED_CUSTOM_TOKEN signer failed"), {
+        code: "auth/insufficient-permission",
+      }),
     );
 
     const err = await captureHttpsError(callDisconnect(APP_DATA));
@@ -612,7 +618,7 @@ describe("disconnectNaverProvider — custom token 발급 실패", () => {
       {
         event: "disconnect_relogin_token_failed",
         provider: "naver",
-        code: "Error",
+        code: "auth/insufficient-permission",
       },
       expect.any(String),
     );

@@ -12,11 +12,13 @@
 // 넘긴다 (입력 uid 0 — T-16.10-12).
 //
 // **PII 금지 (C-06):** 발급한 토큰 문자열 · uid 는 로그에 싣지 않는다. 실패
-// 로그 payload 는 `{event, provider, code}` 뿐이다.
+// 로그 payload 는 `{event, provider, code}` 뿐이고, `code` 는
+// `fingerprintError`(code 우선 · 없으면 name)만 싣는다 — `err.message` 미로깅.
 import {getAuth} from "firebase-admin/auth";
 import * as logger from "firebase-functions/logger";
 
 import {serverFailure} from "./custom_token_errors";
+import {fingerprintError} from "./error_fingerprint";
 
 /**
  * 끊기 callable 이 돌려줄 재로그인 custom token 을 발급한다 (Phase 16.10
@@ -24,7 +26,8 @@ import {serverFailure} from "./custom_token_errors";
  *
  * `getAuth().createCustomToken(uid)` 만 호출한다 — developer claims ·
  * 프로필 갱신 없음. 발급 실패는 Admin SDK 결함이므로 `internal` 로 매핑하고
- * `err.name` 만 fingerprint 로 남긴다 (`err.message` 미로깅).
+ * `fingerprintError`(code 우선 · 없으면 name)만 fingerprint 로 남긴다
+ * (`err.message` 미로깅).
  *
  * @param {{uid: string, provider: string}} args 발급 대상 uid
  *     (`request.auth.uid`) 와 로그 축 provider 슬러그.
@@ -42,7 +45,9 @@ export async function mintReloginToken(args: {
       {
         event: "disconnect_relogin_token_failed",
         provider: args.provider,
-        code: err instanceof Error ? err.name : "unknown",
+        // firebase-admin 은 원인을 err.code 에 싣는다 (name 은 언제나
+        // "Error" — 서명 권한 결핍이면 `auth/insufficient-permission`).
+        code: fingerprintError(err),
       },
       "createCustomToken threw",
     );
