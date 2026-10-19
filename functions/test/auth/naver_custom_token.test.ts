@@ -741,9 +741,10 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       mockIdxGet.mockResolvedValue({exists: false});
       mockTxGet.mockResolvedValue({exists: false});
       // admin SDK throw 시뮬레이션 — err.message 에 PII sentinel 삽입.
+      // GAP 4 — firebase-admin 은 원인을 err.code 에 싣는다 (name 은 "Error").
       const sdkErr = Object.assign(
         new Error("PII_SENTINEL_TOKEN_FAIL_MSG"),
-        {name: "FirebaseAuthError"},
+        {code: "auth/insufficient-permission"},
       );
       mockCreateCustomToken.mockRejectedValueOnce(sdkErr);
 
@@ -761,10 +762,14 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(errorMock).toHaveBeenCalledWith(
         expect.objectContaining({
           event: "naver_custom_token_create_failed",
-          code: "FirebaseAuthError",
+          code: "auth/insufficient-permission",
         }),
         expect.any(String),
       );
+      // GAP 4 — 발급 실패 때 identity_index · users 쓰기 0 · 미리 만든 사용자
+      // 삭제 (app · web 공용 helper).
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockDeleteUser).toHaveBeenCalledWith("new-uid-naver");
       // PII 회귀 — err.message 본문 logger 미노출.
       const allLogCalls = [
         ...infoMock.mock.calls,

@@ -59,6 +59,7 @@ jest.mock("firebase-functions/logger", () => ({
 // helper import 는 mock 셋업 이후.
 // eslint-disable-next-line import/first
 import {
+  CustomTokenIssueError,
   identityIndexDocId,
   profileFieldsForRefresh,
   resolveIdentity,
@@ -3590,5 +3591,176 @@ describe("resolveIdentity Phase 17 D-26 — CT 경로 email mirror (T-17-MIRROR-
     const logged = JSON.stringify([warnMock.mock.calls, infoMock.mock.calls]);
     expect(logged).not.toContain("m05h@example.com");
     expect(logged).not.toContain("PII_M05H");
+  });
+});
+
+// eslint-disable-next-line max-len
+describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug kakao-custom-token-create-fail)", () => {
+  // 서명 권한 거부 (20-16 UAT 프로젝트 실측 원인) 모형 — message 는 PII 모형.
+  const signErr = (): Error =>
+    Object.assign(new Error("PII_GAP4_SIGN"), {
+      code: "auth/insufficient-permission",
+    });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCreateUser.mockReset();
+    mockDeleteUser.mockReset();
+    mockUpdateUser.mockReset();
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockGetUserByEmail.mockReset();
+    mockGetUserByEmail.mockRejectedValue(
+      Object.assign(new Error("not found"), {code: "auth/user-not-found"}),
+    );
+    mockGetUser.mockReset();
+    mockGetUser.mockResolvedValue({emailVerified: true, providerData: []});
+    warnMock.mockReset();
+  });
+
+  it("익명 caller 신규 등록 — 발급 실패면 쓰기 0 · 사후 갱신 0 · 원래 오류 보존", async () => {
+    const {db, tx} = makeDb({preExists: false, txExists: false});
+    const err = signErr();
+    const issue = jest.fn().mockRejectedValue(err);
+
+    const promise = resolveIdentity(db, {
+      provider: "kakao",
+      providerUserId: "kakao-gap4-anon",
+      callerUid: "anon-gap4",
+      callerIsAnonymous: true,
+      userInfo: {displayName: "PII_NICK"},
+      issueCustomToken: issue,
+    });
+    await expect(promise).rejects.toBeInstanceOf(CustomTokenIssueError);
+    await expect(promise).rejects.toMatchObject({tokenError: err});
+
+    expect(issue).toHaveBeenCalledWith("anon-gap4");
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("미인증 신규 등록 — 발급 실패면 쓰기 0 · 미리 만든 사용자 삭제", async () => {
+    mockCreateUser.mockResolvedValueOnce({uid: "pre-gap4"});
+    const {db, tx} = makeDb({preExists: false, txExists: false});
+
+    await expect(
+      resolveIdentity(db, {
+        provider: "line",
+        providerUserId: "line-gap4",
+        callerUid: undefined,
+        issueCustomToken: jest.fn().mockRejectedValue(signErr()),
+      }),
+    ).rejects.toBeInstanceOf(CustomTokenIssueError);
+
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(mockDeleteUser).toHaveBeenCalledTimes(1);
+    expect(mockDeleteUser).toHaveBeenCalledWith("pre-gap4");
+  });
+
+  it("기존 identity 재로그인 — 발급 실패면 lastSeenAt 쓰기 0", async () => {
+    const {db, tx} = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-gap4"},
+      txExists: true,
+      txData: {firebaseUid: "U-gap4"},
+    });
+
+    await expect(
+      resolveIdentity(db, {
+        provider: "kakao",
+        providerUserId: "kakao-gap4-re",
+        callerUid: undefined,
+        issueCustomToken: jest.fn().mockRejectedValue(signErr()),
+      }),
+    ).rejects.toBeInstanceOf(CustomTokenIssueError);
+
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.set).not.toHaveBeenCalled();
+  });
+
+  it("성공 — 신규 · 재사용 모두 결과 uid 로 1회 발급해 customToken 에 싣는다", async () => {
+    const fresh = makeDb({preExists: false, txExists: false});
+    const issueNew = jest.fn().mockResolvedValue("TOKEN-NEW");
+    const resNew = await resolveIdentity(fresh.db, {
+      provider: "kakao",
+      providerUserId: "kakao-gap4-ok",
+      callerUid: "anon-ok",
+      callerIsAnonymous: true,
+      issueCustomToken: issueNew,
+    });
+    expect(issueNew).toHaveBeenCalledTimes(1);
+    expect(issueNew).toHaveBeenCalledWith("anon-ok");
+    expect(resNew).toMatchObject({
+      uid: "anon-ok",
+      isNewUser: true,
+      conflictKind: null,
+      customToken: "TOKEN-NEW",
+    });
+    expect(fresh.tx.set).toHaveBeenCalledTimes(2);
+
+    // R12 빈 익명 재사용 — 발급 대상은 caller 가 아니라 기존 매핑 uid.
+    const reuse = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-old"},
+      txExists: true,
+      txData: {firebaseUid: "U-old"},
+      callerUserExists: false,
+    });
+    const issueReuse = jest.fn().mockResolvedValue("TOKEN-OLD");
+    const resReuse = await resolveIdentity(reuse.db, {
+      provider: "kakao",
+      providerUserId: "kakao-gap4-old",
+      callerUid: "anon-empty",
+      callerIsAnonymous: true,
+      issueCustomToken: issueReuse,
+    });
+    expect(issueReuse).toHaveBeenCalledWith("U-old");
+    expect(resReuse).toMatchObject({uid: "U-old", customToken: "TOKEN-OLD"});
+  });
+
+  it("충돌 · 가드 반환과 콜백 생략에는 발급하지 않는다", async () => {
+    // anonymous_existing_collision — 데이터 있는 익명 caller.
+    const collide = makeDb({
+      preExists: true,
+      preData: {firebaseUid: "U-other"},
+      txExists: true,
+      txData: {firebaseUid: "U-other"},
+      callerUserExists: true,
+    });
+    const issueA = jest.fn().mockResolvedValue("T");
+    const resA = await resolveIdentity(collide.db, {
+      provider: "kakao",
+      providerUserId: "kakao-gap4-col",
+      callerUid: "anon-data",
+      callerIsAnonymous: true,
+      issueCustomToken: issueA,
+    });
+    expect(resA.conflictKind).toBe("anonymous_existing_collision");
+    expect(resA.customToken).toBeUndefined();
+    expect(issueA).not.toHaveBeenCalled();
+
+    // caller_identity_mismatch — 비익명 caller · 미등록 identity.
+    const guard = makeDb({preExists: false, txExists: false});
+    const issueB = jest.fn().mockResolvedValue("T");
+    const resB = await resolveIdentity(guard.db, {
+      provider: "line",
+      providerUserId: "line-gap4-guard",
+      callerUid: "signed-in-uid",
+      callerIsAnonymous: false,
+      issueCustomToken: issueB,
+    });
+    expect(resB.conflictKind).toBe("caller_identity_mismatch");
+    expect(issueB).not.toHaveBeenCalled();
+
+    // 콜백 생략 — 기존 동작 (customToken 없음).
+    const plain = makeDb({preExists: false, txExists: false});
+    const resC = await resolveIdentity(plain.db, {
+      provider: "kakao",
+      providerUserId: "kakao-gap4-plain",
+      callerUid: "anon-plain",
+      callerIsAnonymous: true,
+    });
+    expect(resC.customToken).toBeUndefined();
+    expect(plain.tx.set).toHaveBeenCalledTimes(2);
   });
 });

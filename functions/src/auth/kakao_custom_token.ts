@@ -24,7 +24,11 @@ import {
   parseTermsAcceptanceJson,
 } from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
-import {resolveIdentity} from "./identity_index";
+import {
+  CustomTokenIssueError,
+  fingerprintError,
+  resolveIdentity,
+} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
 // Phase 14 D-LINE-02/04 — OIDC verifier helper 추출 + retroactive 마이그.
@@ -187,6 +191,11 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     if (kakaoEmail) userInfo.emailVerified = kakaoEmailVerified ?? false;
     if (kakaoNickname) userInfo.displayName = kakaoNickname;
     if (kakaoPicture) userInfo.photoURL = kakaoPicture;
+    // Step 3 의 developerClaims (근거는 Step 3 주석) — 토큰은 resolveIdentity
+    // 가 쓰기보다 먼저 발급하므로 여기서 미리 계산한다 (GAP 4).
+    const developerClaims = userInfo.email ?
+      {email: userInfo.email, email_verified: kakaoEmailVerified ?? false} :
+      undefined;
     let resolution;
     try {
       resolution = await resolveIdentity(getFirestore(), {
@@ -195,12 +204,27 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
         callerUid,
         callerIsAnonymous,
         userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
+        issueCustomToken: (uid) =>
+          getAuth().createCustomToken(uid, developerClaims),
       });
-    } catch {
+    } catch (err: unknown) {
+      // **Pitfall 1/7 (PII) 보존** — err.message / err.payload 절대 미로깅.
+      // err 는 타입 판별과 fingerprint(code 우선 · 없으면 name)에만 쓴다.
+      if (err instanceof CustomTokenIssueError) {
+        // GAP 4 — 발급 실패. identity_index · users 쓰기는 커밋되지 않았다.
+        // code 는 firebase-admin 의 err.code (예: auth/insufficient-
+        // permission) — err.name 은 언제나 "Error" 라 원인을 못 가른다.
+        logger.error(
+          {
+            event: "kakao_custom_token_create_failed",
+            code: fingerprintError(err.tokenError),
+          },
+          "createCustomToken threw",
+        );
+        throw serverFailure();
+      }
       // helper 의 unexpected error (e.g., firestore network, internal) 는
-      // internal 매핑. **Pitfall 1/7 (PII) 보존** — err.message / err.payload
-      // 절대 미로깅. catch parameter 자체 생략 (optional catch binding) —
-      // err 객체 접근 안 함 → 누구도 실수로 PII 로깅 못 함 (compile-time 보장).
+      // internal 매핑.
       logger.error(
         {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
@@ -247,9 +271,12 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
       break; // 정상 flow.
     }
 
-    const {uid, isNewUser} = resolution;
+    const {uid, isNewUser, customToken} = resolution;
 
-    // Step 3: Custom Token 발급 (admin SDK — 1h 만료).
+    // Step 3: Custom Token 발급 (admin SDK — 1h 만료). GAP 4 (debug
+    // kakao-custom-token-create-fail) 부터 발급은 Step 2 의 resolveIdentity
+    // 가 transaction 안 쓰기보다 먼저 한다 — 실패한 발급이 identity_index
+    // 문서를 남기지 않는다. 아래는 developerClaims (Step 2 앞에서 계산) 근거.
     // CR-01 (Phase 13 review carry-forward): admin SDK throw (auth/internal-
     // error, auth/insufficient-permission 등) 도 internal + errorUnknown 으로
     // 매핑. 미적용 시 raw err.message 가 Cloud Functions runtime 의 INTERNAL
@@ -277,18 +304,12 @@ export const kakaoCustomToken = onCall<KakaoCustomTokenRequest>(
     // 을 그대로 propagate. claim 미발급 시 보수적으로 false 매핑
     // (이전에는 무조건 true 발급해서 미래 Kakao 정책 변경 시 unverified
     // email 이 verified 로 잘못 propagate 될 가능성이 있었음).
-    const developerClaims = userInfo.email ?
-      {email: userInfo.email, email_verified: kakaoEmailVerified ?? false} :
-      undefined;
-    let customToken: string;
-    try {
-      customToken = await getAuth().createCustomToken(uid, developerClaims);
-    } catch (err: unknown) {
-      // PII 금지 (D-08) — err.message 본문 미로깅. err.name 만 fingerprint.
-      const errCode = err instanceof Error ? err.name : "unknown";
+    if (!customToken) {
+      // 방어 — issueCustomToken 을 넘겼으므로 conflictKind null 이면 항상
+      // 있다. 계약이 깨지면 토큰 없이 성공을 돌려주지 않는다.
       logger.error(
-        {event: "kakao_custom_token_create_failed", code: errCode},
-        "createCustomToken threw",
+        {event: "kakao_custom_token_create_failed", code: "token_missing"},
+        "createCustomToken result missing",
       );
       throw serverFailure();
     }

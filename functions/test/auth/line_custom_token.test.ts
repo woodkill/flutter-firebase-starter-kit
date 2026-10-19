@@ -812,9 +812,10 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     mockIdxGet.mockResolvedValue({exists: false});
     mockTxGet.mockResolvedValue({exists: false});
     // admin SDK throw 시뮬레이션 — err.message 에 PII sentinel 삽입.
+    // GAP 4 — firebase-admin 은 원인을 err.code 에 싣는다 (name 은 "Error").
     const sdkErr = Object.assign(
       new Error("PII_SENTINEL_LINE_TOKEN_FAIL_MSG"),
-      {name: "FirebaseAuthError"},
+      {code: "auth/insufficient-permission"},
     );
     mockCreateCustomToken.mockRejectedValueOnce(sdkErr);
 
@@ -831,10 +832,13 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     expect(errorMock).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "line_custom_token_create_failed",
-        code: "FirebaseAuthError",
+        code: "auth/insufficient-permission",
       }),
       expect.any(String),
     );
+    // GAP 4 — 발급 실패 때 identity_index · users 쓰기 0 · 미리 만든 사용자 삭제.
+    expect(mockTxSet).not.toHaveBeenCalled();
+    expect(mockDeleteUser).toHaveBeenCalledWith("new-uid-line-pre");
     // PII 회귀 — err.message 본문 logger 미노출.
     // WR-02 — debug/log 도 sentinel 배열 포함.
     const allLogCalls = [

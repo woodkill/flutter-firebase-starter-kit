@@ -26,7 +26,11 @@ import {
 } from "../shared/custom_token_errors";
 import type {TermsAcceptanceJson} from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
-import {resolveIdentity} from "./identity_index";
+import {
+  CustomTokenIssueError,
+  fingerprintError,
+  resolveIdentity,
+} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
 // Phase 13 D-46 / D-47 — Naver REST 검증 endpoint.
@@ -344,6 +348,11 @@ export async function verifyNaverProfileAndIssueCustomToken(
   if (naverEmail) userInfo.emailVerified = true;
   if (naverNickname) userInfo.displayName = naverNickname;
   if (naverProfileImage) userInfo.photoURL = naverProfileImage;
+  // Step 5 의 developerClaims (근거는 Step 5 주석) — 토큰은 resolveIdentity
+  // 가 쓰기보다 먼저 발급하므로 여기서 미리 계산한다 (GAP 4).
+  const developerClaims = userInfo.email ?
+    {email: userInfo.email, email_verified: true} :
+    undefined;
   let resolution;
   try {
     resolution = await resolveIdentity(getFirestore(), {
@@ -352,10 +361,24 @@ export async function verifyNaverProfileAndIssueCustomToken(
       callerUid,
       callerIsAnonymous,
       userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
+      issueCustomToken: (uid) =>
+        getAuth().createCustomToken(uid, developerClaims),
     });
-  } catch {
-    // PII 보존 — catch parameter 생략 (D-40 / D-51, Phase 12 동일 패턴).
-    // err 객체 접근 안 함 → 누구도 실수로 PII 로깅 못 함 (compile-time 보장).
+  } catch (err: unknown) {
+    // PII 보존 (D-40 / D-51) — err 는 타입 판별과 fingerprint(code 우선 ·
+    // 없으면 name)에만 쓴다. message 본문 미로깅.
+    if (err instanceof CustomTokenIssueError) {
+      // GAP 4 — 발급 실패. identity_index · users 쓰기는 커밋되지 않았다.
+      logger.error(
+        {
+          event: "naver_custom_token_create_failed",
+          path,
+          code: fingerprintError(err.tokenError),
+        },
+        "createCustomToken threw",
+      );
+      throw serverFailure();
+    }
     logger.error(
       {event: "identity_index_failed", path},
       "resolveIdentity threw unexpected error",
@@ -396,9 +419,11 @@ export async function verifyNaverProfileAndIssueCustomToken(
     break; // 정상 flow.
   }
 
-  const {uid, isNewUser} = resolution;
+  const {uid, isNewUser, customToken} = resolution;
 
-  // Step 5: Custom Token 발급 (admin SDK — 1h 만료).
+  // Step 5: Custom Token 발급 (admin SDK — 1h 만료). GAP 4 (debug
+  // kakao-custom-token-create-fail) 부터 발급은 Step 3 의 resolveIdentity
+  // 가 transaction 안 쓰기보다 먼저 한다. 아래는 developerClaims 근거.
   // CR-01 (Phase 13 review): admin SDK throw (auth/internal-error,
   // auth/insufficient-permission 등) 도 internal + errorUnknown 으로 매핑.
   // 미적용 시 raw err.message 가 Cloud Functions runtime 의 INTERNAL 응답에
@@ -430,18 +455,12 @@ export async function verifyNaverProfileAndIssueCustomToken(
   // (Naver 개발자 공지 / Changelog 추적). Kakao 와 달리 IdP 측 grounding
   // claim 이 없으므로 starter-kit 측 정책 결정 영역 — 사용자 fork 시
   // 본 단락 한 줄 (`email_verified: true` → `false`) 변경 가능.
-  const developerClaims = userInfo.email ?
-    {email: userInfo.email, email_verified: true} :
-    undefined;
-  let customToken: string;
-  try {
-    customToken = await getAuth().createCustomToken(uid, developerClaims);
-  } catch (err: unknown) {
-    // PII 금지 (D-51) — err.message 본문 미로깅. err.name 만 fingerprint.
-    const errCode = err instanceof Error ? err.name : "unknown";
+  if (!customToken) {
+    // 방어 — issueCustomToken 을 넘겼으므로 conflictKind null 이면 항상
+    // 있다. 계약이 깨지면 토큰 없이 성공을 돌려주지 않는다.
     logger.error(
-      {event: "naver_custom_token_create_failed", path, code: errCode},
-      "createCustomToken threw",
+      {event: "naver_custom_token_create_failed", path, code: "token_missing"},
+      "createCustomToken result missing",
     );
     throw serverFailure();
   }

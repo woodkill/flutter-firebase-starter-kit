@@ -25,7 +25,11 @@ import {
   parseTermsAcceptanceJson,
 } from "../shared/terms_acceptance_json";
 import {buildAccountExistsError} from "./account_exists_error";
-import {resolveIdentity} from "./identity_index";
+import {
+  CustomTokenIssueError,
+  fingerprintError,
+  resolveIdentity,
+} from "./identity_index";
 import {mirrorTermsAccepted} from "./mirror_terms";
 
 // Phase 14 D-LINE-01 / D-LINE-03 / D-LINE-05 — OIDC verifier.
@@ -185,6 +189,11 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     if (lineEmail) userInfo.emailVerified = true;
     if (lineDisplayName) userInfo.displayName = lineDisplayName;
     if (linePictureUrl) userInfo.photoURL = linePictureUrl;
+    // Step 3 의 developerClaims (근거는 Step 3 주석) — 토큰은 resolveIdentity
+    // 가 쓰기보다 먼저 발급하므로 여기서 미리 계산한다 (GAP 4).
+    const developerClaims = userInfo.email ?
+      {email: userInfo.email, email_verified: true} :
+      undefined;
     let resolution;
     try {
       resolution = await resolveIdentity(getFirestore(), {
@@ -193,11 +202,26 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
         callerUid,
         callerIsAnonymous,
         userInfo: Object.keys(userInfo).length > 0 ? userInfo : undefined,
+        issueCustomToken: (uid) =>
+          developerClaims ?
+            getAuth().createCustomToken(uid, developerClaims) :
+            getAuth().createCustomToken(uid),
       });
-    } catch {
+    } catch (err: unknown) {
+      // **Pitfall 1/7 (PII) 보존** — err 는 타입 판별과 fingerprint(code
+      // 우선 · 없으면 name)에만 쓴다. message 본문 미로깅.
+      if (err instanceof CustomTokenIssueError) {
+        // GAP 4 — 발급 실패. identity_index · users 쓰기는 커밋되지 않았다.
+        logger.error(
+          {
+            event: "line_custom_token_create_failed",
+            code: fingerprintError(err.tokenError),
+          },
+          "createCustomToken threw",
+        );
+        throw serverFailure();
+      }
       // helper unexpected error (firestore network, internal) → internal 매핑.
-      // **Pitfall 1/7 (PII) 보존** — err 객체 접근 안 함 (optional catch
-      // binding) → 누구도 실수로 PII 로깅 못 함 (compile-time 보장).
       logger.error(
         {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
@@ -255,9 +279,11 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       break; // 정상 flow.
     }
 
-    const {uid, isNewUser} = resolution;
+    const {uid, isNewUser, customToken} = resolution;
 
-    // Step 3: Custom Token 발급 (admin SDK — 1h 만료).
+    // Step 3: Custom Token 발급 (admin SDK — 1h 만료). GAP 4 (debug
+    // kakao-custom-token-create-fail) 부터 발급은 Step 2 의 resolveIdentity
+    // 가 transaction 안 쓰기보다 먼저 한다. 아래는 developerClaims 근거.
     // quick 260928-luw — userInfo.email 이 있으면 developerClaims 로 client
     // 의 getIdTokenResult().claims.email 에 propagate 한다 (Kakao · Naver 옵션
     // C 와 같은 모양). 충돌 path 는 위 switch 가 먼저 throw 하므로 여기 미도달.
@@ -281,19 +307,12 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
     //
     // CR-01 carry-forward: admin SDK throw 도 internal + errorUnknown 매핑.
     // err.message 본문 미노출 (PII 금지) — err.name 만 fingerprint.
-    const developerClaims = userInfo.email ?
-      {email: userInfo.email, email_verified: true} :
-      undefined;
-    let customToken: string;
-    try {
-      customToken = developerClaims ?
-        await getAuth().createCustomToken(uid, developerClaims) :
-        await getAuth().createCustomToken(uid);
-    } catch (err: unknown) {
-      const errCode = err instanceof Error ? err.name : "unknown";
+    if (!customToken) {
+      // 방어 — issueCustomToken 을 넘겼으므로 conflictKind null 이면 항상
+      // 있다. 계약이 깨지면 토큰 없이 성공을 돌려주지 않는다.
       logger.error(
-        {event: "line_custom_token_create_failed", code: errCode},
-        "createCustomToken threw",
+        {event: "line_custom_token_create_failed", code: "token_missing"},
+        "createCustomToken result missing",
       );
       throw serverFailure();
     }

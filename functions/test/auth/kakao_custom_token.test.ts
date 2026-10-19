@@ -877,6 +877,10 @@ describe("kakaoCustomToken onCall", () => {
         }),
         expect.any(String),
       );
+      // GAP 4 (debug kakao-custom-token-create-fail) — 발급이 쓰기보다
+      // 먼저라 identity_index · users 쓰기 0, 미리 만든 Auth 사용자는 지운다.
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockDeleteUser).toHaveBeenCalledWith("new-uid-pre");
       // PII 회귀 — err.message 본문 logger 미노출.
       // WR-02 mirror — debug/log 도 sentinel 배열 포함.
       const allLogCalls = [
@@ -891,6 +895,53 @@ describe("kakaoCustomToken onCall", () => {
           "PII_SENTINEL_KAKAO_TOKEN_FAIL_MSG",
         );
       }
+    },
+  );
+
+  // GAP 4 (debug kakao-custom-token-create-fail · 20-16) — 익명 caller 의
+  // 신규 identity 에서 서명 권한 거부. 실패 문서 0 · 로그 code = err.code.
+  it(
+    // eslint-disable-next-line max-len
+    "GAP4-KAKAO: 익명 caller 신규 등록 중 발급 실패 → identity_index · users 쓰기 0 · code=err.code",
+    async () => {
+      mockVerifyKakaoIdToken.mockResolvedValue({sub: "kakao-gap4", nonce: "n"});
+      mockIdxGet.mockResolvedValue({exists: false});
+      mockTxGet.mockResolvedValue({exists: false});
+      mockCreateCustomToken.mockRejectedValueOnce(
+        Object.assign(new Error("PII_SENTINEL_GAP4_MSG"), {
+          code: "auth/insufficient-permission",
+        }),
+      );
+
+      const wrapped = testEnv.wrap(myFunctions.kakaoCustomToken);
+      await expect(
+        wrapped({
+          auth: anonymousCallerAuth("anon-gap4"),
+          app: {appId: "test"},
+          data: {idToken: "FAKE", nonce: "n"},
+        } as never),
+      ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
+
+      expect(mockCreateCustomToken).toHaveBeenCalledWith(
+        "anon-gap4",
+        undefined,
+      );
+      expect(mockTxSet).not.toHaveBeenCalled();
+      expect(mockTxUpdate).not.toHaveBeenCalled();
+      expect(mockUpdateUser).not.toHaveBeenCalled();
+      // 익명 caller 는 이 호출이 만든 사용자가 아니다 — 지우지 않는다.
+      expect(mockDeleteUser).not.toHaveBeenCalled();
+      expect(errorMock).toHaveBeenCalledTimes(1);
+      expect(errorMock).toHaveBeenCalledWith(
+        {
+          event: "kakao_custom_token_create_failed",
+          code: "auth/insufficient-permission",
+        },
+        expect.any(String),
+      );
+      expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+        "PII_SENTINEL_GAP4_MSG",
+      );
     },
   );
 

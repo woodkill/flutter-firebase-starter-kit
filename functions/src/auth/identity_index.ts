@@ -534,7 +534,63 @@ export type IdentityResolution = {
    *   `provider:providerUserId` 이므로 caller 가 호출한 provider slug 자체.
    */
   existingProvider?: ProviderId | "unknown";
+  /**
+   * `issueCustomToken` 을 넘긴 호출에서 `conflictKind: null` 이면 그 uid 로
+   * 발급된 Custom Token (debug kakao-custom-token-create-fail · GAP 4). 그 밖
+   * 에는 undefined.
+   */
+  customToken?: string;
 };
+
+/**
+ * resolveIdentity 의 `issueCustomToken` 콜백이 던진 오류를 감싼다 (debug
+ * kakao-custom-token-create-fail · 20-16 GAP 4).
+ *
+ * 발급은 transaction 안에서 쓰기보다 먼저 일어나므로, 이 오류가 나오면
+ * identity_index · users 쓰기는 커밋되지 않았고 이 호출이 미리 만든 Auth
+ * 사용자도 지웠다(best-effort). 호출자는 이 타입으로 「토큰 발급 실패」 를
+ * 다른 helper 실패와 가르고, [tokenError] 는 `fingerprintError` 로만 로깅한다
+ * (message 본문 미로깅 — Pitfall 7). `code` 프로퍼티를 두지 않아 Firestore
+ * runTransaction 이 재시도 대상으로 보지 않는다(숫자 gRPC code 만 재시도).
+ */
+export class CustomTokenIssueError extends Error {
+  /** 콜백이 던진 원래 오류 — 로그에는 fingerprint 만 싣는다. */
+  readonly tokenError: unknown;
+
+  /**
+   * @param {unknown} tokenError 콜백이 던진 원래 오류.
+   */
+  constructor(tokenError: unknown) {
+    super("custom token issue failed");
+    this.name = "CustomTokenIssueError";
+    this.tokenError = tokenError;
+  }
+}
+
+/**
+ * 이 호출이 미리 만든 Auth 사용자(preCreatedUid)를 지운다 — best-effort.
+ *
+ * 실패해도 던지지 않고 `identity_index_orphan_cleanup_failed` 경고만 남긴다
+ * (err.message 미로깅 — Pitfall 7). race-loser 정리(R2)와 토큰 발급 실패
+ * 정리(GAP 4)가 같이 쓴다.
+ *
+ * @param {string} uid 지울 사용자 uid.
+ * @return {Promise<void>} 실패해도 resolve.
+ */
+async function deletePreCreatedUser(uid: string): Promise<void> {
+  try {
+    await getAuth().deleteUser(uid);
+  } catch (cleanupErr: unknown) {
+    logger.warn(
+      {
+        event: "identity_index_orphan_cleanup_failed",
+        uid,
+        code: fingerprintError(cleanupErr),
+      },
+      "orphan user cleanup failed",
+    );
+  }
+}
 
 /**
  * Identity Index lookup-first + seed UID + Pitfall 4 회피 (D-10, D-13).
@@ -633,10 +689,31 @@ export async function resolveIdentity(
       displayName?: string;
       photoURL?: string;
     };
+    /**
+     * Custom Token 발급 콜백 (debug kakao-custom-token-create-fail · GAP 4).
+     *
+     * 주면 transaction 안에서 확정된 uid 로 **쓰기보다 먼저** 부른다
+     * (`conflictKind: null` 결과만 — 충돌 · 가드 반환에는 부르지 않는다).
+     * 던지면 transaction 이 롤백돼 identity_index · users 쓰기가 남지 않고,
+     * 미리 만든 Auth 사용자를 지운 뒤 [CustomTokenIssueError] 로 던진다.
+     * 서명은 부작용이 없어 transaction 재시도로 다시 불려도 된다.
+     */
+    issueCustomToken?: (uid: string) => Promise<string>;
   },
 ): Promise<IdentityResolution> {
   const {provider, providerUserId, callerUid, callerIsAnonymous, userInfo} =
     args;
+  // GAP 4 — 쓰기 전 발급. 콜백이 없으면 undefined (기존 동작).
+  const issueTokenBeforeWrite = async (
+    uid: string,
+  ): Promise<string | undefined> => {
+    if (!args.issueCustomToken) return undefined;
+    try {
+      return await args.issueCustomToken(uid);
+    } catch (err: unknown) {
+      throw new CustomTokenIssueError(err);
+    }
+  };
   const idxRef = db
     .collection("identity_index")
     .doc(identityIndexDocId(provider, providerUserId));
@@ -994,8 +1071,16 @@ export async function resolveIdentity(
         const callerUserSnap = await tx.get(userRefFor(callerUid));
         callerHasData = callerUserSnap.exists;
       }
+      const isAnonymousCollision =
+        callerUid !== undefined &&
+        existing.firebaseUid !== callerUid &&
+        callerHasData;
+      // GAP 4 — 정상 재사용이면 쓰기(lastSeenAt)보다 먼저 토큰을 발급한다.
+      const customToken = isAnonymousCollision ?
+        undefined :
+        await issueTokenBeforeWrite(existing.firebaseUid);
       tx.update(idxRef, {lastSeenAt: now});
-      if (callerUid && existing.firebaseUid !== callerUid && callerHasData) {
+      if (isAnonymousCollision) {
         // Phase 16 D-09 (Plan 16-03) — existingProvider = caller 가 호출한
         // provider slug 자체. identity_index doc ID 가 `provider:providerUserId`
         // 이므로 existing 매핑은 동일 provider 의 기존 user (정의상 다른
@@ -1013,6 +1098,7 @@ export async function resolveIdentity(
         uid: existing.firebaseUid,
         isNewUser: false,
         conflictKind: null,
+        customToken,
       };
     }
 
@@ -1031,6 +1117,10 @@ export async function resolveIdentity(
           "(Pitfall 4 mitigation broken)",
       );
     }
+
+    // GAP 4 — 아래 두 쓰기보다 먼저 발급한다. 실패하면 transaction 이
+    // 롤백돼 identity_index · users 문서가 남지 않는다 (20-16 실패 문서 원인).
+    const customToken = await issueTokenBeforeWrite(newUid);
 
     tx.set(idxRef, {
       firebaseUid: newUid,
@@ -1063,7 +1153,15 @@ export async function resolveIdentity(
       {merge: true},
     );
 
-    return {uid: newUid, isNewUser: true, conflictKind: null};
+    return {uid: newUid, isNewUser: true, conflictKind: null, customToken};
+  }).catch(async (err: unknown) => {
+    // GAP 4 — 토큰 발급 실패는 쓰기 커밋 전이라 문서가 없다. 남는 것은 이
+    // 호출이 미리 만든 Auth 사용자뿐이므로 지운다 (best-effort). 다른
+    // transaction 오류는 커밋 여부가 불확실해 건드리지 않는다.
+    if (err instanceof CustomTokenIssueError && preCreatedUid) {
+      await deletePreCreatedUser(preCreatedUid);
+    }
+    throw err;
   });
 
   // Step 3 (R2 — D-31): post-tx best-effort orphan cleanup.
@@ -1074,25 +1172,9 @@ export async function resolveIdentity(
   // **Pitfall 4 보존:** 본 블록은 db.runTransaction(...) 외부 — preCreatedUid
   // scope (line 102) 도 transaction body 외부. cleanup 을 transaction body
   // 안으로 절대 이동 금지 (retry 마다 deleteUser 다중호출 위험).
+  // **Pitfall 7 보존:** 실패 로그는 fingerprint 만 (deletePreCreatedUser).
   if (preCreatedUid && result.uid !== preCreatedUid) {
-    try {
-      await getAuth().deleteUser(preCreatedUid);
-    } catch (cleanupErr: unknown) {
-      // **Pitfall 7 보존:** err.message 는 본문이 PII 일 가능성 (e.g.
-      // 'user not found for uid abc...') — 절대 로깅 금지. fingerprintError
-      // helper 가 err.code (firebase-admin standard) / err.name / non-Error
-      // throw fingerprint 만 안전 추출 (WR-07).
-      const errCode = fingerprintError(cleanupErr);
-      logger.warn(
-        {
-          event: "identity_index_orphan_cleanup_failed",
-          uid: preCreatedUid,
-          code: errCode,
-        },
-        "orphan user cleanup failed",
-      );
-      // 의도적으로 재던지지 않음 — outer call 정상 반환 보장.
-    }
+    await deletePreCreatedUser(preCreatedUid);
   }
 
   // R9 (Phase 13 retroactive — Pitfall 9 두 번째 path):
