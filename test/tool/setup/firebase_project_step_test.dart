@@ -200,17 +200,60 @@ void main() {
   }
 
   /// 로그인 · 앱 정체성(끝남) · 프로젝트 단계로 위저드를 돌린다.
+  ///
+  /// [step] 을 주지 않으면 기본 생성자로 만든 프로젝트 단계를 쓴다.
   Future<int> runProjectStep(
     FakeCommandRunner runner,
-    ScriptedTerminal terminal,
-  ) => runWizard(
+    ScriptedTerminal terminal, {
+    FirebaseProjectStep? step,
+  }) => runWizard(
     buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
     <Step>[
       _FinishedStep('login', 'Firebase · Google Cloud 로그인'),
       _FinishedStep('identity', '앱 정체성'),
-      FirebaseProjectStep(),
+      step ?? FirebaseProjectStep(),
     ],
   );
+
+  /// [runProjectStep] 과 같은 단계를 실제 터미널 모양으로 돌린다.
+  ///
+  /// 화면은 번호 질문의 기본값 안내(`번호를 고르세요 [n]: `)까지 [output] 에
+  /// 쓰고, 답은 [inputs] 에서 차례로 읽는다(떨어지면 입력 끝).
+  Future<int> runProjectStepOnStdio(
+    FakeCommandRunner runner,
+    List<String> inputs,
+    StringBuffer output,
+    FirebaseProjectStep step,
+  ) {
+    final answers = List<String>.of(inputs);
+    final redactor = Redactor();
+    final log = MemoryLogSink(redactor);
+    return runWizard(
+      WizardContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: RedactingTerminal(
+          StdioTerminal(
+            readLine: () => answers.isEmpty ? null : answers.removeAt(0),
+            output: output,
+          ),
+          redactor,
+          log,
+        ),
+        redactor: redactor,
+        log: log,
+        rest: FakeRestClient(),
+        homeDirectory: noKeystoreTestHome,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      ),
+      <Step>[
+        _FinishedStep('login', 'Firebase · Google Cloud 로그인'),
+        _FinishedStep('identity', '앱 정체성'),
+        step,
+      ],
+    );
+  }
 
   test(
     'T-19-PROJ-01 config 에 실제 ID 가 있고 목록 · .firebaserc 가 맞으면 묻지 않고 ✓',
@@ -1054,6 +1097,112 @@ void main() {
       // 바뀌어도 통과하지 않게 한다.
       expect(output, contains('▶ ${FirebaseProjectStep.stepTitle}\n  $reason'));
       expect(output.contains('    $costlyStepNotice'), isFalse);
+    });
+  });
+
+  group('Firebase 추가 직후 프로젝트 목록 반영 대기', () {
+    test('T-20-PROJ-01: 추가 뒤 목록에 늦게 보이면 정한 간격으로 다시 확인하다가 '
+        '보이는 순간 ✓ 이고 실패 질문은 없다', () async {
+      writeProjectFixture(
+        root,
+        projectId: existingId,
+        aliases: matchingAliases,
+      );
+      // 목록 = 점검표 검사(없음) → 단계 머리(없음) → 추가 뒤 1차(없음) →
+      // 2차(없음) → 3차(있음) → 실행 뒤 재검사(있음 되풀이).
+      final FakeCommandRunner runner = buildAddFirebaseRunner(
+        lists: <CommandResult>[
+          listWithout,
+          listWithout,
+          listWithout,
+          listWithout,
+          listWith,
+        ],
+      );
+      final delays = <Duration>[];
+      final step = FirebaseProjectStep(
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final terminal = ScriptedTerminal(const <String?>['y', 'y']);
+
+      final int code = await runProjectStep(runner, terminal, step: step);
+
+      final output = terminal.output.toString();
+      expect(code, wizardExitDone, reason: output);
+      expect(delays, <Duration>[
+        FirebaseProjectStep.listPollInterval,
+        FirebaseProjectStep.listPollInterval,
+      ]);
+      expect(
+        RegExp(
+          RegExp.escape(FirebaseProjectStep.listWaitLine),
+        ).allMatches(output).length,
+        1,
+      );
+      expect(
+        output,
+        contains('  ✓ ${FirebaseProjectStep.stepTitle} — $existingId'),
+      );
+      expect(terminal.asks, isNot(contains(failureChoiceQuestion)));
+      expect(output, isNot(contains(retryOption)));
+      expect(runner.countCalls(RunMode.stream, addFirebaseKey(existingId)), 1);
+    });
+
+    test('T-20-PROJ-02: 정한 횟수 안에 끝내 안 보이면 지금처럼 재검사 실패 · '
+        '실패 질문(기본값 [2])이고 빈 입력이면 멈춘다', () async {
+      writeProjectFixture(
+        root,
+        projectId: existingId,
+        aliases: matchingAliases,
+      );
+      final FakeCommandRunner runner = buildAddFirebaseRunner(
+        lists: <CommandResult>[listWithout],
+      );
+      final delays = <Duration>[];
+      final step = FirebaseProjectStep(
+        delay: (Duration duration) async {
+          delays.add(duration);
+        },
+      );
+      final output = StringBuffer();
+      final stopwatch = Stopwatch()..start();
+
+      final int code = await runProjectStepOnStdio(
+        runner,
+        const <String>['y', 'y', ''],
+        output,
+        step,
+      );
+
+      stopwatch.stop();
+      final shown = output.toString();
+      expect(code, wizardExitStopped, reason: shown);
+      expect(
+        delays,
+        List<Duration>.filled(
+          FirebaseProjectStep.maxListPolls - 1,
+          FirebaseProjectStep.listPollInterval,
+        ),
+      );
+      expect(delays, hasLength(11));
+      expect(
+        RegExp(
+          RegExp.escape(FirebaseProjectStep.listWaitLine),
+        ).allMatches(shown).length,
+        1,
+      );
+      expect(shown, contains('  실패 — $existingId 에 아직 Firebase 가 추가되지 않았습니다'));
+      expect(
+        shown,
+        contains(
+          '$failureChoiceQuestion\n  1) $retryOption\n  2) $stopOption\n'
+          '번호를 고르세요 [2]: ',
+        ),
+      );
+      expect(runner.countCalls(RunMode.stream, addFirebaseKey(existingId)), 1);
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 10)));
     });
   });
 

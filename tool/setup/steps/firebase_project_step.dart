@@ -25,11 +25,38 @@ import 'identity_step.dart';
 /// 확인 표 뒤에 `gcloud projects create` 를 실행하고, Firebase 추가 **전에** 그
 /// ID 를 config 와 별칭에 쓴 뒤 `firebase projects:addfirebase` 를 실행한다.
 /// Firebase 추가가 실패하면 Firebase 콘솔에서 할 일을 보이고 Enter 를 기다려
-/// 다시 검사한다. 모든 명령은 프로젝트 ID 를 인자로 명시하고 CLI 의 전역 설정을
-/// 바꾸지 않는다.
+/// 다시 검사한다. Firebase 추가가 성공해도 프로젝트 목록에는 늦게 보일 수
+/// 있어, 목록에 보일 때까지 [listPollInterval] 간격으로 [maxListPolls] 번까지
+/// 다시 확인한 뒤 위저드의 재검사로 넘긴다. 모든 명령은 프로젝트 ID 를 인자로
+/// 명시하고 CLI 의 전역 설정을 바꾸지 않는다.
 final class FirebaseProjectStep implements Step {
   /// Firebase 프로젝트 단계를 만든다.
-  FirebaseProjectStep();
+  ///
+  /// [delay] 는 Firebase 추가 뒤 프로젝트 목록을 다시 보기 전에 기다리는
+  /// 함수다(기본 = 실제로 기다림 · 테스트는 기다리지 않는 함수를 넣는다).
+  FirebaseProjectStep({Future<void> Function(Duration duration)? delay})
+    : _delay = delay ?? _waitFor;
+
+  /// Firebase 추가 뒤 프로젝트 목록을 다시 확인하는 간격.
+  static const Duration listPollInterval = Duration(seconds: 5);
+
+  /// Firebase 추가 뒤 프로젝트 목록을 확인하는 최대 횟수 — 첫 확인은 기다리지
+  /// 않으므로 가장 오래 기다리는 시간은 (이 값 − 1) × [listPollInterval] 이다.
+  static const int maxListPolls = 12;
+
+  /// Firebase 추가 뒤 목록 반영을 기다리는 가장 긴 시간(초).
+  static int get _maxListWaitSeconds =>
+      (maxListPolls - 1) * listPollInterval.inSeconds;
+
+  /// 첫 확인에서 목록에 없어 기다리기 시작할 때 한 번 보이는 줄.
+  static final String listWaitLine =
+      '  Firebase 프로젝트 목록에 반영되기를 기다립니다(최대 $_maxListWaitSeconds초)';
+
+  /// 새로 만들기 · Firebase 추가 모드의 계획 줄에 붙는 반영 대기 안내.
+  static final String listWaitPlanLine =
+      '(Firebase 를 추가한 뒤 프로젝트 목록에 보일 때까지 '
+      '${listPollInterval.inSeconds}초 간격으로 최대 $_maxListWaitSeconds초 '
+      '다시 확인합니다)';
 
   /// 단계 제목.
   static const String stepTitle = 'Firebase 프로젝트';
@@ -143,6 +170,7 @@ final class FirebaseProjectStep implements Step {
   static const String existingProjectNotice =
       '  내 계정에 이미 있는 프로젝트입니다 — 만들기를 건너뛰고 Firebase 만 추가합니다';
 
+  final Future<void> Function(Duration duration) _delay;
   _ProjectMode _mode = _ProjectMode.unreadable;
   String _reason = '';
   String _projectId = '';
@@ -269,12 +297,14 @@ final class FirebaseProjectStep implements Step {
         '(새로 만들기 / 기존 프로젝트에서 고르기를 묻습니다 — 새로 만들면 확인 표 뒤에 아래 명령을 실행합니다)',
         'gcloud projects create <프로젝트 ID> --name=<프로젝트 ID>',
         'firebase projects:addfirebase <프로젝트 ID>',
+        listWaitPlanLine,
         aliasLine,
         '(Firebase 추가가 실패하면 콘솔에서 할 일을 보이고 Enter 를 기다립니다)',
       ],
       _ProjectMode.addFirebase => <String>[
         buildAddFirebaseCommand(_projectId).render(),
         '(이 Google Cloud 프로젝트에 Firebase 를 추가합니다 — 되돌릴 수 없어 실행 전에 확인 표를 보이고, 실패하면 콘솔에서 할 일을 보입니다)',
+        listWaitPlanLine,
       ],
       _ProjectMode.writeAliases => <String>[
         '($firebasercPath 의 $aliases 를 $_projectId 로 씀)',
@@ -413,7 +443,8 @@ final class FirebaseProjectStep implements Step {
   /// [projectId] 에 Firebase 를 추가한다 — 실패하면 콘솔 안내 뒤 Enter 를 기다린다.
   ///
   /// 실패 출력 원문은 실행 중에 이미 화면에 흘렀으므로 다시 싣지 않는다. 출력
-  /// 문자열이 아니라 실패 자체로 안내한다.
+  /// 문자열이 아니라 실패 자체로 안내한다. 성공하면 프로젝트 목록에 보일 때까지
+  /// 기다린 뒤 실행을 마친다.
   Future<StepOutcome> _addFirebaseOrGuide(
     WizardContext context,
     String projectId,
@@ -421,8 +452,32 @@ final class FirebaseProjectStep implements Step {
     final CommandResult added = await context.runner.stream(
       buildAddFirebaseCommand(projectId),
     );
-    if (added.isSuccess) return const Applied();
-    return WaitForUser(buildAddFirebaseGuide(projectId));
+    if (!added.isSuccess) return WaitForUser(buildAddFirebaseGuide(projectId));
+    await _waitUntilListed(context, projectId);
+    return const Applied();
+  }
+
+  /// Firebase 를 막 추가한 [projectId] 가 프로젝트 목록에 보일 때까지 다시 확인한다.
+  ///
+  /// 첫 확인은 기다리지 않는다. 없으면 [listWaitLine] 을 한 번 보이고
+  /// [listPollInterval] 마다 다시 확인해 모두 [maxListPolls] 번까지 본다. 끝내
+  /// 보이지 않아도 여기서 실패로 만들지 않는다 — 위저드의 실행 뒤 재검사가
+  /// 지금의 사유로 실패를 보이고 다시 시도 · 멈춤을 묻는다.
+  Future<void> _waitUntilListed(WizardContext context, String projectId) async {
+    for (var attempt = 0; attempt < maxListPolls; attempt++) {
+      if (attempt > 0) {
+        if (attempt == 1) context.terminal.writeLine(listWaitLine);
+        await _delay(listPollInterval);
+      }
+      final CommandResult list = await context.runner.capture(
+        projectsListCommand,
+      );
+      final List<_ProjectEntry>? projects = _parseProjects(list);
+      if (projects != null &&
+          projects.any((_ProjectEntry entry) => entry.projectId == projectId)) {
+        return;
+      }
+    }
   }
 
   /// 내 계정의 Firebase 프로젝트 목록에서 하나를 고르게 하고 기록한다.
@@ -575,6 +630,10 @@ final class FirebaseProjectStep implements Step {
           ),
     ];
   }
+
+  /// 실제로 [duration] 만큼 기다린다.
+  static Future<void> _waitFor(Duration duration) =>
+      Future<void>.delayed(duration);
 }
 
 /// 목록의 프로젝트 하나.
