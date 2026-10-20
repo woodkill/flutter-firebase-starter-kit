@@ -4,6 +4,7 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
+import '../providers/icon_specs.dart';
 import '../providers/idp_config.dart';
 import '../providers/key_formats.dart';
 import '../providers/provider_catalog.dart';
@@ -24,6 +25,9 @@ import 'sign_in_step.dart';
 /// 켠다. 임시 파일은 성공 · 실패와 관계없이 실행 뒤 지우고, 추적 파일
 /// `firebase.json` 은 건드리지 않는다. 켠 뒤 다시 읽은 `clientId` 를 config 의
 /// `googleServerClientId` 에 쓴다.
+///
+/// 동의 화면 값 표에는 로고 파일 경로 행과 요구 정도 노트도 함께 보인다 — 동의
+/// 화면 로고는 출시 전 선택이고, 올리면 브랜드 인증 뒤에 보인다.
 ///
 /// 지원 이메일 제안값은 gcloud 의 지금 계정이다. 제안값을 읽지 못하면 값 표에
 /// [unreadEmailValue] 를 보이고, `이대로 진행` 을 골라도 이메일을 먼저 묻는다.
@@ -267,11 +271,14 @@ final class GoogleStep implements Step {
     }
     final String? suggested = await _readSuggestedEmail(context);
     final bool isOrganization = await _isUnderOrganization(context);
+    final IconSpec spec = findIconSpec(token)!;
     final String? supportEmail = _chooseSupportEmail(
       context.terminal,
       appName: appName,
       suggested: suggested,
       isOrganization: isOrganization,
+      logoRow: buildIconRow(context, spec),
+      logoNote: buildIconNote(spec),
     );
     if (supportEmail == null) return const Declined();
     if (supportEmail.isEmpty) {
@@ -319,12 +326,15 @@ final class GoogleStep implements Step {
 
   /// 값 표를 보이고 지원 이메일을 정한다.
   ///
+  /// 표를 다시 보일 때마다 로고 행 [logoRow] 와 노트 [logoNote] 를 함께 보인다.
   /// 입력 끝이면 null, 형식에 맞는 값을 끝내 받지 못하면 빈 문자열을 돌려준다.
   String? _chooseSupportEmail(
     Terminal terminal, {
     required String appName,
     required String? suggested,
     required bool isOrganization,
+    required SummaryRow logoRow,
+    required String? logoNote,
   }) {
     var email = suggested;
     while (true) {
@@ -333,6 +343,8 @@ final class GoogleStep implements Step {
         appName: appName,
         email: email,
         isOrganization: isOrganization,
+        logoRow: logoRow,
+        logoNote: logoNote,
       );
       final int? choice = terminal.choose(choiceQuestion, const <String>[
         proceedOption,
@@ -347,11 +359,16 @@ final class GoogleStep implements Step {
   }
 
   /// 동의 화면 값 표를 보인다 — 조직 아래 프로젝트면 경고 한 줄을 붙인다.
+  ///
+  /// 셋째 행은 로고 경로 [logoRow], 셋째 노트는 (있으면) 로고 요구 정도
+  /// [logoNote] 다.
   static void _writeValueTable(
     Terminal terminal, {
     required String appName,
     required String? email,
     required bool isOrganization,
+    required SummaryRow logoRow,
+    required String? logoNote,
   }) {
     writeSummary(
       terminal,
@@ -359,8 +376,13 @@ final class GoogleStep implements Step {
       rows: <SummaryRow>[
         SummaryRow(appNameRowLabel, appName),
         SummaryRow(supportEmailRowLabel, email ?? unreadEmailValue),
+        logoRow,
       ],
-      notes: const <String>[existingBrandNote, SignInStep.defaultWebAppNotice],
+      notes: <String>[
+        existingBrandNote,
+        SignInStep.defaultWebAppNotice,
+        ?logoNote,
+      ],
     );
     if (isOrganization) terminal.writeLine('  ! $organizationWarning');
   }

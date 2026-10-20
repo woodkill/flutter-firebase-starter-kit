@@ -8,6 +8,7 @@ import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/idp_config.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
@@ -931,6 +932,156 @@ void main() {
         steps.whereType<FunctionsStep>().single.dependsOn,
         isNot(contains('google')),
       );
+    });
+  });
+
+  group('T-20.1-ROW-03: 동의 화면 값 표에 로고 경로 행과 브랜드 인증 노트가 있고 '
+      '앱 이름 · 지원 이메일 · 기존 노트는 그대로다', () {
+    final IconSpec spec = findIconSpec(GoogleStep.token)!;
+    const brandNote =
+        '동의 화면 로고: 출시 전 선택입니다 — 올리면 Google 의 브랜드 인증을 거쳐야 동의 화면에 보입니다';
+
+    /// 로고 파일 자리에 가짜 바이트를 둔다(크기 · 형식은 보지 않는다).
+    void placeLogoFile() {
+      File('$root/${spec.relativePath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(const <int>[1, 2, 3]);
+    }
+
+    /// 화면 [lines] 의 동의 화면 표마다 행 줄(머리 다음 ~ 첫 노트 줄 앞)을 고른다.
+    List<List<String>> selectValueTables(List<String> lines) => <List<String>>[
+      for (var i = 0; i < lines.length; i++)
+        if (lines[i] == '── ${GoogleStep.summaryTitle} ──')
+          lines.sublist(
+            i + 1,
+            lines.indexWhere((String line) => line.startsWith('  · '), i),
+          ),
+    ];
+
+    /// 표 행 [rows] 가 앱 이름 · 지원 이메일 · 로고([logoValue]) 세 행인지 본다.
+    void expectTableRows(List<String> rows, String email, String logoValue) {
+      /// [label] 과 [value] 가 한 줄에 있는 행 모양.
+      RegExp buildRowPattern(String label, String value) =>
+          RegExp('^  ${RegExp.escape(label)} +${RegExp.escape(value)}\$');
+
+      expect(rows, hasLength(3), reason: rows.join('\n'));
+      expect(
+        rows[0],
+        matches(buildRowPattern(GoogleStep.appNameRowLabel, appName)),
+      );
+      expect(
+        rows[1],
+        matches(buildRowPattern(GoogleStep.supportEmailRowLabel, email)),
+      );
+      expect(rows[2], matches(buildRowPattern(spec.rowLabel, logoValue)));
+    }
+
+    /// 화면 [lines] 의 노트가 기존 두 줄 다음 브랜드 인증 노트인지 본다.
+    void expectNotes(List<String> lines, int tableCount) {
+      final String output = lines.join('\n');
+      expect(countText(output, '  · $brandNote'), tableCount);
+      expect(
+        countText(output, '  · ${GoogleStep.existingBrandNote}'),
+        tableCount,
+      );
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i] != '  · ${SignInStep.defaultWebAppNotice}') continue;
+        expect(lines[i + 1], '  · $brandNote');
+      }
+    }
+
+    /// 배포 순간 임시 파일 [content] 에 로고 경로 · 파일 이름이 없는지 본다.
+    void expectNoLogoInDeploy(String? content) {
+      expect(content, isNotNull);
+      expect(content, isNot(contains(spec.fileName)));
+      expect(content, isNot(contains(iconsDirectory)));
+    }
+
+    test('로고 파일이 없으면 「아직 없음」 문장과 노트를 보인다', () async {
+      final h = _Harness(root, const <String?>['y', '1'])
+        ..onIdpGets(<RestResponse>[
+          missingResponse,
+          missingResponse,
+          buildEnabledResponse(),
+        ])
+        ..onLookups();
+      String? deployedContent;
+      h.onDeploy(
+        ok(),
+        onDeploy: (String? content) => deployedContent = content,
+      );
+
+      expect(await h.run(), wizardExitDone, reason: h.output);
+
+      final List<String> lines = h.output.split('\n');
+      final List<List<String>> tables = selectValueTables(lines);
+      expect(spec.rowLabel, '동의 화면 로고 · 출시 전 선택');
+      expect(tables, hasLength(1), reason: h.output);
+      expectTableRows(tables.single, suggestedEmail, missingIconValue);
+      expectNotes(lines, 1);
+      expectNoLogoInDeploy(deployedContent);
+    });
+
+    test('로고 파일이 있으면 그 상대 경로를 보인다', () async {
+      placeLogoFile();
+      final h = _Harness(root, const <String?>['y', '1'])
+        ..onIdpGets(<RestResponse>[
+          missingResponse,
+          missingResponse,
+          buildEnabledResponse(),
+        ])
+        ..onLookups();
+      String? deployedContent;
+      h.onDeploy(
+        ok(),
+        onDeploy: (String? content) => deployedContent = content,
+      );
+
+      expect(await h.run(), wizardExitDone, reason: h.output);
+
+      final List<String> lines = h.output.split('\n');
+      final List<List<String>> tables = selectValueTables(lines);
+      expect(spec.relativePath, '.setup/icons/google-120x120.png');
+      expect(tables, hasLength(1), reason: h.output);
+      expectTableRows(tables.single, suggestedEmail, spec.relativePath);
+      expect(h.output, isNot(contains('$root/${spec.relativePath}')));
+      expectNotes(lines, 1);
+      expectNoLogoInDeploy(deployedContent);
+    });
+
+    test('지원 이메일을 고쳐 표가 다시 보여도 로고 행이 매번 있고 배포 임시 파일에는 '
+        '로고 경로가 없다', () async {
+      placeLogoFile();
+      final h =
+          _Harness(root, const <String?>[
+              'y',
+              '2',
+              'not-an-email',
+              editedEmail,
+              '1',
+            ])
+            ..onIdpGets(<RestResponse>[
+              missingResponse,
+              missingResponse,
+              buildEnabledResponse(),
+            ])
+            ..onLookups();
+      String? deployedContent;
+      h.onDeploy(
+        ok(),
+        onDeploy: (String? content) => deployedContent = content,
+      );
+
+      expect(await h.run(), wizardExitDone, reason: h.output);
+
+      final List<String> lines = h.output.split('\n');
+      final List<List<String>> tables = selectValueTables(lines);
+      expect(tables, hasLength(2), reason: h.output);
+      expectTableRows(tables[0], suggestedEmail, spec.relativePath);
+      expectTableRows(tables[1], editedEmail, spec.relativePath);
+      expectNotes(lines, 2);
+      expectNoLogoInDeploy(deployedContent);
+      expect(authConfigFile().existsSync(), isFalse);
     });
   });
 }
