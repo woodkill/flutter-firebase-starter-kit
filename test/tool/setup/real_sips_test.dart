@@ -326,11 +326,14 @@ void main() {
         '${workRoot.path}/summary.txt',
       ).writeAsStringSync('$line\n', mode: FileMode.append);
 
-      test('T-20.1-SIPS-01: 공백 든 PNG 원본을 끌어다 놓으면 실제 sips 가 '
-          '다섯 provider 아이콘을 투명 배경 그대로 만든다', () async {
-        final dir = _CaseDir(workRoot, 'png');
-        final source = '${dir.sourceDir}/$sourceBaseName.png';
-        writeRgbaPng(source, 1024, 1024);
+      /// 원본 [source](sips 형식 [format]) 을 끌어다 놓기 답으로 넘겨 다섯
+      /// 아이콘을 만들고, 독립 재측정으로 규격 · 알파 [alpha] 를 확인한다.
+      Future<void> expectIconCase(
+        _CaseDir dir,
+        String source, {
+        required String format,
+        required String alpha,
+      }) async {
         final List<int> sourceBytes = File(source).readAsBytesSync();
 
         final _RunResult run = await _runIconStep(dir, <String?>[
@@ -356,11 +359,13 @@ void main() {
           expect(image.width, spec.side, reason: spec.token);
           expect(image.height, spec.side, reason: spec.token);
           expect(image.format, 'png', reason: spec.token);
-          expect(image.alpha, 'yes', reason: spec.token);
+          expect(image.alpha, alpha, reason: spec.token);
           expect(bytes, lessThanOrEqualTo(spec.maxBytes), reason: spec.token);
         }
         expect(
-          File('${dir.iconsPath}/$sourceCopyBaseName.png').readAsBytesSync(),
+          File(
+            '${dir.iconsPath}/$sourceCopyBaseName.$format',
+          ).readAsBytesSync(),
           sourceBytes,
         );
         expect(File(source).readAsBytesSync(), sourceBytes);
@@ -370,6 +375,105 @@ void main() {
           run.runner.calls.where((Command c) => c.executable == openPath),
           hasLength(1),
         );
+      }
+
+      /// [dir] 의 1024 PNG 에서 실제 sips 로 [format] 원본을 만들어 경로를
+      /// 돌려준다 — 원본의 재측정 값은 작업 루트의 `sources.txt` 에 남긴다.
+      String deriveSource(_CaseDir dir, String format, String extension) {
+        final png = '${dir.sourceDir}/base.png';
+        writeRgbaPng(png, 1024, 1024);
+        final source = '${dir.sourceDir}/$sourceBaseName.$extension';
+        final ProcessResult made = Process.runSync(sipsPath, <String>[
+          '-s',
+          'format',
+          format,
+          png,
+          '--out',
+          source,
+        ]);
+        expect(made.exitCode, 0, reason: '${made.stderr}');
+        final MeasuredImage image = measureImage(source);
+        File('${workRoot.path}/sources.txt').writeAsStringSync(
+          'SRC ${dir.name} size=${image.width}x${image.height} '
+          'format=${image.format} alpha=${image.alpha}\n',
+          mode: FileMode.append,
+        );
+        expect(image.format, format);
+        return source;
+      }
+
+      test('T-20.1-SIPS-01: 공백 든 PNG 원본을 끌어다 놓으면 실제 sips 가 '
+          '다섯 provider 아이콘을 투명 배경 그대로 만든다', () async {
+        final dir = _CaseDir(workRoot, 'png');
+        final source = '${dir.sourceDir}/$sourceBaseName.png';
+        writeRgbaPng(source, 1024, 1024);
+
+        await expectIconCase(dir, source, format: 'png', alpha: 'yes');
+      });
+
+      test('T-20.1-SIPS-02: JPEG 원본도 다섯 provider 규격 PNG 가 되고 '
+          '알파는 없다', () async {
+        final dir = _CaseDir(workRoot, 'jpeg');
+        final String source = deriveSource(dir, 'jpeg', 'jpg');
+
+        await expectIconCase(dir, source, format: 'jpeg', alpha: 'no');
+      });
+
+      test('T-20.1-SIPS-02: HEIC 원본도 다섯 provider 규격 PNG 가 되고 '
+          '투명 배경을 유지한다', () async {
+        final dir = _CaseDir(workRoot, 'heic');
+        final String source = deriveSource(dir, 'heic', 'heic');
+
+        await expectIconCase(dir, source, format: 'heic', alpha: 'yes');
+      });
+
+      test('T-20.1-SIPS-03: 비정사각 · 1024 미만 원본은 실제 sips 값으로 '
+          '지금 크기와 함께 거절되고 변환하지 않는다', () async {
+        final dir = _CaseDir(workRoot, 'reject');
+        final wide = '${dir.sourceDir}/wide 1920.png';
+        final small = '${dir.sourceDir}/small 512.png';
+        writeRgbaPng(wide, 1920, 1080);
+        writeRgbaPng(small, 512, 512);
+        final MeasuredImage wideImage = measureImage(wide);
+        final MeasuredImage smallImage = measureImage(small);
+        appendSummary(
+          'REJECT ${dir.name} '
+          'size=${wideImage.width}x${wideImage.height} reason=square',
+        );
+        appendSummary(
+          'REJECT ${dir.name} '
+          'size=${smallImage.width}x${smallImage.height} reason=small',
+        );
+
+        final _RunResult run = await _runIconStep(dir, <String?>[
+          '1',
+          buildDroppedAnswer(wide),
+          buildDroppedAnswer(small),
+          '',
+        ]);
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        final List<String> lines = run.output.split('\n');
+        final int squareAt = lines.indexOf(
+          '  ${AppIconStep.notSquareReason}1920x1080',
+        );
+        final int smallAt = lines.indexOf(
+          '  ${AppIconStep.tooSmallReason}512x512',
+        );
+        expect(squareAt, greaterThanOrEqualTo(0), reason: run.output);
+        expect(smallAt, greaterThan(squareAt), reason: run.output);
+        expect(
+          lines,
+          contains('  ✗ ${AppIconStep.stepTitle} — 지금 안 함'),
+          reason: run.output,
+        );
+        expect(Directory(dir.iconsPath).existsSync(), isFalse);
+        expect(
+          run.runner.calls.where((Command c) => c.arguments.contains('-z')),
+          isEmpty,
+        );
+        expect(run.runner.executedPaths, <String>[sipsPath, sipsPath]);
+        expect(run.runner.openCount, 0);
       });
     },
   );
