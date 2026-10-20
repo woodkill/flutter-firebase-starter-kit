@@ -55,11 +55,22 @@ final class FakeCommandRunner implements CommandRunner {
   /// 호출 기록(순서대로).
   final List<FakeCall> calls = <FakeCall>[];
 
+  /// 명령 키 → 실행 순간(결과를 돌려주기 직전)에 부를 효과.
+  final Map<String, void Function()> effects = <String, void Function()>{};
+
   /// [key] 명령의 결과 큐에 [result] 를 더한다.
   ///
   /// 큐는 앞에서부터 하나씩 쓰고, 마지막 하나는 계속 되풀이한다.
   void on(String key, CommandResult result) {
     _results.putIfAbsent(key, () => <CommandResult>[]).add(result);
+  }
+
+  /// [key] 명령이 실행되는 순간 [effect] 를 부르게 한다.
+  ///
+  /// 키는 [buildKey] 와 같은 꼴이다. 결과는 [on] 으로 따로 등록한다 — 결과가
+  /// 없는 키는 효과와 상관없이 [StateError] 다.
+  void onEffect(String key, void Function() effect) {
+    effects[key] = effect;
   }
 
   /// [mode] 로 불린 [key] 명령의 호출 수를 센다.
@@ -90,7 +101,11 @@ final class FakeCommandRunner implements CommandRunner {
     if (queue == null || queue.isEmpty) {
       throw StateError('등록하지 않은 명령: $key');
     }
-    return queue.length > 1 ? queue.removeAt(0) : queue.first;
+    final CommandResult result = queue.length > 1
+        ? queue.removeAt(0)
+        : queue.first;
+    effects[key]?.call();
+    return result;
   }
 
   @override
