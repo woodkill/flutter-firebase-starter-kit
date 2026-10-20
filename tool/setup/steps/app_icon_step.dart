@@ -309,9 +309,14 @@ final class AppIconStep implements DeferrableStep {
         context.terminal.writeLine('  $missingFileReason$shown');
         continue;
       }
-      final ImageProbe? probe = parseProbe(
-        await context.runner.capture(buildProbeCommand(path)),
+      final CommandResult probed = await context.runner.capture(
+        buildProbeCommand(path),
       );
+      if (!probed.isSuccess) {
+        // 원문에는 저장소 밖 원본의 절대 경로가 섞일 수 있어 종료 코드만 보인다.
+        return Failed('원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 ${probed.exitCode}');
+      }
+      final ImageProbe? probe = parseProbe(probed);
       if (probe == null) {
         context.terminal.writeLine('  $notImageReason$shown');
         continue;
@@ -337,9 +342,13 @@ final class AppIconStep implements DeferrableStep {
   /// 보관한 사본을 다시 읽어 검사한 뒤 없는 아이콘만 만든다.
   Future<StepOutcome> _applyFromCopy(WizardContext context) async {
     final shown = '$iconsDirectory/$_sourceName';
-    final ImageProbe? probe = parseProbe(
-      await context.runner.capture(buildProbeCommand(context.resolve(shown))),
+    final CommandResult probed = await context.runner.capture(
+      buildProbeCommand(context.resolve(shown)),
     );
+    if (!probed.isSuccess) {
+      return Failed('보관한 원본 크기를 읽지 못했습니다 — $shown', result: probed);
+    }
+    final ImageProbe? probe = parseProbe(probed);
     final String? problem = probe == null
         ? '이미지로 읽히지 않습니다'
         : findSourceProblem(probe);
@@ -375,10 +384,10 @@ final class AppIconStep implements DeferrableStep {
       }
     }
     for (final IconSpec spec in _missing) {
-      final String? problem = await _verifyIcon(context, spec);
-      if (problem != null) {
+      final Failed? failure = await _verifyIcon(context, spec);
+      if (failure != null) {
         _discard(context, spec);
-        return Failed(problem);
+        return failure;
       }
     }
     writeSummary(
@@ -404,21 +413,31 @@ final class AppIconStep implements DeferrableStep {
     return const Applied();
   }
 
-  /// 만든 [spec] 파일의 크기 · 형식 · 용량을 확인한다 — 맞으면 null, 아니면 실패 문장.
-  Future<String?> _verifyIcon(WizardContext context, IconSpec spec) async {
+  /// 만든 [spec] 파일의 크기 · 형식 · 용량을 확인한다 — 맞으면 null, 아니면 실패.
+  ///
+  /// `sips -g` 는 읽을 수 없는 파일에도 0 으로 끝나므로 0 이 아닌 종료 코드는
+  /// 도구 자체의 실패다 — 그 결과 원문을 실패에 실어 보인다.
+  Future<Failed?> _verifyIcon(WizardContext context, IconSpec spec) async {
     final String path = context.resolve(spec.relativePath);
     final String name = _findName(spec);
-    final ImageProbe? probe = parseProbe(
-      await context.runner.capture(buildProbeCommand(path)),
+    final CommandResult probed = await context.runner.capture(
+      buildProbeCommand(path),
     );
+    if (!probed.isSuccess) {
+      return Failed(
+        '$name 아이콘 크기를 읽지 못했습니다 — ${spec.relativePath}',
+        result: probed,
+      );
+    }
+    final ImageProbe? probe = parseProbe(probed);
     if (probe == null) {
-      return '$name 아이콘을 읽지 못했습니다 — ${spec.relativePath}';
+      return Failed('$name 아이콘을 읽지 못했습니다 — ${spec.relativePath}');
     }
     final int bytes;
     try {
       bytes = File(path).lengthSync();
     } on FileSystemException catch (e) {
-      return '$name 아이콘 용량을 읽지 못했습니다 — ${e.message}';
+      return Failed('$name 아이콘 용량을 읽지 못했습니다 — ${e.message}');
     }
     final bool isSpec =
         probe.width == spec.side &&
@@ -426,9 +445,11 @@ final class AppIconStep implements DeferrableStep {
         probe.format == 'png' &&
         bytes <= spec.maxBytes;
     if (isSpec) return null;
-    return '$name 아이콘이 규격과 다릅니다 — ${spec.relativePath}: '
-        '지금 ${formatSize(probe)} ${probe.format} · $bytes 바이트 '
-        '(규격 ${spec.side}x${spec.side} png · ${spec.maxBytes} 바이트 이하)';
+    return Failed(
+      '$name 아이콘이 규격과 다릅니다 — ${spec.relativePath}: '
+      '지금 ${formatSize(probe)} ${probe.format} · $bytes 바이트 '
+      '(규격 ${spec.side}x${spec.side} png · ${spec.maxBytes} 바이트 이하)',
+    );
   }
 
   /// 이번 실행에서 만들다 만 [spec] 파일을 지운다 — 지우지 못해도 넘어간다.

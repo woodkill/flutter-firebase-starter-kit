@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
@@ -150,11 +151,16 @@ final class _Sandbox {
 
 /// 한 번의 위저드 실행 — 로그인 수단 대역 + 아이콘 단계.
 final class _Harness {
-  _Harness(this.box, List<String?> inputs, {this.enabled = allProviders})
-    : screen = ScriptedTerminal(inputs);
+  _Harness(
+    this.box,
+    List<String?> inputs, {
+    this.enabled = allProviders,
+    this.flavor = Flavor.dev,
+  }) : screen = ScriptedTerminal(inputs);
 
   final _Sandbox box;
   final Set<String> enabled;
+  final Flavor flavor;
   final ScriptedTerminal screen;
   final FakeCommandRunner runner = FakeCommandRunner();
   final MemoryLogSink log = MemoryLogSink(Redactor());
@@ -174,11 +180,13 @@ final class _Harness {
   }
 
   /// 원본 [sourceName] 에서 [specs] 를 만드는 가짜 변환 · 만든 뒤 크기 읽기를
-  /// 등록한다 — 변환 순간 출력 경로에 [bytesFor] 바이트를 쓴다.
+  /// 등록한다 — 변환 순간 출력 경로에 [bytesFor] 바이트를 쓰고, 만든 뒤 크기는
+  /// [probeSideFor] 로 읽힌다(없으면 규격 크기).
   void registerTargets(
     String sourceName,
     List<IconSpec> specs, {
     int Function(IconSpec spec)? bytesFor,
+    int Function(IconSpec spec)? probeSideFor,
   }) {
     for (final spec in specs) {
       final key = buildResizeKey(box.root, sourceName, spec.token, spec.side);
@@ -191,7 +199,14 @@ final class _Harness {
             out,
           ).writeAsBytesSync(buildFakeBytes(bytesFor?.call(spec) ?? 64));
         })
-        ..on(buildProbeKey(out), buildProbeResult(out, spec.side, spec.side));
+        ..on(
+          buildProbeKey(out),
+          buildProbeResult(
+            out,
+            probeSideFor?.call(spec) ?? spec.side,
+            probeSideFor?.call(spec) ?? spec.side,
+          ),
+        );
     }
   }
 
@@ -203,6 +218,7 @@ final class _Harness {
   Future<int> run() => runWizard(
     WizardContext(
       projectRoot: box.root,
+      flavor: flavor,
       runner: runner,
       terminal: RedactingTerminal(screen, log.redactor, log),
       redactor: log.redactor,
@@ -428,6 +444,454 @@ void main() {
         'format',
         '/x/a b.png',
       ]);
+    });
+  });
+
+  group('T-20.1-ICON-04: 원본 거절 — 까닭 · 지금 크기 · 경로만 다시', () {
+    test('없는 파일 · 비정사각 뒤 맞는 원본 → 셋째 답 뒤에만 변환', () async {
+      final String wide = box.writeHomeFile('wide.png', buildFakeBytes(256));
+      final String good = box.writeHomeFile('good.png', buildFakeBytes(512));
+      final missing = '${box.home}/missing.png';
+      final h = _Harness(box, <String?>['1', missing, wide, good]);
+      h.runner
+        ..on(buildProbeKey(wide), buildProbeResult(wide, 1920, 1080))
+        ..on(buildProbeKey(good), buildProbeResult(good, 1024, 1024));
+      h
+        ..registerTargets('source.png', iconSpecs)
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      final int missingAt = h.output.indexOf(
+        '  ${AppIconStep.missingFileReason}~/missing.png',
+      );
+      final int wideAt = h.output.indexOf(
+        '  ${AppIconStep.notSquareReason}1920x1080',
+      );
+      expect(missingAt, greaterThan(0));
+      expect(wideAt, greaterThan(missingAt));
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+        hasLength(3),
+      );
+      expect(h.runner.countCalls(RunMode.capture, buildProbeKey(missing)), 0);
+      final List<String> keys = h.runner.calls
+          .map((FakeCall c) => c.key)
+          .toList();
+      final int goodProbeAt = keys.indexOf(buildProbeKey(good));
+      final int firstResizeAt = keys.indexWhere(
+        (String k) => k.startsWith('/usr/bin/sips -z '),
+      );
+      expect(goodProbeAt, greaterThan(keys.indexOf(buildProbeKey(wide))));
+      expect(firstResizeAt, greaterThan(goodProbeAt));
+      expect(h.output, contains(allDoneIconLine));
+      expect(
+        File('${box.iconsPath}/source.png').readAsBytesSync(),
+        buildFakeBytes(512),
+      );
+      expect(h.output, isNot(contains(box.home)));
+    });
+
+    test('비이미지 · 1024 미만 · 상한 초과 세 번 → 멈춤 · 만들기 0', () async {
+      final String text = box.writeHomeFile('notes.txt', buildFakeBytes(16));
+      final String small = box.writeHomeFile('small.png', buildFakeBytes(64));
+      final String huge = box.writeHomeFile('huge.png', buildFakeBytes(64));
+      final h = _Harness(box, <String?>['1', text, small, huge]);
+      h.runner
+        ..on(
+          buildProbeKey(text),
+          CommandResult(
+            0,
+            '$text\n  pixelWidth: <nil>\n  pixelHeight: <nil>\n'
+                '  format: txt\n',
+            '',
+          ),
+        )
+        ..on(buildProbeKey(small), buildProbeResult(small, 512, 512))
+        ..on(buildProbeKey(huge), buildProbeResult(huge, 20000, 20000));
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains('  ${AppIconStep.notImageReason}~/notes.txt'));
+      expect(h.output, contains('  1024x1024 이상이 필요합니다 — 지금 512x512'));
+      expect(h.output, contains('  너무 큰 이미지입니다 — 지금 20000x20000'));
+      expect(h.output, contains(stopLine));
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+      expect(h.runner.countMode(RunMode.stream), 0);
+    });
+
+    test('크기 읽기 도구 자체가 실패하면 이미지 판정 대신 실패', () async {
+      final String good = box.writeHomeFile('good.png', buildFakeBytes(512));
+      final h = _Harness(box, <String?>['1', good]);
+      h.runner.on(
+        buildProbeKey(good),
+        const CommandResult(127, '', 'No such file or directory'),
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains('  실패 — 원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 127'));
+      expect(h.output, isNot(contains(AppIconStep.notImageReason)));
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+        hasLength(1),
+      );
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+      expect(h.output, isNot(contains(box.home)));
+    });
+
+    test('한 변만 상한을 넘어도 「너무 큰」 이 먼저', () {
+      expect(
+        AppIconStep.findSourceProblem((
+          width: 1024,
+          height: 20000,
+          format: 'png',
+        )),
+        '${AppIconStep.tooLargeReason}1024x20000',
+      );
+      expect(
+        AppIconStep.findSourceProblem((
+          width: 2000,
+          height: 1000,
+          format: 'png',
+        )),
+        '${AppIconStep.notSquareReason}2000x1000',
+      );
+      expect(
+        AppIconStep.findSourceProblem((
+          width: 1024,
+          height: 1024,
+          format: 'png',
+        )),
+        isNull,
+      );
+    });
+
+    test('원본 안내 · 질문에 상한 숫자가 없다', () {
+      for (final text in <String>[
+        AppIconStep.sourceGuide,
+        AppIconStep.sourceQuestion,
+      ]) {
+        expect(text, isNot(contains('16384')));
+        expect(text, isNot(contains('16,384')));
+        expect(text, isNot(contains('$maxSourceSide')));
+      }
+    });
+  });
+
+  group('T-20.1-ICON-05: 지금 안 함 · 입력 끝', () {
+    const deferredLine = '  ✗ 앱 아이콘 — 지금 안 함';
+
+    test('세 선택지 2 → ✗ · 끝 목록 · 종료 0 · 다음 실행은 다시 묻는다', () async {
+      final h = _Harness(box, const <String?>['2']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.output.split('\n').where((String l) => l == deferredLine), [
+        deferredLine,
+        deferredLine,
+      ]);
+      expect(h.remainingLines, <String>[deferredLine]);
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+      expect(h.runner.calls, isEmpty);
+
+      final again = _Harness(box, const <String?>['2']);
+      expect(await again.run(), wizardExitDone);
+      expect(
+        again.screen.asks.where((String q) => q == failureChoiceQuestion),
+        hasLength(1),
+      );
+    });
+
+    test('경로 질문에 빈 값 → 같은 ✗ 줄 · 종료 0 · 만들기 0', () async {
+      final h = _Harness(box, const <String?>['1', '']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.remainingLines, <String>[deferredLine]);
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('경로 질문에서 입력 끝 → 멈춤', () async {
+      final h = _Harness(box, const <String?>['1']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains(stopLine));
+      expect(h.runner.calls, isEmpty);
+    });
+  });
+
+  group('T-20.1-ICON-06: 보관한 사본으로 없는 파일만 만든다', () {
+    const kakaoNaver = <String>{'kakao', 'naver'};
+
+    test('사본이 있으면 경로 질문 0 · Naver 만 변환 · Kakao 그대로', () async {
+      final List<int> kakaoBytes = buildFakeBytes(48);
+      box
+        ..writeIcon('source.jpeg', buildFakeBytes(900))
+        ..writeIcon('kakao-128x128.png', kakaoBytes);
+      final copy = '${box.iconsPath}/source.jpeg';
+      final h = _Harness(box, const <String?>['1'], enabled: kakaoNaver);
+      h.runner.on(
+        buildProbeKey(copy),
+        buildProbeResult(copy, 1024, 1024, format: 'jpeg'),
+      );
+      h
+        ..registerTargets('source.jpeg', <IconSpec>[findIconSpec('naver')!])
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.output,
+        contains('  ✗ 앱 아이콘 — Naver 용 파일이 없습니다 — 보관한 원본으로 만듭니다'),
+      );
+      expect(
+        h.output,
+        contains(
+          r'  $ sips -z 140 140 -s format png .setup/icons/source.jpeg '
+          '--out .setup/icons/naver-140x140.png',
+        ),
+      );
+      expect(h.output, contains(r'  $ open .setup/icons'));
+      expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+      expect(h.runner.countCalls(RunMode.capture, buildProbeKey(copy)), 1);
+      expect(listStreamKeys(h.runner), <String>[
+        buildResizeKey(box.root, 'source.jpeg', 'naver', 140),
+        buildOpenKey(box.root),
+      ]);
+      expect(
+        File('${box.iconsPath}/kakao-128x128.png').readAsBytesSync(),
+        kakaoBytes,
+      );
+      expect(
+        h.output,
+        contains(
+          '  ✓ 앱 아이콘 — Kakao · Naver 용 2개 · 바꾸려면 .setup/icons 를 지우고 '
+          '다시 실행',
+        ),
+      );
+    });
+
+    test('사본이 맞지 않으면 실패 · 변환 0', () async {
+      box.writeIcon('source.jpeg', buildFakeBytes(900));
+      final copy = '${box.iconsPath}/source.jpeg';
+      final h = _Harness(box, const <String?>['1'], enabled: kakaoNaver);
+      h.runner.on(
+        buildProbeKey(copy),
+        buildProbeResult(copy, 512, 512, format: 'jpeg'),
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains('  실패 — 보관한 원본 .setup/icons/source.jpeg 이 맞지 않습니다 — '),
+      );
+      expect(h.output, contains('지금 512x512'));
+      expect(h.runner.countMode(RunMode.stream), 0);
+    });
+
+    test('경로를 묻는 실행도 이미 있는 파일은 그대로 둔다', () async {
+      final List<int> kakaoBytes = buildFakeBytes(48);
+      box.writeIcon('kakao-128x128.png', kakaoBytes);
+      final String source = box.writeHomeFile('logo.png', buildFakeBytes(700));
+      final h = _Harness(box, <String?>['1', source], enabled: kakaoNaver);
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h
+        ..registerTargets('source.png', <IconSpec>[findIconSpec('naver')!])
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(listStreamKeys(h.runner), <String>[
+        buildResizeKey(box.root, 'source.png', 'naver', 140),
+        buildOpenKey(box.root),
+      ]);
+      expect(
+        File('${box.iconsPath}/kakao-128x128.png').readAsBytesSync(),
+        kakaoBytes,
+      );
+    });
+  });
+
+  group('T-20.1-ICON-07: 만든 뒤 확인 · 변환 실패', () {
+    late String source;
+
+    setUp(() {
+      source = box.writeHomeFile('logo.png', buildFakeBytes(700));
+    });
+
+    test('용량 상한 초과 → 규격과 다르다는 실패 · 멈춤', () async {
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'naver'},
+      );
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h.registerTargets('source.png', <IconSpec>[
+        findIconSpec('naver')!,
+      ], bytesFor: (IconSpec spec) => spec.maxBytes + 1);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains(
+          '  실패 — Naver 아이콘이 규격과 다릅니다 — .setup/icons/naver-140x140.png: '
+          '지금 140x140 png · 500001 바이트 (규격 140x140 png · 500000 바이트 이하)',
+        ),
+      );
+      expect(File('${box.iconsPath}/naver-140x140.png').existsSync(), isFalse);
+      expect(h.runner.countCalls(RunMode.stream, buildOpenKey(box.root)), 0);
+    });
+
+    test('만든 파일 크기가 다르면 같은 꼴의 실패', () async {
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'naver'},
+      );
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h.registerTargets('source.png', <IconSpec>[
+        findIconSpec('naver')!,
+      ], probeSideFor: (IconSpec spec) => 120);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains(
+          '  실패 — Naver 아이콘이 규격과 다릅니다 — .setup/icons/naver-140x140.png: '
+          '지금 120x120 png · 64 바이트 (규격 140x140 png · 500000 바이트 이하)',
+        ),
+      );
+    });
+
+    test('만든 뒤 크기 읽기가 0 이 아닌 종료 코드 → 원문과 함께 실패', () async {
+      const errorText = 'sips: unexpected failure\n';
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'naver'},
+      );
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      // 결과 큐는 앞에서부터 쓰므로 실패를 정상 결과보다 먼저 넣는다.
+      h.runner.on(
+        buildProbeKey('${box.iconsPath}/naver-140x140.png'),
+        const CommandResult(1, '', errorText),
+      );
+      h.registerTargets('source.png', <IconSpec>[findIconSpec('naver')!]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains(
+          '  실패 — Naver 아이콘 크기를 읽지 못했습니다 — '
+          '.setup/icons/naver-140x140.png\n$errorText',
+        ),
+      );
+    });
+
+    test('변환이 0 이 아닌 종료 코드 → 실패 줄과 원문', () async {
+      const errorText =
+          "Error: Can't write format: org.webmproject.webp\n"
+          'Error 13: an unknown error occurred\n';
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'kakao'},
+      );
+      h.runner
+        ..on(buildProbeKey(source), buildProbeResult(source, 1024, 1024))
+        ..on(
+          buildResizeKey(box.root, 'source.png', 'kakao', 128),
+          const CommandResult(13, '', errorText),
+        );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains('  실패 — Kakao 아이콘을 만들지 못했습니다\n$errorText'));
+      expect(h.runner.countCalls(RunMode.stream, buildOpenKey(box.root)), 0);
+    });
+  });
+
+  test('T-20.1-ICON-08: Finder 열기 실패는 한 줄 뒤 ✓', () async {
+    final String source = box.writeHomeFile('logo.png', buildFakeBytes(700));
+    final h = _Harness(box, <String?>['1', source]);
+    h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+    h
+      ..registerTargets('source.png', iconSpecs)
+      ..registerOpen(
+        CommandResult(1, '', 'The file ${box.iconsPath} does not exist.\n'),
+      );
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone);
+    expect(
+      h.output
+          .split('\n')
+          .where((String l) => l == '  ${AppIconStep.openFailedNote}'),
+      hasLength(1),
+    );
+    expect(
+      AppIconStep.openFailedNote,
+      'Finder 를 열지 못했습니다 — 파일은 .setup/icons 에 있습니다',
+    );
+    expect(h.output, contains(allDoneIconLine));
+    expect(
+      h.screen.asks.where((String q) => q == failureChoiceQuestion),
+      hasLength(1),
+    );
+    expect(h.output, isNot(contains(retryOption)));
+  });
+
+  group('T-20.1-ICON-09: flavor 공통 · 사본 여럿', () {
+    test('dev 로 만든 파일 그대로 stg 문맥 → ✓ · 질문 0 · 호출 0', () async {
+      for (final IconSpec spec in iconSpecs) {
+        box.writeIcon(spec.fileName, buildFakeBytes(32));
+      }
+      box.writeIcon('source.png', buildFakeBytes(900));
+      final h = _Harness(box, const <String?>[], flavor: Flavor.stg);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.output, contains(allDoneIconLine));
+      expect(h.screen.asks, isEmpty);
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('사본이 둘이면 실행 없는 ✗ · 끝 목록 · 종료 0', () async {
+      box
+        ..writeIcon('source.png', buildFakeBytes(900))
+        ..writeIcon('source.heic', buildFakeBytes(900));
+      final h = _Harness(box, const <String?>[]);
+
+      final int code = await h.run();
+
+      const line = '  ✗ 앱 아이콘 — ${AppIconStep.multipleSourcesReason}';
+      expect(code, wizardExitDone);
+      expect(h.output, contains('$line\n'));
+      expect(h.remainingLines, <String>[line]);
+      expect(h.screen.asks, isEmpty);
+      expect(h.runner.calls, isEmpty);
     });
   });
 }
