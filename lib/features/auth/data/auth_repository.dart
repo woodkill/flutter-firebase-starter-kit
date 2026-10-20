@@ -780,8 +780,9 @@ class AuthRepository implements AnonymousSignIn {
       }
       // Phase 16 D-12 wiring — account-exists 시 provider enrichment.
       // D2 B1: 소셜 invalid-credential 은 email 문구로 새지 않게 분리한다.
+      // debug apple-authorizationerror-1000: Apple 인가 실패(1000)도 분리한다.
       return Result.failure(
-        await _enrichAccountExistsAsync(_mapSocialAuthException(e)),
+        await _enrichAccountExistsAsync(_mapAppleSignInException(e)),
       );
     } on Object catch (e, st) {
       // 비-Auth 예외 (PlatformException 등)를 Result로 감싸
@@ -3639,6 +3640,54 @@ class AuthRepository implements AnonymousSignIn {
       // (_logAndFallback 의 code-only 형식 mirror).
       debugPrint(
         'AuthRepository: 소셜 로그인 거부 → UnknownException: code=${e.code}',
+      );
+    }
+    return UnknownException(cause: e);
+  }
+
+  /// firebase_auth iOS 플러그인이 `ASAuthorizationError.unknown`(1000) 의
+  /// message 끝에 붙이는 접미사 (debug apple-authorizationerror-1000).
+  ///
+  /// `(Domain=` 로 시작해야 하므로 밑 오류(`, Underlying Domain=…`) 쪽 1000 은
+  /// 맞지 않고, `[,)]` 로 끝나야 하므로 `Code=10000` 같은 앞자리 일치도 막는다.
+  static final RegExp _appleAuthorizationUnknownSuffix = RegExp(
+    r'\(Domain=com\.apple\.AuthenticationServices\.AuthorizationError '
+    'Code=1000[,)]',
+  );
+
+  /// [signInWithApple] 의 [fb.FirebaseAuthException] 을 [AppException] 으로
+  /// 매핑한다 (debug apple-authorizationerror-1000).
+  ///
+  /// Apple 인가 단계가 이유 미상으로 실패한 `ASAuthorizationError.unknown`
+  /// (1000) 만 [UnknownException] 으로 분리하고, 나머지는
+  /// [_mapSocialAuthException] 에 그대로 위임한다.
+  ///
+  /// **판별 신호:** firebase_auth 6.7.0 iOS 플러그인은 1000 을 code `unknown`
+  /// 으로 넘기고 native code 는 details 에만 담는데, platform interface 가
+  /// details 를 버린다. Dart 에 남는 신호는 message 끝의
+  /// [_appleAuthorizationUnknownSuffix] 뿐이다 (`AuthErrors.swift`
+  /// `convertAppleAuthorizationErrorToFlutterError`). Android 는 웹 OAuth 라
+  /// 이 접미사를 만들지 않는다.
+  ///
+  /// **왜 분리하나:** 기본 폴백 [ServiceUnavailable] 의 「서비스를 일시적으로
+  /// 사용할 수 없습니다」 는 서버 장애로 읽히지만, 1000 은 서버에 닿기 전
+  /// Apple 쪽 인가 실패다 (Phase 20 VM UAT 20-16 GAP 11 실측). 접미사가 없는
+  /// 그 밖 `unknown` 은 원인을 알 수 없어 기존 폴백을 유지한다.
+  ///
+  /// 적용 범위는 [signInWithApple] (익명 link 포함) 뿐이다. 설정 Apple 연결 ·
+  /// 재인증 경로 매핑은 바꾸지 않는다.
+  AppException _mapAppleSignInException(fb.FirebaseAuthException e) {
+    final message = e.message;
+    if (e.code != 'unknown' ||
+        message == null ||
+        !_appleAuthorizationUnknownSuffix.hasMatch(message)) {
+      return _mapSocialAuthException(e);
+    }
+    if (kDebugMode) {
+      // PII invariant: 고정 문구와 code 만 — e.message 원문 비포함.
+      debugPrint(
+        'AuthRepository: Apple 인가 실패(AuthorizationError 1000) '
+        '→ UnknownException: code=${e.code}',
       );
     }
     return UnknownException(cause: e);
