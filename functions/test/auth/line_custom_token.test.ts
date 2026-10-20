@@ -211,6 +211,8 @@ import {
 // 않는다.
 // eslint-disable-next-line import/first
 import * as identityIndex from "../../src/auth/identity_index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -790,6 +792,7 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
     );
     // PII 회귀 — err.message ('firestore unavailable') 본문 logger 미노출.
     // WR-02 — error 만이 아닌 info/warn/debug/log 전체 sentinel 검사.
+    // 직렬화는 inspect(serializeLogCalls) — payload 의 Error 원문도 본다.
     const allLogCalls = [
       ...infoMock.mock.calls,
       ...warnMock.mock.calls,
@@ -797,9 +800,9 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain("firestore unavailable");
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain(
+      "firestore unavailable",
+    );
   });
 
   // Test 13: createCustomToken throw → internal + err.message PII 미노출.
