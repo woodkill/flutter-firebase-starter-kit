@@ -38,6 +38,8 @@ import {
   assertIdentityOwnedByCaller,
   readStringField,
 } from "../../src/auth/identity_ownership";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -208,7 +210,7 @@ describe("identity_ownership — PII sentinel (IO6)", () => {
   it("IO6: 모든 케이스의 logger 5종 호출에 providerUserId 0", () => {
     // 앞선 케이스가 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
     expect(accumulatedLogCalls.length).toBeGreaterThan(0);
-    expect(JSON.stringify(accumulatedLogCalls)).not.toContain(
+    expect(serializeLogCalls(accumulatedLogCalls)).not.toContain(
       PROVIDER_USER_ID,
     );
   });

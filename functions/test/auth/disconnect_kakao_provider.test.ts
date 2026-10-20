@@ -105,6 +105,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -519,7 +521,7 @@ describe("disconnectKakaoProvider — PII sentinel (K13)", () => {
   it("K13: 모든 케이스의 logger 호출에 회원번호 · 어드민 키 · msg 0", () => {
     // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
     expect(accumulatedLogCalls.length).toBeGreaterThan(8);
-    const serialized = JSON.stringify(accumulatedLogCalls);
+    const serialized = serializeLogCalls(accumulatedLogCalls);
     for (const sentinel of PII_SENTINELS) {
       expect(serialized).not.toContain(sentinel);
     }

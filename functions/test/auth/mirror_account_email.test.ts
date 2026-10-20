@@ -73,22 +73,13 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const errorMock = logger.error as unknown as jest.Mock;
 
 afterAll(() => testEnv.cleanup());
-
-/**
- * logger mock 의 모든 호출에서 첫 인자(payload) 객체를 모은다.
- *
- * @return {Array<Record<string, unknown>>} payload 목록.
- */
-function loggedPayloads(): Array<Record<string, unknown>> {
-  return [...infoMock.mock.calls, ...errorMock.mock.calls].map(
-    (call) => call[0] as Record<string, unknown>,
-  );
-}
 
 describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
   beforeEach(() => {
@@ -131,11 +122,13 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
       uid: "u1",
       hasEmail: true,
     });
-    const serialized = JSON.stringify(infoMock.mock.calls);
+    const serialized = serializeLogCalls(infoMock.mock.calls);
     expect(serialized).not.toContain("a@example.com");
-    for (const p of loggedPayloads()) {
-      expect(JSON.stringify(p)).not.toContain("a@example.com");
-    }
+    const logged = serializeLogCalls([
+      ...infoMock.mock.calls,
+      ...errorMock.mock.calls,
+    ]);
+    expect(logged).not.toContain("a@example.com");
   });
 
   // eslint-disable-next-line max-len
@@ -278,9 +271,11 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
       },
       expect.any(String),
     );
-    for (const p of loggedPayloads()) {
-      expect(JSON.stringify(p)).not.toContain("a@example.com");
-      expect(JSON.stringify(p)).not.toContain("PII_ERR");
-    }
+    const logged = serializeLogCalls([
+      ...infoMock.mock.calls,
+      ...errorMock.mock.calls,
+    ]);
+    expect(logged).not.toContain("a@example.com");
+    expect(logged).not.toContain("PII_ERR");
   });
 });

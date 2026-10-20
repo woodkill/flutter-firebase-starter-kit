@@ -84,6 +84,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -265,9 +267,7 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain("PII_UNLINK_SENTINEL");
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain("PII_UNLINK_SENTINEL");
   });
 
   // eslint-disable-next-line max-len

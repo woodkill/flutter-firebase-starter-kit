@@ -104,6 +104,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -260,9 +262,7 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain(piiSentinel);
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain(piiSentinel);
   });
 
   // ---------------------------------------------------------------------------
@@ -366,8 +366,8 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
       expect.any(String),
     );
     // PII 금지 — IP 원문 / email 본문 미노출.
-    for (const args of warnMock.mock.calls) {
-      expect(JSON.stringify(args)).not.toContain("k9@example.com");
-    }
+    expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
+      "k9@example.com",
+    );
   });
 });

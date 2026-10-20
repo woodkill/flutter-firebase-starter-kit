@@ -141,6 +141,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -408,9 +410,9 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain("PII_DELETE_BODY_SENTINEL");
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain(
+      "PII_DELETE_BODY_SENTINEL",
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -477,9 +479,9 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
       expect.any(String),
     );
     // PII 금지 — err.message 본문 미노출.
-    for (const args of errorMock.mock.calls) {
-      expect(JSON.stringify(args)).not.toContain("PII_FIRESTORE_SENTINEL");
-    }
+    expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
+      "PII_FIRESTORE_SENTINEL",
+    );
   });
 
   it("D11: 호출 순서 — Auth 삭제가 Firestore cleanup 보다 먼저", async () => {
@@ -581,7 +583,7 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(Object.keys(payload).sort()).toEqual(
       ["code", "event", "failedCount", "uid"],
     );
-    expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+    expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
       "PII_STORAGE_SENTINEL",
     );
   });
@@ -648,7 +650,7 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       uid: "uid-DEL05",
       code: "unavailable",
     });
-    expect(JSON.stringify(errorMock.mock.calls)).not.toContain(
+    expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
       "PII_FCM_SENTINEL",
     );
   });
@@ -681,9 +683,7 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       ...logMock.mock.calls,
     ];
     expect(allLogCalls.length).toBeGreaterThan(0);
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain("users/");
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain("users/");
   });
 
   /**
@@ -714,7 +714,7 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
         expect.any(String),
       );
       expect(errorMock).not.toHaveBeenCalled();
-      expect(JSON.stringify(warnMock.mock.calls)).not.toContain(
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
         "PII_STORAGE_404_SENTINEL",
       );
     });

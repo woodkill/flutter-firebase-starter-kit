@@ -123,6 +123,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -787,7 +789,7 @@ describe("linkNaverProvider — PII sentinel (N15)", () => {
   it("N15: 모든 케이스의 logger 호출에 PII fixture 값 0", () => {
     // 앞선 케이스들이 실제로 로그를 남겼는지부터 확인 (공허 통과 방지).
     expect(accumulatedLogCalls.length).toBeGreaterThan(10);
-    const serialized = JSON.stringify(accumulatedLogCalls);
+    const serialized = serializeLogCalls(accumulatedLogCalls);
     for (const sentinel of [
       "PII_NAVER_ID_TOKEN",
       "PII_NAVER_ACCESS_TOKEN",
