@@ -96,6 +96,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -179,12 +181,13 @@ const UNVERIFIED_TOKEN = {
 };
 
 /**
- * 모든 logger 호출 인자를 문자열로 모은다.
+ * 모든 logger 호출 인자를 PII sentinel 검사용 문자열로 모은다 — 운영
+ * logger message 를 포함하는(상한 없는) inspect 직렬화.
  *
- * @return {string} JSON 문자열.
+ * @return {string} inspect 직렬화 문자열(`serializeLogCalls`).
  */
 function allLogText(): string {
-  return JSON.stringify([
+  return serializeLogCalls([
     ...infoMock.mock.calls,
     ...warnMock.mock.calls,
     ...errorMock.mock.calls,

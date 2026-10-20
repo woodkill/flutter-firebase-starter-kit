@@ -147,6 +147,8 @@ const testEnv = functionsTest();
 
 // eslint-disable-next-line import/first
 import * as myFunctions from "../../src/index";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -234,12 +236,13 @@ async function callAs(uid: string): Promise<{sentCount: number}> {
 }
 
 /**
- * 모든 logger 호출 인자를 JSON 한 덩어리로 모은다 (토큰 노출 검사용).
+ * 모든 logger 호출 인자를 한 덩어리로 직렬화한다 (토큰 노출 검사용) —
+ * 운영 logger message 를 포함하는(상한 없는) inspect 직렬화.
  *
- * @return {string} 직렬화된 로그 인자.
+ * @return {string} inspect 직렬화된 로그 인자(`serializeLogCalls`).
  */
 function allLogText(): string {
-  return JSON.stringify([
+  return serializeLogCalls([
     ...infoMock.mock.calls,
     ...warnMock.mock.calls,
     ...errorMock.mock.calls,
