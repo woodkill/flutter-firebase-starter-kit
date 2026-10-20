@@ -4,6 +4,7 @@ import '../config_files.dart';
 import '../wizard.dart';
 import 'key_formats.dart';
 import 'keyed_provider_step.dart';
+import 'path_input.dart';
 
 /// Apple 키(`.p8`)를 쓰는 자리 — 같은 키를 두 자리에 함께 쓸 수 있다.
 enum AppleKeyUse {
@@ -168,13 +169,13 @@ _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
       '${use.displayName} 용 .p8 파일 경로',
     );
     if (answer == null) return null;
-    final String path = _expandPath(context, answer.trim());
+    final String path = expandInputPath(context, answer.trim());
     if (path.isEmpty) {
       context.terminal.writeLine('  .p8 파일 경로를 입력하세요');
       continue;
     }
     final file = File(path);
-    final String shownPath = _describePath(context, path);
+    final String shownPath = describePath(context, path);
     if (!file.existsSync()) {
       context.terminal.writeLine('  파일이 없습니다 — $shownPath');
       continue;
@@ -194,25 +195,6 @@ _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
     return _KeyFile(path.substring(path.lastIndexOf('/') + 1), content);
   }
   return null;
-}
-
-/// 입력한 [path] 의 `~` 를 홈 디렉터리로, 상대 경로를 저장소 루트 기준으로 바꾼다.
-String _expandPath(WizardContext context, String path) {
-  if (path.isEmpty) return path;
-  if (path == '~') return context.homeDirectory;
-  if (path.startsWith('~/')) {
-    return '${context.homeDirectory}/${path.substring(2)}';
-  }
-  return context.resolve(path);
-}
-
-/// 화면에 보일 [path] — 홈 디렉터리(사용자 이름이 든 경로)는 `~` 로 줄인다.
-String _describePath(WizardContext context, String path) {
-  final String home = context.homeDirectory;
-  if (home.isEmpty) return path;
-  if (path == home) return '~';
-  if (path.startsWith('$home/')) return '~/${path.substring(home.length + 1)}';
-  return path;
 }
 
 /// 파일 이름 [fileName] 이 `AuthKey_<Key ID>.p8` 꼴이면 그 Key ID — 아니면 null.
