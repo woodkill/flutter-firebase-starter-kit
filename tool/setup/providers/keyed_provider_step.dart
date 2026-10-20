@@ -9,6 +9,7 @@ import '../step.dart';
 import '../steps/billing_step.dart';
 import '../wizard.dart';
 import 'fingerprints.dart';
+import 'icon_specs.dart';
 import 'key_formats.dart';
 import 'provider_catalog.dart';
 
@@ -204,6 +205,27 @@ abstract class KeyedProviderStep implements Step {
 
   /// 콘솔에서 할 일 — 기능 이름으로 쓴 3 ~ 5줄.
   List<String> get todoLines;
+
+  /// 값 표에 실제로 보일 행 — [buildValueRows] 뒤에 아이콘 행을 더한다.
+  ///
+  /// 콘솔에 아이콘 칸이 있는 provider 면 그 규격 파일 경로를 값 표에 함께
+  /// 보인다 — 원본은 앱 아이콘 단계가 한 번만 묻는다. 규격이 없는 수단은
+  /// [buildValueRows] 그대로다.
+  List<SummaryRow> buildDisplayRows(WizardContext context) {
+    final IconSpec? spec = findIconSpec(entry.token);
+    return <SummaryRow>[
+      ...buildValueRows(context),
+      if (spec != null) buildIconRow(context, spec),
+    ];
+  }
+
+  /// 값 표 할 일 줄 뒤에 보일 아이콘 요구 정도 설명 — 없으면 null.
+  ///
+  /// 규격이 있고 그 요구 정도에 덧붙일 설명이 있을 때만 문장을 돌려준다.
+  String? get iconNote {
+    final IconSpec? spec = findIconSpec(entry.token);
+    return spec == null ? null : buildIconNote(spec);
+  }
 
   /// 입력받은 [values] 를 서버로 확인한다 — 확인이 없으면 [PairNotAvailable].
   Future<PairCheck> verifyPair(
@@ -477,12 +499,13 @@ abstract class KeyedProviderStep implements Step {
     writeSummary(
       context.terminal,
       title: '${entry.displayName} 콘솔에 넣을 값 — ${context.flavor.name}',
-      rows: buildValueRows(context),
+      rows: buildDisplayRows(context),
       notes: <String>[
         if (isDuplicate) _reason,
         '콘솔: ${entry.consoleUrl}',
         buildConsoleAppScopeNote(context.flavor),
         ...todoLines,
+        ?iconNote,
         if (isDuplicate)
           'flavor 마다 새 앱 만들기: ${formatManualReference(newAppHeading)}',
         '자세한 절차: ${formatManualReference(entry.manualSectionPrefix)}',

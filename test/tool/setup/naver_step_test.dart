@@ -8,6 +8,7 @@ import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/confirm.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/key_formats.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/redactor.dart';
@@ -870,5 +871,95 @@ void main() {
     for (final text in <String>[output, h.log.text]) {
       expect(countText(text, clientSecret), 0);
     }
+  });
+
+  group('T-20.1-ROW-01: 실제 Naver 실행 화면의 값 표 마지막 행이 로고 이미지 경로이고 '
+      '할 일 첫 줄 · 노트 순서는 그대로다', () {
+    final IconSpec spec = findIconSpec(NaverStep.token)!;
+
+    /// 키 입력까지 Naver 단계를 돌려 화면 줄을 돌려준다.
+    Future<List<String>> runNaverStep() async {
+      final String clientId = buildClientId();
+      final String clientSecret = buildClientSecret();
+      final h = _Harness(root, <String?>[
+        'y',
+        '1',
+        clientId,
+        clientSecret,
+        'myappnaverdev',
+      ]);
+      h
+        ..registerFreshSecrets(clientId, clientSecret)
+        ..onPairCheck(<RestResponse>[const RestResponse(200, '')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      return h.output.split('\n');
+    }
+
+    /// 화면 [lines] 에서 값 표 머리 다음 ~ 첫 노트 줄 앞(행 줄)을 고른다.
+    List<String> selectValueRows(List<String> lines) {
+      final int titleIndex = lines.indexOf('── Naver 콘솔에 넣을 값 — dev ──');
+      expect(titleIndex, isNot(-1), reason: lines.join('\n'));
+      final int noteIndex = lines.indexWhere(
+        (String line) => line.startsWith('  · '),
+        titleIndex,
+      );
+      expect(noteIndex, greaterThan(titleIndex + 1), reason: lines.join('\n'));
+      return lines.sublist(titleIndex + 1, noteIndex);
+    }
+
+    /// 화면 [lines] 의 할 일 첫 줄 · 콘솔 줄 다음 범위 안내 · 아이콘 노트 없음을 본다.
+    void expectNotesUnchanged(List<String> lines) {
+      final String output = lines.join('\n');
+      final int titleIndex = lines.indexOf('── Naver 콘솔에 넣을 값 — dev ──');
+      final int consoleIndex = lines.indexWhere(
+        (String line) => line.startsWith('  · 콘솔: '),
+        titleIndex,
+      );
+
+      expect(consoleIndex, isNot(-1), reason: output);
+      expect(
+        lines[consoleIndex + 1],
+        '  · ${buildConsoleAppScopeNote(Flavor.dev)}',
+      );
+      expect(lines, contains('  · ${NaverStep().todoLines.first}'));
+      expect(countText(output, '  · ${spec.consoleLabel}:'), 0);
+    }
+
+    /// 값 표 [rows] 의 마지막 행이 로고 라벨 · [value] 를 한 줄에 보이는지 본다.
+    void expectLogoRow(List<String> rows, String value) {
+      final pattern = RegExp(
+        '^  ${RegExp.escape(spec.rowLabel)} +${RegExp.escape(value)}\$',
+      );
+
+      expect(rows.last, matches(pattern));
+      expect(
+        rows.where((String line) => line.contains(spec.rowLabel)),
+        hasLength(1),
+      );
+    }
+
+    test('아이콘 파일이 있으면 그 상대 경로를 보인다', () async {
+      File('$root/${spec.relativePath}')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(const <int>[1, 2, 3]);
+
+      final List<String> lines = await runNaverStep();
+
+      expect(spec.rowLabel, '로고 이미지 · 필수');
+      expect(spec.relativePath, '.setup/icons/naver-140x140.png');
+      expectLogoRow(selectValueRows(lines), spec.relativePath);
+      expect(lines.join('\n'), isNot(contains('$root/${spec.relativePath}')));
+      expectNotesUnchanged(lines);
+    });
+
+    test('아이콘 파일이 없으면 「아직 없음」 문장을 보인다', () async {
+      final List<String> lines = await runNaverStep();
+
+      expectLogoRow(selectValueRows(lines), missingIconValue);
+      expectNotesUnchanged(lines);
+    });
   });
 }
