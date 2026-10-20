@@ -474,7 +474,7 @@ final class FunctionsStep implements Step {
     if (deployed == null) {
       return _mark(
         _FunctionsMode.deploy,
-        '배포된 함수 목록을 읽지 못했습니다 — ${_describeFirstLine(functions)}',
+        '배포된 함수 목록을 읽지 못했습니다 — ${_describeListFailure(functions)}',
       );
     }
     final notDeployed = <String>[
@@ -888,14 +888,44 @@ final class FunctionsStep implements Step {
     return value == null || value.isEmpty ? null : value;
   }
 
+  /// 함수 목록 조회 실패 결과를 사유 한 줄로 줄인다 — 표준 출력이 `--json` 오류
+  /// 객체면 `error` 값의 첫 줄, 아니면 [_describeFirstLine].
+  ///
+  /// 표준 출력 JSON 을 표준 오류보다 먼저 보는 까닭: firebase-tools 는 `--json`
+  /// 에서 자체 로그를 콘솔에 쓰지 않고 오류를 표준 출력 객체로만 낸다 — 표준
+  /// 오류에는 Node 경고 같은 무관한 줄이 올 수 있다.
+  static String _describeListFailure(CommandResult result) =>
+      _readJsonError(result.stdout) ?? _describeFirstLine(result);
+
+  /// firebase-tools `--json` 실패 출력(`status: error` · `error` 문자열 객체)의
+  /// `error` 값 첫 줄을 읽는다 — 해석 안 됨 · 객체 아님 · `error` 없음 · 문자열
+  /// 아님 · 빈 값이면 null.
+  static String? _readJsonError(String stdout) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(stdout);
+    } on FormatException {
+      return null;
+    }
+    if (decoded is! Map<String, Object?>) return null;
+    final Object? error = decoded['error'];
+    if (error is! String) return null;
+    return _findFirstLine(error);
+  }
+
+  /// [text] 의 첫 빈 줄 아닌 줄(앞뒤 공백 제거)을 찾는다 — 없으면 null.
+  static String? _findFirstLine(String text) {
+    for (final String line in const LineSplitter().convert(text)) {
+      if (line.trim().isNotEmpty) return line.trim();
+    }
+    return null;
+  }
+
   /// 명령 결과의 첫 빈 줄 아닌 줄(오류 출력 먼저)을 찾는다 — 없으면 종료 코드.
   static String _describeFirstLine(CommandResult result) {
-    for (final text in <String>[result.stderr, result.stdout]) {
-      for (final String line in const LineSplitter().convert(text)) {
-        if (line.trim().isNotEmpty) return line.trim();
-      }
-    }
-    return '종료 코드 ${result.exitCode}';
+    return _findFirstLine(result.stderr) ??
+        _findFirstLine(result.stdout) ??
+        '종료 코드 ${result.exitCode}';
   }
 
   /// [mode] 판정과 사유를 두고 할 일 결과를 만든다.

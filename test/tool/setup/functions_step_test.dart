@@ -51,6 +51,14 @@ const String secretsListKey =
 const String functionsListKey =
     'firebase functions:list --json --project $projectId';
 
+/// firebase-tools `--json` 실패 출력(오류 객체 · 2칸 들여쓰기 · 끝 줄바꿈
+/// 없음) — 함수 목록 조회 실패 원문 모양.
+const String functionsListErrorStdout =
+    '{\n'
+    '  "status": "error",\n'
+    '  "error": "Failed to list functions for $projectId"\n'
+    '}';
+
 /// 배포 스크립트 명령 키.
 const String deployKey = 'bash scripts/deploy_functions.sh dev --apply';
 
@@ -1051,6 +1059,122 @@ void main() {
         '  ✗ ${FunctionsStep.stepTitle} — ${UserFilesStep.jsonUserPath}',
       ),
     );
+  });
+
+  group('배포된 함수 목록을 읽지 못한 사유 한 줄', () {
+    /// 함수 목록 조회 실패 사유의 고정 앞부분.
+    const listFailurePrefix = '배포된 함수 목록을 읽지 못했습니다 — ';
+
+    /// 함수 목록 조회가 [listed] 로 끝나는 위저드를 돌려 화면 출력 전체를
+    /// 돌려준다.
+    Future<String> runListFailure(CommandResult listed) async {
+      writeModulesMarker();
+      final harness = _Harness(root, const <String?>[]);
+      harness.fake
+        ..on(secretsListKey, buildSecretsList(declaredSecrets))
+        ..on(functionsListKey, listed);
+
+      final int code = await harness.run();
+
+      expect(code, wizardExitStopped);
+      expect(harness.fake.countMode(RunMode.stream), 0);
+      return harness.output;
+    }
+
+    /// 함수 목록 조회가 [listed] 로 끝날 때 점검표의 Functions 사유를 돌려준다.
+    Future<String> readListFailureReason(CommandResult listed) async =>
+        readChecklistReason(await runListFailure(listed));
+
+    test('JSON 오류 출력(여러 줄)이면 error 값을 사유로 쓴다', () async {
+      final String reason = await readListFailureReason(
+        const CommandResult(1, functionsListErrorStdout, ''),
+      );
+
+      expect(
+        reason,
+        equals('${listFailurePrefix}Failed to list functions for $projectId'),
+      );
+    });
+
+    test('표준 오류에 Node 경고 줄이 있어도 표준 출력 JSON 의 error 값이 먼저다', () async {
+      final String reason = await readListFailureReason(
+        const CommandResult(
+          1,
+          functionsListErrorStdout,
+          '(node:4242) [DEP0040] DeprecationWarning: The punycode module is '
+          'deprecated. Please use a userland alternative instead.\n',
+        ),
+      );
+
+      expect(
+        reason,
+        equals('${listFailurePrefix}Failed to list functions for $projectId'),
+      );
+    });
+
+    test('error 값이 여러 줄이면 첫 빈 줄 아닌 줄만 쓴다', () async {
+      final String stdout = const JsonEncoder.withIndent('  ')
+          .convert(<String, Object?>{
+            'status': 'error',
+            'error': '\nFailed to list functions for $projectId\n(두 번째 줄)',
+          });
+
+      final String output = await runListFailure(CommandResult(1, stdout, ''));
+
+      expect(
+        readChecklistReason(output),
+        equals('${listFailurePrefix}Failed to list functions for $projectId'),
+      );
+      // 둘째 줄이 점검표 다음 줄로 새어 나오지 않는다.
+      expect(output, isNot(contains('(두 번째 줄)')));
+    });
+
+    /// 쓸 수 없는 표준 출력(라벨 → 내용) — 모두 표준 오류 첫 줄로 대체돼야 한다.
+    const unusableStdouts = <(String, String)>[
+      ('JSON 아닌 글', 'Something went wrong'),
+      ('빈 표준 출력', ''),
+      ('객체 아닌 JSON', '[]'),
+      ('error 없는 객체', '{\n  "status": "error"\n}'),
+      ('error 가 숫자', '{"status": "error", "error": 42}'),
+      ('error 가 공백 · 줄바꿈뿐', r'{"status": "error", "error": "  \n  "}'),
+    ];
+    for (final (String label, String stdout) in unusableStdouts) {
+      test('JSON 오류 객체가 아니면 지금처럼 표준 오류 첫 줄 — $label', () async {
+        final String reason = await readListFailureReason(
+          CommandResult(
+            1,
+            stdout,
+            'Error: HTTP Error: 403, The caller does not have permission\n',
+          ),
+        );
+
+        expect(
+          reason,
+          equals(
+            '${listFailurePrefix}Error: HTTP Error: 403, '
+            'The caller does not have permission',
+          ),
+        );
+      });
+    }
+
+    test('JSON 이 아니고 표준 오류가 비면 표준 출력의 첫 빈 줄 아닌 줄', () async {
+      final String reason = await readListFailureReason(
+        const CommandResult(
+          1,
+          '\nError: Failed to authenticate, have you run firebase login?\n',
+          '',
+        ),
+      );
+
+      expect(
+        reason,
+        equals(
+          '${listFailurePrefix}Error: Failed to authenticate, '
+          'have you run firebase login?',
+        ),
+      );
+    });
   });
 
   test('buildDevSteps 는 App Check 단계 다음에 Functions 단계를 둔다', () {
