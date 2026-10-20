@@ -122,6 +122,8 @@ import {
   anonymousCallerAuth,
   signedInCallerAuth,
 } from "../mocks/caller_auth";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -561,9 +563,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("collision@example.com");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "collision@example.com",
+      );
       // 16-13: throw 된 HttpsError 의 details 직렬화에 email/platform-uid 본문
       // 미포함 (slug-only invariant, T-16-13-01).
       const thrownDetails = await promise.catch(
@@ -640,17 +642,17 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         expect.any(String),
       );
       // PII 회귀 — err.message ('firestore unavailable') 미노출.
-      for (const args of errorMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("firestore unavailable");
-      }
+      expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
+        "firestore unavailable",
+      );
     },
   );
 
   // D-54 PII regression — Naver `/v1/nid/me` response 본문 + accessToken 본문
   // sentinel 검증. resultcode != '00' 분기 진입으로 logger.warn 호출 유도하되,
   // PII sentinel 5종 (email + name + nickname + profile_image + accessToken)
-  // 이 모든 logger call 의 JSON.stringify 결과에 부재함을 검증 — catch 메시지에
-  // logger 추가 시 test 가 RED.
+  // 이 모든 logger call 의 inspect 직렬화(serializeLogCalls) 결과에 부재함을
+  // 검증 — catch 메시지에 logger 추가 시 test 가 RED.
   it(
     // eslint-disable-next-line max-len
     "T-13-NAVER-CT-13: D-54 PII regression — response 본문 + accessToken sentinel logger 미노출",
@@ -679,14 +681,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_SENTINEL_email@test.com");
-        expect(stringified).not.toContain("PII_SENTINEL_NAME");
-        expect(stringified).not.toContain("PII_SENTINEL_NICK");
-        expect(stringified).not.toContain("PII_SENTINEL_IMG_URL");
-        expect(stringified).not.toContain("FAKE_PII_SENTINEL_TOKEN");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_SENTINEL_email@test.com");
+      expect(logged).not.toContain("PII_SENTINEL_NAME");
+      expect(logged).not.toContain("PII_SENTINEL_NICK");
+      expect(logged).not.toContain("PII_SENTINEL_IMG_URL");
+      expect(logged).not.toContain("FAKE_PII_SENTINEL_TOKEN");
     },
   );
 
@@ -776,11 +776,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain(
-          "PII_SENTINEL_TOKEN_FAIL_MSG",
-        );
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "PII_SENTINEL_TOKEN_FAIL_MSG",
+      );
     },
   );
 
@@ -840,11 +838,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_COLLISION_email@naver.com");
-        expect(stringified).not.toContain("fb-platform-id-PII");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_COLLISION_email@naver.com");
+      expect(logged).not.toContain("fb-platform-id-PII");
       // 16-13: throw details 직렬화에 email/platform-uid 본문 미포함
       // (slug-only invariant). 'facebook' slug 만 노출.
       const thrownDetails = await promise.catch((e: HttpsError) => e.details);
@@ -909,11 +905,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_CT_COLLISION_email@naver.com");
-        expect(stringified).not.toContain("PII_KAKAO_UID_EXISTING");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_CT_COLLISION_email@naver.com");
+      expect(logged).not.toContain("PII_KAKAO_UID_EXISTING");
       const thrownDetails2 = await promise.catch(
         (e: HttpsError) => e.details,
       );
@@ -963,11 +957,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_CT_LINE_email@naver.com");
-        expect(stringified).not.toContain("PII_LINE_UID_EXISTING");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_CT_LINE_email@naver.com");
+      expect(logged).not.toContain("PII_LINE_UID_EXISTING");
     },
   );
 
@@ -1005,9 +997,9 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         ...warnMock.mock.calls,
         ...errorMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("naver-user-no-email");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "naver-user-no-email",
+      );
     },
   );
 
@@ -1050,12 +1042,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       // PII regression sentinel — logger 어디에도 email 본문 미노출.
       // (developerClaims 자체는 Firebase Auth idToken claim 으로만 propagate.)
-      for (const args of infoMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@naver.com");
-      }
-      for (const args of warnMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@naver.com");
-      }
+      expect(serializeLogCalls(infoMock.mock.calls)).not.toContain(
+        "PII_OPTC_ok@naver.com",
+      );
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
+        "PII_OPTC_ok@naver.com",
+      );
     },
   );
 

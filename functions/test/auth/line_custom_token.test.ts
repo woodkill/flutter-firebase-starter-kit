@@ -590,13 +590,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      const s = JSON.stringify(args);
-      expect(s).not.toContain("PII_LINE_DISPLAY_NAME");
-      expect(s).not.toContain("PII_PIC.png");
-      expect(s).not.toContain("JWT_LINE_BODY");
-      expect(s).not.toContain("raw-PII-nonce");
-    }
+    const logged = serializeLogCalls(allLogCalls);
+    expect(logged).not.toContain("PII_LINE_DISPLAY_NAME");
+    expect(logged).not.toContain("PII_PIC.png");
+    expect(logged).not.toContain("JWT_LINE_BODY");
+    expect(logged).not.toContain("raw-PII-nonce");
   });
 });
 
@@ -717,11 +715,9 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain(email);
-        expect(stringified).not.toContain(existingUid);
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain(email);
+      expect(logged).not.toContain(existingUid);
       const details = await promise.catch((e: HttpsError) => e.details);
       const detailsStr = JSON.stringify(details);
       expect(detailsStr).not.toContain(email);
@@ -851,11 +847,9 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      expect(JSON.stringify(args)).not.toContain(
-        "PII_SENTINEL_LINE_TOKEN_FAIL_MSG",
-      );
-    }
+    expect(serializeLogCalls(allLogCalls)).not.toContain(
+      "PII_SENTINEL_LINE_TOKEN_FAIL_MSG",
+    );
   });
 
   // Test 14: PII regression sentinel — logger 어디에도 PII sentinel 미노출.
@@ -889,13 +883,11 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       ...debugMock.mock.calls,
       ...logMock.mock.calls,
     ];
-    for (const args of allLogCalls) {
-      const stringified = JSON.stringify(args);
-      expect(stringified).not.toContain(piiSentinel);
-      expect(stringified).not.toContain("secret_line_account");
-      expect(stringified).not.toContain("PII_NICK");
-      expect(stringified).not.toContain("JWT_BODY_LINE");
-    }
+    const logged = serializeLogCalls(allLogCalls);
+    expect(logged).not.toContain(piiSentinel);
+    expect(logged).not.toContain("secret_line_account");
+    expect(logged).not.toContain("PII_NICK");
+    expect(logged).not.toContain("JWT_BODY_LINE");
   });
 
   // Phase 16 D-13/D-14 (Plan 16-03 Task 3.2) — termsAcceptanceSnapshot arg
@@ -1098,9 +1090,7 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
           email: lineEmail,
           email_verified: true,
         });
-        for (const args of collectLogCalls()) {
-          expect(JSON.stringify(args)).not.toContain(lineEmail);
-        }
+        expect(serializeLogCalls(collectLogCalls())).not.toContain(lineEmail);
       } finally {
         spy.mockRestore();
       }
@@ -1134,9 +1124,7 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
         email: lineEmail,
         email_verified: true,
       });
-      for (const args of collectLogCalls()) {
-        expect(JSON.stringify(args)).not.toContain(lineEmail);
-      }
+      expect(serializeLogCalls(collectLogCalls())).not.toContain(lineEmail);
     },
   );
 
@@ -1214,12 +1202,10 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
       );
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
-      for (const args of collectLogCalls()) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain(lineEmail);
-        expect(stringified).not.toContain(existingUid);
-        expect(stringified).not.toContain(platformUid);
-      }
+      const logged = serializeLogCalls(collectLogCalls());
+      expect(logged).not.toContain(lineEmail);
+      expect(logged).not.toContain(existingUid);
+      expect(logged).not.toContain(platformUid);
       const details = await promise.catch((e: HttpsError) => e.details);
       const detailsStr = JSON.stringify(details);
       expect(detailsStr).not.toContain(lineEmail);
@@ -1269,12 +1255,10 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
       );
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
-      for (const args of collectLogCalls()) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain(lineEmail);
-        expect(stringified).not.toContain(existingUid);
-        expect(stringified).not.toContain(platformUid);
-      }
+      const logged = serializeLogCalls(collectLogCalls());
+      expect(logged).not.toContain(lineEmail);
+      expect(logged).not.toContain(existingUid);
+      expect(logged).not.toContain(platformUid);
       const details = await promise.catch((e: HttpsError) => e.details);
       const detailsStr = JSON.stringify(details);
       expect(detailsStr).not.toContain(lineEmail);

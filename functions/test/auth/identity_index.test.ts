@@ -513,9 +513,9 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       );
 
       // PII 회귀 (Pitfall 7) — err.message 본문 ('user not found') 미노출 검증.
-      for (const args of warnMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("user not found");
-      }
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
+        "user not found",
+      );
     },
   );
 
@@ -1098,9 +1098,7 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         expect.any(String),
       );
       // PII 금지 — err.message 본문 미노출.
-      for (const args of warnMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("bad photo");
-      }
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain("bad photo");
     },
   );
 
@@ -1300,12 +1298,10 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
       );
       // PII regression sentinel — email / IdP uid 본문 미노출.
       const allLogCalls = warnMock.mock.calls;
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("foo@naver.com");
-        expect(stringified).not.toContain("fb-platform-id");
-        expect(stringified).not.toContain("fb-uid-99");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("foo@naver.com");
+      expect(logged).not.toContain("fb-platform-id");
+      expect(logged).not.toContain("fb-uid-99");
     },
   );
 
@@ -1340,9 +1336,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // PII regression sentinel.
       const allLogCalls = warnMock.mock.calls;
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("self@naver.com");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain("self@naver.com");
     },
   );
 
@@ -1384,9 +1378,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // PII regression sentinel.
       const allLogCalls = warnMock.mock.calls;
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("same@naver.com");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain("same@naver.com");
     },
   );
 
@@ -1431,10 +1423,8 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
       // PII regression sentinel — email 본문 미노출.
       // (err.code = 'auth/internal-error' 는 의도된 fingerprint, PII 아님.)
       const allLogCalls = warnMock.mock.calls;
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("transient@naver.com");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("transient@naver.com");
     },
   );
 
@@ -1462,9 +1452,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // PII regression sentinel.
       const allLogCalls = warnMock.mock.calls;
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("foo@naver.com");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain("foo@naver.com");
     },
   );
 });
@@ -1675,9 +1663,7 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
       );
 
       // PII 회귀 (Pitfall 7) — err.message 본문 ('transient') 미노출.
-      for (const args of warnMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("transient");
-      }
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain("transient");
     },
   );
 });
@@ -2060,12 +2046,10 @@ describe("resolveIdentity Phase 16 D-09 — existingProvider add-only", () => {
       });
 
       // PII regression sentinel — email / IdP uid 본문 미노출.
-      for (const args of warnMock.mock.calls) {
-        const s = JSON.stringify(args);
-        expect(s).not.toContain("i2@example.com");
-        expect(s).not.toContain("google-platform-id");
-        expect(s).not.toContain("google-uid-99");
-      }
+      const logged = serializeLogCalls(warnMock.mock.calls);
+      expect(logged).not.toContain("i2@example.com");
+      expect(logged).not.toContain("google-platform-id");
+      expect(logged).not.toContain("google-uid-99");
     },
   );
 
@@ -2213,11 +2197,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       );
 
       // PII regression sentinel — email / 기존 uid 본문 미노출 (D-51).
-      for (const args of warnMock.mock.calls) {
-        const s = JSON.stringify(args);
-        expect(s).not.toContain("PII_TRACER_EMAIL@example.com");
-        expect(s).not.toContain("PII_KAKAO_UID_A");
-      }
+      const logged = serializeLogCalls(warnMock.mock.calls);
+      expect(logged).not.toContain("PII_TRACER_EMAIL@example.com");
+      expect(logged).not.toContain("PII_KAKAO_UID_A");
     },
   );
 
@@ -2361,11 +2343,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         }),
         expect.any(String),
       );
-      for (const args of warnMock.mock.calls) {
-        const s = JSON.stringify(args);
-        expect(s).not.toContain("PII_REJECT_EMAIL@example.com");
-        expect(s).not.toContain("PII_REJECT_UID");
-      }
+      const logged = serializeLogCalls(warnMock.mock.calls);
+      expect(logged).not.toContain("PII_REJECT_EMAIL@example.com");
+      expect(logged).not.toContain("PII_REJECT_UID");
     },
   );
 
@@ -2441,11 +2421,9 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
         "==",
         "PII_CREATEUSER_UID",
       );
-      for (const args of warnMock.mock.calls) {
-        const s = JSON.stringify(args);
-        expect(s).not.toContain("PII_CREATEUSER_EMAIL@example.com");
-        expect(s).not.toContain("PII_CREATEUSER_UID");
-      }
+      const logged = serializeLogCalls(warnMock.mock.calls);
+      expect(logged).not.toContain("PII_CREATEUSER_EMAIL@example.com");
+      expect(logged).not.toContain("PII_CREATEUSER_UID");
     },
   );
 
@@ -2819,11 +2797,9 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
       // 신규 identity 문서 커밋 0.
       expect(tx.set).not.toHaveBeenCalled();
       // PII sentinel — email · platform uid 본문 미노출.
-      for (const args of warnMock.mock.calls) {
-        const s = JSON.stringify(args);
-        expect(s).not.toContain("PII_SELF_EMAIL@example.com");
-        expect(s).not.toContain("PII_NATIVE_PLATFORM_UID");
-      }
+      const logged = serializeLogCalls(warnMock.mock.calls);
+      expect(logged).not.toContain("PII_SELF_EMAIL@example.com");
+      expect(logged).not.toContain("PII_NATIVE_PLATFORM_UID");
     },
   );
 
@@ -3176,7 +3152,7 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
         }),
         expect.any(String),
       );
-      const logged = JSON.stringify(warnMock.mock.calls);
+      const logged = serializeLogCalls(warnMock.mock.calls);
       expect(logged).not.toContain("PII_");
     },
   );
@@ -3603,7 +3579,10 @@ describe("resolveIdentity Phase 17 D-26 — CT 경로 email mirror (T-17-MIRROR-
       },
       expect.any(String),
     );
-    const logged = JSON.stringify([warnMock.mock.calls, infoMock.mock.calls]);
+    const logged = serializeLogCalls([
+      ...warnMock.mock.calls,
+      ...infoMock.mock.calls,
+    ]);
     expect(logged).not.toContain("m05h@example.com");
     expect(logged).not.toContain("PII_M05H");
   });

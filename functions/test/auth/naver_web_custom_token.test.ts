@@ -109,6 +109,8 @@ const testEnv = functionsTest();
 import {naverWebCustomToken} from "../../src/auth/naver_web_custom_token";
 // eslint-disable-next-line import/first
 import {anonymousCallerAuth} from "../mocks/caller_auth";
+// eslint-disable-next-line import/first
+import {serializeLogCalls} from "../mocks/log_calls";
 
 const infoMock = logger.info as unknown as jest.Mock;
 const warnMock = logger.warn as unknown as jest.Mock;
@@ -226,12 +228,14 @@ function grantTypesSent(): (string | null)[] {
 }
 
 /**
- * logger info/warn/error 전체 호출 인자를 JSON 문자열 하나로 합친다.
+ * logger info/warn/error 전체 호출 인자를 PII sentinel 검사용 문자열
+ * 하나로 직렬화한다 — 운영 logger message 를 포함하는(상한 없는)
+ * inspect 직렬화(`serializeLogCalls`)라 payload 안 Error 원문도 본다.
  *
- * @return {string} 모든 logger 호출 인자의 직렬화.
+ * @return {string} 모든 logger 호출 인자의 inspect 직렬화.
  */
-function allLoggerArgsJson(): string {
-  return JSON.stringify([
+function serializeAllLoggerArgs(): string {
+  return serializeLogCalls([
     ...infoMock.mock.calls,
     ...warnMock.mock.calls,
     ...errorMock.mock.calls,
@@ -473,7 +477,7 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
           }),
           expect.any(String),
         );
-        expect(allLoggerArgsJson()).not.toContain(FAKE_ACCESS_TOKEN);
+        expect(serializeAllLoggerArgs()).not.toContain(FAKE_ACCESS_TOKEN);
       },
     );
   });
@@ -736,7 +740,7 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       expect(infoMock.mock.calls.length).toBeGreaterThan(0);
       expect(warnMock.mock.calls.length).toBeGreaterThan(0);
 
-      const logged = allLoggerArgsJson();
+      const logged = serializeAllLoggerArgs();
       for (const secret of [
         FAKE_ACCESS_TOKEN,
         FAKE_REFRESH_TOKEN,

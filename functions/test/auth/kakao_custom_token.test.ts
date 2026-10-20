@@ -482,13 +482,11 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("secret@test.com");
-        expect(stringified).not.toContain("secret-nickname");
-        expect(stringified).not.toContain("JWT_BODY");
-        expect(stringified).not.toContain("kakao_account");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("secret@test.com");
+      expect(logged).not.toContain("secret-nickname");
+      expect(logged).not.toContain("JWT_BODY");
+      expect(logged).not.toContain("kakao_account");
     },
   );
 
@@ -553,10 +551,8 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("collision@example.com");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("collision@example.com");
     },
   );
 
@@ -642,9 +638,9 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("firestore unavailable");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "firestore unavailable",
+      );
     },
   );
 
@@ -751,12 +747,10 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain(sentinel);
-        expect(stringified).not.toContain("secret@example.com");
-        expect(stringified).not.toContain("nickname");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain(sentinel);
+      expect(logged).not.toContain("secret@example.com");
+      expect(logged).not.toContain("nickname");
     },
   );
 
@@ -831,12 +825,10 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain(sentinel);
-        expect(stringified).not.toContain("email@test.com");
-        expect(stringified).not.toContain("PII_NICK");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain(sentinel);
+      expect(logged).not.toContain("email@test.com");
+      expect(logged).not.toContain("PII_NICK");
     },
   );
 
@@ -1016,11 +1008,9 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_COLLISION_email@kakao.com");
-        expect(stringified).not.toContain("google-platform-id-PII");
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_COLLISION_email@kakao.com");
+      expect(logged).not.toContain("google-platform-id-PII");
       // 16-13: throw details 직렬화에 email/platform-uid 본문 미포함
       // (slug-only invariant). 'google' slug 만 노출.
       const thrownDetails = await promise.catch((e: HttpsError) => e.details);
@@ -1084,11 +1074,9 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        const stringified = JSON.stringify(args);
-        expect(stringified).not.toContain("PII_CT_MATRIX_email@kakao.com");
-        expect(stringified).not.toContain(existingUid);
-      }
+      const logged = serializeLogCalls(allLogCalls);
+      expect(logged).not.toContain("PII_CT_MATRIX_email@kakao.com");
+      expect(logged).not.toContain(existingUid);
       const ctDetails = await promise.catch((e: HttpsError) => e.details);
       const ctDetailsStr = JSON.stringify(ctDetails);
       expect(ctDetailsStr).not.toContain("PII_CT_MATRIX_email@kakao.com");
@@ -1133,9 +1121,9 @@ describe("kakaoCustomToken onCall", () => {
         ...debugMock.mock.calls,
         ...logMock.mock.calls,
       ];
-      for (const args of allLogCalls) {
-        expect(JSON.stringify(args)).not.toContain("kakao-user-no-email");
-      }
+      expect(serializeLogCalls(allLogCalls)).not.toContain(
+        "kakao-user-no-email",
+      );
     },
   );
 
@@ -1178,12 +1166,12 @@ describe("kakaoCustomToken onCall", () => {
       });
 
       // PII regression sentinel — logger 어디에도 email 본문 미노출.
-      for (const args of infoMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@kakao.com");
-      }
-      for (const args of warnMock.mock.calls) {
-        expect(JSON.stringify(args)).not.toContain("PII_OPTC_ok@kakao.com");
-      }
+      expect(serializeLogCalls(infoMock.mock.calls)).not.toContain(
+        "PII_OPTC_ok@kakao.com",
+      );
+      expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
+        "PII_OPTC_ok@kakao.com",
+      );
     },
   );
 
