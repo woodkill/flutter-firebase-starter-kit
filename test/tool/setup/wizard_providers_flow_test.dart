@@ -10,6 +10,7 @@ import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/apple_key_input.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/idp_config.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
@@ -21,6 +22,7 @@ import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
+import '../../../tool/setup/steps/app_icon_step.dart';
 import '../../../tool/setup/steps/apple_android_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
@@ -1074,6 +1076,7 @@ void _registerFinishedRun(_Harness h, _Values values) {
 
 /// 첫 실행 입력 — 단계 진행 순서대로.
 List<String?> _buildFirstRunInputs(_Values values, String p8Path) => <String?>[
+  '2', // 앱 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
   'y', // Google 로그인
   '1', // 동의 화면 값 표 — 이대로 진행
   'y', // Google — iOS 쪽
@@ -1248,6 +1251,7 @@ void main() {
     expect(lines[heading - 1], remainingDoneLine);
     final List<String> remaining = lines.sublist(heading + 1);
     expect(remaining, <String>[
+      '  ✗ ${AppIconStep.stepTitle} — 지금 안 함',
       '  ✗ Google — Android 쪽 — $unavailableFingerprintGuide',
       '  ✗ ${AppleAndroidStep.stepTitle} — 지금 안 함',
       for (final name in <String>['Facebook', 'Kakao', 'LINE'])
@@ -1295,6 +1299,11 @@ void main() {
       '질문 0', () async {
     final _FirstRun first = await runFirst();
     expect(first.code, wizardExitDone, reason: first.h.output);
+    // 아이콘 파일이 다 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(내용은 검사하지 않는다).
+    for (final IconSpec spec in iconSpecs) {
+      writeFixture(root, spec.relativePath, 'icon');
+    }
+    writeFixture(root, '$iconsDirectory/source.png', 'source');
 
     final h = _Harness(root, const <String?>[]);
     _registerFinishedRun(h, values);
@@ -1319,5 +1328,6 @@ void main() {
     ]);
     expect(lines, contains(startsWith('  ✓ ${DeviceCheckStep.stepTitle} — ')));
     expect(lines, contains(startsWith('  ✓ ${AppleAndroidStep.stepTitle} — ')));
+    expect(lines, contains(startsWith('  ✓ ${AppIconStep.stepTitle} — ')));
   });
 }

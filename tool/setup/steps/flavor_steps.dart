@@ -4,6 +4,7 @@ import '../step.dart';
 import 'apis_step.dart';
 import 'apns_step.dart';
 import 'app_check_step.dart';
+import 'app_icon_step.dart';
 import 'apple_android_step.dart';
 import 'apple_step.dart';
 import 'billing_step.dart';
@@ -50,6 +51,10 @@ import 'xcode_step.dart';
 /// 단계([PlayIntegrityStep] · [DeviceCheckStep] · [ApnsStep])는 flavor · 켠 로그인
 /// 수단과 무관하게 맨 끝에 둔다 — release 빌드 전에만 필요해 미룰 수 있다. 새
 /// 단계는 진행 순서에 맞는 자리에 끼운다.
+///
+/// 켠 로그인 수단에 콘솔 아이콘 칸이 있는 provider 가 있으면 로그인 수단 단계
+/// 바로 다음에 앱 아이콘 단계([AppIconStep])를 둔다 — 어느 단계도 그 단계를
+/// 기다리지 않아 미뤄도 provider 단계 · 함수 배포가 그대로 진행된다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
@@ -63,7 +68,10 @@ List<Step> buildSteps({
     if (enabledProviders.contains(LineStep.token)) LineStep(),
   ];
   return <Step>[
-    ..._buildCommonSteps(isGoogleEnabled: isGoogleEnabled),
+    ..._buildCommonSteps(
+      isGoogleEnabled: isGoogleEnabled,
+      enabledProviders: enabledProviders,
+    ),
     if (isAppleEnabled) ...<Step>[AppleStep(), AppleAndroidStep()],
     for (final Step step in providerSteps) ...<Step>[
       step,
@@ -110,7 +118,10 @@ List<Step>? _buildAndroidSideSteps(String token) {
 /// [isGoogleEnabled] 면 Google 단계를 로그인 수단 단계 다음에 두고, 앱 등록이
 /// Google 클라이언트가 든 설정 파일을 요구하게 하며, Google 의 iOS · Android 쪽
 /// 단계를 앱 등록 다음에 둔다.
-List<Step> _buildCommonSteps({required bool isGoogleEnabled}) {
+List<Step> _buildCommonSteps({
+  required bool isGoogleEnabled,
+  required Set<String> enabledProviders,
+}) {
   return <Step>[
     XcodeStep(),
     ToolsStep(),
@@ -124,6 +135,8 @@ List<Step> _buildCommonSteps({required bool isGoogleEnabled}) {
     StorageStep(),
     SignInStep(),
     ProvidersStep(),
+    if (AppIconStep.isRequiredFor(enabledProviders))
+      AppIconStep(enabledProviders: enabledProviders),
     if (isGoogleEnabled) GoogleStep(),
     ConfigureStep(requiresGoogleClient: isGoogleEnabled),
     if (isGoogleEnabled) ...<Step>[GoogleIosStep(), GoogleAndroidStep()],

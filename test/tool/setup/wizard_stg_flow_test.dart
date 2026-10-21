@@ -1445,6 +1445,10 @@ void main() {
       'y', // Kakao
       '2', // 콘솔 작업 뒤 다시 실행
     ];
+    // dev 가 만든 아이콘이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(.setup/ 은 gitignored).
+    fixture
+      ..write('.setup/icons/kakao-128x128.png', 'icon')
+      ..write('.setup/icons/source.png', 'source');
     final run = _Run(fixture, inputs);
     _registerEarlySteps(run);
     _registerCloudSteps(run, isResumed: false);

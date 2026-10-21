@@ -880,8 +880,10 @@ void main() {
       final ids = <String>[for (final Step step in steps) step.id];
       final int start = ids.indexOf('providers');
 
-      expect(ids.sublist(start, start + 5), <String>[
+      // Google · Facebook 콘솔에는 아이콘 칸이 있어 앱 아이콘 단계가 그 사이에 있다.
+      expect(ids.sublist(start, start + 6), <String>[
         'providers',
+        'app_icon',
         'google',
         'configure',
         'google_ios',
@@ -920,7 +922,9 @@ void main() {
       final ids = <String>[for (final Step step in steps) step.id];
 
       expect(ids.where((String id) => id.startsWith('google')), isEmpty);
-      expect(ids.indexOf('configure'), ids.indexOf('providers') + 1);
+      // Kakao 콘솔에는 아이콘 칸이 있어 앱 아이콘 단계가 그 사이에 있다.
+      expect(ids.indexOf('app_icon'), ids.indexOf('providers') + 1);
+      expect(ids.indexOf('configure'), ids.indexOf('providers') + 2);
       final ConfigureStep configure = steps.whereType<ConfigureStep>().single;
       expect(configure.requiresGoogleClient, isFalse);
       expect(configure.dependsOn, <String>[

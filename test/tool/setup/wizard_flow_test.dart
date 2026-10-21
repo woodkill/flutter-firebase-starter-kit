@@ -12,6 +12,7 @@ import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/providers/provider_selection.dart';
@@ -23,6 +24,7 @@ import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
+import '../../../tool/setup/steps/app_icon_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
@@ -657,13 +659,14 @@ void _registerKakaoPolicies(
   _registerTokenCreator(h, policies: tokenCreatorPolicies);
 }
 
-/// Kakao 를 고르는 첫 실행의 입력 — 로그인 수단 · 체크 목록 · 값 표 · Kakao 단계 ·
-/// 키 두 개 · Functions 단계 순서다.
+/// Kakao 를 고르는 첫 실행의 입력 — 로그인 수단 · 체크 목록 · 값 표 · 앱 아이콘 ·
+/// Kakao 단계 · 키 두 개 · Functions 단계 순서다.
 List<String?> buildKakaoFirstRunInputs(String nativeKey, String adminKey) =>
     <String?>[
       'y', // 로그인 수단 단계
       '4', // 체크 목록 — Kakao
       'y', // 값 표
+      '2', // 앱 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
       'y', // Kakao 단계(다시 짠 뒤)
       '1', // 콘솔에서 키를 받았다
       nativeKey,
@@ -954,6 +957,29 @@ int countWriteRequests(FakeRestClient rest) => rest.requests
           request.method == 'DELETE',
     )
     .length;
+
+/// 가짜 이미지 파일 바이트 [length] 개를 만든다(실행 시점 조립 · 내용 무관).
+List<int> _buildFakeIconBytes(int length) =>
+    List<int>.generate(length, (int i) => (i * 7 + 3) % 256);
+
+/// [path] 의 정사각 [side] PNG 크기 읽기 결과(`sips -g` 정상 출력 꼴).
+CommandResult _buildIconProbeResult(String path, int side) =>
+    ok('$path\n  pixelWidth: $side\n  pixelHeight: $side\n  format: png\n');
+
+/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표의 행 줄을 모은다.
+///
+/// 행은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이고, 첫 노트 줄
+/// (`  · `)에서 끝난다. 표가 없으면 빈 목록이다.
+List<String> _collectTableRows(List<String> lines, String heading) {
+  final int start = lines.indexOf(heading);
+  if (start < 0) return const <String>[];
+  final rows = <String>[];
+  for (final String line in lines.skip(start + 1)) {
+    if (!line.startsWith('  ') || line.startsWith('  · ')) break;
+    rows.add(line);
+  }
+  return rows;
+}
 
 void main() {
   late Directory tempDir;
@@ -1330,6 +1356,9 @@ void main() {
     final String nativeKey = buildFakeKakaoNativeKey();
     final String adminKey = buildFakeKakaoAdminKey();
     writeKakaoManifest(root);
+    // 아이콘 파일이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(내용은 검사하지 않는다).
+    writeFixture(root, findIconSpec('kakao')!.relativePath, 'icon');
+    writeFixture(root, '$iconsDirectory/source.png', 'source');
     final configPath = '$root/${UserFilesStep.jsonUserPath}';
     replaceJsonString(configPath, enabledProvidersKey, 'kakao');
     replaceJsonString(configPath, 'kakaoNativeAppKey', nativeKey);
@@ -1361,7 +1390,13 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(21),
+      hasLength(22),
+    );
+    expect(
+      lines.where(
+        (String line) => line.startsWith('  ✓ ${AppIconStep.stepTitle} — '),
+      ),
+      hasLength(1),
     );
     expect(
       lines.where(
@@ -1511,6 +1546,178 @@ void main() {
         1,
       );
       expect(h.runner.countMode(RunMode.stream), 2);
+    },
+  );
+
+  test(
+    'T-20.1-WIRE-01: 아이콘 대상을 켰을 때만 로그인 수단 단계 바로 다음에 앱 아이콘 단계가 한 번 있고 flavor 마다 같다',
+    () {
+      const allProviders = <String>{
+        'google',
+        'apple',
+        'facebook',
+        'kakao',
+        'naver',
+        'line',
+      };
+      for (final Flavor flavor in Flavor.values) {
+        List<Step> build(Set<String> enabled) =>
+            buildSteps(flavor: flavor, enabledProviders: enabled);
+        List<String> listIds(List<Step> steps) => <String>[
+          for (final Step step in steps) step.id,
+        ];
+
+        final List<String> kakao = listIds(build(<String>{'kakao'}));
+        expect(
+          kakao.indexOf(AppIconStep.stepId),
+          kakao.indexOf('providers') + 1,
+          reason: '$flavor',
+        );
+
+        final List<String> googleKakao = listIds(
+          build(<String>{'google', 'kakao'}),
+        );
+        final int start = googleKakao.indexOf('providers');
+        expect(googleKakao.sublist(start, start + 3), <String>[
+          'providers',
+          AppIconStep.stepId,
+          'google',
+        ], reason: '$flavor');
+
+        final List<Step> all = build(allProviders);
+        expect(
+          listIds(all).where((String id) => id == AppIconStep.stepId),
+          hasLength(1),
+          reason: '$flavor',
+        );
+        final AppIconStep icon = all.whereType<AppIconStep>().single;
+        expect(icon.targets.map((IconSpec spec) => spec.token), <String>[
+          'google',
+          'facebook',
+          'kakao',
+          'naver',
+          'line',
+        ], reason: '$flavor');
+        // 미뤄도 뒤 단계가 기다리지 않는다 — 어떤 단계도 앱 아이콘을 기다리지 않는다.
+        expect(
+          all.where((Step step) => step.dependsOn.contains(AppIconStep.stepId)),
+          isEmpty,
+          reason: '$flavor',
+        );
+
+        expect(
+          build(<String>{'google', 'kakao'})
+              .whereType<AppIconStep>()
+              .single
+              .targets
+              .map((IconSpec spec) => spec.token),
+          <String>['google', 'kakao'],
+          reason: '$flavor',
+        );
+        expect(
+          listIds(build(<String>{})),
+          isNot(contains(AppIconStep.stepId)),
+          reason: '$flavor',
+        );
+        expect(
+          listIds(build(<String>{'apple'})),
+          isNot(contains(AppIconStep.stepId)),
+          reason: '$flavor',
+        );
+      }
+    },
+  );
+
+  test(
+    'T-20.1-WIRE-02: --providers 로 Kakao 를 고른 같은 실행에서 끌어다 놓은 원본으로 앱 아이콘을 만들고 Kakao 값 표가 그 경로를 보인 뒤 배포까지 간다',
+    () async {
+      final String nativeKey = buildFakeKakaoNativeKey();
+      final String adminKey = buildFakeKakaoAdminKey();
+      // 저장소 밖 원본 — 이름에 공백이 있어 Terminal 끌어다 놓기는 백슬래시를 붙인다.
+      final Directory sourceDir = Directory.systemTemp.createTempSync(
+        'wizard_icon_source_',
+      );
+      addTearDown(() {
+        if (sourceDir.existsSync()) sourceDir.deleteSync(recursive: true);
+      });
+      final sourcePath = '${sourceDir.path}/my icon.png';
+      File(sourcePath).writeAsBytesSync(_buildFakeIconBytes(64));
+      final h = _Harness(root, <String?>[
+        'y', // 로그인 수단 단계
+        '4', // 체크 목록 — Kakao
+        'y', // 값 표
+        '1', // 앱 아이콘 — 진행
+        '${sourceDir.path}/my\\ icon.png ', // 원본 — 끌어다 놓은 모양
+        'y', // Kakao 단계(다시 짠 뒤)
+        '1', // 콘솔에서 키를 받았다
+        nativeKey,
+        adminKey,
+        'y', // Functions 단계
+      ]);
+      _prepareKakaoFirstRun(h, nativeKey: nativeKey, adminKey: adminKey);
+      final IconSpec kakaoSpec = findIconSpec('kakao')!;
+      final outputPath = '$root/${kakaoSpec.relativePath}';
+      final Command resize = AppIconStep.buildResizeCommand(
+        root,
+        'source.png',
+        kakaoSpec,
+      );
+      final Command open = AppIconStep.buildOpenCommand(root);
+      h
+        ..onCommand(
+          AppIconStep.buildProbeCommand(sourcePath),
+          _buildIconProbeResult(sourcePath, 1024),
+        )
+        ..onCommand(resize, ok())
+        ..onCommand(
+          AppIconStep.buildProbeCommand(outputPath),
+          _buildIconProbeResult(outputPath, kakaoSpec.side),
+        )
+        ..onCommand(open, ok());
+      h.runner.onEffect(
+        FakeCommandRunner.buildKey(resize),
+        () => File(outputPath).writeAsBytesSync(_buildFakeIconBytes(32)),
+      );
+
+      final int code = await h.run(onCompleted: showCompletionSummary);
+      final String output = h.output;
+
+      expect(code, wizardExitDone, reason: output);
+      expect(File(outputPath).existsSync(), isTrue);
+      expect(File('$root/$iconsDirectory/source.png').existsSync(), isTrue);
+      final List<String> lines = const LineSplitter().convert(output);
+      expect(
+        lines,
+        contains('  ✓ 앱 아이콘 — Kakao 용 1개 · 바꾸려면 .setup/icons 를 지우고 다시 실행'),
+      );
+      final int iconHeader = lines.indexOf('▶ ${AppIconStep.stepTitle}');
+      expect(iconHeader, greaterThanOrEqualTo(0));
+      expect(iconHeader, lessThan(lines.indexOf('▶ ${KakaoStep.stepTitle}')));
+      final List<String> rows = _collectTableRows(
+        lines,
+        '── Kakao 콘솔에 넣을 값 — dev ──',
+      );
+      expect(rows, isNotEmpty);
+      expect(rows.last, contains(kakaoSpec.rowLabel));
+      expect(rows.last, contains(kakaoSpec.relativePath));
+      expect(kakaoSpec.rowLabel, '앱 아이콘 올리기 · 선택');
+      for (final streamed in <Command>[
+        resize,
+        open,
+        FunctionsStep.buildDeployCommand(),
+      ]) {
+        expect(
+          h.runner.countCalls(
+            RunMode.stream,
+            FakeCommandRunner.buildKey(streamed),
+          ),
+          1,
+          reason: streamed.render(),
+        );
+      }
+      final configPath = '$root/${UserFilesStep.jsonUserPath}';
+      expect(readJsonString(configPath, enabledProvidersKey), 'kakao');
+      expect(readJsonString(configPath, 'kakaoNativeAppKey'), nativeKey);
     },
   );
 }
