@@ -3,7 +3,6 @@ import 'dart:io';
 import '../command_runner.dart';
 import '../confirm.dart';
 import '../providers/icon_specs.dart';
-import '../providers/keyed_provider_step.dart';
 import '../providers/path_input.dart';
 import '../providers/provider_catalog.dart';
 import '../step.dart';
@@ -45,6 +44,13 @@ final class AppIconStep implements DeferrableStep {
 
   /// 단계 제목.
   static const String stepTitle = '앱 아이콘';
+
+  /// 원본 경로를 다시 묻는 상한 — 맞지 않는 원본을 세 번 넣으면 멈춘다(빈 값은
+  /// 언제든 지금 안 함).
+  ///
+  /// 콘솔 키 입력 상한(`maxKeyAttempts`)과 따로 둔다 — 키 정책이 바뀌어도 이
+  /// 단계는 그대로다.
+  static const int maxSourceAttempts = 3;
 
   /// 원본 질문 전에 보이는 안내.
   static const String sourceGuide =
@@ -298,11 +304,11 @@ final class AppIconStep implements DeferrableStep {
 
   /// 원본 경로를 묻고 검사한 뒤 사본을 만들고 아이콘을 만든다.
   ///
-  /// 빈 값은 미루기, 입력 끝 · [maxKeyAttempts] 회 틀림은 거절이다. 맞지 않는
+  /// 빈 값은 미루기, 입력 끝 · [maxSourceAttempts] 회 틀림은 거절이다. 맞지 않는
   /// 원본은 까닭 한 줄 뒤 경로만 다시 묻는다.
   Future<StepOutcome> _applyAskSource(WizardContext context) async {
     context.terminal.writeLine('  $sourceGuide');
-    for (var attempt = 0; attempt < maxKeyAttempts; attempt++) {
+    for (var attempt = 0; attempt < maxSourceAttempts; attempt++) {
       final String? answer = context.terminal.ask(sourceQuestion);
       if (answer == null) return const Declined();
       final String trimmed = answer.trim();

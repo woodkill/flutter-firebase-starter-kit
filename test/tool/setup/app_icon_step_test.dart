@@ -539,6 +539,10 @@ void main() {
       expect(h.output, contains('  ${AppIconStep.notImageReason}~/notes.txt'));
       expect(h.output, contains('  1024x1024 이상이 필요합니다 — 지금 512x512'));
       expect(h.output, contains('  너무 큰 이미지입니다 — 지금 20000x20000'));
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+        hasLength(AppIconStep.maxSourceAttempts),
+      );
       expect(h.output, contains(stopLine));
       expect(Directory(box.iconsPath).existsSync(), isFalse);
       expect(h.runner.countMode(RunMode.stream), 0);
