@@ -1113,6 +1113,23 @@ List<String?> _buildFirstRunInputs(_Values values, String p8Path) => <String?>[
 /// 첫 실행 결과 — 화면 · 기록 · 호출을 함께 둔다.
 typedef _FirstRun = ({_Harness h, int code});
 
+/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표 안의 줄(행 · 노트)을 모은다.
+///
+/// 표 안은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이다. 표가 없으면 빈
+/// 목록이다.
+List<String> _collectTableLines(List<String> lines, String heading) {
+  final int start = lines.indexOf(heading);
+  if (start < 0) return const <String>[];
+  return lines
+      .skip(start + 1)
+      .takeWhile((String line) => line.startsWith('  '))
+      .toList();
+}
+
+/// 값 표 안의 줄 [table] 가운데 행(첫 노트 줄 앞까지)만 고른다.
+List<String> _selectTableRows(List<String> table) =>
+    table.takeWhile((String line) => !line.startsWith('  · ')).toList();
+
 void main() {
   late Directory tempDir;
   late Directory keyDir;
@@ -1330,4 +1347,62 @@ void main() {
     expect(lines, contains(startsWith('  ✓ ${AppleAndroidStep.stepTitle} — ')));
     expect(lines, contains(startsWith('  ✓ ${AppIconStep.stepTitle} — ')));
   });
+
+  test(
+    'T-20.1-WIRE-03: 여섯 수단 첫 실행에서 앱 아이콘을 지금 안 함으로 두면 provider 단계 · 배포가 그대로 가고 값 표가 아직 없음 행 · 노트를 보인다',
+    () async {
+      final _FirstRun first = await runFirst();
+      final _Harness h = first.h;
+
+      expect(first.code, wizardExitDone, reason: h.output);
+      final int deferred = h.findLogLine('[check] ${AppIconStep.stepId} ✗ ');
+      expect(deferred, isNonNegative);
+      expect(
+        h.findLogLine('[check] ${NaverStep.token} ✓ '),
+        greaterThan(deferred),
+      );
+      expect(h.findLogLine('[cmd] $deployKey'), greaterThan(deferred));
+      final List<String> lines = h.lines;
+
+      final List<String> naver = _collectTableLines(
+        lines,
+        '── Naver 콘솔에 넣을 값 — dev ──',
+      );
+      final IconSpec naverSpec = findIconSpec(NaverStep.token)!;
+      expect(naverSpec.rowLabel, '로고 이미지 · 필수');
+      expect(_selectTableRows(naver).last, contains(naverSpec.rowLabel));
+      expect(_selectTableRows(naver).last, contains(missingIconValue));
+      expect(naver, contains('  · ${NaverStep().todoLines.first}'));
+
+      final List<String> facebook = _collectTableLines(
+        lines,
+        '── Facebook 콘솔에 넣을 값 — dev ──',
+      );
+      expect(
+        facebook,
+        contains('  · ${buildIconNote(findIconSpec(FacebookStep.token)!)!}'),
+      );
+
+      final List<String> google = _collectTableLines(
+        lines,
+        '── ${GoogleStep.summaryTitle} ──',
+      );
+      final IconSpec googleSpec = findIconSpec(GoogleStep.token)!;
+      expect(googleSpec.rowLabel, '동의 화면 로고 · 출시 전 선택');
+      expect(_selectTableRows(google).last, contains(googleSpec.rowLabel));
+      expect(_selectTableRows(google).last, contains(missingIconValue));
+      expect(google, contains('  · ${buildIconNote(googleSpec)!}'));
+
+      // 미룬 실행은 폴더도 만들지 않고 변환 · Finder 도 부르지 않는다.
+      expect(Directory('$root/$iconsDirectory').existsSync(), isFalse);
+      expect(
+        h.runner.calls.where(
+          (FakeCall call) =>
+              call.key.startsWith('/usr/bin/sips') ||
+              call.key.startsWith('/usr/bin/open'),
+        ),
+        isEmpty,
+      );
+    },
+  );
 }

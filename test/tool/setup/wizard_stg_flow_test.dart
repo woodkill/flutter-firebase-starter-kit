@@ -9,6 +9,7 @@ import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/completion.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
 import '../../../tool/setup/providers/provider_catalog.dart';
 import '../../../tool/setup/providers/provider_selection.dart';
@@ -19,6 +20,7 @@ import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
+import '../../../tool/setup/steps/app_icon_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/device_check_step.dart';
@@ -1175,6 +1177,65 @@ Future<_FirstRun> _runFirstStg(_Fixture fixture) async {
 int _countAsks(_Run run, String question) =>
     run.screen.asks.where((String asked) => asked == question).length;
 
+/// dev 의 Kakao 를 제안받아 고르는 첫 stg 실행을 준비한다.
+///
+/// 체크 목록은 Kakao 만 고르고, App Check 까지 첫 실행과 같이 간 뒤 Kakao
+/// 단계에서 콘솔 작업을 미룬다. 실행 전에 dev 가 만든 Kakao 아이콘 · 원본 사본을
+/// 둔다 — 파일이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(`.setup/` 은 gitignored).
+_Run _prepareKakaoStgRun(_Fixture fixture) {
+  final int checklist = firstRunInputs.indexOf(emailOnlyAnswer);
+  final int kakaoNumber =
+      providerCatalog.indexWhere(
+        (ProviderEntry entry) => entry.token == KakaoStep.token,
+      ) +
+      1;
+  // 첫 실행 입력의 끝 5개(Functions · 앱 실행 · 실행 대상 · 출시용 둘)는 Kakao
+  // 단계 뒤라 쓰지 않는다.
+  final inputs = <String?>[
+    ...firstRunInputs.sublist(0, checklist),
+    '$kakaoNumber',
+    ...firstRunInputs.sublist(checklist + 1, firstRunInputs.length - 5),
+    'y', // Kakao
+    '2', // 콘솔 작업 뒤 다시 실행
+  ];
+  fixture
+    ..write(findIconSpec(KakaoStep.token)!.relativePath, 'icon')
+    ..write('$iconsDirectory/source.png', 'source');
+  final run = _Run(fixture, inputs);
+  _registerEarlySteps(run);
+  _registerCloudSteps(run, isResumed: false);
+  _registerAppSteps(run, isResumed: false);
+  for (final name in <String>[
+    ...KakaoStep.nativeAppKeyField.secretNames,
+    ...KakaoStep.adminKeyField.secretNames,
+  ]) {
+    run.onCommand(buildSecretReadCommand(name, stgProjectId), <CommandResult>[
+      CommandResult(
+        1,
+        'Error: HTTP Error: 404, Secret [projects/0/secrets/$name] not '
+            'found or has no versions.\n',
+        '',
+      ),
+    ]);
+  }
+  return run;
+}
+
+/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표의 행 줄을 모은다.
+///
+/// 행은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이고, 첫 노트 줄
+/// (`  · `)에서 끝난다. 표가 없으면 빈 목록이다.
+List<String> _collectTableRows(List<String> lines, String heading) {
+  final int start = lines.indexOf(heading);
+  if (start < 0) return const <String>[];
+  return lines
+      .skip(start + 1)
+      .takeWhile(
+        (String line) => line.startsWith('  ') && !line.startsWith('  · '),
+      )
+      .toList();
+}
+
 void main() {
   late _Fixture fixture;
 
@@ -1428,44 +1489,7 @@ void main() {
 
   test('T-20-STG-14: dev 의 Kakao 를 제안받아 고른 첫 stg 실행 — Android 쪽 줄이 아직 '
       '검사되지 않았어도 Kakao 값 표에 키 해시 행이 있다', () async {
-    // 체크 목록은 Kakao 만 고르고, App Check 까지 첫 실행과 같이 간 뒤 Kakao
-    // 단계에서 콘솔 작업을 미룬다.
-    final int checklist = firstRunInputs.indexOf(emailOnlyAnswer);
-    final int kakaoNumber =
-        providerCatalog.indexWhere(
-          (ProviderEntry entry) => entry.token == KakaoStep.token,
-        ) +
-        1;
-    // 첫 실행 입력의 끝 5개(Functions · 앱 실행 · 실행 대상 · 출시용 둘)는 Kakao
-    // 단계 뒤라 쓰지 않는다.
-    final inputs = <String?>[
-      ...firstRunInputs.sublist(0, checklist),
-      '$kakaoNumber',
-      ...firstRunInputs.sublist(checklist + 1, firstRunInputs.length - 5),
-      'y', // Kakao
-      '2', // 콘솔 작업 뒤 다시 실행
-    ];
-    // dev 가 만든 아이콘이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(.setup/ 은 gitignored).
-    fixture
-      ..write('.setup/icons/kakao-128x128.png', 'icon')
-      ..write('.setup/icons/source.png', 'source');
-    final run = _Run(fixture, inputs);
-    _registerEarlySteps(run);
-    _registerCloudSteps(run, isResumed: false);
-    _registerAppSteps(run, isResumed: false);
-    for (final name in <String>[
-      ...KakaoStep.nativeAppKeyField.secretNames,
-      ...KakaoStep.adminKeyField.secretNames,
-    ]) {
-      run.onCommand(buildSecretReadCommand(name, stgProjectId), <CommandResult>[
-        CommandResult(
-          1,
-          'Error: HTTP Error: 404, Secret [projects/0/secrets/$name] not '
-              'found or has no versions.\n',
-          '',
-        ),
-      ]);
-    }
+    final _Run run = _prepareKakaoStgRun(fixture);
 
     final int code = await run.run();
     final String output = run.output;
@@ -1529,4 +1553,39 @@ void main() {
     }
     expect(fixture.readStatus(), statusBefore);
   });
+
+  test(
+    'T-20.1-WIRE-04: dev 가 만든 아이콘이 있는 저장소의 첫 stg 실행은 앱 아이콘 단계를 묻지 않고 ✓ 이고 stg Kakao 값 표가 같은 파일을 보인다',
+    () async {
+      final _Run run = _prepareKakaoStgRun(fixture);
+
+      final int code = await run.run();
+      final String output = run.output;
+
+      expect(code, wizardExitForUser, reason: output);
+      final List<String> lines = const LineSplitter().convert(output);
+      expect(
+        lines,
+        contains(startsWith('  ✓ ${AppIconStep.stepTitle} — Kakao 용 1개 · ')),
+      );
+      expect(lines, isNot(contains('▶ ${AppIconStep.stepTitle}')));
+      expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+      final IconSpec kakaoSpec = findIconSpec(KakaoStep.token)!;
+      final List<String> rows = _collectTableRows(
+        lines,
+        '── Kakao 콘솔에 넣을 값 — stg ──',
+      );
+      expect(rows, isNotEmpty, reason: output);
+      expect(rows.last, contains(kakaoSpec.rowLabel));
+      expect(rows.last, contains(kakaoSpec.relativePath));
+      expect(
+        run.fake.calls.where(
+          (FakeCall call) =>
+              call.key.startsWith('/usr/bin/sips') ||
+              call.key.startsWith('/usr/bin/open'),
+        ),
+        isEmpty,
+      );
+    },
+  );
 }
