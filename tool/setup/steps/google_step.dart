@@ -271,14 +271,15 @@ final class GoogleStep implements Step {
     }
     final String? suggested = await _readSuggestedEmail(context);
     final bool isOrganization = await _isUnderOrganization(context);
-    final IconSpec spec = findIconSpec(token)!;
+    // 규격 표에 google 행이 없으면 로고 행 · 노트 없이 값 표를 보인다.
+    final IconSpec? spec = findIconSpec(token);
     final String? supportEmail = _chooseSupportEmail(
       context.terminal,
       appName: appName,
       suggested: suggested,
       isOrganization: isOrganization,
-      logoRow: buildIconRow(context, spec),
-      logoNote: buildIconNote(spec),
+      logoRow: spec == null ? null : buildIconRow(context, spec),
+      logoNote: spec == null ? null : buildIconNote(spec),
     );
     if (supportEmail == null) return const Declined();
     if (supportEmail.isEmpty) {
@@ -326,14 +327,15 @@ final class GoogleStep implements Step {
 
   /// 값 표를 보이고 지원 이메일을 정한다.
   ///
-  /// 표를 다시 보일 때마다 로고 행 [logoRow] 와 노트 [logoNote] 를 함께 보인다.
+  /// 표를 다시 보일 때마다 (있으면) 로고 행 [logoRow] 와 노트 [logoNote] 를 함께
+  /// 보인다.
   /// 입력 끝이면 null, 형식에 맞는 값을 끝내 받지 못하면 빈 문자열을 돌려준다.
   String? _chooseSupportEmail(
     Terminal terminal, {
     required String appName,
     required String? suggested,
     required bool isOrganization,
-    required SummaryRow logoRow,
+    required SummaryRow? logoRow,
     required String? logoNote,
   }) {
     var email = suggested;
@@ -360,14 +362,14 @@ final class GoogleStep implements Step {
 
   /// 동의 화면 값 표를 보인다 — 조직 아래 프로젝트면 경고 한 줄을 붙인다.
   ///
-  /// 셋째 행은 로고 경로 [logoRow], 셋째 노트는 (있으면) 로고 요구 정도
-  /// [logoNote] 다.
+  /// 셋째 행은 (있으면) 로고 경로 [logoRow], 셋째 노트는 (있으면) 로고 요구
+  /// 정도 [logoNote] 다.
   static void _writeValueTable(
     Terminal terminal, {
     required String appName,
     required String? email,
     required bool isOrganization,
-    required SummaryRow logoRow,
+    required SummaryRow? logoRow,
     required String? logoNote,
   }) {
     writeSummary(
@@ -376,7 +378,7 @@ final class GoogleStep implements Step {
       rows: <SummaryRow>[
         SummaryRow(appNameRowLabel, appName),
         SummaryRow(supportEmailRowLabel, email ?? unreadEmailValue),
-        logoRow,
+        ?logoRow,
       ],
       notes: <String>[
         existingBrandNote,
