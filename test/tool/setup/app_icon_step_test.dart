@@ -77,6 +77,40 @@ List<String> listStreamKeys(FakeCommandRunner runner) => runner.calls
     .map((FakeCall call) => call.key)
     .toList();
 
+/// 쓰기 막힌 폴더의 파일도 지워지는 환경에서 지우기 실패 시험을 건너뛰는 까닭.
+const String unblockedDeleteSkipReason =
+    '이 환경은 쓰기 막힌 폴더의 파일도 지울 수 있어(root · 권한 무시 볼륨) '
+    '지우기 실패를 만들 수 없다';
+
+/// 시스템 임시 폴더에서 `555` 폴더 안 파일 지우기가 막히는지 시험해 건너뛸 까닭을 찾는다.
+///
+/// 지우기가 막히지 않으면 [unblockedDeleteSkipReason], 막히면 `null` 이다. 시험
+/// 상자도 같은 시스템 임시 폴더에 만들어지므로 같은 볼륨의 성질을 본다. `chmod`
+/// 자체가 실패하면 전제를 가를 수 없어 `null` 로 두고, 시험 본문의 종료 코드
+/// 단언이 원인을 말하게 한다. 끝나면 권한을 되돌리고 임시 폴더를 지운다.
+String? findUnblockedDeleteSkipReason() {
+  final Directory dir = Directory.systemTemp.createTempSync(
+    'app_icon_delete_probe_',
+  );
+  try {
+    final probe = File('${dir.path}/probe')..writeAsBytesSync(const <int>[0]);
+    final ProcessResult chmod = Process.runSync('/bin/chmod', <String>[
+      '555',
+      dir.path,
+    ]);
+    if (chmod.exitCode != 0) return null;
+    try {
+      probe.deleteSync();
+      return unblockedDeleteSkipReason;
+    } on FileSystemException {
+      return null;
+    }
+  } finally {
+    Process.runSync('/bin/chmod', <String>['755', dir.path]);
+    dir.deleteSync(recursive: true);
+  }
+}
+
 /// 임시 저장소 · 임시 홈 한 쌍.
 final class _Sandbox {
   _Sandbox() : base = Directory.systemTemp.createTempSync('app_icon_step_') {
@@ -874,6 +908,8 @@ void main() {
       expect(h.runner.countCalls(RunMode.stream, buildOpenKey(box.root)), 0);
     });
 
+    // 전제 — 555 폴더 안 파일 지우기가 막혀야 한다. root · 권한 무시 볼륨처럼 막히지
+    // 않는 환경이면 선언 때 그 전제를 시험해 보고 건너뛴다(거짓 실패 대신 skip).
     test('확인에 걸린 파일을 지우지 못하면 상대 경로 · 직접 지우라는 한 줄', () async {
       final spec = findIconSpec('naver')!;
       final out = '${box.iconsPath}/${spec.fileName}';
@@ -923,7 +959,7 @@ void main() {
       expect(AppIconStep.discardFailedHint.allMatches(h.output), hasLength(1));
       expect(h.output, isNot(contains(box.home)));
       expect(h.output, isNot(contains(box.root)));
-    });
+    }, skip: findUnblockedDeleteSkipReason());
 
     test('만든 파일 크기가 다르면 같은 꼴의 실패', () async {
       final h = _Harness(
