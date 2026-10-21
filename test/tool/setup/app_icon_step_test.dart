@@ -85,14 +85,23 @@ const String unblockedDeleteSkipReason =
 /// 시스템 임시 폴더에서 `555` 폴더 안 파일 지우기가 막히는지 시험해 건너뛸 까닭을 찾는다.
 ///
 /// 지우기가 막히지 않으면 [unblockedDeleteSkipReason], 막히면 `null` 이다. 시험
-/// 상자도 같은 시스템 임시 폴더에 만들어지므로 같은 볼륨의 성질을 본다. `chmod`
-/// 자체가 실패하면 전제를 가를 수 없어 `null` 로 두고(실행), 시험 본문이
-/// `h.run()` 뒤 첫 단언으로 `chmod` 종료 코드를 확인해 원인을 말한다. 끝나면
-/// 권한을 되돌리고 임시 폴더를 지운다.
+/// 상자도 같은 시스템 임시 폴더에 만들어지므로 같은 볼륨의 성질을 본다.
+///
+/// 시험 선언(`skip:`) 때 돌기 때문에 여기서 던지면 파일의 시험이 하나도 등록되지
+/// 않는다. 그래서 어떤 실패도 파일 로드를 깨지 않는다 — 임시 폴더 생성 · probe
+/// 쓰기 · `chmod 555` 가 실패하면(`FileSystemException` · `/bin/chmod` 이 없을 때의
+/// `ProcessException` 모두 [IOException]) 전제를 가를 수 없어 `null` 로 둔다(실행).
+/// 그때는 시험 본문이 `h.run()` 뒤 첫 단언으로 `chmod` 종료 코드를 확인해 원인을
+/// 말한다. 끝나면 [restoreDeleteProbeDir] 로 권한을 되돌리고 임시 폴더를 지운다 —
+/// 정리가 실패해도 판정은 바뀌지 않는다.
 String? findUnblockedDeleteSkipReason() {
-  final Directory dir = Directory.systemTemp.createTempSync(
-    'app_icon_delete_probe_',
-  );
+  final Directory dir;
+  try {
+    dir = Directory.systemTemp.createTempSync('app_icon_delete_probe_');
+  } on IOException {
+    // 시험 상자도 같은 폴더라 시험 본문(setUp)이 같은 원인으로 실패해 말한다.
+    return null;
+  }
   try {
     final probe = File('${dir.path}/probe')..writeAsBytesSync(const <int>[0]);
     final ProcessResult chmod = Process.runSync('/bin/chmod', <String>[
@@ -106,9 +115,30 @@ String? findUnblockedDeleteSkipReason() {
     } on FileSystemException {
       return null;
     }
+  } on IOException {
+    return null;
   } finally {
+    restoreDeleteProbeDir(dir);
+  }
+}
+
+/// 전제 probe 폴더 [dir] 의 권한을 되돌리고 지운다 — 어떤 실패도 던지지 않는다.
+///
+/// 되돌리기(`chmod 755`)가 실패해도 지우기는 시도한다 — 폴더 자체를 지우는 데는
+/// 그 폴더가 아니라 부모(시스템 임시 폴더)의 쓰기 권한이 필요하므로, probe 가 이미
+/// 지워졌거나 만들어지지 않은 경우에는 지워진다. probe 가 남은 `555` 폴더는 지우지
+/// 못해 `app_icon_delete_probe_*` 이름으로 시스템 임시 폴더에 남는다(권한을 되돌린
+/// 뒤 손으로 지운다). 남은 폴더를 다른 방법으로 지우려 하지 않는다.
+void restoreDeleteProbeDir(Directory dir) {
+  try {
     Process.runSync('/bin/chmod', <String>['755', dir.path]);
+  } on IOException {
+    // `/bin/chmod` 이 없으면 되돌리지 못한다 — 아래 지우기만 시도한다.
+  }
+  try {
     dir.deleteSync(recursive: true);
+  } on IOException {
+    // 남은 폴더는 판정도 파일 로드도 바꾸지 않는다.
   }
 }
 
