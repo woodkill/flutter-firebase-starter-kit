@@ -496,6 +496,16 @@ void main() {
             reason: AppIconStep.unconvertibleAddressReason,
           ),
           (
+            name: '큰따옴표로 감싼 %2F 주소',
+            build: (_Sandbox b) => '"file://${b.home}/a%2Fb.png"',
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+          (
+            name: '작은따옴표로 감싼 %2F 주소',
+            build: (_Sandbox b) => "'file://${b.home}/a%2Fb.png'",
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+          (
             name: '빈 큰따옴표',
             build: (_Sandbox _) => '""',
             reason: AppIconStep.emptyPathReason,
@@ -538,6 +548,40 @@ void main() {
           hasLength(2),
         );
         expect(h.output, contains(allDoneIconLine));
+      });
+    }
+
+    // 따옴표로 감싼 `file://` 답은 따옴표를 벗긴 뒤 한 번 더 바꿔 그 원본을 쓴다.
+    for (final quote in <String>['"', "'"]) {
+      test('$quote 로 감싼 file:// 주소 → 까닭 줄 0 · 그 원본 크기 읽기 · ✓', () async {
+        final String good = box.writeHomeFile('good.png', buildFakeBytes(512));
+        final answer = '${quote}file://$good$quote';
+        final h = _Harness(box, <String?>['1', answer]);
+        h.runner.on(buildProbeKey(good), buildProbeResult(good, 1024, 1024));
+        h
+          ..registerTargets('source.png', iconSpecs)
+          ..registerOpen();
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone);
+        expect(
+          h.output,
+          isNot(contains(AppIconStep.unconvertibleAddressReason)),
+        );
+        expect(h.output, isNot(contains(AppIconStep.emptyPathReason)));
+        expect(h.output, isNot(contains(AppIconStep.missingFileReason)));
+        expect(h.runner.countCalls(RunMode.capture, buildProbeKey(good)), 1);
+        expect(
+          h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+          hasLength(1),
+        );
+        expect(
+          File('${box.iconsPath}/source.png').readAsBytesSync(),
+          buildFakeBytes(512),
+        );
+        expect(h.output, contains(allDoneIconLine));
+        expect(h.output, isNot(contains(box.home)));
       });
     }
 
