@@ -481,6 +481,86 @@ void main() {
       expect(h.output, contains(allDoneIconLine));
     });
 
+    // 풀면 비는 답 · 파일 경로로 바꿀 수 없는 `file://` 답 — 주소에는 시험 홈 아래
+    // 경로를 담아 화면에 그 경로가 남지 않는지도 본다.
+    final unusableAnswers =
+        <({String name, String Function(_Sandbox box) build, String reason})>[
+          (
+            name: '조각 안 %2F 주소',
+            build: (_Sandbox b) => 'file://${b.home}/a%2Fb.png',
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+          (
+            name: '깨진 UTF-8 주소',
+            build: (_Sandbox b) => 'file://${b.home}/a%FF.png',
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+          (
+            name: '빈 큰따옴표',
+            build: (_Sandbox _) => '""',
+            reason: AppIconStep.emptyPathReason,
+          ),
+          (
+            name: '빈 작은따옴표',
+            build: (_Sandbox _) => "''",
+            reason: AppIconStep.emptyPathReason,
+          ),
+        ];
+    for (final item in unusableAnswers) {
+      test('${item.name} → 경로 없는 까닭 한 줄 · 크기 읽기 0 · 맞는 원본은 ✓', () async {
+        final String answer = item.build(box);
+        final String good = box.writeHomeFile('good.png', buildFakeBytes(512));
+        final h = _Harness(box, <String?>['1', answer, good]);
+        h.runner.on(buildProbeKey(good), buildProbeResult(good, 1024, 1024));
+        h
+          ..registerTargets('source.png', iconSpecs)
+          ..registerOpen();
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone);
+        expect(
+          h.output.split('\n').where((String l) => l == '  ${item.reason}'),
+          hasLength(1),
+        );
+        expect(h.output, isNot(contains(AppIconStep.missingFileReason)));
+        expect(h.output, isNot(contains(box.home)));
+        expect(h.output, isNot(contains(answer)));
+        expect(
+          h.runner.calls
+              .where((FakeCall c) => c.mode == RunMode.capture)
+              .map((FakeCall c) => c.key)
+              .where((String k) => !k.contains(box.iconsPath)),
+          <String>[buildProbeKey(good)],
+        );
+        expect(
+          h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+          hasLength(2),
+        );
+        expect(h.output, contains(allDoneIconLine));
+      });
+    }
+
+    test('경로 없는 까닭으로 다시 묻기도 상한에 센다 → 멈춤 · 만들기 0', () async {
+      final h = _Harness(box, <String?>[
+        '1',
+        '""',
+        'file://${box.home}/a%2Fb.png',
+        "''",
+      ]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion),
+        hasLength(AppIconStep.maxSourceAttempts),
+      );
+      expect(h.output, contains(stopLine));
+      expect(h.runner.calls, isEmpty);
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+    });
+
     test('비이미지 · 1024 미만 · 상한 초과 세 번 → 멈춤 · 만들기 0', () async {
       final String text = box.writeHomeFile('notes.txt', buildFakeBytes(16));
       final String small = box.writeHomeFile('small.png', buildFakeBytes(64));

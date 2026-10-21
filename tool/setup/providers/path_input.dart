@@ -17,10 +17,10 @@ String parseDroppedPath(String answer) {
         uri.host.isEmpty &&
         !uri.hasQuery &&
         !uri.hasFragment) {
-      // 파일 경로로 바꿀 수 없는 주소는 손대지 않은 값을 돌려준다 — 뒤의 파일
-      // 존재 검사가 「파일이 없습니다」 로 다시 묻는다. 조각 안의 `%2F` 는
-      // toFilePath 가 UnsupportedError(Error)를 던지고, 깨진 UTF-8 은 조각을
-      // 풀 때 FormatException 이 난다.
+      // 파일 경로로 바꿀 수 없는 주소는 손대지 않은 값을 돌려준다 —
+      // 부르는 쪽이 `file://` 로 남은 값을 보고 까닭을 가른다.
+      // 조각 안의 `%2F` 는 toFilePath 가 UnsupportedError(Error)를 던지고,
+      // 깨진 UTF-8 은 조각을 풀 때 FormatException 이 난다.
       final List<String> segments;
       try {
         segments = uri.pathSegments;
