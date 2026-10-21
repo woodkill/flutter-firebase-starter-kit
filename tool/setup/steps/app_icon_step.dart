@@ -103,6 +103,12 @@ final class AppIconStep implements DeferrableStep {
       '브라우저의 파일 선택 창에서 ⌘⇧G 로 $iconsDirectory 경로를 붙여 넣거나 '
       '열린 Finder 창에서 끌어다 놓으세요';
 
+  /// 만들다 만 아이콘을 지우지 못했을 때의 머리(뒤에 상대 경로 · [discardFailedHint]).
+  static const String discardFailedReason = '만들다 만 아이콘을 지우지 못했습니다 — ';
+
+  /// 지우지 못한 아이콘 경로 뒤의 안내.
+  static const String discardFailedHint = '를 직접 지우고 다시 실행하세요';
+
   /// Finder 열기가 실패했을 때의 한 줄.
   static const String openFailedNote =
       'Finder 를 열지 못했습니다 — 파일은 $iconsDirectory 에 있습니다';
@@ -404,8 +410,9 @@ final class AppIconStep implements DeferrableStep {
   /// 잇는다.
   ///
   /// 이미 있는 대상 파일은 건드리지 않는다. 파일마다 만든 직후 확인하고, 변환 ·
-  /// 확인에 걸린 파일은 지워 다시 실행이 다시 만들게 한다 — 그래서 남은 대상
-  /// 파일은 모두 확인을 거친 것이다.
+  /// 확인에 걸린 파일은 지워 다시 실행이 다시 만들게 한다. 지우지 못한 파일은
+  /// 다음 검사가 존재만 보고 「끝남」 으로 여기므로 화면 한 줄이 직접 지우라고
+  /// 알린다 — 그 파일 말고 남은 대상 파일은 확인을 거친 것이다.
   Future<StepOutcome> _buildIcons(
     WizardContext context,
     String sourceName,
@@ -495,14 +502,22 @@ final class AppIconStep implements DeferrableStep {
     );
   }
 
-  /// 이번 실행에서 만들다 만 [spec] 파일을 지운다 — 지우지 못해도 넘어간다.
+  /// 이번 실행에서 만들다 만 [spec] 파일을 지운다 — 지우지 못하면 직접 지우라는
+  /// 한 줄을 화면에 쓴다.
+  ///
+  /// 다음 검사는 파일 존재만 보므로 남은 파일은 「끝남」 으로 판정된다 — 그 파일은
+  /// 사용자가 지워야 한다. 예외 원문에는 저장소의 절대 경로가 들어 있어 상대 경로와
+  /// 운영체제의 까닭만 보인다.
   void _discard(WizardContext context, IconSpec spec) {
     final file = File(context.resolve(spec.relativePath));
     try {
       if (file.existsSync()) file.deleteSync();
-    } on FileSystemException {
-      // 남은 파일은 다시 실행의 검사 · 확인이 다시 본다.
-      return;
+    } on FileSystemException catch (e) {
+      final String osReason = e.osError?.message ?? '';
+      context.terminal.writeLine(
+        '  $discardFailedReason${spec.relativePath} $discardFailedHint'
+        '${osReason.isEmpty ? '' : ' ($osReason)'}',
+      );
     }
   }
 

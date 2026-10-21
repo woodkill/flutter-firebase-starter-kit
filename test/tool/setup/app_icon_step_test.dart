@@ -826,7 +826,59 @@ void main() {
         ),
       );
       expect(File('${box.iconsPath}/naver-140x140.png').existsSync(), isFalse);
+      expect(h.output, isNot(contains(AppIconStep.discardFailedReason)));
       expect(h.runner.countCalls(RunMode.stream, buildOpenKey(box.root)), 0);
+    });
+
+    test('확인에 걸린 파일을 지우지 못하면 상대 경로 · 직접 지우라는 한 줄', () async {
+      final spec = findIconSpec('naver')!;
+      final out = '${box.iconsPath}/${spec.fileName}';
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'naver'},
+      );
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h.registerTargets('source.png', <IconSpec>[
+        spec,
+      ], probeSideFor: (IconSpec _) => 120);
+      // 만든 뒤 크기를 읽는 순간 폴더 쓰기 권한을 빼 지우기가 실패하게 한다 —
+      // 임시 폴더 정리보다 먼저 권한을 되돌린다(addTearDown 은 나중 등록이 먼저).
+      addTearDown(
+        () => Process.runSync('/bin/chmod', <String>['755', box.iconsPath]),
+      );
+      h.runner.onEffect(buildProbeKey(out), () {
+        final ProcessResult chmod = Process.runSync('/bin/chmod', <String>[
+          '555',
+          box.iconsPath,
+        ]);
+        expect(chmod.exitCode, 0);
+      });
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains('  실패 — Naver 아이콘이 규격과 다릅니다 — ${spec.relativePath}'),
+      );
+      expect(File(out).existsSync(), isTrue);
+      final List<String> notes = h.output
+          .split('\n')
+          .where((String l) => l.contains(AppIconStep.discardFailedReason))
+          .toList();
+      expect(notes, hasLength(1));
+      expect(
+        notes.single,
+        startsWith(
+          '  ${AppIconStep.discardFailedReason}${spec.relativePath} '
+          '${AppIconStep.discardFailedHint}',
+        ),
+      );
+      expect(spec.relativePath.allMatches(notes.single), hasLength(1));
+      expect(AppIconStep.discardFailedHint.allMatches(h.output), hasLength(1));
+      expect(h.output, isNot(contains(box.home)));
+      expect(h.output, isNot(contains(box.root)));
     });
 
     test('만든 파일 크기가 다르면 같은 꼴의 실패', () async {
