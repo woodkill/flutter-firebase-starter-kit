@@ -986,5 +986,36 @@ void main() {
       expect(h.screen.asks, isEmpty);
       expect(h.runner.calls, isEmpty);
     });
+
+    test('source.png.orig 같은 이름은 사본으로 세지 않는다', () async {
+      final List<int> origBytes = buildFakeBytes(40);
+      box
+        ..writeIcon('source.png', buildFakeBytes(900))
+        ..writeIcon('source.png.orig', origBytes);
+      final copy = '${box.iconsPath}/source.png';
+      final h = _Harness(
+        box,
+        const <String?>['1'],
+        enabled: const <String>{'naver'},
+      );
+      h.runner.on(buildProbeKey(copy), buildProbeResult(copy, 1024, 1024));
+      h
+        ..registerTargets('source.png', <IconSpec>[findIconSpec('naver')!])
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.output, isNot(contains(AppIconStep.multipleSourcesReason)));
+      expect(
+        h.output,
+        contains('  ✗ 앱 아이콘 — Naver 용 파일이 없습니다 — 보관한 원본으로 만듭니다'),
+      );
+      expect(File('${box.iconsPath}/naver-140x140.png').existsSync(), isTrue);
+      expect(
+        File('${box.iconsPath}/source.png.orig').readAsBytesSync(),
+        origBytes,
+      );
+    });
   });
 }

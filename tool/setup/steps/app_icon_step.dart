@@ -132,6 +132,12 @@ final class AppIconStep implements DeferrableStep {
     multiLine: true,
   );
 
+  // 사본 이름 꼴 — 형식 자리는 [_formatPattern] 이 읽는 글자와 같다.
+  static final RegExp _sourceCopyPattern = RegExp(
+    '^${RegExp.escape(sourceCopyBaseName)}'
+    r'\.\w+$',
+  );
+
   /// `sips -g` 결과 [result] 에서 크기 · 형식을 읽는다 — 이미지가 아니면 null.
   ///
   /// `sips -g` 는 없는 파일 · 폴더 · 이미지가 아닌 파일에도 종료 코드 0 이라
@@ -482,9 +488,11 @@ final class AppIconStep implements DeferrableStep {
     }
   }
 
-  /// [folder] 안에서 `source.` 로 시작하는 파일 이름을 이름 순으로 모은다.
+  /// [folder] 안에서 사본 이름 꼴(`source.<형식>`)의 파일 이름을 이름 순으로
+  /// 모은다.
   ///
-  /// 폴더가 없으면 빈 목록이다.
+  /// `source.png.orig` 같은 이름은 사본이 아니라 세지 않는다. 폴더가 없으면 빈
+  /// 목록이다.
   List<String> _listSourceCopies(String folder) {
     final directory = Directory(folder);
     if (!directory.existsSync()) return const <String>[];
@@ -493,10 +501,7 @@ final class AppIconStep implements DeferrableStep {
         if (entity is File)
           entity.path.substring(entity.path.lastIndexOf('/') + 1),
     ];
-    return names
-        .where((String name) => name.startsWith('$sourceCopyBaseName.'))
-        .toList()
-      ..sort();
+    return names.where(_sourceCopyPattern.hasMatch).toList()..sort();
   }
 
   /// [spec] 의 화면 이름을 찾는다.
