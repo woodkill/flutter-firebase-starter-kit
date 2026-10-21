@@ -86,8 +86,9 @@ const String unblockedDeleteSkipReason =
 ///
 /// 지우기가 막히지 않으면 [unblockedDeleteSkipReason], 막히면 `null` 이다. 시험
 /// 상자도 같은 시스템 임시 폴더에 만들어지므로 같은 볼륨의 성질을 본다. `chmod`
-/// 자체가 실패하면 전제를 가를 수 없어 `null` 로 두고, 시험 본문의 종료 코드
-/// 단언이 원인을 말하게 한다. 끝나면 권한을 되돌리고 임시 폴더를 지운다.
+/// 자체가 실패하면 전제를 가를 수 없어 `null` 로 두고(실행), 시험 본문이
+/// `h.run()` 뒤 첫 단언으로 `chmod` 종료 코드를 확인해 원인을 말한다. 끝나면
+/// 권한을 되돌리고 임시 폴더를 지운다.
 String? findUnblockedDeleteSkipReason() {
   final Directory dir = Directory.systemTemp.createTempSync(
     'app_icon_delete_probe_',
@@ -927,16 +928,19 @@ void main() {
       addTearDown(
         () => Process.runSync('/bin/chmod', <String>['755', box.iconsPath]),
       );
+      // 효과는 결과만 담는다 — 효과 안의 단언 실패(TestFailure)는 위저드가
+      // 「실행하지 못했습니다」 로 삼켜 원인을 말하지 못한다.
+      ProcessResult? chmod;
       h.runner.onEffect(buildProbeKey(out), () {
-        final ProcessResult chmod = Process.runSync('/bin/chmod', <String>[
-          '555',
-          box.iconsPath,
-        ]);
-        expect(chmod.exitCode, 0);
+        chmod = Process.runSync('/bin/chmod', <String>['555', box.iconsPath]);
       });
 
       final int code = await h.run();
 
+      // 전제 — 효과가 불려 권한을 뺐어야 한다. 아니면 아래 단언이 아니라 여기서
+      // 원인을 말한다.
+      expect(chmod, isNotNull, reason: '크기 읽기 효과가 불리지 않았다');
+      expect(chmod!.exitCode, 0, reason: 'chmod 555 실패 — ${chmod!.stderr}');
       expect(code, wizardExitStopped);
       expect(
         h.output,
