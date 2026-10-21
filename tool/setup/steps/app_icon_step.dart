@@ -328,7 +328,10 @@ final class AppIconStep implements DeferrableStep {
         buildProbeCommand(path),
       );
       if (!probed.isSuccess) {
-        // 원문에는 저장소 밖 원본의 절대 경로가 섞일 수 있어 종료 코드만 보인다.
+        // 원문에는 저장소 밖 원본의 절대 경로가 섞일 수 있어 화면에는 종료 코드만
+        // 보인다. 실행 기록(.setup/logs, gitignored)에는 명령 줄 · 출력 원문과
+        // 함께 그 경로가 남는다 — sips -g 출력 첫 줄이 경로 자체라 표시형만 바꿔서는
+        // 가릴 수 없다.
         return Failed('원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 ${probed.exitCode}');
       }
       final ImageProbe? probe = parseProbe(probed);
