@@ -1221,21 +1221,6 @@ _Run _prepareKakaoStgRun(_Fixture fixture) {
   return run;
 }
 
-/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표의 행 줄을 모은다.
-///
-/// 행은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이고, 첫 노트 줄
-/// (`  · `)에서 끝난다. 표가 없으면 빈 목록이다.
-List<String> _collectTableRows(List<String> lines, String heading) {
-  final int start = lines.indexOf(heading);
-  if (start < 0) return const <String>[];
-  return lines
-      .skip(start + 1)
-      .takeWhile(
-        (String line) => line.startsWith('  ') && !line.startsWith('  · '),
-      )
-      .toList();
-}
-
 void main() {
   late _Fixture fixture;
 
@@ -1571,7 +1556,7 @@ void main() {
       expect(lines, isNot(contains('▶ ${AppIconStep.stepTitle}')));
       expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
       final IconSpec kakaoSpec = findIconSpec(KakaoStep.token)!;
-      final List<String> rows = _collectTableRows(
+      final List<String> rows = collectSummaryRows(
         lines,
         '── Kakao 콘솔에 넣을 값 — stg ──',
       );

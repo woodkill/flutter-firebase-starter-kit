@@ -14,16 +14,6 @@ import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
 
-/// 아이콘 대상이 있는 로그인 수단 다섯과 Apple — 모든 수단을 켠 저장소.
-const Set<String> allProviders = <String>{
-  'google',
-  'apple',
-  'facebook',
-  'kakao',
-  'naver',
-  'line',
-};
-
 /// 다섯 대상의 표시 이름(로그인 수단 표 순서).
 const List<String> allTargetNames = <String>[
   'Google',
@@ -87,30 +77,6 @@ List<String> listStreamKeys(FakeCommandRunner runner) => runner.calls
     .map((FakeCall call) => call.key)
     .toList();
 
-/// 로그인 수단 단계 대역 — 늘 끝난 상태라 아이콘 단계가 검사된다.
-final class _ProvidersStandIn implements Step {
-  @override
-  String get id => 'providers';
-
-  @override
-  String get title => '로그인 수단';
-
-  @override
-  List<String> get dependsOn => const <String>[];
-
-  @override
-  bool get isCostlyOrIrreversible => false;
-
-  @override
-  Future<CheckResult> check(WizardContext context) async => const Done('대역');
-
-  @override
-  List<String> plannedCommandLines(WizardContext context) => const <String>[];
-
-  @override
-  Future<StepOutcome> apply(WizardContext context) async => const Applied();
-}
-
 /// 임시 저장소 · 임시 홈 한 쌍.
 final class _Sandbox {
   _Sandbox() : base = Directory.systemTemp.createTempSync('app_icon_step_') {
@@ -154,7 +120,7 @@ final class _Harness {
   _Harness(
     this.box,
     List<String?> inputs, {
-    this.enabled = allProviders,
+    this.enabled = allProviderTokens,
     this.flavor = Flavor.dev,
   }) : screen = ScriptedTerminal(inputs);
 
@@ -228,7 +194,7 @@ final class _Harness {
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     ),
-    <Step>[_ProvidersStandIn(), AppIconStep(enabledProviders: enabled)],
+    <Step>[providersStandIn, AppIconStep(enabledProviders: enabled)],
   );
 }
 
@@ -316,12 +282,12 @@ void main() {
       expect(AppIconStep.isRequiredFor(const <String>{'naver'}), isTrue);
       expect(
         AppIconStep(
-          enabledProviders: allProviders,
+          enabledProviders: allProviderTokens,
         ).targets.map((IconSpec spec) => spec.token),
         <String>['google', 'facebook', 'kakao', 'naver', 'line'],
       );
       expect(findIconSpec('apple'), isNull);
-      final step = AppIconStep(enabledProviders: allProviders);
+      final step = AppIconStep(enabledProviders: allProviderTokens);
       expect(step.id, 'app_icon');
       expect(step.dependsOn, <String>['providers']);
       expect(step.isCostlyOrIrreversible, isFalse);

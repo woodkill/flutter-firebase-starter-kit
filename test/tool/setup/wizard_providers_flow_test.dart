@@ -1113,23 +1113,6 @@ List<String?> _buildFirstRunInputs(_Values values, String p8Path) => <String?>[
 /// 첫 실행 결과 — 화면 · 기록 · 호출을 함께 둔다.
 typedef _FirstRun = ({_Harness h, int code});
 
-/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표 안의 줄(행 · 노트)을 모은다.
-///
-/// 표 안은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이다. 표가 없으면 빈
-/// 목록이다.
-List<String> _collectTableLines(List<String> lines, String heading) {
-  final int start = lines.indexOf(heading);
-  if (start < 0) return const <String>[];
-  return lines
-      .skip(start + 1)
-      .takeWhile((String line) => line.startsWith('  '))
-      .toList();
-}
-
-/// 값 표 안의 줄 [table] 가운데 행(첫 노트 줄 앞까지)만 고른다.
-List<String> _selectTableRows(List<String> table) =>
-    table.takeWhile((String line) => !line.startsWith('  · ')).toList();
-
 void main() {
   late Directory tempDir;
   late Directory keyDir;
@@ -1364,17 +1347,21 @@ void main() {
       expect(h.findLogLine('[cmd] $deployKey'), greaterThan(deferred));
       final List<String> lines = h.lines;
 
-      final List<String> naver = _collectTableLines(
+      final List<String> naver = collectSummaryLines(
         lines,
         '── Naver 콘솔에 넣을 값 — dev ──',
       );
       final IconSpec naverSpec = findIconSpec(NaverStep.token)!;
       expect(naverSpec.rowLabel, '로고 이미지 · 필수');
-      expect(_selectTableRows(naver).last, contains(naverSpec.rowLabel));
-      expect(_selectTableRows(naver).last, contains(missingIconValue));
+      final List<String> naverRows = collectSummaryRows(
+        lines,
+        '── Naver 콘솔에 넣을 값 — dev ──',
+      );
+      expect(naverRows.last, contains(naverSpec.rowLabel));
+      expect(naverRows.last, contains(missingIconValue));
       expect(naver, contains('  · ${NaverStep().todoLines.first}'));
 
-      final List<String> facebook = _collectTableLines(
+      final List<String> facebook = collectSummaryLines(
         lines,
         '── Facebook 콘솔에 넣을 값 — dev ──',
       );
@@ -1383,14 +1370,18 @@ void main() {
         contains('  · ${buildIconNote(findIconSpec(FacebookStep.token)!)!}'),
       );
 
-      final List<String> google = _collectTableLines(
+      final List<String> google = collectSummaryLines(
         lines,
         '── ${GoogleStep.summaryTitle} ──',
       );
       final IconSpec googleSpec = findIconSpec(GoogleStep.token)!;
       expect(googleSpec.rowLabel, '동의 화면 로고 · 출시 전 선택');
-      expect(_selectTableRows(google).last, contains(googleSpec.rowLabel));
-      expect(_selectTableRows(google).last, contains(missingIconValue));
+      final List<String> googleRows = collectSummaryRows(
+        lines,
+        '── ${GoogleStep.summaryTitle} ──',
+      );
+      expect(googleRows.last, contains(googleSpec.rowLabel));
+      expect(googleRows.last, contains(missingIconValue));
       expect(google, contains('  · ${buildIconNote(googleSpec)!}'));
 
       // 미룬 실행은 폴더도 만들지 않고 변환 · Finder 도 부르지 않는다.

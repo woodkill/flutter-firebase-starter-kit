@@ -900,14 +900,12 @@ void main() {
 
     /// 화면 [lines] 에서 값 표 머리 다음 ~ 첫 노트 줄 앞(행 줄)을 고른다.
     List<String> selectValueRows(List<String> lines) {
-      final int titleIndex = lines.indexOf('── Naver 콘솔에 넣을 값 — dev ──');
-      expect(titleIndex, isNot(-1), reason: lines.join('\n'));
-      final int noteIndex = lines.indexWhere(
-        (String line) => line.startsWith('  · '),
-        titleIndex,
+      final List<String> rows = collectSummaryRows(
+        lines,
+        '── Naver 콘솔에 넣을 값 — dev ──',
       );
-      expect(noteIndex, greaterThan(titleIndex + 1), reason: lines.join('\n'));
-      return lines.sublist(titleIndex + 1, noteIndex);
+      expect(rows, isNotEmpty, reason: lines.join('\n'));
+      return rows;
     }
 
     /// 화면 [lines] 의 할 일 첫 줄 · 콘솔 줄 다음 범위 안내 · 아이콘 노트 없음을 본다.

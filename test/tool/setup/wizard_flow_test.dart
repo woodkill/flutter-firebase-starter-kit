@@ -966,21 +966,6 @@ List<int> _buildFakeIconBytes(int length) =>
 CommandResult _buildIconProbeResult(String path, int side) =>
     ok('$path\n  pixelWidth: $side\n  pixelHeight: $side\n  format: png\n');
 
-/// 화면 [lines] 에서 머리 줄이 [heading] 인 값 표의 행 줄을 모은다.
-///
-/// 행은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이고, 첫 노트 줄
-/// (`  · `)에서 끝난다. 표가 없으면 빈 목록이다.
-List<String> _collectTableRows(List<String> lines, String heading) {
-  final int start = lines.indexOf(heading);
-  if (start < 0) return const <String>[];
-  final rows = <String>[];
-  for (final String line in lines.skip(start + 1)) {
-    if (!line.startsWith('  ') || line.startsWith('  · ')) break;
-    rows.add(line);
-  }
-  return rows;
-}
-
 void main() {
   late Directory tempDir;
   late String root;
@@ -1693,7 +1678,7 @@ void main() {
       final int iconHeader = lines.indexOf('▶ ${AppIconStep.stepTitle}');
       expect(iconHeader, greaterThanOrEqualTo(0));
       expect(iconHeader, lessThan(lines.indexOf('▶ ${KakaoStep.stepTitle}')));
-      final List<String> rows = _collectTableRows(
+      final List<String> rows = collectSummaryRows(
         lines,
         '── Kakao 콘솔에 넣을 값 — dev ──',
       );

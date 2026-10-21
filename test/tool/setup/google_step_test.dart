@@ -953,14 +953,14 @@ void main() {
     }
 
     /// 화면 [lines] 의 동의 화면 표마다 행 줄(머리 다음 ~ 첫 노트 줄 앞)을 고른다.
-    List<List<String>> selectValueTables(List<String> lines) => <List<String>>[
-      for (var i = 0; i < lines.length; i++)
-        if (lines[i] == '── ${GoogleStep.summaryTitle} ──')
-          lines.sublist(
-            i + 1,
-            lines.indexWhere((String line) => line.startsWith('  · '), i),
-          ),
-    ];
+    List<List<String>> selectValueTables(List<String> lines) {
+      const heading = '── ${GoogleStep.summaryTitle} ──';
+      return <List<String>>[
+        for (var i = 0; i < lines.length; i++)
+          if (lines[i] == heading)
+            collectSummaryRows(lines.sublist(i), heading),
+      ];
+    }
 
     /// 표 행 [rows] 가 앱 이름 · 지원 이메일 · 로고([logoValue]) 세 행인지 본다.
     void expectTableRows(List<String> rows, String email, String logoValue) {

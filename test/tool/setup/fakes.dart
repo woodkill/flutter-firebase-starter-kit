@@ -4,6 +4,7 @@ import 'dart:math';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/log_sink.dart';
 import '../../../tool/setup/redactor.dart';
+import '../../../tool/setup/step.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
@@ -290,3 +291,72 @@ WizardContext buildTestContext({
     now: now ?? () => fixedTestNow,
   );
 }
+
+/// 로그인 수단 여섯 토큰 — 모든 수단을 켠 저장소(아이콘 대상 다섯과 Apple).
+const Set<String> allProviderTokens = <String>{
+  'google',
+  'apple',
+  'facebook',
+  'kakao',
+  'naver',
+  'line',
+};
+
+/// 늘 끝난 상태인 대역 단계 — 뒤 단계가 의존을 채운 채 검사되게 한다.
+final class DoneStandInStep implements Step {
+  /// [id] · [title] 의 대역 단계를 만든다.
+  const DoneStandInStep({required this.id, required this.title});
+
+  @override
+  final String id;
+
+  @override
+  final String title;
+
+  @override
+  List<String> get dependsOn => const <String>[];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async => const Done('대역');
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => const <String>[];
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async => const Applied();
+}
+
+/// 로그인 수단 단계 대역 — 늘 끝난 상태라 그에 의존하는 앱 아이콘 단계가 검사된다.
+const DoneStandInStep providersStandIn = DoneStandInStep(
+  id: 'providers',
+  title: '로그인 수단',
+);
+
+/// 값 표 노트 줄의 머리.
+const String summaryNotePrefix = '  · ';
+
+/// 화면 [lines] 에서 머리 줄이 [heading] 인 첫 값 표 안의 줄(행 · 노트)을 모은다.
+///
+/// 표 안은 머리 줄 다음부터 두 칸 들여쓴 줄이 이어지는 동안이다. 표가 없으면 빈
+/// 목록이다.
+List<String> collectSummaryLines(List<String> lines, String heading) {
+  final int start = lines.indexOf(heading);
+  if (start < 0) return const <String>[];
+  return lines
+      .skip(start + 1)
+      .takeWhile((String line) => line.startsWith('  '))
+      .toList();
+}
+
+/// 화면 [lines] 에서 머리 줄이 [heading] 인 첫 값 표의 행 줄을 모은다.
+///
+/// 행은 [collectSummaryLines] 가운데 첫 노트 줄([summaryNotePrefix]) 앞까지다.
+/// 표가 없으면 빈 목록이다.
+List<String> collectSummaryRows(List<String> lines, String heading) =>
+    collectSummaryLines(
+      lines,
+      heading,
+    ).takeWhile((String line) => !line.startsWith(summaryNotePrefix)).toList();

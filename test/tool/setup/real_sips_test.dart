@@ -40,16 +40,6 @@ const String keepEnvironmentName = 'SETUP_ICON_SIPS_KEEP';
 /// 보존 모드 작업 루트의 이름(시스템 임시 디렉터리 아래).
 const String keepDirectoryName = 'setup_icon_sips_keep';
 
-/// 아이콘 대상 다섯과 Apple — 모든 수단을 켠 저장소.
-const Set<String> allProviders = <String>{
-  'google',
-  'apple',
-  'facebook',
-  'kakao',
-  'naver',
-  'line',
-};
-
 /// 원본 이미지 파일 이름 앞부분(공백 포함 — 끌어다 놓기 escape 를 밟는다).
 const String sourceBaseName = 'logo 1024';
 
@@ -212,30 +202,6 @@ final class _RealSipsRunner implements CommandRunner {
   }
 }
 
-/// 로그인 수단 단계 대역 — 늘 끝난 상태라 아이콘 단계가 검사된다.
-final class _ProvidersStandIn implements Step {
-  @override
-  String get id => 'providers';
-
-  @override
-  String get title => '로그인 수단';
-
-  @override
-  List<String> get dependsOn => const <String>[];
-
-  @override
-  bool get isCostlyOrIrreversible => false;
-
-  @override
-  Future<CheckResult> check(WizardContext context) async => const Done('대역');
-
-  @override
-  List<String> plannedCommandLines(WizardContext context) => const <String>[];
-
-  @override
-  Future<StepOutcome> apply(WizardContext context) async => const Applied();
-}
-
 /// 한 케이스의 작업 디렉터리 — 원본 폴더 · 저장소 · 홈.
 final class _CaseDir {
   _CaseDir(Directory workRoot, this.name) : path = '${workRoot.path}/$name' {
@@ -286,7 +252,7 @@ Future<_RunResult> _runIconStep(_CaseDir dir, List<String?> inputs) async {
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     ),
-    <Step>[_ProvidersStandIn(), AppIconStep(enabledProviders: allProviders)],
+    <Step>[providersStandIn, AppIconStep(enabledProviders: allProviderTokens)],
   );
   final output = screen.output.toString();
   File('${dir.path}/screen.txt').writeAsStringSync(output);
