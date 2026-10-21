@@ -385,7 +385,7 @@ void main() {
         await expectIconCase(dir, source, format: 'jpeg', alpha: 'no');
       });
 
-      test('T-20.1-SIPS-02: HEIC 원본도 다섯 provider 규격 PNG 가 되고 '
+      test('T-20.1-SIPS-02b: HEIC 원본도 다섯 provider 규격 PNG 가 되고 '
           '투명 배경을 유지한다', () async {
         final dir = _CaseDir(workRoot, 'heic');
         final String source = deriveSource(dir, 'heic', 'heic');
