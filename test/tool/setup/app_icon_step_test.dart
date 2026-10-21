@@ -493,6 +493,28 @@ void main() {
       expect(h.output, isNot(contains(box.home)));
     });
 
+    test('폴더를 넣으면 폴더라는 까닭 · 크기 읽기 0 · 경로만 다시', () async {
+      final folder = '${box.home}/Logos';
+      Directory(folder).createSync();
+      final String good = box.writeHomeFile('good.png', buildFakeBytes(512));
+      final h = _Harness(box, <String?>['1', folder, good]);
+      h.runner.on(buildProbeKey(good), buildProbeResult(good, 1024, 1024));
+      h
+        ..registerTargets('source.png', iconSpecs)
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.output, contains('  ${AppIconStep.folderReason}~/Logos'));
+      expect(
+        h.output,
+        isNot(contains('  ${AppIconStep.missingFileReason}~/Logos')),
+      );
+      expect(h.runner.countCalls(RunMode.capture, buildProbeKey(folder)), 0);
+      expect(h.output, contains(allDoneIconLine));
+    });
+
     test('비이미지 · 1024 미만 · 상한 초과 세 번 → 멈춤 · 만들기 0', () async {
       final String text = box.writeHomeFile('notes.txt', buildFakeBytes(16));
       final String small = box.writeHomeFile('small.png', buildFakeBytes(64));

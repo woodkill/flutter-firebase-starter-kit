@@ -49,7 +49,8 @@ final class AppIconStep implements DeferrableStep {
   /// 원본 질문 전에 보이는 안내.
   static const String sourceGuide =
       'provider 콘솔에 올릴 아이콘을 원본 이미지 하나로 만듭니다 — 정사각 · '
-      '${minSourceSide}x$minSourceSide 이상(PNG · JPEG · HEIC 등). '
+      '${minSourceSide}x$minSourceSide 이상(PNG · JPEG · HEIC 등 — PDF · SVG 같은 '
+      '벡터는 받지 않습니다). '
       'Finder 에서 파일을 이 창으로 끌어다 놓아도 됩니다';
 
   /// 원본 경로 질문.
@@ -57,6 +58,9 @@ final class AppIconStep implements DeferrableStep {
 
   /// 원본 파일이 없을 때의 까닭 머리(뒤에 화면용 경로).
   static const String missingFileReason = '파일이 없습니다 — ';
+
+  /// 원본 경로가 폴더일 때의 까닭 머리(뒤에 화면용 경로).
+  static const String folderReason = '파일이 아니라 폴더입니다 — ';
 
   /// 이미지로 읽히지 않을 때의 까닭 머리(뒤에 화면용 경로).
   static const String notImageReason = '이미지 파일이 아닙니다 — ';
@@ -305,6 +309,11 @@ final class AppIconStep implements DeferrableStep {
       if (trimmed.isEmpty) return DeferredByUser(deferLabel);
       final String path = expandInputPath(context, parseDroppedPath(trimmed));
       final String shown = describePath(context, path);
+      // File.existsSync 는 폴더에 false 라 폴더를 먼저 가려 까닭을 맞춘다.
+      if (FileSystemEntity.isDirectorySync(path)) {
+        context.terminal.writeLine('  $folderReason$shown');
+        continue;
+      }
       if (!File(path).existsSync()) {
         context.terminal.writeLine('  $missingFileReason$shown');
         continue;
