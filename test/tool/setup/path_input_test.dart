@@ -115,6 +115,15 @@ void main() {
         reason: item.answer,
       );
     }
+    // 조각 안의 %2F · 깨진 UTF-8 — 파일 경로로 바꿀 수 없어 예외 대신 손대지
+    // 않은 값이다.
+    for (final unconvertible in <String>[
+      'file:///a%2Fb.png',
+      'file:///Users/me/a%2F..%2Fb.png',
+      'file:///a%FF.png',
+    ]) {
+      expect(parseDroppedPath(unconvertible), unconvertible);
+    }
   });
 
   group('T-20.1-PATH-02: 경로 확장 · 화면 표시', () {

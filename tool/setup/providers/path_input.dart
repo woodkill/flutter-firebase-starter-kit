@@ -2,11 +2,12 @@ import '../wizard.dart';
 
 /// 터미널에 끌어다 놓거나 붙여 넣은 경로 답 [answer] 에서 셸 따옴표 · 백슬래시를 벗긴다.
 ///
-/// 앞뒤 공백을 떼고, `file://` 주소면 파일 경로로 바꾼다. 그 밖은 왼쪽부터 —
-/// 따옴표 밖 `\X` 는 `X`, 작은따옴표 안은 글자 그대로, 큰따옴표 안은 `\"` · `\\`
-/// 만 풀고, 따옴표 조각은 이어 붙인다. 끝까지 닫히지 않은 따옴표가 있으면 손대지
-/// 않은 값을 돌려준다(이름에 따옴표 하나만 있는 경로를 손으로 친 경우). 유니코드
-/// 정규화는 바꾸지 않는다.
+/// 앞뒤 공백을 떼고, `file://` 주소면 파일 경로로 바꾼다(`%2F` · 깨진 UTF-8
+/// 처럼 바꿀 수 없는 주소는 손대지 않은 값). 그 밖은 왼쪽부터 — 따옴표 밖 `\X` 는 `X`,
+/// 작은따옴표 안은 글자 그대로, 큰따옴표 안은 `\"` · `\\` 만 풀고, 따옴표 조각은
+/// 이어 붙인다. 끝까지 닫히지 않은 따옴표가 있으면 손대지 않은 값을 돌려준다
+/// (이름에 따옴표 하나만 있는 경로를 손으로 친 경우). 유니코드 정규화는 바꾸지
+/// 않는다.
 String parseDroppedPath(String answer) {
   final String text = answer.trim();
   if (text.startsWith('file://')) {
@@ -16,6 +17,17 @@ String parseDroppedPath(String answer) {
         uri.host.isEmpty &&
         !uri.hasQuery &&
         !uri.hasFragment) {
+      // 파일 경로로 바꿀 수 없는 주소는 손대지 않은 값을 돌려준다 — 뒤의 파일
+      // 존재 검사가 「파일이 없습니다」 로 다시 묻는다. 조각 안의 `%2F` 는
+      // toFilePath 가 UnsupportedError(Error)를 던지고, 깨진 UTF-8 은 조각을
+      // 풀 때 FormatException 이 난다.
+      final List<String> segments;
+      try {
+        segments = uri.pathSegments;
+      } on FormatException {
+        return text;
+      }
+      if (segments.any((String segment) => segment.contains('/'))) return text;
       return uri.toFilePath();
     }
     return text;
