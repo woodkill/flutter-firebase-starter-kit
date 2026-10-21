@@ -361,8 +361,9 @@ final class AppIconStep implements DeferrableStep {
   /// 사본 [sourceName] 에서 없는 대상 아이콘을 만들고 확인 · 결과 표 · Finder 를
   /// 잇는다.
   ///
-  /// 이미 있는 대상 파일은 건드리지 않는다. 확인에 걸린 파일은 지워 다시 실행이
-  /// 다시 만들게 한다.
+  /// 이미 있는 대상 파일은 건드리지 않는다. 파일마다 만든 직후 확인하고, 변환 ·
+  /// 확인에 걸린 파일은 지워 다시 실행이 다시 만들게 한다 — 그래서 남은 대상
+  /// 파일은 모두 확인을 거친 것이다.
   Future<StepOutcome> _buildIcons(
     WizardContext context,
     String sourceName,
@@ -382,8 +383,8 @@ final class AppIconStep implements DeferrableStep {
         _discard(context, spec);
         return Failed('${_findName(spec)} 아이콘을 만들지 못했습니다', result: result);
       }
-    }
-    for (final IconSpec spec in _missing) {
+      // 만든 직후 바로 확인한다 — 확인을 거치지 않은 파일이 남으면 다음 검사가
+      // 「파일이 있으면 끝」 으로 보아 영구히 확인을 건너뛴다.
       final Failed? failure = await _verifyIcon(context, spec);
       if (failure != null) {
         _discard(context, spec);

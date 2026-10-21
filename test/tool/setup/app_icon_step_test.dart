@@ -829,6 +829,73 @@ void main() {
       expect(h.output, contains('  실패 — Kakao 아이콘을 만들지 못했습니다\n$errorText'));
       expect(h.runner.countCalls(RunMode.stream, buildOpenKey(box.root)), 0);
     });
+
+    test('대상 둘 · 두 번째 변환 실패 → 남은 첫 파일은 이미 확인을 거쳤다', () async {
+      const errorText = 'Error 13: an unknown error occurred\n';
+      final kakaoPath = '${box.iconsPath}/kakao-128x128.png';
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'kakao', 'naver'},
+      );
+      h.runner
+        ..on(buildProbeKey(source), buildProbeResult(source, 1024, 1024))
+        ..on(
+          buildResizeKey(box.root, 'source.png', 'naver', 140),
+          const CommandResult(13, '', errorText),
+        );
+      h.registerTargets('source.png', <IconSpec>[findIconSpec('kakao')!]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains('  실패 — Naver 아이콘을 만들지 못했습니다\n$errorText'));
+      expect(File(kakaoPath).existsSync(), isTrue);
+      final List<String> keys = h.runner.calls
+          .map((FakeCall c) => c.key)
+          .toList();
+      final int kakaoProbeAt = keys.indexOf(buildProbeKey(kakaoPath));
+      expect(kakaoProbeAt, greaterThan(0));
+      expect(
+        kakaoProbeAt,
+        lessThan(
+          keys.indexOf(buildResizeKey(box.root, 'source.png', 'naver', 140)),
+        ),
+      );
+      expect(File('${box.iconsPath}/naver-140x140.png').existsSync(), isFalse);
+    });
+
+    test('대상 둘 · 첫 확인 실패 → 두 번째 파일은 만들지 않는다', () async {
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'kakao', 'naver'},
+      );
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h.registerTargets(
+        'source.png',
+        <IconSpec>[findIconSpec('kakao')!, findIconSpec('naver')!],
+        probeSideFor: (IconSpec spec) =>
+            spec.token == 'kakao' ? 120 : spec.side,
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.output,
+        contains('  실패 — Kakao 아이콘이 규격과 다릅니다 — .setup/icons/kakao-128x128.png'),
+      );
+      expect(File('${box.iconsPath}/kakao-128x128.png').existsSync(), isFalse);
+      expect(File('${box.iconsPath}/naver-140x140.png').existsSync(), isFalse);
+      expect(
+        h.runner.countCalls(
+          RunMode.stream,
+          buildResizeKey(box.root, 'source.png', 'naver', 140),
+        ),
+        0,
+      );
+    });
   });
 
   test('T-20.1-ICON-08: Finder 열기 실패는 한 줄 뒤 ✓', () async {
