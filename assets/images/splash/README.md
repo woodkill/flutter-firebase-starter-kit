@@ -1,6 +1,6 @@
 # Splash 로고 에셋 (Starter Kit Placeholder)
 
-이 디렉토리는 `flutter_native_splash`가 네이티브 스플래시(Android/iOS OS 레벨)를 생성할 때 사용하는 로고 에셋을 담는다. 현재 커밋된 `logo.png`와 `logo_dark.png`는 **1×1 투명 PNG placeholder**이므로 프로젝트에서 반드시 교체해야 한다.
+이 디렉토리는 `flutter_native_splash`가 네이티브 스플래시(Android/iOS OS 레벨)를 생성할 때 사용하는 로고 에셋을 담는다. 지금 들어 있는 `logo.png`와 `logo_dark.png`는 **128×128 투명 PNG placeholder**이므로 프로젝트에서 반드시 교체해야 한다.
 
 ## 프로젝트 교체 체크리스트
 
@@ -21,7 +21,6 @@
 
 - **Android 12+ 원 프레임:** `android_12:` 블록은 SplashScreen API가 128dp 원형 영역만 렌더한다. 로고가 원 밖으로 나가면 잘린다.
 - **Flavor별 스플래시 미지원(본 Starter Kit 범위):** `flutter_native_splash-dev.yaml` / `-stg.yaml` / `-prod.yaml`로 분리 후 `--flavors-file` 옵션을 쓰면 가능하지만 기본 Starter Kit에서는 단일 설정만 제공한다.
-- **1×1 placeholder의 가시성:** 현재 placeholder는 1×1 투명 PNG이므로 Android 12+에서는 OS가 앱 기본 아이콘으로 대체 표시한다. 정상 동작이다.
 
 ## 참고
 
