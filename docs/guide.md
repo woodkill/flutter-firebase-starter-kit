@@ -168,14 +168,12 @@
        기준 단언만 뺀다.
      - `test/features/home/home_body_test.dart` — T-171-HOME-11 에서 버튼 · 데모
        경로 이동 단언을 지운다.
-     - 매뉴얼 계약 테스트 2파일 — 이 ③ 절을 매뉴얼에서 함께 지울 때만 고친다(③ 을
+     - 가이드 계약 테스트 2파일 — 이 ③ 절을 가이드에서 함께 지울 때만 고친다(③ 을
        남기면 그대로 둔다). `test/features/home/manual_nested_routes_contract_test.dart`
        는 T-172-DOCS-07(바로 위 주석 1줄 포함)과 그 테스트용 선언(상수
-       `_demoHeading` · `_demoSegmentParts`, `main` 의 `demoSection` 과
-       T-172-DOCS-06 의 `demoSection` 줄)을 지우고, ③ 을 가리키는 주석도 지운다 —
-       파일 머리말의 `T-172-DOCS-07` 줄 · 안전 규칙 끝의 ③ 항목 2개(「③ 데모 상수
-       이름은」 · 「예외:」), T-172-DOCS-06 안의 「매뉴얼 ③ 이 … 인용한다」 주석
-       1줄. T-172-DOCS-06 이 이 파일 자신을 읽는 코드는 그대로 둔다(해가 없다).
+       `_demoHeading` · `_demoSegmentParts`, `main` 의 `demoSection`)을 지우고, ③ 을
+       가리키는 주석도 지운다 — 파일 머리말의 `T-172-DOCS-07` 줄과 안전 규칙 끝의 ③
+       항목 2개(「③ 데모 상수 이름은」 · 「예외:」).
        `test/features/home/manual_home_replacement_contract_test.dart`
        는 T-171-DOCS-02 필수 토큰 목록에서 `lib/features/demo/presentation/demo_screen.dart`
        1줄을 뺀다(그 경로는 ③ 에만 있다).
@@ -256,7 +254,7 @@
   트리에서 빠지므로 `test/core/router/app_router_nesting_test.dart` 의 구조 시험이
   아래 메시지로 실패한다(예시 `/notices`):
   ```text
-  알림 허용 목록 경로 /notices 가 홈 하위 route 가 아니다 (첫 match = /notices). lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다 — docs/manual.md 「홈 화면 바꾸기」 ④
+  알림 허용 목록 경로 /notices 가 홈 하위 route 가 아니다 (첫 match = /notices). lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다 — docs/guide.md 「홈 화면 바꾸기」 ④
   ```
   query · 경로 변수는 쓸 수 없다.
 - **넣지 않는 화면:** 앞 단계 상태 없이 열리면 안 되는 흐름 화면(스플래시 · 온보딩 ·
