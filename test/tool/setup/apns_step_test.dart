@@ -185,8 +185,8 @@ void main() {
     expect(h.output, contains(keyId));
     expect(h.output, contains(teamId));
     expect(h.output, contains(ApnsStep.uploadTodoLine));
-    expect(h.output, contains('FCM 알림'));
-    expect(ApnsStep.manualHeading, '### FCM 알림');
+    expect(h.output, contains('docs/setup.md 「APNs 인증 키 올리기」'));
+    expect(ApnsStep.apnsDocRef.heading, '### APNs 인증 키 올리기');
     expect(h.output, isNot(contains('Cloud Messaging')));
     expect(h.session.isApnsGuideShown, isTrue);
     expect(h.remainingLines, <String>[apnsLine]);

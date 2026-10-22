@@ -39,9 +39,11 @@ final class ProvidersStep implements Step {
   /// 체크 목록을 다시 여는 명령.
   static const String reopenCommand = './setup.sh --providers';
 
-  /// 출시 뒤 로그인 수단 버튼을 숨기는 절차를 설명하는 매뉴얼 절 머리.
-  static const String killSwitchManualHeading =
-      '### RC Kill Switch 운영 절차 (Emergency Disable)';
+  /// 출시 뒤 로그인 수단 버튼을 숨기는 절차를 설명하는 문서 절.
+  static const DocRef killSwitchDocRef = DocRef(
+    'docs/guide.md',
+    '### Kill Switch 로 로그인 수단 막기',
+  );
 
   /// 가입자가 있는 로그인 수단을 뺄 때 안내 끝의 테스트 계정 정리 문장.
   static const String testAccountGuideLine =
@@ -102,7 +104,7 @@ final class ProvidersStep implements Step {
       ..writeln('그래서 로그인 수단 목록($enabledProvidersKey)을 바꾸지 않았습니다.')
       ..writeln(
         '앱에서 버튼만 숨기려면 Remote Config 에서 $keys 를 false 로 게시하세요 — '
-        '${formatManualReference(killSwitchManualHeading)} '
+        '${formatDocReference(killSwitchDocRef)} '
         '(위저드는 Remote Config 를 바꾸지 않습니다)',
       )
       ..write(testAccountGuideLine);

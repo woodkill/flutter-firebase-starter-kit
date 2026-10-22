@@ -1020,34 +1020,31 @@ void main() {
     );
   });
 
-  test('T-20-TC-09: 매뉴얼 「켜기」 ⑦ 의 명령 줄이 위저드 명령과 같고 거절 안내가 그 단계를 가리킨다', () async {
-    const manualPath = 'docs/manual.md';
+  test('T-20-TC-09: setup.md 서명 권한 절의 명령 줄이 위저드 명령과 같고 '
+      '거절 안내가 그 절을 가리킨다', () async {
+    const setupPath = 'docs/setup.md';
     const account = '<service-account-email>';
     const project = '<your-project-id>';
-    final List<String> manual = File(manualPath).readAsLinesSync();
-    final int start = manual.indexOf(providersManualHeading);
+    final String heading = TokenCreatorStep.signingDocRef.heading;
+    final List<String> setup = File(setupPath).readAsLinesSync();
+    final int start = setup.indexOf(heading);
     expect(start, greaterThanOrEqualTo(0));
-    final int next = manual.indexWhere(
-      (String line) => line.startsWith('## '),
+    final int next = setup.indexWhere(
+      (String line) => line.startsWith('## ') || line.startsWith('### '),
       start + 1,
     );
-    final List<String> section = manual.sublist(
+    final List<String> section = setup.sublist(
       start,
-      next < 0 ? manual.length : next,
+      next < 0 ? setup.length : next,
     );
     int countLines(bool Function(String line) isMatch) =>
         section.where(isMatch).length;
 
-    expect(countLines((String line) => line.startsWith('**⑦ ')), 1);
-    expect(countLines((String line) => line.startsWith('**⑧ ')), 1);
-    final int seventh = section.indexWhere(
-      (String line) => line.startsWith('**⑦ '),
-    );
-    final int eighth = section.indexWhere(
-      (String line) => line.startsWith('**⑧ '),
-    );
-    expect(eighth, greaterThan(seventh));
-    final String paragraph = section.sublist(seventh, eighth).join('\n');
+    // 절 머리 한 줄 · 그 안의 직접 확인 하위 절 한 줄 · 다음 절 머리가 그 뒤.
+    expect(countLines((String line) => line == heading), 1);
+    expect(countLines((String line) => line == '#### 직접 확인하고 붙이기'), 1);
+    expect(next, greaterThan(start));
+    final String paragraph = section.join('\n');
     expect(paragraph, contains(TokenCreatorStep.tokenCreatorRole));
     expect(paragraph, contains('--condition=None'));
     final String policyKey = FakeCommandRunner.buildKey(
@@ -1087,7 +1084,13 @@ void main() {
     final String failure = h.lines.singleWhere(
       (String line) => line.startsWith('  실패 — '),
     );
-    expect(failure, contains('「켜기」 ⑦'));
-    expect(failure, contains('로그인 수단 켜고 끄기'));
+    expect(
+      failure,
+      contains(formatDocReference(TokenCreatorStep.signingDocRef)),
+    );
+    expect(
+      failure,
+      contains('docs/setup.md 「Kakao · Naver · LINE 서명 권한(Token Creator)」'),
+    );
   });
 }

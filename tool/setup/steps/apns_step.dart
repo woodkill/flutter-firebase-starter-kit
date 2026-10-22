@@ -11,8 +11,8 @@ import 'apple_android_step.dart';
 /// 업로드 여부를 읽는 API 가 없어 이 단계는 끝났다고 판정하지 않는다 — 점검표 ·
 /// 끝 목록에 늘 확인할 수 없는 줄로 남고, 실제 확인은 실기기 알림이다. 같은
 /// 실행에서 DeviceCheck 에 키를 넣었을 때만(그 `.p8` 을 손에 든 때) 할 일이 되어
-/// 값 표 · 할 일 · 매뉴얼 절을 보이고 Enter 를 안내 확인으로 받는다. 답 · Key ID
-/// 를 저장하지 않고 config 를 쓰지 않는다. 콘솔 화면 단계는 매뉴얼 절이 맡는다.
+/// 값 표 · 할 일 · 문서 절을 보이고 Enter 를 안내 확인으로 받는다. 답 · Key ID
+/// 를 저장하지 않고 config 를 쓰지 않는다. 콘솔 화면 단계는 문서 절이 맡는다.
 final class ApnsStep implements DeferrableStep {
   /// APNs 키 단계를 만든다.
   ApnsStep();
@@ -37,8 +37,8 @@ final class ApnsStep implements DeferrableStep {
   static const String multipleAppsNote =
       'Firebase 프로젝트에 iOS 앱이 여럿이면 위 번들 ID 의 앱에 올리기';
 
-  /// 화면 단계를 맡는 매뉴얼 절.
-  static const String manualHeading = '### FCM 알림';
+  /// 콘솔 화면 단계를 맡는 문서 절.
+  static const DocRef apnsDocRef = DocRef('docs/setup.md', '### APNs 인증 키 올리기');
 
   /// 할 일 사유.
   static const String guideReason = 'DeviceCheck 에 넣은 키를 Firebase 콘솔에 올려야 합니다';
@@ -109,7 +109,7 @@ final class ApnsStep implements DeferrableStep {
       notes: <String>[
         uploadTodoLine,
         multipleAppsNote,
-        '자세한 절차: ${formatManualReference(manualHeading)}',
+        '자세한 절차: ${formatDocReference(apnsDocRef)}',
       ],
     );
     if (!context.terminal.waitForEnter(guideConfirmMessage)) {

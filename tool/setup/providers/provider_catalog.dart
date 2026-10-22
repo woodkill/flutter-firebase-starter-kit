@@ -5,9 +5,6 @@ import '../config_files.dart';
 /// config 에서 켠 로그인 수단 목록(쉼표로 이은 토큰)을 담는 키.
 const String enabledProvidersKey = 'enabledAuthProviders';
 
-/// 매뉴얼에서 로그인 수단 표가 있는 절의 머리.
-const String providersManualHeading = '## 로그인 수단 켜고 끄기';
-
 /// 위저드가 가리키는 문서의 절 하나 — 문서 파일 경로와 그 절의 머리 줄.
 ///
 /// 화면에는 [formatDocReference] 로 `<파일> 「<절 제목>」` 꼴로 보인다. 머리 줄은
@@ -104,10 +101,6 @@ const List<ProviderEntry> providerCatalog = <ProviderEntry>[
     consoleUrl: 'https://developers.line.biz/console/',
   ),
 ];
-
-/// 매뉴얼 절 머리([heading] — `## …`)를 화면 표시형 `매뉴얼 「…」` 로 바꾼다.
-String formatManualReference(String heading) =>
-    '매뉴얼 「${heading.replaceFirst(RegExp(r'^#+\s*'), '')}」';
 
 /// [token] 의 표 행을 찾는다 — 없으면 null.
 ProviderEntry? findProvider(String token) {

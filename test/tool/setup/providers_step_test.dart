@@ -401,7 +401,7 @@ void main() {
       expect(h.output, contains('2명이 Kakao'));
       expect(h.output, contains('로그인 · 재인증 · 회원탈퇴를 못 합니다'));
       expect(h.output, contains('auth_provider_kakao_enabled'));
-      expect(h.output, contains('RC Kill Switch'));
+      expect(h.output, contains('docs/guide.md 「Kill Switch 로 로그인 수단 막기」'));
       expect(h.output, contains('테스트 계정'));
       expect(h.output, contains(exitForUserTailLine));
       expect(h.screen.asks, isNot(contains('이 값으로 진행할까요?')));

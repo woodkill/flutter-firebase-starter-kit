@@ -51,6 +51,12 @@ final class TokenCreatorStep implements Step {
   static const String serviceAccountFormat =
       'value(spec.template.spec.serviceAccountName)';
 
+  /// 서명 권한을 위저드 밖에서 확인하고 붙이는 명령을 담은 문서 절.
+  static const DocRef signingDocRef = DocRef(
+    'docs/setup.md',
+    '### Kakao · Naver · LINE 서명 권한(Token Creator)',
+  );
+
   /// 부여가 거절됐을 때 원문 뒤에 보이는 할 일 — 권한 부족 · 조직 정책 두 경우를
   /// 한 문단으로 안내한다.
   static const String grantFailureGuidance =
@@ -326,7 +332,7 @@ final class TokenCreatorStep implements Step {
       return Failed(
         '함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다 '
         '(종료 코드 ${result.exitCode}) — $grantFailureGuidance '
-        '(${formatManualReference(providersManualHeading)} 「켜기」 ⑦)',
+        '(${formatDocReference(signingDocRef)})',
         result: result,
       );
     }
