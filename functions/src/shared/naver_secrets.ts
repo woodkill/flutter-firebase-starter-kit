@@ -35,7 +35,7 @@ import {defineSecret} from "firebase-functions/params";
  * Phase 15 당시 같은 "사용처 0건 secret" 상황에서 Naver 는 선언을 유지했고
  * LINE 은 `LINE_CHANNEL_SECRET` 선언을 제거했다. 결정이 갈린 이유는 운영자
  * 부담의 비대칭이었다.
- * - Naver: `docs/manual.md` 단계 8 이 이미 등록 절차를 안내하고 있고, Naver
+ * - Naver: 설정 위저드가 secret 을 등록하고(docs/setup.md 「Naver 로그인 켜기」), Naver
  *   Developers 콘솔은 client secret 을 앱 생성과 동시에 발급하므로 운영자가
  *   추가로 얻어야 할 값이 없다 → forward-prep 유지 (D-60). Phase 16.5 에서
  *   실사용처(웹 경로 token 교환)를 확보했다.

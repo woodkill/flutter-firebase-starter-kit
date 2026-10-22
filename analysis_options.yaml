@@ -5,7 +5,7 @@
 # IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
 # invoked from the command line by running `flutter analyze`.
 
-# woody_lints 묶음 — 기본 규칙 · riverpod_lint plugin · 코드 생성 설정. 끄는 법은 docs/manual.md 「정적 분석」 절.
+# woody_lints 묶음 — 기본 규칙 · riverpod_lint plugin · 코드 생성 설정. 끄는 법은 docs/guide.md 「정적 분석 — woody_lints · riverpod_lint」.
 include: package:woody_lints/recommended.yaml
 
 analyzer:

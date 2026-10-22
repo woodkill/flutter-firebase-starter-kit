@@ -7,7 +7,7 @@
 # 번호 비교 전 ROADMAP 헤딩 · 코드 참조 양쪽을 성분별 선행 0 정규화한다 (09 == 9, quick 260924-k61).
 #
 # starter-kit 정책: 외부 lint framework / GitHub Actions 미도입 (D-39 단순성).
-# git pre-commit hook 으로만 강제 — 활성화는 사용자 선택 (docs/manual.md 참조).
+# git pre-commit hook 으로만 강제 — 활성화는 사용자 선택 (docs/guide.md 「Git Hooks 활성화 (선택)」).
 # ROADMAP.md 가 없는 트리(공개 mirror)에서는 [SKIP] 을 출력하고 exit 0 — 공개본에서 hook 을
 # 켜도 커밋이 막히지 않는다 (Phase 17.4 D-08).
 

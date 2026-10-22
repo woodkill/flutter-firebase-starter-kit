@@ -65,7 +65,7 @@ dependencies:
   # `Package.resolved` 의 LINE 핀이 그 하한을 만족해야 한다. 상향 시
   # `fvm flutter pub get` 만 쓰고 lock diff 가 LINE 항목뿐인지 본 뒤, 새 판의
   # 하한과 핀을 대조하고 iOS 빌드 뒤 두 `Package.resolved` 가 그대로인지 확인한다
-  # — docs/manual.md 「iOS 의존성 관리 (SPM)」 의
+  # — docs/guide.md 「iOS 의존성 관리 (SPM)」 의
   # 「② 네이티브 SDK 버전은 어디에 고정돼 있나」.
   flutter_line_sdk: 3.0.0
 

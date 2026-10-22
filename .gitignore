@@ -93,13 +93,13 @@ extensions/*.secret.local
 
 # Flavor 설정 파일 (실제 시크릿 포함, 로컬 전용 — *.example.json 만 tracked)
 # config/dev.json, config/stg.json, config/prod.json 은 fork 사용자가 본인 키로
-# 채워넣는 로컬 파일. *.example.json 을 복사해서 사용 (docs/manual.md Initial Setup 참조).
+# 채워넣는 로컬 파일. 위저드가 *.example.json 을 복사해 만든다 (docs/setup.md 「위저드 실행」).
 config/*.json
 !config/*.example.json
 
 # iOS Flutter xcconfig (실제 시크릿 포함, 로컬 전용 — *.example.xcconfig 만 tracked)
 # ios/Flutter/{dev,stg,prod}.xcconfig 은 fork 사용자가 본인 키로 채워넣는 로컬 파일.
-# *.example.xcconfig 을 복사해서 사용 (docs/manual.md "## 0. Initial Setup" 참조).
+# 위저드가 *.example.xcconfig 을 복사해 만든다 (docs/setup.md 「위저드 실행」).
 # 주의: ios/Flutter/*.xcconfig glob 은 Debug-dev/Generated/Debug 등 다른 xcconfig
 # 파일도 매칭하므로 explicit 3 라인으로 명시 (config/*.json 패턴과 디렉토리 의미 다름).
 ios/Flutter/dev.xcconfig

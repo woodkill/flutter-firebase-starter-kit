@@ -1,6 +1,6 @@
 #!/bin/bash
 # git pre-commit hook wrapper.
-# 활성화: docs/manual.md "## Git Hooks 활성화 (선택)" 참조.
+# 활성화: docs/guide.md 「Git Hooks 활성화 (선택)」 참조.
 #
 # 가드 1 — FlutterFire CLI 가 생성한 실제 Firebase 옵션 파일 커밋 차단.
 #   firebase_options_*.dart 3종은 placeholder 로 tracked 되어 있으므로

@@ -37,7 +37,7 @@ import {fingerprintError} from "../shared/error_fingerprint";
  * 단순 미설정 (R10 패턴 유지).
  *
  * **starter-kit 사용자 customization 영역**: 자기 앱 도메인에 맞춰 본 상수
- * 한 줄 변경. manual.md "## IdP 프로필 동기화 정책" 절 참고.
+ * 한 줄 변경. docs/guide.md 「알아 둘 동작」 참고.
  */
 export type ProfileRefreshPolicy = "truth-of-source" | "preserve";
 export const PROFILE_REFRESH_POLICY: ProfileRefreshPolicy = "truth-of-source";
