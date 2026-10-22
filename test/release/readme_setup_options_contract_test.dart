@@ -1,6 +1,6 @@
-// README Getting Started 의 위저드 옵션 줄 계약.
+// README 빠른 시작 절의 위저드 옵션 줄 계약.
 //
-// T-20-DOCS-04: Getting Started 절에 `./setup.sh --providers` 줄 1개 ·
+// T-20-DOCS-04: 빠른 시작 절에 `./setup.sh --providers` 줄 1개 ·
 //   `./setup.sh --flavor stg` 줄 1개가 있다.
 // T-20-DOCS-05: 절에서 앞 · 뒤 공백을 떼고 `./setup.sh --` 로 시작하는 모든 줄이
 //   `./setup.sh --<이름>[ <값>]` 꼴이고(아니면 실패), 옵션 이름이 `bin/setup.dart`
@@ -24,16 +24,16 @@ const String _readmePath = 'README.md';
 /// 위저드 진입점 소스 경로.
 const String _setupBinPath = 'bin/setup.dart';
 
-/// Getting Started 절 헤딩.
-const String _sectionHeading = '## Getting Started';
+/// 빠른 시작 절 헤딩.
+const String _sectionHeading = '## 빠른 시작';
 
 /// 옵션 줄 정규식 — `./setup.sh --이름` 뒤에 선택적 값 하나.
 final RegExp _optionLinePattern = RegExp(
   r'^\./setup\.sh --([a-z][a-z-]*)(?: (\S+))?$',
 );
 
-/// [readme] 에서 Getting Started 절(다음 `## ` 앞까지)을 돌려준다.
-String extractGettingStarted(String readme) {
+/// [readme] 에서 빠른 시작 절(다음 `## ` 앞까지)을 돌려준다.
+String extractQuickStart(String readme) {
   final int start = readme.indexOf('\n$_sectionHeading\n');
   expect(start, isNonNegative, reason: '$_sectionHeading 헤딩 부재');
   final int bodyStart = start + 1 + _sectionHeading.length;
@@ -84,21 +84,15 @@ void main() {
     '.planning/ROADMAP.md',
   ]);
 
-  test(
-    'T-20-DOCS-04: Getting Started 에 --providers · --flavor stg 줄이 하나씩 있다',
-    () {
-      final String section = extractGettingStarted(
-        readTrackedFile(_readmePath),
-      );
+  test('T-20-DOCS-04: 빠른 시작에 --providers · --flavor stg 줄이 하나씩 있다', () {
+    final String section = extractQuickStart(readTrackedFile(_readmePath));
 
-      expect(countExactLines(section, './setup.sh --providers'), 1);
-      expect(countExactLines(section, './setup.sh --flavor stg'), 1);
-    },
-    skip: skip,
-  );
+    expect(countExactLines(section, './setup.sh --providers'), 1);
+    expect(countExactLines(section, './setup.sh --flavor stg'), 1);
+  }, skip: skip);
 
   test('T-20-DOCS-05: README 옵션 줄의 이름 · 값이 bin/setup.dart 파서와 맞는다', () {
-    final String section = extractGettingStarted(readTrackedFile(_readmePath));
+    final String section = extractQuickStart(readTrackedFile(_readmePath));
     final String source = readTrackedFile(_setupBinPath);
 
     final options = collectOptionLines(section);

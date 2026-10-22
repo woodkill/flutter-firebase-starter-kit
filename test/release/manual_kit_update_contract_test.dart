@@ -1,4 +1,4 @@
-// 매뉴얼 「킷 업데이트 반영」 · README 머리 계약 (Phase 17.4 D-36 · D-37 · D-38 — see ROADMAP.md).
+// 매뉴얼 「킷 업데이트 반영」 · README 판 절 계약 (Phase 17.4 D-36 · D-37 · D-38 — see ROADMAP.md).
 // 헤딩 · 목차 · 사용자 문서 금지 패턴 · 명령 · 사용자 소유 표면 표 · 진입점 ·
 // 예시 일치 대조.
 //
@@ -12,9 +12,9 @@
 //   `git apply -3` 은 「쓰지 않는다」 문장 1회 · 되돌리기의 bash 블록은 2개다.
 // T-174-DOCS-05: 사용자 소유 표면 표가 헤더 · 37행 · 등급 단어로 시작하는 넷째 칸을
 //   갖고, 표 앞 문단의 MAJOR 기준 문장이 CHANGELOG 판 번호 규칙과 같은 문자열이다.
-// T-174-DOCS-06: README 머리(첫 `## ` 앞)에 Use this template · 매뉴얼 절 링크 ·
-//   Issues 안내가 있고 금지 패턴이 0 건이며, Getting Started 가 template → clone →
-//   `./setup.sh` 순이고(단독 줄 1개 · 단계 문장 1회 · dev config 복사 단계 0 ·
+// T-174-DOCS-06: README 판 · 업데이트 · Issues 절에 Use this template · 킷 업데이트
+//   반영 절 링크 · Issues 안내가 있고 금지 패턴이 0 건이며, 빠른 시작이 template →
+//   clone → `./setup.sh` 순이고(단독 줄 1개 · 단계 문장 1회 · dev config 복사 단계 0 ·
 //   금지 패턴 0), 매뉴얼 Initial Setup 머리가 template 기준이며 설정 위저드 안내
 //   줄이 1개다.
 //   README 단언은 유지보수자 트리에서만 돈다 — 사용자 소유 표면 표가 README 를
@@ -26,6 +26,7 @@
 //   표의 `DEVELOPMENT_TEAM` 이 dev example xcconfig 에, 상수 3개 이름이
 //   `scripts/firebase-configure.sh` 에 있다.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/planning_docs.dart';
@@ -164,17 +165,17 @@ const String _majorCriterion =
     '고칠 가능성이 `낮음` 인 파일의 변경 · 표의 「충돌 시 조치」 칸 밖의 손질이 '
     '필요한 변경 · 콘솔 재설정 · 데이터 마이그레이션.';
 
-/// README 머리의 매뉴얼 절 링크.
-const String _readmeManualLink = '](docs/manual.md#킷-업데이트-반영)';
+/// README 판 절의 「킷 업데이트 반영」 절 링크.
+const String _readmeManualLink = '](docs/guide.md#킷-업데이트-반영)';
 
-/// README Getting Started 의 단계 문장 — 시작 명령이 설정 위저드 하나다.
+/// README 빠른 시작의 단계 문장 — 시작 명령이 설정 위저드 하나다.
 const String _readmeStepSentence =
     '앱 저장소를 만든 뒤 dev flavor 를 띄우기까지 명령은 `./setup.sh` 하나다.';
 
-/// README Getting Started bash 블록의 설정 위저드 실행 줄 (정확한 줄).
+/// README 빠른 시작 bash 블록의 설정 위저드 실행 줄 (정확한 줄).
 const String _readmeSetupCommandLine = './setup.sh';
 
-/// README Getting Started bash 블록의 앱 저장소 clone 줄 조각.
+/// README 빠른 시작 bash 블록의 앱 저장소 clone 줄 조각.
 const String _readmeCloneLine = 'git clone <your-repo-url>';
 
 /// 위저드가 대신하는 수동 단계의 dev config 복사 명령 — 남아 있으면 안 된다.
@@ -235,10 +236,23 @@ List<String> _collectForbiddenHits(String text) => RegExp(
   kUserDocForbiddenPatternSource,
 ).allMatches(text).map((RegExpMatch m) => m.group(0)!).toList();
 
-/// README 에서 첫 `## ` 줄 앞까지(머리)를 돌려준다.
-String _sliceReadmeHead(String readme) {
-  final int index = readme.indexOf(RegExp('^## ', multiLine: true));
-  return index == -1 ? readme : readme.substring(0, index);
+/// README 판 · 업데이트 · Issues 절 헤딩.
+const String _readmeVersionHeading = '## 판 · 업데이트 · Issues';
+
+/// README 빠른 시작 절 헤딩.
+const String _readmeQuickStartHeading = '## 빠른 시작';
+
+/// README 에서 판 · 업데이트 · Issues 절 본문(헤딩 줄 뒤 · 다음 `## ` 앞까지)을 돌려준다.
+///
+/// 헤딩 줄은 뺀다 — 헤딩의 `Issues` 가 본문 Issues 안내 단언을 대신 채우지 않게 한다.
+/// 절이 없으면 빈 문자열이다.
+String _sliceReadmeVersionSection(String readme) {
+  final String section = sliceMarkdownSection(
+    readme,
+    _readmeVersionHeading,
+    maxLevel: 2,
+  );
+  return section.isEmpty ? '' : section.substring(_readmeVersionHeading.length);
 }
 
 /// [text] 의 ```` ```bash ```` 블록마다 본문 줄 목록을 모은다.
@@ -532,36 +546,36 @@ void main() {
 
   group('README · Initial Setup 진입점 계약 (T-174-DOCS)', () {
     test(
-      'T-174-DOCS-06: README 머리 · Getting Started 가 template 기준이다',
+      'T-174-DOCS-06: README 판 절 · 빠른 시작이 template 기준이다',
       () {
         final String readme = readTrackedFile(_readmePath);
-        final String head = _sliceReadmeHead(readme);
-        expect(head.trim(), isNotEmpty, reason: 'README 머리를 찾지 못했다');
+        final String versionSection = _sliceReadmeVersionSection(readme);
+        expect(versionSection.trim(), isNotEmpty, reason: 'README 판 절을 찾지 못했다');
         expect(
-          countOccurrences(head, 'Use this template'),
+          countOccurrences(versionSection, 'Use this template'),
           1,
-          reason: 'README 머리에 Use this template 안내가 없거나 중복이다',
+          reason: 'README 판 절에 Use this template 안내가 없거나 중복이다',
         );
         expect(
-          countOccurrences(head, _readmeManualLink),
+          countOccurrences(versionSection, _readmeManualLink),
           1,
-          reason: 'README 머리에 매뉴얼 「킷 업데이트 반영」 링크가 없거나 중복이다',
+          reason: 'README 판 절에 「킷 업데이트 반영」 링크가 없거나 중복이다',
         );
         expect(
-          countOccurrences(head, 'Issues'),
+          countOccurrences(versionSection, 'Issues'),
           greaterThanOrEqualTo(1),
-          reason: 'README 머리에 Issues 안내가 없다',
+          reason: 'README 판 절에 Issues 안내가 없다',
         );
-        final List<String> hits = _collectForbiddenHits(head);
-        expect(hits, isEmpty, reason: '금지 패턴이 README 머리에 있다: $hits');
+        final List<String> hits = _collectForbiddenHits(versionSection);
+        expect(hits, isEmpty, reason: '금지 패턴이 README 판 절에 있다: $hits');
 
-        final String gettingStarted = sliceMarkdownSection(
+        final String quickStart = sliceMarkdownSection(
           readme,
-          '## Getting Started',
+          _readmeQuickStartHeading,
           maxLevel: 2,
         );
-        expect(gettingStarted.trim(), isNotEmpty);
-        final List<String> gsLines = gettingStarted.split('\n');
+        expect(quickStart.trim(), isNotEmpty);
+        final List<String> gsLines = quickStart.split('\n');
         final int templateIndex = gsLines.indexWhere(
           (String line) => line.contains('Use this template'),
         );
@@ -571,9 +585,9 @@ void main() {
         expect(templateIndex, greaterThanOrEqualTo(0));
         expect(cloneIndex, greaterThan(templateIndex));
         expect(
-          countExactLines(gettingStarted, _readmeSetupCommandLine),
+          countExactLines(quickStart, _readmeSetupCommandLine),
           1,
-          reason: 'Getting Started 에 ./setup.sh 단독 줄이 없거나 중복이다',
+          reason: '빠른 시작에 ./setup.sh 단독 줄이 없거나 중복이다',
         );
         expect(
           gsLines.indexOf(_readmeSetupCommandLine),
@@ -581,15 +595,19 @@ void main() {
           reason: './setup.sh 줄은 앱 저장소 clone 줄 뒤에 있어야 한다',
         );
         expect(countOccurrences(readme, 'git clone <this-repo>'), 0);
-        expect(countOccurrences(gettingStarted, 'cd flutter_starter_kit'), 0);
+        expect(countOccurrences(quickStart, 'cd flutter_starter_kit'), 0);
         expect(
-          countOccurrences(gettingStarted, _legacyConfigCopyCommand),
+          countOccurrences(quickStart, _legacyConfigCopyCommand),
           0,
           reason: '위저드가 대신하는 dev config 복사 단계가 남아 있다',
         );
         expect(countOccurrences(readme, _readmeStepSentence), 1);
-        final List<String> gsHits = _collectForbiddenHits(gettingStarted);
-        expect(gsHits, isEmpty, reason: '금지 패턴이 Getting Started 에 있다: $gsHits');
+        final List<String> gsHits = _collectForbiddenHits(quickStart);
+        expect(gsHits, isEmpty, reason: '금지 패턴이 빠른 시작에 있다: $gsHits');
+        // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
+        debugPrintSynchronously(
+          'README 판 절 · 빠른 시작: 금지 패턴 ${hits.length + gsHits.length}건',
+        );
       },
       // 사용자는 README 를 내 앱 소개로 바꾼다 — 킷 발행 위생 검사라
       // 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.

@@ -45,10 +45,7 @@ const List<String> kUserExampleFiles = <String>[
 /// 목록 밖 대상은 금지 패턴 0 건을 단언받고, 목록 안 파일은 대상이면서 아직 1건
 /// 이상 남아 있어야 한다 — 다시 쓴 파일을 목록에서 빼지 않으면 시험이 실패해 목록이
 /// 줄어들게 한다.
-const Set<String> kDocsAwaitingRewrite = <String>{
-  'README.md',
-  'docs/manual.md',
-};
+const Set<String> kDocsAwaitingRewrite = <String>{'docs/manual.md'};
 
 /// 두 가이드로 나뉘어 지워질 원본 매뉴얼 경로다.
 const String kRetiringManualPath = 'docs/manual.md';
