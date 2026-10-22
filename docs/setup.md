@@ -136,6 +136,33 @@
 
 ### 위저드가 채우는 설정 키
 
+위저드는 `config/<flavor>.json`(dev 면 `config/dev.json`)을 example 파일에서 만들고 아래 키를 채운다. 손으로 고칠 일은 드물고, 킷 새 판에서 키가 늘면 위저드를 다시 실행해 채운다.
+
+| 키 | 값 출처 | off 면 비워도 됨 | 비고 |
+|----|---------|------------------|------|
+| `appName` | 앱 표시 이름 — example 값 `StarterKit Dev` | 아니요 | flavor 마다 다르게 둔다. Android 에서는 Naver 동의 화면의 앱 이름으로도 쓰인다. 따옴표 같은 특수문자는 피하고 영숫자 · 공백만 쓴다 |
+| `appSuffix` | ApplicationId · Bundle ID 접미사 — example 값 `.dev` | 아니요 | flavor 마다 앱을 따로 설치하고 Firebase 앱을 나누는 데 쓴다 |
+| `firebaseProjectId` | Firebase Console → 프로젝트 설정 → 일반 | 아니요 | 본인 Firebase 프로젝트 ID. 함수 배포 스크립트도 이 값으로 배포할 프로젝트를 정한다 |
+| `firebaseWebApiKey` | **웹 API 키** — Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에서 `Browser key (auto created by Firebase)` 의 「키 표시」 | `emailDelivery` 가 `kit` 이 아니면 예 | `kit` 발송 모드의 결과 페이지가 이 키로 Firebase Authentication 을 부른다. `AIza` 로 시작하는 값이다. Android · iOS 앱 전용으로 제한한 키는 브라우저에서 거부되고, 웹사이트(HTTP 리퍼러) 제한이 걸린 키도 이 페이지에서 거부된다(페이지가 Referer 를 보내지 않는다). 애플리케이션 제한사항이 「없음」 인 키(Firebase 가 만든 Browser key 기본값)를 쓴다. 결과 페이지 빌드는 이 값이 비었거나 자리표시 값이면 `FAIL:` 로 멈춘다 |
+| `googleServerClientId` | Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) → OAuth 2.0 Client IDs → **Web application** | Google 을 끄면 예 | Firebase 가 만든 OAuth Web Client ID. iOS · Android 용이 아니라 Web 용을 쓴다 |
+| `facebookAppId` | [Facebook 로그인 켜기](#facebook-로그인-켜기) 의 콘솔 단계 | Facebook 을 끄면 예 | 숫자 문자열. iOS 는 xcconfig `FACEBOOK_APP_ID` 에 같은 값 |
+| `facebookClientToken` | [Facebook 로그인 켜기](#facebook-로그인-켜기) 의 콘솔 단계 | Facebook 을 끄면 예 | iOS 는 xcconfig `FACEBOOK_CLIENT_TOKEN` 에 같은 값 |
+| `kakaoNativeAppKey` | [Kakao 로그인 켜기](#kakao-로그인-켜기) 의 콘솔 단계 | Kakao 를 끄면 예 | REST API 키가 아니다. iOS 는 xcconfig `KAKAO_NATIVE_APP_KEY` 에 같은 값. OIDC 활성화는 [Kakao 로그인 켜기](#kakao-로그인-켜기) 에서 한다 |
+| `naverClientId` | [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_CLIENT_ID` 에 같은 값. 다르면 1-tap 과 웹 로그인이 서로 다른 앱으로 로그인한다 |
+| `naverClientSecret` | [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_CLIENT_SECRET` 에 같은 값. Secret Manager 의 `NAVER_CLIENT_SECRET` 과도 같은 값이다 |
+| `naverUrlScheme` | [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 | Naver 를 끄면 예 | iOS 는 xcconfig `NAVER_URL_SCHEME` 에 같은 값. 웹 로그인의 콜백 scheme 으로도 쓰이므로 소문자 영숫자여야 한다 |
+| `lineChannelId` | [LINE 로그인 켜기](#line-로그인-켜기) 의 콘솔 단계 | LINE 을 끄면 예 | iOS 는 xcconfig `LINE_CHANNEL_ID` 에 같은 값. Secret Manager 의 `LINE_CHANNEL_ID` 와도 같은 값이다 |
+| `functionsRegion` | Cloud Functions 리전 — example 값 `asia-northeast3` | 아니요 | 바꿀 때는 `functions/src/shared/region.ts` 의 `REGION` 도 함께 바꾼다([stg · prod 설정](#stg--prod-설정)) |
+| `splashMinDurationMs` | 스플래시 최소 노출 시간(ms) — example 값 `2000` | 아니요 | 첫 화면 전환 시점 조정용 |
+| `enabledAuthProviders` | 로그인 화면에 켤 소셜 로그인 — 쉼표로 구분 | — (켤 provider 목록 · 비우면 소셜 0개 = 기본값) | example 값이 빈 문자열이라 clone 직후 로그인 화면에는 「이메일로 계속」 만 보인다. 값은 빌드 때 들어가므로 바꾼 뒤 다시 빌드한다 |
+| `brandColor` | 앱 · 결과 페이지 · 메일의 브랜드 색 — `#RRGGBB`, example 값 `#673AB7` | 아니요 | 비우거나 형식이 틀리면 `#673AB7` 로 동작한다. 앱은 이 색을 seed 로 Material 3 색을 계산하고 결과 페이지 · 메일은 이 색을 그대로 칠한다. 바꾼 뒤 다시 빌드한다 |
+| `emailDelivery` | 인증 · 재설정 메일을 보내는 쪽 — `firebase` 또는 `kit` | — (비우면 `firebase` = 기본값) | 기본값은 Firebase 가 보내고 추가 설정이 없다. `kit` 은 발송 서비스 · 확장 설정이 필요하다. 그 밖의 값은 배포 스크립트가 거부한다 |
+| `appCheckDebugToken` | debug 빌드의 App Check 디버그 토큰 — `./setup.sh` 가 만들어 넣고 Firebase 의 iOS · Android 앱에 등록한다. example 값은 빈 문자열 | 예 | 비우면 앱이 실행될 때 토큰을 만들어 로그에 출력한다 — 그 토큰을 Firebase Console 의 App Check 에 등록해야 회원탈퇴 같은 보호된 기능이 동작한다. release 빌드는 이 값을 쓰지 않는다. 다른 키처럼 저장소에 올리지 않는다 |
+
+끈 provider 의 키는 비워 둬도 된다 — 무엇을 켤 때 무엇이 필요한지는 [로그인 수단 켜기](#로그인-수단-켜기).
+
+키 하나하나의 자세한 뜻과 쓰는 곳은 [config/README.md](../config/README.md) 에 있다.
+
 ## 로그인 수단 켜기
 
 ### 켜는 순서와 수단별로 필요한 것
