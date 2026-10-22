@@ -27,6 +27,254 @@
 
 ## 홈 화면 바꾸기
 
+앱 홈을 내 화면으로 바꿀 때 보는 절이다. 킷의 홈(`/`)은 킷 사용자가 바꾸는
+**본문**과 킷이 유지하는 **배선**으로 나뉘어 있다. 계정 정보 · 데모 · 404 화면은 홈
+밖의 설정 · 계정 정보 화면 · 데모 화면에 있다(맨 아래 표).
+
+| 파일 | 맡는 일 | 킷 사용자가 |
+|------|---------|-------------|
+| `lib/features/home/presentation/home_screen.dart` (`HomeScreen`) | AppBar(앱 제목 · 게스트 「로그인」 · 설정 아이콘) · 알림 탭 이동 리스너 · 운영 공지 배너 · 게스트 안내 바 · 본문 자리 | 그대로 둔다 |
+| `lib/features/home/presentation/home_body.dart` (`HomeBody`) | 본문 | **바꾼다** |
+| `lib/features/home/presentation/_widgets/announcement_bar.dart` · `guest_banner.dart` | 공지 배너 · 게스트 안내 바 위젯 | 모양 · 문구를 바꿀 때만 |
+
+### ① 기본 방법 — `home_body.dart` 만 바꾼다
+
+1. `HomeBody` 의 `build` 를 앱 홈 내용으로 바꾼다. 클래스 이름과 `const HomeBody()`
+   로 부를 수 있는 생성자는 남긴다 — `home_screen.dart` 가
+   `const Expanded(child: HomeBody())` 로 부른다. 개발자 안내 카드가 필요 없으면
+   `showsDeveloperGuide` 인자와 카드 코드를 지워도 된다(그때는
+   `test/features/home/home_body_test.dart` 도 함께 고친다).
+2. `home_screen.dart` 는 손대지 않는다. 알림 탭 이동 · 공지 · 게스트 안내 · 설정
+   진입은 이 파일이 맡으므로, 본문을 통째로 바꿔도 그 기능은 그대로 남는다.
+3. 지금 본문 — **release 빌드는 빈 본문**(`SizedBox.shrink`)이다. 그 밖 빌드(debug ·
+   profile)는 개발자 안내 카드 1장(「이 본문을 앱 홈으로 바꾸세요」 + 「데모 화면
+   열기」 버튼)이다. 분기는 `showsDeveloperGuide` 기본값 const `!kReleaseMode` 하나다.
+4. 본문은 `Expanded` 안에 들어가 높이가 정해져 있다. 내용이 길면 스크롤 위젯으로
+   감싼다(280 dp 폭 · 가로 회전에서도 넘치지 않게).
+5. **앱 이름** — config `appName`(`config/{flavor}.json` → `--dart-define-from-file`)
+   하나를 바꾸면 OS 최근 앱 화면의 제목(`onGenerateTitle`)과 홈 AppBar 제목이 함께
+   바뀐다. 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를
+   쓴다. 값이 비어 있으면 로케일별 ARB `appTitle` 이다. 게스트 홈은 AppBar
+   오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
+
+### ② 화면을 통째로 바꿀 때 — 옮길 배선 체크리스트
+
+`home_screen.dart` 를 다른 화면으로 바꾸거나 `AppRoutes.home` 의 builder 가 다른
+위젯을 띄우게 할 때는 아래 5가지를 새 화면에 옮기고, 6번째(홈 GoRoute 의
+`routes:`)는 라우터에 그대로 둔다 — 빠뜨리면 생기는 일은 표에 있다.
+
+| 배선 | 지금 위치 | 빠뜨리면 생기는 일 |
+|------|-----------|--------------------|
+| 알림 탭 이동 리스너 `PendingNotificationRouteListener` | `lib/features/notifications/presentation/pending_notification_route_listener.dart` · `home_screen.dart` 본문 맨 위 | 알림을 탭해도 대상 화면으로 가지 않는다 — **오류 · 로그 없이 끊긴다.** 저장된 이동 요청을 꺼내 쓰는 곳이 이 위젯 하나다 |
+| 운영 공지 배너 `AnnouncementBar` | `_widgets/announcement_bar.dart` · AppBar 바로 아래(게스트 · 정식 모두) | Remote Config 공지([Firebase 서비스 쓰기](#firebase-서비스-쓰기) 의 Remote Config)가 어디에도 보이지 않는다 |
+| 게스트 안내 바 `GuestBanner` | `_widgets/guest_banner.dart` · 공지 배너 아래(게스트일 때만) | 게스트에게 가입 안내가 사라진다 |
+| 게스트 「로그인」 버튼 | `home_screen.dart` AppBar `actions`(게스트일 때 `context.push(AppRoutes.login)`) | 게스트가 로그인 화면으로 가는 길이 설정의 「로그인 · 가입」 행 하나만 남는다 |
+| 설정 아이콘 | `home_screen.dart` AppBar `actions`(`context.push(AppRoutes.settings)` · 게스트 포함) | 설정 · 계정 정보 · 알림 받기 · 데모 화면으로 가는 길이 사라진다 |
+| 홈 GoRoute 의 하위 route `routes:`(설정 · 계정 · 탈퇴 · 데모 · 약관 2) | `lib/core/router/app_router.dart` 의 `AppRoutes.home` GoRoute | 알림으로 연 설정 · 계정 · 약관 화면이 스택 1장(「뒤로」 없음)이 되고 홈 리스너가 트리에서 빠진다 — `test/core/router/app_router_nesting_test.dart` 의 구조 시험이 실패한다. builder 만 바꾸고 `routes:` 는 그대로 둔다 |
+
+- **리스너는 위젯 트리에 1개만, 홈 화면에만 둔다.** 종료 상태에서 알림을 탭하면
+  스플래시 → 홈 → 대상 순서로 가는데, 이 순서는 홈이 그려진 뒤 홈의 리스너가 요청을
+  꺼내 쓰기 때문에 성립한다. 다른 화면에 두면 그 화면이 먼저 요청을
+  꺼내 쓸 수 있어 이 순서가 보장되지 않는다.
+- **테스트가 실수를 잡는다** — `test/features/home/home_listener_source_guard_test.dart`.
+  이 파일의 한 시험은 `lib` 에서 리스너를 만드는 파일이 홈 배선 파일 하나인지 본다
+  (빠뜨리거나 다른 파일에 하나 더 두면 실패). **홈 파일 이름을 바꾸면 이 테스트의
+  `_homeScreenPath` 도 바꾼다.** 같은 파일의 다른 시험은 세션 종료 관리자
+  (`sessionEndingProvider.notifier`)를 쓰는 파일 집합과 `signOutAndResetOnboarding()` 을 직접
+  부르는 파일(관리자 1개)을 고정한다 — 로그아웃 버튼을 다른 화면에 더하면 그 화면에서
+  `SessionEnding.signOut()` 을 부르고 그 파일을 기대 집합에 더한다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
+  홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png`
+  (`home_announcement_golden_test.dart`)도 새 화면 기준으로 다시 만든다.
+  홈 파일 · 클래스 이름을 바꾸면(예: `my_home_screen.dart` · `MyHomeScreen`) lib ·
+  test 에서 옛 이름을 쓰는 곳을 모두 새 이름으로 바꾼다 — `grep -rlw HomeScreen lib test`
+  · `grep -rlF home_screen.dart lib test` 로 찾는다(import · `find.byType` · doc 참조 ·
+  source guard `_homeScreenPath`). 이 절의 문구를 지키는
+  `test/features/home/manual_home_replacement_contract_test.dart` 의 토큰 목록은
+  이 절을 함께 고칠 때만 바꾼다.
+
+### ③ 데모 화면 — 위치 · 노출 조건 · 지우는 법
+
+- **위치:** `lib/features/demo/presentation/demo_screen.dart`(`DemoScreen` 한 파일) ·
+  경로 `/settings/developer`(`AppRoutes.developerDemo`) — 설정 GoRoute 의 하위
+  route(`AppRoutes.developerDemoSegment`)다. 개발 · 데모
+  기능이 여기 있다 — 환경 정보 카드 · 날짜 · 숫자 · 복수형 쇼케이스 · 색 · 글꼴 ·
+  간격 쇼케이스 · 보호된 기능 예시 · **계정 디버그 정보**(UID 탭 복사 · 가입 수단 ·
+  연결된 계정 · 프로필 사진 URL 썸네일) · Dev Tools.
+- **노출 조건:**
+  - **release 빌드에는 없다.** 데모 GoRoute 를 `if (!kReleaseMode)` 로만 등록하므로
+    (`lib/core/router/app_router.dart`) release 에서는 그 경로가 404(`NotFoundScreen`)
+    이고, 진입점 2곳도 같은 조건으로 사라진다. 스토어 배포본은 release 로 만든다.
+  - **profile 빌드에서는 열린다.** 실기기에서 계정 디버그 정보를 확인 화면으로
+    쓸 때를 위한 것이다. profile 빌드를 배포하면 UID · 환경 정보가
+    보이므로 배포에 쓰지 않는다.
+  - **Dev Tools 는 debug 빌드만**(`kDebugMode`) — 온보딩 초기화 · 테스트 오류 ·
+    테스트 Analytics · 테스트 알림 · 강제 로그아웃. ID 토큰 복사도 debug 빌드만이다.
+    profile 데모에서는 보이지 않는다.
+- **진입 2곳:** 설정 맨 아래 「개발자」 묶음의 「개발자 · 데모 화면」 행(게스트 포함 ·
+  `SettingsScreen.showsDemoRow` 기본값 `!kReleaseMode`)과 홈 개발자 안내 카드의
+  「데모 화면 열기」 버튼. 둘 다 데모 위젯을 import 하지 않고 경로 문자열
+  (`context.push(AppRoutes.developerDemo)`)만 쓴다 — release 바이너리에 데모 코드가
+  남지 않게 하려는 것이다. `home_body.dart` 를 바꿔 카드가 사라져도 설정 행은 남는다.
+- **데모에 production 배선을 넣지 않는다.** 데모 화면이 알림 리스너 · 공지 배너 ·
+  라우트 상수 · 테마 provider 를 import 하면
+  `test/features/home/home_listener_source_guard_test.dart` 의 시험이 실패한다. 테마 ·
+  언어 바꾸기는 설정 한 곳이다.
+- **게스트 로그아웃은 없다.** 개발 중 처음 상태로 돌리려면 데모 Dev Tools 의 강제
+  로그아웃(debug)을 쓴다. profile · release 빌드의 게스트는 앱 데이터 삭제로만 처음
+  상태가 된다.
+- **지우는 법(데모를 앱에서 빼기):**
+  1. `app_router.dart` 설정 GoRoute 의 `routes` 안에 있는 `if (!kReleaseMode)` 데모
+     GoRoute(`path: AppRoutes.developerDemoSegment`) 1개와 `demo_screen.dart`
+     import 를 지운다. `AppRoutes` 의 데모 상수 3개(`developerDemo` ·
+     `developerDemoName` · `developerDemoSegment`)는 남겨도 테스트가 그대로
+     통과한다. 상수까지 지우면 쓰는 곳도 함께 고친다 —
+     `test/core/router/app_routes_test.dart` T-172-ROUTES-01~03 의 데모 항목
+     1줄씩(`hasLength` 14 → 13 · 14 → 13 · 6 → 5, 테스트 이름 · reason 의 개수도),
+     `test/core/router/auth_guard_test.dart` T-171-ROUTER-06 삭제,
+     `settings_screen_test.dart` · `home_body_test.dart` 하네스의 데모 stub
+     GoRoute(`path: AppRoutes.developerDemo`) 삭제, `home_body.dart` doc 의
+     `[AppRoutes.developerDemo]` 참조 삭제. 상수를 지우면 그 상수를 쓰는 2단계의
+     진입점 2곳(`settings_screen.dart` · `home_body.dart`)과 4단계에서 정리할
+     테스트(`app_router_observers_test.dart` · `test/features/demo/`)가 그 단계를
+     마칠 때까지 컴파일되지 않는다 — 4단계까지 이어서 하고, 확인(analyze · `grep`)은
+     4단계 끝에서 한 번에 한다.
+  2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
+     `home_body.dart` 카드의 버튼 — 을 지운다.
+  3. `lib/features/demo/` 폴더를 지운다.
+  4. 테스트를 정리한다 — 아래 항목을 위에서부터 차례로 따라 한다.
+     - `test/features/demo/` — 폴더째(3파일) 지운다.
+     - `test/core/router/app_router_observers_test.dart` — T-171-ROUTER-02 · 03
+       이 든 group 을 통째로 지우고, Test 2 · 3 의 재귀 개수 `14`(비 release)를
+       `13` 으로 고친다(최상위 `8` 은 그대로 · Test 2 이름의 「14개」 ·
+       `developerDemo` 도). `test/helpers/route_tree.dart` 는 남기되(다른 테스트
+       여러 파일이 import 한다) `buildRoutesWithoutNamed` 만 지운다 —
+       T-171-ROUTER-03 전용이라 그 group 과 함께 호출자가 사라진다.
+     - `test/features/home/home_listener_source_guard_test.dart` — T-171-HOME-15
+       를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수
+       `_demoScreenPath`)를 뺀다.
+     - `test/features/settings/presentation/settings_screen_test.dart` —
+       T-171-SETTINGS-06 · 07 은 지운다. 데모 행 · 「개발자」 묶음을 보는 01 ·
+       11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12 는 지우지 말고, 그 기대를 빼거나
+       기준을 새 마지막 행(정식은 알림 스위치 · 게스트는 언어 행 — 13 · 15 는
+       둘 다, 01 은 게스트로 본다)으로 바꾼다. 17 ③ 은 거기에 더해
+       (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는
+       값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제
+       단언(`maxScrollExtent > 0`)이 실패한다. 전제 단언은 지우지 않는다(지우면
+       (b) geometry 단언이 스크롤 없이 통과해 회귀 가드가 빈다). 같은 테스트의
+       `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b)
+       reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다.
+     - `test/features/settings/presentation/notifications_section_test.dart` —
+       T-17-NOTIF-05 위치 테스트(「… 개발자 위에 있다」)는 지우지 말고 「개발자」
+       기준 단언만 뺀다.
+     - `test/features/home/home_body_test.dart` — T-171-HOME-11 에서 버튼 · 데모
+       경로 이동 단언을 지운다.
+     - 매뉴얼 계약 테스트 2파일 — 이 ③ 절을 매뉴얼에서 함께 지울 때만 고친다(③ 을
+       남기면 그대로 둔다). `test/features/home/manual_nested_routes_contract_test.dart`
+       는 T-172-DOCS-07(바로 위 주석 1줄 포함)과 그 테스트용 선언(상수
+       `_demoHeading` · `_demoSegmentParts`, `main` 의 `demoSection` 과
+       T-172-DOCS-06 의 `demoSection` 줄)을 지우고, ③ 을 가리키는 주석도 지운다 —
+       파일 머리말의 `T-172-DOCS-07` 줄 · 안전 규칙 끝의 ③ 항목 2개(「③ 데모 상수
+       이름은」 · 「예외:」), T-172-DOCS-06 안의 「매뉴얼 ③ 이 … 인용한다」 주석
+       1줄. T-172-DOCS-06 이 이 파일 자신을 읽는 코드는 그대로 둔다(해가 없다).
+       `test/features/home/manual_home_replacement_contract_test.dart`
+       는 T-171-DOCS-02 필수 토큰 목록에서 `lib/features/demo/presentation/demo_screen.dart`
+       1줄을 뺀다(그 경로는 ③ 에만 있다).
+     - `test/features/settings/presentation/settings_screen_golden_test.dart` ·
+       `test/features/home/home_announcement_golden_test.dart` — 데모 행 · 카드가
+       찍힌 golden(설정 8장 · 홈 2장)을 이 두 파일만 다시 만든다. 두 경로를 인자로
+       준 아래 명령을 그대로 쓴다 — 인자 없이 돌리면 모든 golden 이 다시 찍힌다:
+       ```bash
+       fvm flutter test --no-pub --update-goldens \
+         test/features/settings/presentation/settings_screen_golden_test.dart \
+         test/features/home/home_announcement_golden_test.dart
+       git status --short -- '*.png'
+       ```
+       마지막 줄(`git status`)의 출력이 정확히 10장(설정 `settings_171_*` 8 · 홈
+       `home_171_*` 2 · 모두 `M`)인지 확인한다.
+     - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는
+       곳이 없어진 import · 선언 · 지역 변수를 lib · test 모두에서 지운다(라우터
+       테스트의 `demo_screen.dart` · 테스트 전용 import · mock 클래스와 그 뒤
+       2차로 드러나는 `auth_repository.dart` import, source guard 의
+       `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤
+       `home_body.dart` 의 `go_router` · `settings_screen.dart` 의
+       `foundation.dart` 등). 하나를 지우면 다른 것이 새로 드러날 수 있으므로
+       analyze 는 0 건이 될 때까지 되풀이한다. analyze 가 0 건이면
+       `grep -rn developerDemo lib test` 도 본다 — 1단계에서 상수까지 지웠다면
+       0 건이어야 한다. 상수를 남겼다면 `lib/core/router/app_routes.dart` 의 상수
+       3개와 1단계에 적은 상수 참조처(`app_routes_test.dart` ·
+       `auth_guard_test.dart` T-171-ROUTER-06 · 두 하네스의 데모 stub GoRoute ·
+       `home_body.dart` doc)만 남는다.
+  5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
+     빼려면 `functions/src/index.ts` 의 `export {sendTestPush} …` 줄과
+     `functions/src/messaging/` 를 지우고, 클라이언트
+     `lib/features/notifications/data/test_push_client.dart` 와 그 시험도 함께 지운
+     뒤 배포된 함수를
+     `firebase functions:delete sendTestPush --region <functionsRegion> --project <your-project-id>`
+     로 지운다(`--region` 은 `config/dev.json` 의 `functionsRegion` 값). export 만
+     남기면 다음 배포가 함수를 다시 만든다.
+
+### ④ 알림 탭으로 열 화면 — 허용 목록
+
+- 알림 payload `data.route` 로 열 수 있는 화면은 `kNotificationRoutableRoutes`
+  (`lib/features/notifications/application/notification_route.dart`) **5개**다 —
+  `/`(홈) · `/settings`(설정) · `/settings/account`(계정 정보) ·
+  `/terms/service` · `/terms/privacy`. 문자열이 정확히 같을 때만 그 화면으로 가고,
+  목록 밖 · 없음 · 외부 URL 은 홈이다([FCM 알림](#fcm-알림) 의 「탭 이동」).
+- **새 화면을 더하는 법:** 아래 6단계를 차례로 따른다(예시 이름 = 공지 화면
+  `notices`). 알림으로 연 화면에 「뒤로」 가 있고 홈 리스너가 트리에 남으려면 새
+  화면이 홈 하위 route 여야 한다([FCM 알림](#fcm-알림) 의 「결과 스택」).
+  1. `AppRoutes`(`lib/core/router/app_routes.dart`)에 조각 · 전체 경로 · name 상수
+     3개를 더한다 — 예: `noticesSegment = 'notices'` · `notices = '/$noticesSegment'`
+     · `noticesName = 'notices'`.
+     ```dart
+     static const String noticesSegment = 'notices';
+     static const String notices = '/$noticesSegment';
+     static const String noticesName = 'notices';
+     ```
+  2. 새 화면(예: `lib/features/notices/presentation/notices_screen.dart` 의
+     `NoticesScreen`)을 만들고, `lib/core/router/app_router.dart` 에서 그 파일을
+     import 한 뒤 **홈 GoRoute(`AppRoutes.home`)의 `routes:` 안에**(앱 안 부모 화면이
+     있으면 그 GoRoute 의 `routes:` 안에) 등록한다. 하위 route 의 `path` 는 `/` 없는
+     조각 상수다. `name` 은 필수다(GA4 screen name · Test 3).
+     ```dart
+     GoRoute(
+       path: AppRoutes.noticesSegment,
+       name: AppRoutes.noticesName,
+       builder: (context, state) => const NoticesScreen(),
+     ),
+     ```
+  3. `kNotificationRoutableRoutes` 에 `AppRoutes.notices` 1줄을 더한다.
+  4. `test/features/notifications/application/notification_route_test.dart` 의
+     허용 목록 기대 Set 에 `AppRoutes.notices` 1줄을 더한다.
+  5. `test/core/router/app_router_observers_test.dart` Test 2 · 3 의 재귀 개수
+     (Test 2 의 `collectGoRoutes(…).length` · Test 3 의 `names.length` 기대값)
+     `14` 를 `15` 로 고친다. Test 2 이름의 「14개」 도 「15개」 로 고친다. 최상위
+     `8` 은 그대로다(데모를 지웠다면 `13` → `14` — 지금 값에 1 을 더한다).
+  6. `fvm dart analyze` 가 0 건인지, 전체 `fvm flutter test` 가 통과하는지 본다.
+
+  **최상위에 두면 실패한다.** 알림으로 열었을 때 「뒤로」 가 없고 홈 리스너가
+  트리에서 빠지므로 `test/core/router/app_router_nesting_test.dart` 의 구조 시험이
+  아래 메시지로 실패한다(예시 `/notices`):
+  ```text
+  알림 허용 목록 경로 /notices 가 홈 하위 route 가 아니다 (첫 match = /notices). lib/core/router/app_router.dart 의 홈 GoRoute routes 안으로 옮긴다 — docs/manual.md 「홈 화면 바꾸기」 ④
+  ```
+  query · 경로 변수는 쓸 수 없다.
+- **넣지 않는 화면:** 앞 단계 상태 없이 열리면 안 되는 흐름 화면(스플래시 · 온보딩 ·
+  로그인 · 가입 · 이메일 로그인 · 비밀번호 찾기 · 이메일 인증 · 탈퇴 진행)과 release
+  에 없는 데모 경로 `/settings/developer`.
+- **정식 사용자 전용 화면은 guard 로 막는다.** 계정 정보 화면이 선례다 — 게스트가 알림
+  탭 · 딥링크 · 앱 안 이동으로 `/settings/account` 에 오면 `lib/core/router/auth_guard.dart`
+  분기 (3) 이 `/settings` 로 돌린다. 새 정식 전용 화면도 같은 분기에 조건 1개를 더한다.
+
+### 계정 정보 · 데모 · 404 화면 위치
+
+| 항목 | 위치 |
+|------------|-----------|
+| 테마 · 언어 바꾸기 | 설정 「일반」 묶음의 테마 · 언어 행(누르면 아래 시트) |
+| 계정 정보(프로필 사진 · 이름 · 이메일 · 가입일 · 가입 수단 · 연결된 계정) · 연결 해제 · 계정 연결 · 로그아웃 · 회원탈퇴 | 설정 → 내 계정(계정 정보 화면 · `lib/features/settings/presentation/account_screen.dart` · `/settings/account`) — 정식 사용자만. 설정 맨 위 계정 행이 유일한 진입점이다 |
+| UID 복사 · 프로필 사진 URL · ID 토큰 복사 · 환경 정보 · 디자인 쇼케이스 · Dev Tools | 데모 화면(위 ③) |
+| 404 화면 | `NotFoundScreen`(`lib/features/not_found/presentation/not_found_screen.dart`) — 요청 경로 · 쿼리는 개인 정보가 섞일 수 있어 그리지 않는다. 404 화면을 바꾸려면 이 파일 하나만 고친다 |
+
 ## 내 기능 추가하기
 
 ## 디자인 토큰 바꾸기
