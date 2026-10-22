@@ -19,6 +19,29 @@
 
 ## 시작 전 준비
 
+위저드를 처음 실행하기 전에 아래를 갖춘다. 개발 도구 대부분은 위저드가 확인하고 없으면 설치하므로, 사람이 미리 할 일은 계정 · 결제 수단 · Homebrew · Xcode 다.
+
+**사람이 미리 갖출 것**
+
+- **macOS 와 터미널 앱** — 위저드는 macOS 에서만 돈다. 개발자 도구가 한 번도 설치되지 않은 Mac 에서는 처음 `git clone` 을 실행할 때 macOS 가 Command Line Tools 설치 창을 띄운다 — 「설치」 를 누르고 끝나면 같은 `git clone` 명령을 다시 실행한다.
+- **Homebrew** — 없으면 `./setup.sh` 가 설치 명령을 보이고 끝난다. 설치한 뒤 같은 명령을 다시 실행한다.
+- **Xcode** — App Store 에서 설치한다. 없으면 위저드의 「Xcode 준비」 단계가 App Store 주소를 보이고 끝난다. 설치한 뒤 Xcode 를 한 번 열어 추가 구성 요소 설치를 마치고 `./setup.sh` 를 다시 실행한다. Xcode 선택 · 라이선스 · 첫 실행 준비 · iOS 시뮬레이터 런타임은 위저드가 진행한다 — sudo 비밀번호는 그 명령이 직접 묻는다.
+- **Google 계정** — Firebase · Google Cloud 에 로그인할 계정이다. 처음 쓰는 계정이면 위저드 안내대로 약관에 동의한다([위저드 실행](#위저드-실행) 의 「사용자가 하는 일」).
+- **결제 수단과 Blaze 요금제** — 위저드의 「결제 계정 (Blaze 요금제)」 단계가 열린 결제 계정을 골라 Firebase 프로젝트에 연결한다. 연결하면 프로젝트가 Blaze(종량제) 요금제로 바뀌고, 무료 사용량을 넘는 사용분이 그 결제 계정으로 청구된다 — 쓴 만큼 낸다. Cloud Functions 배포에 Blaze 가 필요하다. 요금은 [Firebase 가격 안내](https://firebase.google.com/pricing) 에서 확인한다. 열린 결제 계정이 없으면 위저드가 브라우저에서 결제 계정을 만든 뒤 Enter 를 누르라고 안내한다.
+- **Apple Developer 계정** — Apple 로그인 · APNs(푸시 알림) · DeviceCheck · iOS 실기기 서명에 쓴다. Apple 로그인과 DeviceCheck 에는 Apple Developer 에서 만든 `.p8` 키가 필요하다.
+- **켤 로그인 수단의 개발자 콘솔 계정** — Facebook · Kakao · Naver · LINE 은 그 회사의 개발자 콘솔에 앱을 등록한다. Google 은 Google 계정, Apple 은 Apple Developer 계정을 그대로 쓴다. 수단마다 필요한 것은 [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 에 있다.
+
+**위저드가 확인하고 없으면 설치하는 것**
+
+- **FVM 과 Flutter** — `setup.sh` 가 위저드를 띄우기 전에 FVM · `.fvmrc` 가 고정한 Flutter 판 · 패키지를 확인한다. FVM 이 없으면 설치 명령을 보이고 `y` 를 받았을 때만 설치한다.
+- **개발 도구** — 「개발 도구」 단계가 Node(22 이상) · pnpm(10 이상) · Firebase CLI(15 이상) · gcloud · jq · ruby 의 xcodeproj · FlutterFire CLI 를 확인한다. 있으면 어디서 설치했든 그대로 쓰고, 없거나 판이 낮은 것만 설치 명령을 보인 뒤 확인을 받고 하나씩 설치한다 — Homebrew 로 설치하고, FlutterFire CLI 는 `fvm dart pub global activate` 로 설치한다. Functions 의존성(`pnpm -C functions install --frozen-lockfile`)은 「Cloud Functions 배포」 단계가 설치한다.
+
+**Android 도구 · JDK**
+
+- 위저드의 「앱 실행 · 로그인 확인」 단계는 iOS 시뮬레이터를 기본으로 앱을 띄운다. Android 기기나 에뮬레이터에서 돌리려면 Android 도구(Android SDK · 에뮬레이터)를 직접 설치한다 — 위저드는 Android 도구를 설치하지 않는다.
+- JDK 는 Android 디버그 서명 키의 지문(SHA-1 · 키 해시)을 계산하는 데 쓰인다 — Google · Facebook · Kakao · LINE 콘솔에 넣는 Android 쪽 값이다. JDK 나 디버그 서명 키가 없으면 위저드는 지문 줄만 미루고 뒤 단계는 그대로 진행한다. 이때 `Android 도구(JDK)와 디버그 서명 키가 없어 지문을 계산하지 못했습니다 — Android 도구를 설치하고 Android 빌드를 한 번 한 뒤 ./setup.sh 를 다시 실행하면 지문을 보여 줍니다` 가 보인다.
+- Firestore · Storage rules 시험(`functions/` 에서 `pnpm test:rules`)이 쓰는 Firebase 에뮬레이터도 JDK 가 있어야 돈다.
+
 ## 위저드 실행
 
 > **처음 설정은 저장소 루트에서 `./setup.sh` 하나로 한다 — 설정 위저드가 단계를 차례로 진행하고, 사람만 할 수 있는 일은 그 자리에서 안내한다.**
@@ -191,7 +214,54 @@
 
 ## stg · prod 설정
 
+dev 와 따로 쓰는 stg · prod 환경이 필요하면 이 절을 따른다. flavor 마다 Firebase 프로젝트를 따로 쓰고, 위저드가 그 flavor 에 dev 와 같은 흐름을 적용한다.
+
+**전제**
+
+- dev 의 처음 설정이 끝나 있다([위저드 실행](#위저드-실행)). Functions 리전은 dev 실행이 정한다(아래 「Functions 리전」).
+
+**단계**
+
+```bash
+./setup.sh --flavor stg
+./setup.sh --flavor prod
+```
+
+- 위저드가 그 flavor 의 Firebase 프로젝트를 만들거나 고르는 것부터 dev 와 같은 흐름을 적용한다. 그 flavor 의 사용자 설정 파일(`config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig`)을 example 파일에서 만들어 채운다.
+- 앱 이름 · Bundle ID 접미사는 flavor 마다 다르다 — example 값은 dev `StarterKit Dev` · `.dev`, stg `StarterKit Stg` · `.stg`, prod `StarterKit` · 빈 접미사다. 그래서 세 flavor 의 앱을 한 기기에 같이 설치할 수 있다.
+- 로그인 수단은 flavor 마다 따로 켠다 — `./setup.sh --flavor prod --providers` 처럼 `--providers` 를 함께 준다. 켤 수단의 콘솔 앱도 flavor 마다 따로 만든다([Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱)).
+- 같은 명령을 다시 실행하면 그 flavor 에서 끝난 단계는 검사만 하고 건너뛴다.
+
+**Functions 리전**
+
+Cloud Functions 리전은 dev 처음 설정의 「위치 · Firestore」 단계에서 Firestore 위치와 함께 한 번 고른다(기본 `asia-northeast3` · 서울). 위저드는 고른 값을 세 곳에 같이 쓴다.
+
+| 위치 | 값 |
+|---|---|
+| `config/<flavor>.json` 의 `functionsRegion` | 앱이 부를 리전 |
+| `functions/src/shared/region.ts` 의 `REGION` | 함수를 배포할 리전 |
+| `lib/core/config/app_config.dart` | `functionsRegion` 이 없을 때 앱이 쓰는 기본값 |
+
+리전은 모든 flavor 가 함께 쓴다. stg · prod 는 리전을 묻지 않고 `dev 와 같은 위치 — Functions 리전은 모든 flavor 가 함께 씁니다.` 를 보인 뒤 `region.ts` 의 값으로 Firestore 를 만들고 그 flavor config 의 `functionsRegion` 을 맞춘다. 앱의 `functionsRegion` 과 함수의 `REGION` 이 어긋나면 빌드 · analyze 는 통과하지만 앱이 함수를 부를 때 `not-found` 로 실패한다 — Kakao · Naver · LINE 로그인과 회원탈퇴가 막힌다. 그래서 리전은 위저드로 바꾼다.
+
+리전을 바꾸려면 이렇게 한다. Firestore 위치는 바뀌지 않는다.
+
+1. `functions/src/shared/region.ts` · `lib/core/config/app_config.dart` 에 커밋하지 않은 변경이 없게 한다 — 있으면 위저드가 멈춘다.
+2. `config/dev.json` 의 `functionsRegion` 을 새 리전으로 고친 뒤 `./setup.sh` 를 다시 실행한다. 「위치 · Firestore」 단계가 세 곳의 값이 다르다고 알리고 `Functions 리전을 바꾸면 config/dev.json · functions/src/shared/region.ts · lib/core/config/app_config.dart 세 곳이 함께 바뀝니다.` 를 보인 뒤 리전을 고르게 한다. 고른 값이 세 곳에 쓰인다.
+3. 「Cloud Functions 배포」 단계가 새 리전에 함수를 배포한다. 옛 리전의 함수는 위저드가 지우지 않는다 — Firebase 콘솔 [[LABEL: Firebase — Functions 함수 목록]] 에서 옛 리전의 함수를 지운다.
+4. 위저드 끝에 보이는 바뀐 추적 파일(`region.ts` · `app_config.dart`)을 확인하고 커밋한다.
+5. stg · prod 는 다음 `./setup.sh --flavor stg` · `./setup.sh --flavor prod` 실행에서 그 flavor config 의 `functionsRegion` 이 새 값으로 맞춰지고, 함수가 새 리전에 배포된다.
+
 ### Kakao · Naver 는 flavor 마다 새 앱
+
+Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg · prod 의 키가 모두 달라야 하고, 검수도 앱마다 따로 받는다. dev 앱이 검수를 통과해도 prod 앱의 검수가 끝난 것은 아니다. 검수는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+
+1. 그 flavor 로 체크 목록을 열고 수단을 켠다 — 예: `./setup.sh --flavor prod --providers`.
+2. 위저드가 값 표에 그 flavor 의 패키지명 · 번들 ID 같은 콘솔에 넣을 값과 `이번에 만들 콘솔 앱: prod 용 하나 — dev · stg 앱은 그 flavor 로 위저드를 실행할 때 따로 만듭니다` 를 보인다. 그 값으로 콘솔에 새 앱을 만든다.
+3. 새 앱의 키를 그 flavor 의 위저드에 넣는다. 위저드는 그 flavor 의 설정과 그 Firebase 프로젝트에 키를 기록한다. 다른 flavor 와 같은 키를 넣으면 `flavor 마다 새 콘솔 앱의 키를 넣으세요` 를 보이고 다시 묻는다.
+
+- release 빌드는 release 키로 서명하므로, Kakao 앱의 Android 키 해시에는 release 키의 해시도 등록한다 — release 키는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든다.
+- 흔한 실수: dev 의 키를 prod 에 그대로 쓴다. 검수를 받지 않은 dev 앱의 키로는 출시한 앱의 사용자가 로그인하지 못한다.
 
 ## 로그인 수단 끄기
 
