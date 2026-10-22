@@ -4,8 +4,7 @@
 // 어디서 도는가: 차집합 · 모양 검사 함수 표본(REAL-03)은 어디서나 돈다. 실 값 대조
 // (REAL-01)는 비공개 작업 일지와 gitignored 실 설정 파일 여섯이 모두 있는 유지보수자
 // 트리에서만 돌고, 모양 검사(REAL-02)는 킷 사용자가 자기 문서에 자기 값을 적어도
-// 깨지지 않게 유지보수자 트리에서만 돈다. 두 검사의 출발점은 대상에서 지울 원본
-// 매뉴얼([kRetiringManualPath])을 뺀 목록이다.
+// 깨지지 않게 유지보수자 트리에서만 돈다. 두 검사의 출발점은 대상 전부다.
 //
 // T-21-REAL-01: 실 값 가운데 예시 값 · 이름 바꾸기 기본값과 다르고 6자 이상이며
 //   자리표시가 아닌 값이 대상 파일 어디에도 없다. 실패 사유에는 파일 · flavor · 키
@@ -122,11 +121,6 @@ Set<String> _readRenameConstants() => _renameConstantLine
     .allMatches(readTrackedFile(_renameToolPath))
     .map((RegExpMatch match) => match.group(1)!)
     .toSet();
-
-/// 대상에서 지울 원본 매뉴얼을 뺀 검사 출발점이다.
-List<String> _collectCheckedTargets() => collectUserDocTargets()
-    .where((String path) => path != kRetiringManualPath)
-    .toList();
 
 /// 자리표시 값의 머리다.
 const List<String> _placeholderPrefixes = <String>[
@@ -258,7 +252,7 @@ void main() {
     // 양성 대조: 실 값이 하나도 없으면 대조가 공허하다.
     expect(forbidden.isNotEmpty, isTrue, reason: '대조할 실 값이 0개다');
 
-    final List<String> targets = _collectCheckedTargets();
+    final List<String> targets = collectUserDocTargets();
     expect(targets, isNotEmpty, reason: '대상이 비었다');
     final hits = <String>[];
     for (final path in targets) {
@@ -278,7 +272,7 @@ void main() {
   }, skip: _skipUnlessRealConfigExists());
 
   test('T-21-REAL-02: 키 · 팀 ID · 채널 ID · 메일 모양이 사용자 문서 · 예시에 없다', () {
-    final List<String> targets = _collectCheckedTargets();
+    final List<String> targets = collectUserDocTargets();
     expect(targets, isNotEmpty, reason: '대상이 비었다');
     final hits = <String>[
       for (final String path in targets)

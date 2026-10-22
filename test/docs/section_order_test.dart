@@ -7,10 +7,10 @@
 //
 // 어디서 도는가: 순서 검사 함수 표본(ORDER-01)은 어디서나 돈다. 파일별 순서 검사
 // (ORDER-02)는 킷 사용자가 자기 문서를 고치면 깨지는 내용 검사라 비공개 작업 일지가
-// 있는 유지보수자 트리에서만 돌고, 다시 쓰기 목록의 파일은 다시 쓴 뒤에 검사한다.
+// 있는 유지보수자 트리에서만 돈다.
 //
 // T-21-ORDER-01: 순서 검사 함수의 양성 · 음성 표본.
-// T-21-ORDER-02: 다시 쓰기 목록 밖 대상 md 마다 하나 — 순서 위반 0.
+// T-21-ORDER-02: 대상 md 마다 하나 — 순서 위반 0.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -149,8 +149,7 @@ void main() {
 
   group('파일별 절 순서', () {
     for (final String path in collectUserDocTargets().where(
-      (String path) =>
-          path.endsWith('.md') && !kDocsAwaitingRewrite.contains(path),
+      (String path) => path.endsWith('.md'),
     )) {
       test('T-21-ORDER-02: 절 템플릿 순서 — $path', () {
         final List<String> violations = findTemplateOrderViolations(

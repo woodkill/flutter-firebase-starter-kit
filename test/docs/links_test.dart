@@ -7,7 +7,7 @@
 //
 // T-21-LINK-01: GitHub 가 제목에 붙이는 앵커와 같은 앵커를 만들고, 같은 제목에는
 //   `-1` · `-2` 를 붙이고, 코드 펜스 안의 `#` 줄은 제목으로 치지 않는다.
-// T-21-LINK-02: 대상 md 마다(지울 원본 제외) 상대 링크 · 이미지 경로가 tracked 파일
+// T-21-LINK-02: 대상 md 마다 상대 링크 · 이미지 경로가 tracked 파일
 //   (또는 tracked 파일이 든 디렉터리)을 가리키고, 앵커가 그 파일의 제목 앵커에 있다.
 // T-21-LINK-03: 대상 md 의 링크가 공개 제외 경로(또는 그 아래)를 가리키지 않는다.
 // T-21-LINK-04: 저장소 밖으로 나가는 상대 경로는 거르고, `.` · `..` · 퍼센트 인코딩을
@@ -106,9 +106,7 @@ void main() {
   });
 
   group('파일별 링크', () {
-    for (final String path in docs.where(
-      (String path) => path != kRetiringManualPath,
-    )) {
+    for (final path in docs) {
       test('T-21-LINK-02: 링크 · 앵커 — $path', () {
         final broken = <String>[];
         for (final MarkdownLink link in collectRelativeLinks(

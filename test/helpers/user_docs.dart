@@ -4,11 +4,6 @@
 // Claude 설정 · 유지보수자 문서 디렉터리 아래와 Claude 지시 파일(어느 디렉터리든
 // `CLAUDE.md`)을 뺀 전부에, 설정 위저드가 사용자 파일로 복사하는 예시 파일을 더한다.
 // 새 md 가 생기면 시험을 고치지 않아도 대상에 든다.
-//
-// 다시 쓰기 목록([kDocsAwaitingRewrite])은 아직 금지 패턴이 남은 대상 파일이다. 그
-// 파일을 다시 쓴 작업이 같은 커밋에서 목록에서 빼고, 목록이 비면 상수째 지운다.
-// [kRetiringManualPath] 는 두 가이드로 나뉘어 곧 지워질 원본 매뉴얼이다 — 링크 · 실
-// 값 시험은 이 파일을 검사 출발점에서 빼고, 파일을 지우는 작업이 상수도 함께 지운다.
 
 import 'dart:convert';
 import 'dart:io';
@@ -27,9 +22,6 @@ const List<String> kUserDocExcludedPrefixes = <String>[
 const String kClaudeInstructionFileName = 'CLAUDE.md';
 
 /// 예시 xcconfig 가 있는 디렉터리다.
-///
-/// 아래 [kUserExampleFiles] 의 경로 줄이 [kDocsAwaitingRewrite] 의 항목 줄과 글자가
-/// 겹치지 않게 한다 — 목록 항목 줄을 글자로 세는 검사가 두 목록을 섞어 세지 않는다.
 const String _kIosFlutterDir = 'ios/Flutter';
 
 /// 설정 위저드가 사용자 파일로 복사하는 예시 파일 — md 가 아니어도 대상에 든다.
@@ -39,16 +31,6 @@ const List<String> kUserExampleFiles = <String>[
   '$_kIosFlutterDir/prod.example.xcconfig',
   'extensions/firestore-send-email.env.example',
 ];
-
-/// 아직 금지 패턴이 남아 다시 쓰기를 기다리는 대상 파일이다.
-///
-/// 목록 밖 대상은 금지 패턴 0 건을 단언받고, 목록 안 파일은 대상이면서 아직 1건
-/// 이상 남아 있어야 한다 — 다시 쓴 파일을 목록에서 빼지 않으면 시험이 실패해 목록이
-/// 줄어들게 한다.
-const Set<String> kDocsAwaitingRewrite = <String>{'docs/manual.md'};
-
-/// 두 가이드로 나뉘어 지워질 원본 매뉴얼 경로다.
-const String kRetiringManualPath = 'docs/manual.md';
 
 /// 디렉터리 순회 대체 경로에서 들어가지 않는 디렉터리 이름이다(어느 깊이든).
 const Set<String> _walkSkippedDirectoryNames = <String>{

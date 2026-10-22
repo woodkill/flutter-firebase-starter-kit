@@ -1,16 +1,13 @@
-// 사용자 문서 금지 패턴 계약 — 대상 수집 · 이름 붙인 패턴 · 파일별 0 건 · 다시 쓰기
-// 목록.
+// 사용자 문서 금지 패턴 계약 — 대상 수집 · 이름 붙인 패턴 · 파일별 0 건.
 //
 // 어디서 도는가: 패턴 표본(DOCS-03)과 대상 규칙 표본(DOCS-05)은 어디서나 돈다. 대상
-// 목록 · 파일별 0 건 · 다시 쓰기 목록 단언(DOCS-01 · 02 · 04)은 킷 사용자가 자기
-// 문서를 고치거나 지우면 깨지는 내용 검사라, 비공개 작업 일지가 있는 유지보수자
-// 트리에서만 돈다.
+// 목록 · 파일별 0 건(DOCS-01 · 02)은 킷 사용자가 자기 문서를 고치거나 지우면 깨지는
+// 내용 검사라, 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.
 //
 // T-21-DOCS-01: 대상이 필수 사용자 md 와 예시 파일 넷을 담고, 모두 실재하고, 22개
 //   이상이다.
-// T-21-DOCS-02: 다시 쓰기 목록 밖 대상 파일마다 하나 — 금지 패턴 0 건.
+// T-21-DOCS-02: 대상 파일마다 하나 — 금지 패턴 0 건.
 // T-21-DOCS-03: 패턴마다 조각으로 만든 표본을 잡고, 오탐 표본 · 예외 줄은 놓친다.
-// T-21-DOCS-04: 다시 쓰기 목록의 파일은 대상이고 아직 금지 패턴이 1건 이상 있다.
 // T-21-DOCS-05: 대상 규칙 함수 표본과, 수집 결과에 제외 규칙에 걸리는 경로가 없음.
 //
 // **표본 리터럴을 두지 않는다** — 금지 패턴에 맞는 표본은 조각을 이어 붙여 만든다.
@@ -145,9 +142,7 @@ void main() {
   });
 
   group('파일별 금지 패턴', () {
-    for (final String path in targets.where(
-      (String path) => !kDocsAwaitingRewrite.contains(path),
-    )) {
+    for (final path in targets) {
       test('T-21-DOCS-02: 금지 패턴 0 — $path', () {
         final List<String> hits = findForbiddenPatternHits(
           path,
@@ -280,16 +275,5 @@ void main() {
     });
   });
 
-  group('다시 쓰기 목록', () {
-    test('T-21-DOCS-04: 다시 쓰기 목록의 파일은 대상이고 아직 금지 패턴이 있다', () {
-      for (final String path in kDocsAwaitingRewrite) {
-        expect(targets, contains(path), reason: '목록의 파일이 대상이 아니다: $path');
-        expect(
-          findForbiddenPatternHits(path, readTrackedFile(path)),
-          isNotEmpty,
-          reason: '$path 에 금지 패턴이 없다 — 다시 쓴 파일은 목록에서 뺀다',
-        );
-      }
-    }, skip: _skipMaintainer);
-  });
+  // 모든 대상 문서가 규칙을 지킨다 — 파일별 0 건(DOCS-02)에서 빠지는 대상은 없다.
 }
