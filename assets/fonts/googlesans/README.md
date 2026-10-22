@@ -10,7 +10,7 @@ Google 로그인 버튼의 영문 라벨에 쓰는 Google Sans 의 라틴 subset
 - **Original sha256**: `d0a87d835a944b8b40d0e82a5651bb59ab97b936a2aeed5946eb57e7b2a3a90a`
 - **License**: SIL Open Font License (OFL) 1.1 — `OFL.txt`
 - **Copyright**: 2025 The Google Sans Project Authors (https://github.com/googlefonts/googlesans)
-- **Fetched**: 2026-10-12
+- **받은 날**: [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 원본 파일은 저장소에 싣지 않는다. 필요하면 아래 「만드는 명령」 의 `curl` 로 받아
 sha256 을 위 값과 대조한다.
@@ -42,7 +42,7 @@ uv pip install --python /tmp/gsans-venv/bin/python 'fonttools==4.66.1' brotli
 # 2. 원본 — URL 의 대괄호는 %5B %5D 로 쓰고 curl 에 -g 를 준다
 curl -g -sSL -o GoogleSans-orig.ttf \
   'https://raw.githubusercontent.com/google/fonts/main/ofl/googlesans/GoogleSans%5BGRAD%2Copsz%2Cwght%5D.ttf'
-shasum -a 256 GoogleSans-orig.ttf   # d0a87d83…a90a 와 같아야 한다
+shasum -a 256 GoogleSans-orig.ttf   # d0a87d835a944b8b40d0e82a5651bb59ab97b936a2aeed5946eb57e7b2a3a90a 와 같아야 한다
 
 # 3. opsz · GRAD 고정 (wght 축은 남긴다)
 /tmp/gsans-venv/bin/fonttools varLib.instancer GoogleSans-orig.ttf opsz=18 GRAD=0 \

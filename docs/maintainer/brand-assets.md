@@ -5,6 +5,8 @@
 소셜 로그인 버튼 6개가 그리는 로고 자산을 다시 받거나 바꿀 때의 절차다. 자산마다 README
 (`assets/brand/<provider>/README.md`)가 공식 BI URL · 자산 다운로드 URL · 라이선스 · 사전
 검수 절차를 담고, 이 문서는 그 README 들을 갱신하는 순서와 받은 날을 담는다.
+버튼 라벨 글꼴(`assets/fonts/`) · 시험 글꼴(`assets/test_fonts/`)의 받은 날 · 만든 날과 시험 글꼴
+subset 을 다시 만드는 법도 여기에 둔다.
 
 ---
 
@@ -141,6 +143,35 @@ assets/brand/
 | Kakao 로고(`kakao/btn_signin_icon.svg`) | 2026-05-09 받음(로그인 버튼 리소스 PSD ZIP) | https://developers.kakao.com/tool/resource/login · https://developers.kakao.com/docs/ko/kakaologin/design-guide |
 | Naver 로고(`naver/btn_signin_icon.svg`) | 2026-05-09 받음(NAVER ID 로그인 BI 디자인 가이드 자료) | https://developers.naver.com/docs/login/bi/bi.md |
 | LINE 로고(`line/btn_signin_icon.svg`) | 2026-05-19 받음(LINE Login Button Image ZIP · Usage Guidelines 원문 발췌) | https://developers.line.biz/en/docs/line-login/login-button/ · https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button |
+| Google Sans 글꼴(`assets/fonts/googlesans/GoogleSans-Latin-wght.ttf`) | 2026-10-12 원본 가변 파일 `GoogleSans[GRAD,opsz,wght].ttf` 를 받아 라틴 subset 을 만듦 | https://github.com/google/fonts/tree/main/ofl/googlesans |
+| Roboto 글꼴(`assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf`) | 2026-05-16 받음(가변 파일 그대로) | https://github.com/google/fonts/tree/main/ofl/roboto |
+| 시험 글꼴 subset(`assets/test_fonts/NotoSansCJKKR-Regular-Subset.otf` · `NotoSansCJKJP-Regular-Subset.otf`) | 2026-09-26 KR · JP 를 만듦 · JP 를 마지막으로 다시 만든 날 2026-10-03 | 원본 = Android Studio 동봉 AOSP 시스템 폰트 `NotoSansCJK-Regular.ttc` · https://github.com/notofonts/noto-cjk |
+| 시험 글꼴 라이선스 사본(`assets/test_fonts/NotoSansCJK_LICENSE.txt`) | upstream 마지막 변경 커밋 `a99a4354c68964f6bfac488d01010b1fb6d9178a`(2022-03-20) 의 원문 사본 | https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/LICENSE |
+
+## 시험 글꼴 subset 다시 만들기
+
+`assets/test_fonts/` 의 `NotoSansCJKKR-Regular-Subset.otf` · `NotoSansCJKJP-Regular-Subset.otf` 는
+AOSP 시스템 폰트 `NotoSansCJK-Regular.ttc`(Android Studio `plugins/design-tools/resources/layoutlib/data/fonts/`
+동봉)에서 ko · ja golden 이 쓰는 글자만 남긴 subset 이다. `app_ja.arb` 에 subset 에 없는 한자가
+더해지면 ja golden 에 tofu 가 보인다 — 그때 JP 파일을 다시 만든다. 한글은 완성형 전 음절을 담아
+다시 만들지 않는다.
+
+스크립트는 `.planning/phases/16.7-sign-in-method-and-linked-accounts-split/mockups/subset_cjk.py.txt`
+(비공개 작업 일지 — mirror 에 없음)에 있다. 저장소 루트에서 돌린다.
+
+```bash
+uv venv /tmp/ftenv && uv pip install --python /tmp/ftenv/bin/python fonttools==4.66.0
+cp .planning/phases/16.7-sign-in-method-and-linked-accounts-split/mockups/subset_cjk.py.txt /tmp/subset_cjk.py
+/tmp/ftenv/bin/python -X utf8 /tmp/subset_cjk.py "<NotoSansCJK-Regular.ttc 경로>"
+```
+
+- 도구: fonttools 4.66.0. `recalcTimestamp=False` 라 같은 입력으로 두 번 만들면 결과가 byte 단위로 같다(`cmp`).
+- subset 옵션: `layout_features=['*']` · `name_IDs=['*']` · `name_languages=['*']` · `notdef_outline=True` ·
+  variable 축(`wght`) 유지.
+- 확인: 두 subset 파일로 렌더한 그림이 원본 face 추출본(subset 전)으로 렌더한 그림과 byte 단위로 같은지
+  `cmp` 로 본다.
+- 다시 만든 뒤: `assets/test_fonts/README.md` 「글리프 범위 · 해시」 표의 cmap 수 · 크기 · sha256 과 위
+  [받은 날 · 만든 날](#받은-날--만든-날) 표의 만든 날을 고친다.
 
 ## 회귀 가드
 

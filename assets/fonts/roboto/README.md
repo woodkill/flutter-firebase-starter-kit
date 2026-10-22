@@ -6,7 +6,7 @@
 - **License**: SIL Open Font License (OFL) 1.1 — `OFL.txt`
 - **Copyright**: 2011 The Roboto Project Authors
 - **Asset**: `Roboto-VariableFont_wdth_wght.ttf` (variable font, wdth + wght axes)
-- **Fetched**: 2026-05-16
+- **받은 날**: [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 채택 사유
 
@@ -34,8 +34,8 @@ Roboto variable font asset 을 bundle 함으로써:
 
 ### Variable font 의무
 
-Google Fonts 의 Roboto 는 2023년부터 variable font 로 전환 (static asset
-지원 종료). `wdth` (75-100) + `wght` (100-900) 두 axis 보유.
+Google Fonts 는 Roboto 를 variable font 로 배포하고 static asset 은 두지 않는다.
+`wdth` (75-100) + `wght` (100-900) 두 axis 를 가진다.
 
 Flutter `fontWeight: FontWeight.w500` 명시 시 variable font 의 `wght` axis
 500 (Medium) 자동 매핑 — `FontVariation` API 명시 불필요.
