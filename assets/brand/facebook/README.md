@@ -5,34 +5,33 @@ Facebook 로그인 버튼의 로고 자산이다. Meta Brand Resource Center 의
 community package `sign_in_button` 의 `Buttons.facebookNew` (community-rendered,
 Meta 공식 BI 아님) 위젯은 쓰지 않는다.
 
-본 starter-kit 의 `BrandedSocialButton.facebook(...)` factory (Plan 13.2-04
-도입) 는 Apple `SignInWithAppleButton` 패턴 mirror — 별도 wide 자상 통째
-buttons 패턴 (Kakao/Naver/Google 의 wide PNG 통째 로드) 비채택. 사유는 본
-파일 §"미포함 변형 추가 절차" 참조.
+`BrandedSocialButton.facebook(...)` 은 로고 SVG 와 ARB 라벨을 공통 골격으로 그린다 —
+라벨이 그림에 들어 있는 wide 버튼 이미지는 쓰지 않는다. 이유는 아래
+「미포함 변형 추가 절차」 에 있다.
 
 ## 공식 BI URL
 
-- 1순위 (라벨/색/변형 금지 verbatim): `https://developers.facebook.com/docs/facebook-login/userexperience/`
-- 2순위 (자상 다운 + 라이선스 verbatim): `https://www.meta.com/brand/resources/facebook/logo/`
-- 보조 (Login Button 위제 사이즈 매트릭스 + JS SDK 동적 위젯 명세): `https://developers.facebook.com/docs/facebook-login/web/login-button`
+- 1순위 (라벨 · 색 · 변형 금지 원문): `https://developers.facebook.com/docs/facebook-login/userexperience/`
+- 2순위 (자산 다운로드 + 라이선스 원문): `https://www.meta.com/brand/resources/facebook/logo/`
+- 보조 (Login Button 위젯 크기 표 + JS SDK 동적 위젯 명세): `https://developers.facebook.com/docs/facebook-login/web/login-button`
 
-공식 색 verbatim (Meta Login UX Guide):
+공식 색 원문 (Meta Login UX Guide):
 - Hex `#1877F2`
 - RGB `R = 24, G = 119, B = 242`
 
-라벨 옵션 verbatim (2종, Meta Login UX Guide):
+라벨 옵션 원문 (2종, Meta Login UX Guide):
 - `'Continue with Facebook'`
 - `'Login with Facebook'`
 
-변형 금지 verbatim (Meta Login UX Guide):
+변형 금지 원문 (Meta Login UX Guide):
 - `DON'T modify the 'f' logo in any way`
 
 ## 자산 다운로드 URL
 
-`https://www.meta.com/brand/resources/facebook/logo/` → "Download" 버튼 클릭 →
-`Facebook Brand Asset Pack` ZIP 다운 → 압축 해제 후 `Logo/Primary Logo/Facebook_Logo_Primary.png` (54771 bytes) 채택.
+`https://www.meta.com/brand/resources/facebook/logo/` → "Download" 버튼 →
+`Facebook Brand Asset Pack` ZIP 을 받아 푼다.
 
-ZIP 내 자상 매트릭스 (Wave 0 사용자 verbatim 확인):
+ZIP 의 로고 파일:
 
 ```
 Logo/
@@ -44,125 +43,108 @@ Logo/
     └── Facebook_Logo_Secondary.png (47324 bytes, 2084×2084 square, 모노크롬 흰 원 + 검정 'f')
 ```
 
-채택 자상: `Primary Logo/Facebook_Logo_Primary.ai` (PyMuPDF vector path 추출 →
-SVG 변환). starter-kit 내 명명: `assets/brand/facebook/btn_signin_icon.svg`
-(AI verbatim 2 paths — blue circle `#0866FF` + white 'f').
-
-**Phase 13.3 Wave 4 Step 2 (2026-05-15) supersede:** 이전 Wave 0~3 에서는
-PNG 자상 (`assets/brand/facebook/facebook_login.png`, 54771 bytes) 을 채택했
-으나 Wave 4 Step 2 에서 AI 원본 vector path 추출 → SVG 전환. PNG 는
-2026-05-17 Phase 13.3 code review CR-01 정정 commit 에서 `git rm` 으로 폐기
-(stale asset 이 production bundle 에 동봉되어 Meta brand license 혼동 위험
-회피). 회귀 가드: `docs_compliance_lint_test.dart` 의 "CR-01 SENTINEL"
-test 가 PNG 파일 부재를 lint 시점에 검증.
+킷의 로고는 `Primary Logo/Facebook_Logo_Primary.ai` 의 vector path 2개(파란 원
+`#0866FF` + 흰 'f')를 그대로 옮긴 SVG 다: `assets/brand/facebook/btn_signin_icon.svg`.
+이 디렉토리에 PNG 는 두지 않는다.
 
 ## 다운로드 일자
 
-2026-05-13 (Phase 13.2 Plan 01 Wave 0 Task 1 commit 시점, `b2213e0`)
+받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 라이선스
 
-Meta Brand Resource Center License (verbatim 단락은 `LICENSE.txt` 참조).
+Meta Brand Resource Center License (원문 단락은 `LICENSE.txt` 참조).
 
-verbatim 요약 (`https://www.meta.com/brand/resources/facebook/logo/`):
+원문 요약 (`https://www.meta.com/brand/resources/facebook/logo/`):
 
 > Meta's trademarks are owned by Meta and may only be used as provided in these
 > guidelines or with Meta's permission.
 
-본 starter-kit 의 사용 케이스는 일반 OAuth 로그인 버튼 ("as provided in these
-guidelines" 범위 내) 이며, Meta's permission 별도 요청 의무 case (예: 마케팅
-자료 prominent 배치) 미해당. 자세한 사용 의무 사항·변형 금지·사전 검수 절차
-verbatim 은 `LICENSE.txt` 동봉 단락 참조.
+킷의 사용 방식은 일반 OAuth 로그인 버튼 ("as provided in these guidelines"
+범위)이라, 마케팅 자료에 로고를 크게 싣는 것처럼 Meta's permission 을 따로 받아야
+하는 경우에 들지 않는다. 사용 의무 · 변형 금지 · 사전 검수 원문은 `LICENSE.txt`
+동봉 단락을 본다.
 
 ## 사전 검수 절차
 
-Meta Brand Resource Center (`https://www.meta.com/brand/resources/`) 가 별도
-신청 form 명시 부재 (Wave 0 사용자 verbatim 확인 — ZIP 내 `LICENSE.txt` /
-`Terms.txt` / `Brand_Guidelines.pdf` 동등 문서 부재). 사용자 책임으로 다음
-정책 사전 검토 의무:
+Meta Brand Resource Center (`https://www.meta.com/brand/resources/`) 에는 별도
+신청 form 이 없다 — Brand Asset Pack ZIP 에도 `LICENSE.txt` / `Terms.txt` /
+`Brand_Guidelines.pdf` 같은 약관 문서가 들어 있지 않다. 출시 전에 다음을
+직접 확인한다:
 
-1. Meta Brand Resource Center 이용 약관 (페이지 acceptance checkbox 동의)
-2. 자상 사용 가이드라인 (`https://www.meta.com/brand/resources/facebook/logo/` +
+1. Meta Brand Resource Center 이용 약관 (페이지의 동의 checkbox)
+2. 로고 사용 가이드라인 (`https://www.meta.com/brand/resources/facebook/logo/` +
    `https://developers.facebook.com/docs/facebook-login/userexperience/`) 의
-   변형 금지·라벨 옵션·공식 색 보존 verbatim 단락
-3. Meta's permission 의무 케이스 (예: 마케팅 자료 prominent 배치) 해당 여부
-   판단 — 해당 시 Meta Brand 팀 사전 문의 의무
+   변형 금지 · 라벨 옵션 · 공식 색 단락
+3. Meta's permission 이 필요한 경우 (예: 마케팅 자료에 로고를 크게 배치) 에
+   해당하는지 — 해당하면 Meta Brand 팀에 먼저 문의한다
 
-본 starter-kit 의 default 사용 (로그인 화면 OAuth 진입 버튼) 은 "as provided in
-these guidelines" 범위 내 verified.
+로그인 화면의 로그인 버튼으로만 쓰면 "as provided in these guidelines" 범위다.
+로고를 로그인 버튼 밖에서 쓸 때의 확인은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산)
+에 있다.
 
 ## 미포함 변형 추가 절차
 
-본 starter-kit 은 Meta Brand Asset Pack ZIP 의 자상 매트릭스 중 **Primary
-Logo PNG 1개** 만 동봉. 채택 차원 (Wave 0 lock `13.2-WAVE0-LOCK.md` 일관):
+킷은 Meta Brand Asset Pack 의 로고 가운데 **Primary Logo 1개**만 SVG 로 싣는다.
 
-- Form: Primary (파란 `#1877F2` 원형 배경 + 흰 'f') 단독 채택
+- Form: Primary (파란 원형 배경 + 흰 'f') 하나
 - Theme: 로고는 밝기와 무관하게 한 장이다 (`FacebookSpec` 의 로고 경로가 하나다).
   밝기에 따라 바뀌는 것은 스킨 값이다 — `FacebookSpec` 의 배경색 (light `#FFFFFF`
   / dark `#131314`) · 글자색 (`#1F1F1F` / `#E3E3E3`) · 외곽선 색 (`#747775` /
   `#8E918F`).
-- Locale: 미분기 (D-96 Google 패턴). 'f' 마크 단독 (Roboto/Helvetica Latin
-  라벨 baked-in 0) → 언어 중립. 라벨 텍스트 (`'Continue with Facebook'` /
-  `'Facebook 으로 시작하기'` / `'Facebookでログイン'`) 는
-  `Text(AppLocalizations.of(context).authFacebookSignIn)` 외부 layer 단독
-  책임 (Phase 13.1 D-82 ARB 라벨 패턴 일관).
+- Locale: 언어별 파일이 없다. 'f' 마크만 있어 언어와 무관하다. 라벨 텍스트
+  (`'Continue with Facebook'` / `'Facebook 으로 시작하기'` / `'Facebookでログイン'`) 는
+  `Text(AppLocalizations.of(context).authFacebookSignIn)` 가 따로 그린다.
 - Format: SVG 1장 (`btn_signin_icon.svg` — Meta 의 logo pack 은 AI + PNG
-  제공, SVG 미제공이라 AI 원본의 vector path 로 만든다). `BrandedSocialButton` 의
+  만 주고 SVG 는 없어서 AI 원본의 vector path 로 만든다). `BrandedSocialButton` 의
   공통 골격이 20 × 20 상자에 색 지정 없이 그린다.
 
-미포함 변형 신규 도입 시 절차:
+다른 변형을 쓰려면:
 
-1. Meta Brand Resource Center 재방문
-   (`https://www.meta.com/brand/resources/facebook/logo/`) → 갱신된 자상 매트릭스
-   확인 (1년 freshness 정책 일관)
-2. 신규 자상이 `D-94 Kakao 패턴` 또는 `D-96 Google 패턴` 범위를 벗어나는 경우
-   (예: locale-aware 자상 제공 시작, Secondary Logo 도 동봉 필요 시) → 별
-   phase 의 retroactive cycle 로 처리 (Phase 13.1 D-A~D-L 패턴, Phase 14
-   LINE 도입 mirror)
-3. Meta 가 자상 변형 (색상 / 비율 / 회전) 금지 명시 — 신규 도입 자상은 ZIP
-   콘텐츠 그대로 (rename 만 허용) commit 의무
+1. Meta Brand Resource Center (`https://www.meta.com/brand/resources/facebook/logo/`)
+   에서 Brand Asset Pack 을 다시 받는다.
+2. 받은 로고는 내용을 그대로 둔다 — Meta 가 색 · 비율 · 회전 변형을 금지한다.
+   파일 이름만 바꿔 이 디렉토리에 둔다.
+3. 하위 디렉토리를 새로 만들면 `pubspec.yaml` 의 assets 에 그 디렉토리를 따로
+   등록한다 (디렉토리 등록은 재귀가 아니다).
 
-미포함 variants:
+싣지 않는 변형:
 
-- **Secondary Logo** (흰 원형 + 검정 'f', 모노크롬 인쇄/단색 환경 전용) —
-  Flutter mobile 컬러 환경에서는 Primary 단독으로 충분, 미동봉
-- **AI 원본 파일** (`*.ai`) — Flutter `Image.asset` 호환 불가, 미동봉
-- **Login Button baked-in 자상** (예: "Continue with Facebook" 라벨 포함
-  wide PNG) — Meta 가 `developers.facebook.com/docs/facebook-login/web/login-button`
+- **Secondary Logo** (흰 원형 + 검정 'f', 모노크롬 인쇄 · 단색 환경 전용) —
+  컬러 화면에서는 Primary 하나로 충분하다
+- **AI 원본 파일** (`*.ai`) — Flutter `Image.asset` 이 읽지 못한다
+- **라벨이 그림에 들어 있는 Login Button 이미지** (예: "Continue with Facebook" 라벨
+  포함 wide PNG) — Meta 는 `developers.facebook.com/docs/facebook-login/web/login-button`
   에서 JS SDK 동적 위젯 (`<div class="fb-login-button"
-  data-button-type="continue_with">`) + 사이즈 매트릭스 (Small `20 × 200` /
-  Medium `28 × 200-320` / Large `40 × 240-400`) 만 명시 — 다운로드 가능
-  PNG/SVG 0건 verified. Flutter mobile 환경 (Dart VM, Skia render) 내 JS SDK
-  위젯 임베드 불가 → starter-kit 이 로고 SVG + ARB 라벨을 `BrandedSocialButton`
-  의 공통 골격으로 직접 그린다
+  data-button-type="continue_with">`) + 크기 표 (Small `20 × 200` /
+  Medium `28 × 200-320` / Large `40 × 240-400`) 만 주고, 내려받을 수 있는
+  PNG · SVG 는 주지 않는다. Flutter 앱에는 JS SDK 위젯을 넣을 수 없어서
+  킷이 로고 SVG + ARB 라벨을 `BrandedSocialButton` 의 공통 골격으로 직접 그린다
 
 ## 자산 freshness 갱신 빈도
 
-1년 권장 — `다운로드 일자` (2026-05-13) 1년 경과 시점 (2027-05-13 권장 검토
-시점) 에 `https://www.meta.com/brand/resources/facebook/logo/` 재방문 + 자상
-갱신 여부 확인 의무. Phase 13.1 `docs/manual.md` 의 "Brand Asset Management"
-단락 3단계 (1) 자산 다운로드 (2) `LICENSE.txt` 동봉 (3) 1년 검토 패턴 mirror.
+1년마다 공식 페이지(`https://www.meta.com/brand/resources/facebook/logo/`)를 다시
+확인한다 — 절차는 [브랜드 자산 갱신 — freshness 갱신](../../../docs/maintainer/brand-assets.md#freshness-갱신)
+에 있다.
 
-## 디렉토리 구조 (Phase 13.2 Wave 1 commit 후)
+## 디렉토리 구조
 
 ```
 assets/brand/facebook/
-├── facebook_login.png  (Primary Logo PNG, 54771 bytes, 2084×2084 square)
-├── LICENSE.txt         (Meta verbatim 라이선스 + 변형 금지 + 자상 enumerate + freshness 1년)
-└── README.md           (본 파일, 7필드 schema — Phase 13.1 Naver/Kakao mirror)
+├── btn_signin_icon.svg (Primary Logo 의 vector path 2개 — 파란 원 + 흰 'f', viewBox 0 0 20 20)
+├── LICENSE.txt         (Meta 라이선스 원문 + 변형 금지 + 사전 검수)
+└── README.md           (이 파일 — 7개 제목 schema)
 ```
 
-자상 디렉토리 분기 차원 0 (light/dark 미분기, ko/en 미분기) — D-94 + D-96
-lock 영향. `pubspec.yaml` 의 assets 단락 등록은 `- assets/brand/facebook/` 단일
-leaf (재귀 미지원, Plan 13.1-08 Rule 2 verbatim 일관).
+언어 · 밝기별 하위 디렉토리는 없다. `pubspec.yaml` 의 assets 에는
+`- assets/brand/facebook/` 한 줄로 등록한다.
 
 ## 주의
 
-- Phase 13.1 까지 사용한 `sign_in_button` community package 위제 (`Buttons.facebookNew`) 는 Phase 13.2 Wave 2 에서 코드 path 폐기 + Wave 5 에서
-  pubspec 의존성 단락 제거 예정 (R8/R9/R10 acceptance 단일 진실원).
-- `assets/brand/facebook/facebook_login.png` 콘텐츠 변경 금지 — Meta 변형 금지
-  verbatim (`DON'T modify the 'f' logo in any way`) 일관. rename (디렉토리
-  구조에서 차원 분리 위해) 만 허용.
+- 킷은 `sign_in_button` 패키지를 의존성으로 두지 않는다 — Facebook 버튼은
+  `BrandedSocialButton` 이 그린다.
+- `btn_signin_icon.svg` 의 그림을 바꾸지 않는다 — Meta 변형 금지 원문
+  (`DON'T modify the 'f' logo in any way`).
 - `BrandedSocialButton` 의 공통 골격이 로고를 20dp 상자 (20 × 20) 에 그린다 — 로고에
   색을 덧입히지 않는다 (`FacebookSpec` 의 로고 단색 칠 값이 null 이다). 색 · 모양
   변형 금지.

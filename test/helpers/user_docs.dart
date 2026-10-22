@@ -42,7 +42,6 @@ const List<String> kUserExampleFiles = <String>[
 const Set<String> kDocsAwaitingRewrite = <String>{
   'README.md',
   'assets/brand/apple/README.md',
-  'assets/brand/facebook/README.md',
   'assets/brand/google/README.md',
   'assets/brand/kakao/README.md',
   'assets/brand/line/README.md',
