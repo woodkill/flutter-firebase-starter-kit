@@ -398,7 +398,89 @@ Kakao 를 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 
 
 ### Naver 로그인 켜기
 
+Naver 로그인을 앱에 둘 때 이 절을 따른다. Naver 를 켜지 않으면 이 절을 건너뛴다. NAVER 앱이 설치된 기기는 NAVER 앱으로 로그인하고, 설치되지 않은 기기는 Naver 웹 로그인 화면을 거친다.
+
+**전제:** Naver Developers 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Naver 를 골랐다. stg · prod 는 그 flavor 용 Naver 애플리케이션을 새로 만든다 — [Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱).
+
+#### 콘솔 단계
+
+1. 위저드가 `Naver 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.naver.com` 줄에 있고, 행은 아래와 같다.
+   - `iOS URL Scheme` — `config/<flavor>.json` 의 `naverUrlScheme` 값이다. 그 값이 비었거나 형식(소문자 영문으로 시작하는 소문자 영문 · 숫자)에 맞지 않으면 행 이름이 `iOS URL Scheme (제안)` 이고, 앱 이름으로 만든 제안값을 보인다.
+   - `Android 패키지명` — 안드로이드 환경에 넣는 패키지 이름이다.
+   - `로고 이미지 · 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/naver-140x140.png` 다.
+
+   NAVER 앱이 없는 기기의 웹 로그인은 값 표의 `iOS URL Scheme` 값으로 돌아온다(`<URL Scheme>://authorize`) — 콘솔에서 따로 할 일은 없다.
+2. 애플리케이션을 등록한다(할 일 줄 `애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)`) — [[LABEL: Naver Developers — 애플리케이션 등록 화면(애플리케이션 이름 · 사용 API 칸)]] 에서 사용 API 로 네이버 로그인을 고른다. 같은 화면의 `로고 이미지` 칸에서 `파일선택` 을 눌러 `.setup/icons/naver-140x140.png` 를 올린다(파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 로고 이미지는 필수다 — 없으면 애플리케이션이 저장되지 않는다. 콘솔은 jpg · png · gif 를 받고, 140x140 을 권장하며 500KB 까지 받는다. 로고는 사용자가 보는 로그인 동의 화면에 나온다.
+3. 서비스 환경을 넣는다(할 일 줄 `iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록`) — [[LABEL: Naver Developers — 서비스 환경(iOS · 안드로이드)을 더하는 위치]] 에서 두 환경을 더한다.
+   - iOS 환경: `다운로드 URL` 과 `URL Scheme` 을 넣는다. `URL Scheme` 칸에는 값 표의 `iOS URL Scheme` 값을 글자 그대로 넣는다.
+   - 안드로이드 환경: `다운로드 URL` 과 `안드로이드 앱 패키지 이름` 만 넣는다. `안드로이드 앱 패키지 이름` 칸에는 값 표의 `Android 패키지명` 값을 넣는다.
+   - `다운로드 URL` 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 스토어 주소로 바꾼다.
+4. 이메일을 받도록 제공 정보를 설정한다(할 일 줄 `제공 정보에서 이메일 주소 받기`) — 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 의 Naver 행에 있다.
+5. 개발 중 로그인할 아이디를 등록한다. 위저드 할 일 줄 `개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다` 대로 `멤버관리` 에서 `관리자 ID 등록`(최대 3개) 또는 `테스터 ID 등록`(최대 20개)에 시험할 네이버 아이디를 넣는다.
+6. Client ID · Client Secret 을 모은다 — [[LABEL: Naver Developers — Client ID · Client Secret 이 보이는 화면]].
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Naver Client ID` · `Naver Client Secret` · `Naver URL Scheme` 을 차례로 입력한다. Client Secret 은 화면에 보이지 않게 받는다. `Naver URL Scheme` 은 Enter 만 누르면 제안값이 들어간다 — 콘솔 단계 3 의 `URL Scheme` 칸과 같은 값을 넣는다. 위저드가 Client ID · Client Secret 의 짝을 Naver 서버로 확인한 뒤 config · xcconfig · Secret Manager 에 기록한다(URL Scheme 은 config · xcconfig 에만). 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
+
+#### 확인 방법
+
+- 앱을 다시 빌드해 실행하면 로그인 화면에 Naver 버튼이 보이고, 눌러 로그인하면 앱에 로그인된다. NAVER 앱이 있는 기기는 NAVER 앱의 동의 화면을, 없는 기기는 Naver 웹 로그인 화면을 거친다.
+- 위저드의 「소셜 로그인 확인」 단계가 `Naver 1명` 꼴로 1명 이상을 센다.
+- Android 에서 두 경로를 모두 보려면 NAVER 앱을 끈 채(`adb shell pm disable-user --user 0 com.nhn.android.search`) 한 번, 되돌린 뒤(`adb shell pm enable com.nhn.android.search`) 한 번 로그인한다. debug 빌드의 로그 `Naver 경로 선택: mode=web installed=false` · `mode=app installed=true` 가 어느 경로를 탔는지 보인다.
+- iOS 에서 NAVER 앱으로 처음 로그인하면 iOS 가 `"<앱 이름>" wants to open "NAVER"` 확인 알림을 띄운다. `Open` 을 눌러야 NAVER 앱으로 넘어간다 — `Cancel` 을 누르면 오류 배너 없이 로그인 화면으로 돌아온다.
+
+#### 문제 해결
+
+- **NAVER 앱이 「입력하신 아이디로 로그인할 수 없습니다 … 개발 중 상태에서는 등록된 아이디만 로그인할 수 있습니다」 화면을 띄운다.** 애플리케이션이 개발 중 상태이고 그 아이디가 등록돼 있지 않은 것이다 — 콘솔 단계 5 대로 `멤버관리` 에 그 아이디를 등록한다.
+- **위저드가 `Client ID · Client Secret 짝이 맞지 않습니다` 를 보인다.** 위저드가 두 값을 함께 다시 묻는다 — 같은 애플리케이션의 Client ID 와 Client Secret 을 다시 복사해 넣는다.
+- **위저드가 `Client ID · Client Secret 을 서버에서 확인하지 못했습니다` 를 보인다.** Naver 서버에 닿지 못한 것이다 — 네트워크 연결을 확인하고 `./setup.sh --providers` 를 다시 실행한다.
+- **iOS 에서 Naver 로그인 뒤 앱으로 돌아오지 않는다.** 콘솔 iOS 환경의 `URL Scheme` 과 위저드에 넣은 `Naver URL Scheme` 이 다르다 — 두 값을 값 표의 `iOS URL Scheme` 값으로 맞춘다. 위저드 값을 고치려면 `config/<flavor>.json` 의 `naverUrlScheme` 을 고친 뒤 `./setup.sh --providers` 를 다시 실행하고 앱을 다시 빌드한다.
+- **NAVER 앱이 없는 기기의 웹 로그인이 로그인 화면 대신 Naver 오류 페이지로 끝난다.** 웹 로그인이 돌아올 주소(`<URL Scheme>://authorize`)를 Naver 가 받아들이는지 PC 브라우저로 확인한다. 아래 주소의 `<clientId>` 에 Client ID 를, `<naverUrlScheme>` 에 값 표의 `iOS URL Scheme` 값을 넣어 연다 — `client_secret` 은 넣지 않는다.
+
+  ```text
+  https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=<clientId>&redirect_uri=<naverUrlScheme>%3A%2F%2Fauthorize&state=probe1
+  ```
+
+  Naver 로그인 폼이 뜨고, 로그인 뒤 브라우저 주소창이 `<naverUrlScheme>://authorize?code=…&state=probe1` 로 바뀌면 Naver 쪽 설정은 맞다(PC 에는 그 주소를 받을 앱이 없어 이동은 실패한다). 주소의 `code` 값은 한 번만 쓰는 값이므로 기록 · 공유하지 않는다. 로그인 폼 대신 오류 페이지가 뜨면 콘솔 iOS 환경의 `URL Scheme` 이 값 표의 `iOS URL Scheme` 값과 같은지 본다.
+
+#### 되돌리기
+
+Naver 를 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 있다.
+
 ### LINE 로그인 켜기
+
+LINE 로그인을 앱에 둘 때 이 절을 따른다. LINE 을 켜지 않으면 이 절을 건너뛴다. LINE 콘솔은 영어 화면이라 칸 이름을 영어 원문 그대로 쓴다.
+
+**전제:** LINE Developers 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 LINE 을 골랐다. Android 서명 SHA-1 은 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
+
+#### 콘솔 단계
+
+1. 위저드가 `LINE 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.line.biz/console/` 줄에 있고, 행은 아래와 같다.
+   - `iOS 번들 ID` — `LINE Login` 탭의 `iOS bundle ID` 칸에 넣는다.
+   - `Android 패키지명` — `LINE Login` 탭의 `Package names` 칸에 넣는다.
+   - `Android 서명 SHA-1` — 디버그 서명 키의 SHA-1 을 LINE 이 받는 대문자 · 콜론 꼴로 보인다. `LINE Login` 탭의 `Package signatures` 칸에 넣는다. SHA-1 을 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
+   - `Channel icon · 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/line-512x512.png` 다.
+2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다. 앱 종류는 [[LABEL: LINE Developers — 채널 만들기의 앱 종류 칸(Mobile app)]] 에서 모바일 앱을 고른다.
+3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다. `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다. 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다. `Android URL scheme` 칸에 넣을 값은 위저드 값 표에 없다.
+4. 이메일 주소 권한을 신청한다(할 일 줄 `OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다`) — `Basic settings` → `OpenID Connect` 의 `Email address permission` 이 `Unapplied` 면 `Apply` 로 신청한다. 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+5. 개발 중 로그인할 계정에 역할을 준다. 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 [[LABEL: LINE Developers — 역할(Admin · Tester)을 주는 화면]] 에서 Admin 이나 Tester 역할을 준다.
+6. Channel ID · Channel Secret 을 모은다 — 채널의 `Basic settings` 탭에 있다.
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `LINE Channel ID` · `LINE Channel Secret` 을 차례로 입력한다 — Channel Secret 은 화면에 보이지 않게 받는다. 위저드가 두 값의 짝을 LINE 서버로 확인한 뒤 Channel ID 는 config · xcconfig · Secret Manager 에, Channel Secret 은 Secret Manager 에만 기록한다. 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
+8. 채널 아이콘은 선택이다. 올리려면 [[LABEL: LINE Developers — Channel icon 올리는 칸]] 에 `.setup/icons/line-512x512.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). `Channel icon` 은 PNG · JPG · JPEG · GIF · BMP 를 3MB 까지 받고 크기 규정은 없다.
+
+#### 확인 방법
+
+- 앱을 다시 빌드해 실행하면 로그인 화면에 LINE 버튼이 보이고, 역할을 준 계정으로 로그인하면 앱에 로그인된다. LINE 앱이 설치된 기기는 LINE 앱으로, 없는 기기는 LINE 웹 로그인 화면으로 로그인한다.
+- 위저드의 「소셜 로그인 확인」 단계가 `LINE 1명` 꼴로 1명 이상을 센다.
+
+#### 문제 해결
+
+- **로그인이 `This channel is now developing status. User need to have developer role` 로 끝난다.** 채널이 개발 중 상태이고 그 계정에 역할이 없는 것이다 — 콘솔 단계 5 대로 Admin 이나 Tester 역할을 준다.
+- **Android 에서 LINE 앱으로 넘어갔다가 빈 화면으로 돌아오고 로그인되지 않는다.** `Package signatures` 의 SHA-1 이 그 빌드를 서명한 키와 다르거나 대문자 · 콜론 꼴이 아니다. debug 빌드는 값 표의 `Android 서명 SHA-1` 을 그대로, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 같은 꼴로 더한다.
+- **위저드가 `Channel ID 가 맞지 않습니다` 나 `Channel Secret 이 Channel ID 와 맞지 않습니다` 를 보인다.** 위저드가 틀린 쪽 값을 다시 묻는다 — 같은 채널의 `Basic settings` 탭에서 값을 다시 복사해 넣는다.
+- **계정 정보의 「이메일」 행이 「-」 다.** `Email address permission` 을 신청하지 않았거나 사용자가 이메일 제공에 동의하지 않은 것이다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
+
+#### 되돌리기
+
+LINE 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 있다.
 
 ### Kakao · Naver · LINE 서명 권한(Token Creator)
 
