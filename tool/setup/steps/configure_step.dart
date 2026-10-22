@@ -308,7 +308,7 @@ final class ConfigureStep implements Step {
             null) {
       return Failed(
         '다시 받은 iOS 설정 파일에도 Google 로그인 정보(CLIENT_ID)가 없습니다 — '
-        '${formatManualReference(providersManualHeading)}',
+        '${formatDocReference(googleDocRef)}',
       );
     }
     return const Applied();

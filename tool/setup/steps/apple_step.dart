@@ -31,14 +31,16 @@ final class AppleStep implements Step {
   /// 단계 제목.
   static const String stepTitle = 'Apple 로그인 — iOS 쪽';
 
-  /// 매뉴얼에서 iOS 서명 capability 를 다루는 절의 머리.
-  static const String iosSigningManualHeading =
-      '### iOS 서명 — Apple 을 꺼도 필요한 capability';
+  /// iOS 서명 capability 를 다루는 문서 절.
+  static const DocRef iosSigningDocRef = DocRef(
+    'docs/setup.md',
+    '### iOS 서명 — Apple 을 꺼도 필요한 capability',
+  );
 
   /// App ID capability 안내 — 계획 줄 · ✓ 요약에 보인다.
   static final String capabilityNotice =
       'App ID 의 Sign in with Apple capability 는 자동 서명이면 Xcode 가 켭니다 — '
-      '${formatManualReference(iosSigningManualHeading)}';
+      '${formatDocReference(iosSigningDocRef)}';
 
   /// 이미 있는 설정에서 바꾸는 필드 — 코드 흐름 설정은 넣지 않는다.
   static const String bundleIdsUpdateMask =

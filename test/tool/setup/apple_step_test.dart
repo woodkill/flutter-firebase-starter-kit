@@ -60,7 +60,7 @@ const String teamId = 'TEAMID1234';
 /// Android 쪽 미룬 줄 원문.
 const String deferredAndroidLine = '  ✗ Apple 로그인 — Android 쪽 — 지금 안 함';
 
-/// 매뉴얼의 iOS 서명 절 머리 줄 원문.
+/// setup.md 의 iOS 서명 절 머리 줄 원문.
 const String iosSigningHeading = '### iOS 서명 — Apple 을 꺼도 필요한 capability';
 
 /// 실행 시점에 조립하는 PEM 개인 키 머리 줄.
@@ -616,16 +616,16 @@ void main() {
         h.output,
         contains(
           '    (App ID 의 Sign in with Apple capability 는 자동 서명이면 '
-          'Xcode 가 켭니다 — 매뉴얼 「iOS 서명 — Apple 을 꺼도 필요한 '
+          'Xcode 가 켭니다 — docs/setup.md 「iOS 서명 — Apple 을 꺼도 필요한 '
           'capability」)',
         ),
       );
     });
 
-    test('매뉴얼 절 머리는 매뉴얼 원문과 같다', () {
-      expect(AppleStep.iosSigningManualHeading, iosSigningHeading);
-      final List<String> manualLines = File('docs/manual.md').readAsLinesSync();
-      expect(manualLines, contains(iosSigningHeading));
+    test('문서 절 머리는 setup.md 원문과 같다', () {
+      expect(AppleStep.iosSigningDocRef.heading, iosSigningHeading);
+      final List<String> setupLines = File('docs/setup.md').readAsLinesSync();
+      expect(setupLines, contains(iosSigningHeading));
       expect(AppleStep.capabilityNotice, contains('iOS 서명'));
       expect(AppleStep.capabilityNotice, contains('자동 서명이면 Xcode 가 켭니다'));
     });
@@ -715,7 +715,7 @@ void main() {
         ).hasMatch(output),
         isTrue,
       );
-      // 할 일 줄 · 콘솔 · 매뉴얼 절.
+      // 할 일 줄 · 콘솔 · 문서 절.
       expect(output, contains('  · 콘솔: https://developer.apple.com/account'));
       expect(
         output,
@@ -725,7 +725,7 @@ void main() {
       );
       expect(output, contains('  · 그 Services ID 에 도메인 · Return URL 등록(값 표)'));
       expect(output, contains('  · $appleKeyTodoLine'));
-      expect(output, contains('  · 자세한 절차: 매뉴얼 「로그인 수단 켜고 끄기」'));
+      expect(output, contains('  · 자세한 절차: docs/setup.md 「Apple 로그인 켜기」'));
       // 계획 줄 — 자리 이름 본문.
       expect(
         output,

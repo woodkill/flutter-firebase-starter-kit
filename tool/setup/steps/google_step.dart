@@ -97,7 +97,7 @@ final class GoogleStep implements Step {
   /// 프로젝트가 조직 아래에 있을 때 값 표에 보이는 경고.
   static final String organizationWarning =
       '조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다 — '
-      '${formatManualReference(providersManualHeading)}';
+      '${formatDocReference(googleDocRef)}';
 
   /// gcloud 의 지금 계정을 읽는 명령 — 출력에 이메일이 실려 민감 출력이다.
   static const Command accountCommand = LoginStep.gcloudAccountCommand;

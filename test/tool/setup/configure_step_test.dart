@@ -1061,7 +1061,7 @@ void main() {
         .split('\n')
         .firstWhere((String line) => line.startsWith('  실패 — '));
     expect(failureLine, contains('CLIENT_ID'));
-    expect(failureLine, contains('매뉴얼 「로그인 수단 켜고 끄기」'));
+    expect(failureLine, contains('docs/setup.md 「Google 로그인 켜기」'));
     expect(terminal.asks, <String>[stepConfirmQuestion, failureChoiceQuestion]);
   });
 

@@ -208,7 +208,7 @@ final class AppleAndroidStep implements DeferrableStep {
       notes: <String>[
         '콘솔: $consoleUrl',
         ...todoLines,
-        '자세한 절차: ${formatManualReference(providersManualHeading)}',
+        '자세한 절차: ${formatDocReference(appleDocRef)}',
       ],
     );
     final int? choice = context.terminal.choose(consoleReadyQuestion, <String>[

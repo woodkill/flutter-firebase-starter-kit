@@ -49,7 +49,7 @@ final class GoogleIosStep implements Step {
       return _mark(
         _GoogleIosMode.failed,
         '${context.paths.iosPlist} 에 $variableName 가 없습니다 — '
-        '${formatManualReference(providersManualHeading)}',
+        '${formatDocReference(googleDocRef)}',
       );
     }
     if (!reversedClientId.matches(value)) {
@@ -57,7 +57,7 @@ final class GoogleIosStep implements Step {
         _GoogleIosMode.failed,
         '${context.paths.iosPlist} 의 $variableName 가 형식에 맞지 않습니다 '
         '(${reversedClientId.description}) — '
-        '${formatManualReference(providersManualHeading)}',
+        '${formatDocReference(googleDocRef)}',
       );
     }
     final String xcconfigPath = context.resolve(context.paths.xcconfig);
