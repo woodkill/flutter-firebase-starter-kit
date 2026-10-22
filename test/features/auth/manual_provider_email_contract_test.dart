@@ -1,58 +1,57 @@
-// 매뉴얼 「로그인 수단에서 이메일 받기」 계약 (quick 261011-c5c).
-// 헤딩 · 목차 · 본문 순서 · 사용자 문서 금지 패턴 · provider 표 · 내부 링크 대상.
+// 설정 문서(`docs/setup.md`) 「로그인 수단에서 이메일 받기」 계약.
+// 헤딩 · 절 위치 · 사용자 문서 금지 패턴 · provider 표 · 내부 링크 대상.
 //
-// 어디서 도는가: 매뉴얼(`docs/manual.md`) 내부 구조와 배포 함수 목록
-// (`scripts/functions_manifest.json`)의 provider 이름만 읽는다. config · 콘솔 값 ·
-// 버전 같은 값 대조가 없으므로 킷 사용자 저장소에서도 그대로 돈다.
+// 어디서 도는가: setup.md 의 절 순서 · 문장과 배포 함수 목록
+// (`scripts/functions_manifest.json`)의 provider 이름을 읽는다. 절 순서 · 문장은 킷
+// 사용자가 자기 문서에서 고칠 수 있으므로 유지보수자 트리에서만 돈다 — 비공개 작업
+// 일지가 없는 트리(공개본 · 킷 사용자 저장소)에서는 최상위 group 이 건너뛰어진다.
 //
-// C5C-DOCS-01: 절 헤딩 1개 · 목차 블록 안 항목 1개 · 목차와 본문 모두 「킷 업데이트
-//   반영」 바로 다음이다.
+// C5C-DOCS-01: 절 헤딩 1개 · 「로그인 수단 켜기」 절의 마지막 `###` 소절이고, 그
+//   다음 `##` 절이 「알림(APNs) · App Check」 이다.
 // C5C-DOCS-02: 절에 사용자 문서 금지 패턴(`.claude/rules/docs-user-manual.md` §4)과
-//   연락 채널을 가정하는 단어가 0 건이고, `###` 소절이 절 템플릿 순서다.
+//   연락 채널을 가정하는 단어가 0 건이고, `####` 소절이 절 템플릿 순서다.
 // C5C-DOCS-03: provider 표의 첫 칸 집합이 배포 함수 목록의 provider 키 집합과 같다
 //   (provider 마다 한 줄 · 중복 없음).
-// C5C-DOCS-04: 절의 내부 링크(`](#…)`)가 모두 매뉴얼에 정확히 1개 있는 헤딩을
-//   가리킨다.
-// C5C-DOCS-05: 「로그인 수단 켜고 끄기」 「켜기」 ① 줄이 이 절을 링크 1개로
-//   가리키고, 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 매뉴얼에 없다.
+// C5C-DOCS-04: 절의 내부 링크(`](#…)`)가 모두 setup.md 에 정확히 1개 있는 헤딩을
+//   가리킨다(앵커는 GitHub 렌더 규칙 — 공용 앵커 헬퍼).
+// C5C-DOCS-05: Kakao · Naver · Facebook 켜기 절이 이 절을 링크로 가리키고,
+//   카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 두 가이드에 없다.
 
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/markdown_anchor.dart';
+import '../../helpers/planning_docs.dart';
 import '../../helpers/source_text.dart';
 
-/// 매뉴얼 경로.
-const String _manualPath = 'docs/manual.md';
+/// 설정 문서 경로 — 이 절과 「로그인 수단 켜기」 절이 있다.
+const String _setupPath = 'docs/setup.md';
+
+/// 직접 하는 일 문서 경로 — 부재 단언(비즈앱 의무 없음 행)의 대상에 함께 든다.
+const String _guidePath = 'docs/guide.md';
 
 /// 배포 함수 목록(provider 이름의 진실원).
 const String _manifestPath = 'scripts/functions_manifest.json';
 
 /// 절 헤딩 (정확히 한 줄).
-const String _sectionHeading = '## 로그인 수단에서 이메일 받기';
+const String _sectionHeading = '### 로그인 수단에서 이메일 받기';
 
-/// 본문에서 이 절 바로 앞에 오는 `##` 헤딩.
-const String _previousHeading = '## 킷 업데이트 반영';
+/// 이 절을 소절로 담는 「로그인 수단 켜기」 절 헤딩.
+const String _providerOnHeading = '## 로그인 수단 켜기';
+
+/// 이 절 다음에 오는 `##` 헤딩.
+const String _nextHeading = '## 알림(APNs) · App Check';
 
 /// 절 헤딩의 앵커(GitHub 헤딩 앵커 규칙을 적용한 값).
 const String _sectionAnchor = '로그인-수단에서-이메일-받기';
 
-/// 목차 항목 줄 (번호는 목차 위치에 따라 바뀌므로 정규식으로 본다).
-final RegExp _tocEntryPattern = RegExp(
-  r'^\d+\. \[로그인 수단에서 이메일 받기\]\(#로그인-수단에서-이메일-받기\)$',
-);
-
-/// 목차에서 이 절 바로 앞에 오는 항목 줄.
-final RegExp _previousTocEntryPattern = RegExp(
-  r'^\d+\. \[킷 업데이트 반영\]\(#킷-업데이트-반영\)$',
-);
-
-/// 절의 `###` 소절 — 절 템플릿(단계 · 확인 · 문제 해결 · 되돌리기) 순서.
+/// 절의 `####` 소절 — 절 템플릿(단계 · 확인 · 문제 해결 · 되돌리기) 순서.
 const List<String> _subsectionHeadings = <String>[
-  '### provider 별 설정',
-  '### 확인 방법',
-  '### 문제 해결',
-  '### 되돌리기',
+  '#### provider 별 설정',
+  '#### 확인 방법',
+  '#### 문제 해결',
+  '#### 되돌리기',
 ];
 
 /// provider 표 헤더 줄.
@@ -64,24 +63,15 @@ final List<String> _contactChannelWords = <String>[
   <String>['문', '의'].join(),
 ];
 
-/// 매뉴얼 내부 링크(`](#앵커)`)의 앵커를 잡는다.
+/// 문서 내부 링크(`](#앵커)`)의 앵커를 잡는다.
 final RegExp _internalLinkPattern = RegExp(r'\]\(#([^)\s]+)\)');
 
-/// 앵커가 붙는 헤딩 줄(`##` ~ `####`).
-final RegExp _headingLinePattern = RegExp('^#{2,4} ');
-
-/// 헤딩을 앵커로 바꿀 때 지우는 문자 — 글자 · 숫자 · 결합 기호 · 하이픈 · 밑줄 ·
-/// 공백이 아닌 것 전부.
-final RegExp _anchorDroppedCharacters = RegExp(
-  r'[^\p{L}\p{N}\p{M}\-_ ]',
-  unicode: true,
-);
-
-/// 「로그인 수단 켜고 끄기」 절 헤딩 — 이 절로 오는 진입 문장이 있는 곳.
-const String _providerOnOffHeading = '## 로그인 수단 켜고 끄기';
-
-/// 「켜기」 ① 줄의 머리 — 그 절에서 정확히 한 줄이 이것으로 시작한다.
-const String _consoleStepHead = '**① 콘솔 등록 · 키 발급.**';
+/// 이 절을 가리켜야 하는 수단별 켜기 절 헤딩 — 이메일 받기 설정이 필요한 수단이다.
+const List<String> _linkingProviderHeadings = <String>[
+  '### Kakao 로그인 켜기',
+  '### Naver 로그인 켜기',
+  '### Facebook 로그인 켜기',
+];
 
 /// 이 절을 가리키는 내부 링크 조각.
 const String _sectionLink = '](#$_sectionAnchor)';
@@ -93,69 +83,48 @@ final RegExp _kakaoEmailNoBizRowPattern = RegExp(
   multiLine: true,
 );
 
-/// 헤딩 줄 [line] 을 GitHub 헤딩 앵커 규칙으로 바꾼다.
-///
-/// 줄 머리의 `#` 들과 공백을 떼고, 앞뒤 공백을 지우고, 소문자로 바꾸고,
-/// [_anchorDroppedCharacters] 에 맞는 문자를 지운 뒤 공백을 하이픈으로 바꾼다.
-/// 같은 헤딩이 여러 개일 때 GitHub 가 붙이는 숫자 꼬리(`-1` · `-2`)는 만들지
-/// 않는다 — 호출자가 「그 앵커의 헤딩이 정확히 1개」 를 단언한다.
-String _slugifyHeading(String line) => line
-    .replaceFirst(RegExp(r'^#+\s*'), '')
-    .trim()
-    .toLowerCase()
-    .replaceAll(_anchorDroppedCharacters, '')
-    .replaceAll(' ', '-');
-
-/// 매뉴얼 [manual] 의 헤딩 줄을 앵커로 바꿔 앵커마다 등장 횟수를 센다.
-Map<String, int> _countHeadingAnchors(String manual) {
-  final counts = <String, int>{};
-  for (final String line in manual.split('\n')) {
-    if (!_headingLinePattern.hasMatch(line)) {
-      continue;
-    }
-    final String anchor = _slugifyHeading(line);
-    counts[anchor] = (counts[anchor] ?? 0) + 1;
-  }
-  return counts;
-}
-
 void main() {
-  final String manual = readTrackedFile(_manualPath);
+  final String setup = readTrackedFile(_setupPath);
   final String section = sliceMarkdownSection(
-    manual,
+    setup,
     _sectionHeading,
-    maxLevel: 2,
+    maxLevel: 3,
   );
 
-  group('매뉴얼 「로그인 수단에서 이메일 받기」 계약 (C5C-DOCS)', () {
-    test('C5C-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 킷 업데이트 반영 다음이다', () {
+  group('설정 문서 「로그인 수단에서 이메일 받기」 계약 (C5C-DOCS)', () {
+    test('C5C-DOCS-01: 절 헤딩 1개 · 로그인 수단 켜기 절의 마지막 소절 · 다음 절이 알림이다', () {
       expect(
-        countExactLines(manual, _sectionHeading),
+        countExactLines(setup, _sectionHeading),
         1,
         reason: '절 헤딩이 없거나 중복이다',
       );
 
-      final List<String> tocLines = sliceTocBlock(manual).split('\n');
-      final int tocIndex = tocLines.indexWhere(_tocEntryPattern.hasMatch);
-      expect(
-        tocLines.where(_tocEntryPattern.hasMatch).length,
-        1,
-        reason: '목차 블록 안 「로그인 수단에서 이메일 받기」 항목이 없거나 중복이다',
+      final String providerOn = sliceMarkdownSection(
+        setup,
+        _providerOnHeading,
+        maxLevel: 2,
       );
+      final List<String> subsections = linesStartingWith(providerOn, '### ');
+      expect(subsections, isNotEmpty, reason: '「로그인 수단 켜기」 절의 ### 소절을 찾지 못했다');
       expect(
-        _previousTocEntryPattern.hasMatch(
-          tocIndex > 0 ? tocLines[tocIndex - 1] : '',
-        ),
-        isTrue,
-        reason: '목차에서 이 항목이 「킷 업데이트 반영」 바로 다음이 아니다',
+        subsections.last,
+        _sectionHeading,
+        reason: '이 절이 「로그인 수단 켜기」 절의 마지막 ### 소절이 아니다',
       );
 
-      final List<String> bodyHeadings = linesStartingWith(manual, '## ');
-      final int bodyIndex = bodyHeadings.indexOf(_sectionHeading);
+      final List<String> lines = setup.split('\n');
+      final int headingIndex = lines.indexOf(_sectionHeading);
+      expect(headingIndex, greaterThanOrEqualTo(0));
+      final String nextLevelTwo = lines
+          .skip(headingIndex + 1)
+          .firstWhere(
+            (String line) => line.startsWith('## '),
+            orElse: () => '',
+          );
       expect(
-        bodyIndex > 0 ? bodyHeadings[bodyIndex - 1] : '',
-        _previousHeading,
-        reason: '본문에서 이 절이 「킷 업데이트 반영」 절 바로 다음이 아니다',
+        nextLevelTwo,
+        _nextHeading,
+        reason: '이 절 다음 ## 절이 「알림(APNs) · App Check」 가 아니다',
       );
     });
 
@@ -180,9 +149,9 @@ void main() {
       }
 
       expect(
-        linesStartingWith(section, '### '),
+        linesStartingWith(section, '#### '),
         _subsectionHeadings,
-        reason: '절의 ### 소절이 템플릿 순서 4개와 다르다',
+        reason: '절의 #### 소절이 템플릿 순서 4개와 다르다',
       );
     });
 
@@ -214,9 +183,9 @@ void main() {
 
     test('C5C-DOCS-04: 절의 내부 링크가 모두 정확히 1개 있는 헤딩을 가리킨다', () {
       // 양성 대조: 앵커 규칙이 구두점을 지우고 공백을 하이픈으로 바꾼다.
-      expect(_slugifyHeading('### A — b (C 1.2) / d_e'), 'a--b-c-12--d_e');
-      // 양성 대조: 절 헤딩이 절 앵커가 된다.
-      expect(_slugifyHeading(_sectionHeading), _sectionAnchor);
+      expect(buildGithubAnchor('A — b (C 1.2) / d_e'), 'a--b-c-12--d_e');
+      // 양성 대조: 절 헤딩 텍스트가 절 앵커가 된다.
+      expect(buildGithubAnchor('로그인 수단에서 이메일 받기'), _sectionAnchor);
 
       final List<String> anchors = _internalLinkPattern
           .allMatches(section)
@@ -224,36 +193,41 @@ void main() {
           .toList();
       expect(anchors, isNotEmpty, reason: '절에 내부 링크가 없다');
 
-      final Map<String, int> headingAnchors = _countHeadingAnchors(manual);
+      // 같은 앵커의 헤딩이 둘이면 둘째가 `-1` 꼬리를 받는다 — 꼬리 앵커가 없어야
+      // 헤딩이 정확히 1개다.
+      final Set<String> headingAnchors = collectHeadingAnchors(setup);
       for (final anchor in anchors) {
         expect(
-          headingAnchors[anchor] ?? 0,
-          1,
-          reason: '절의 링크 #$anchor 가 가리키는 헤딩이 없거나 중복이다',
+          headingAnchors.contains(anchor),
+          isTrue,
+          reason: '절의 링크 #$anchor 가 가리키는 헤딩이 없다',
+        );
+        expect(
+          headingAnchors.contains('$anchor-1'),
+          isFalse,
+          reason: '절의 링크 #$anchor 가 가리키는 헤딩이 둘 이상이다',
         );
       }
     });
 
-    test('C5C-DOCS-05: 「켜기」 ① 이 이 절을 가리키고 Kakao 이메일 행이 비즈앱 의무 없음 표에 없다', () {
-      final String providerOnOff = sliceMarkdownSection(
-        manual,
-        _providerOnOffHeading,
-        maxLevel: 2,
-      );
-      final List<String> consoleSteps = linesStartingWith(
-        providerOnOff,
-        _consoleStepHead,
-      );
-      expect(
-        consoleSteps,
-        hasLength(1),
-        reason: '「로그인 수단 켜고 끄기」 절에 「켜기」 ① 줄이 없거나 중복이다',
-      );
-      expect(
-        countOccurrences(consoleSteps.single, _sectionLink),
-        1,
-        reason: '「켜기」 ① 줄에 이 절로 가는 링크가 없거나 중복이다',
-      );
+    test('C5C-DOCS-05: 수단별 켜기 절이 이 절을 가리키고 Kakao 이메일 행이 비즈앱 의무 없음 표에 없다', () {
+      for (final String heading in _linkingProviderHeadings) {
+        final String providerSection = sliceMarkdownSection(
+          setup,
+          heading,
+          maxLevel: 3,
+        );
+        expect(
+          providerSection.trim(),
+          isNotEmpty,
+          reason: '「$heading」 절을 찾지 못했다',
+        );
+        expect(
+          countOccurrences(providerSection, _sectionLink),
+          greaterThanOrEqualTo(1),
+          reason: '「$heading」 절에 이 절로 가는 링크가 없다',
+        );
+      }
 
       // 양성 대조: 정규식이 비즈앱 의무 없음으로 적은 이메일 표 행을 잡는다.
       expect(
@@ -262,11 +236,12 @@ void main() {
         ),
         isTrue,
       );
+      final String guide = readTrackedFile(_guidePath);
       expect(
-        _kakaoEmailNoBizRowPattern.allMatches(manual).length,
+        _kakaoEmailNoBizRowPattern.allMatches('$setup\n$guide').length,
         0,
-        reason: '매뉴얼에 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 있다',
+        reason: '두 가이드에 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 있다',
       );
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
 }

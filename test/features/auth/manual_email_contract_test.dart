@@ -1,6 +1,10 @@
-// 매뉴얼 이메일 절 계약 (Phase 17.5 — see ROADMAP.md).
+// 직접 하는 일 문서(`docs/guide.md`) 이메일 절 계약.
 // 「인증 메일 발송 모드 켜고 끄기」 · 「인증 결과 페이지 바꾸기」 두 절의 위치 ·
-// 사용자 문서 금지 패턴 · 명령 · 예시 일치 · 링크 계약.
+// 사용자 문서 금지 패턴 · 명령 · 예시 일치 · 링크 계약. 웹 API 키 · 인접 키 행은
+// 설정 문서(`docs/setup.md`)의 설정 키 표에서 읽는다.
+//
+// 두 가이드의 절 순서 · 문장을 읽으므로 유지보수자 트리에서만 돈다 — 비공개 작업
+// 일지가 없는 트리(공개본 · 킷 사용자 저장소)에서는 최상위 group 이 건너뛰어진다.
 //
 // T-175-DOCS-01: 「인증 결과 페이지 바꾸기」 헤딩 1개 · 목차 항목 1개 · 목차에서
 //   「인증 메일 발송 모드 켜고 끄기」 바로 다음이다(결과 페이지는 kit 모드 전용).
@@ -9,33 +13,32 @@
 //   example 파일과 같은 `appName` · `brandColor` 줄 · 인자 없는 deploy 금지 문장이
 //   있으며 `###` 소절이 템플릿 순서 그대로다.
 // T-175-DOCS-03: 「인증 메일 발송 모드 켜고 끄기」 헤딩 1개 · 목차 항목 1개 · 목차와
-//   본문 순서가 로그인 수단 → 발송 모드 → 결과 페이지 → 킷 업데이트 반영이다.
-// T-175-DOCS-04: 「로그인 수단 켜고 끄기」 「켜기」 ⑤ 가 kit 모드 메일 함수를 말하고,
-//   발송 모드 절에 금지 패턴 · 문의 채널 단어 · 강제 옵션 · secret 반복문이 0 건이며,
+//   본문에서 발송 모드 바로 다음이 결과 페이지다.
+// T-175-DOCS-04: 발송 모드 절이 kit 모드 메일 함수를 말하고, 절에 금지 패턴 · 문의 채널 단어 · 강제 옵션 · secret 반복문이 0 건이며,
 //   서비스 중립 문장이 Resend 예시보다 앞이고, 명령(확장 값 복사 · kit 배포 · TTL ·
 //   함수 배포 · 확장 삭제) · DMARC 최소 레코드 · Gmail · Yahoo 공식 링크 · Hosting
 //   기본 사이트 안내 · 결과 페이지 env · Firebase 기본 페이지 서술 · example 파일과
 //   같은 확장 값 줄 · 금지 문장이 있다.
 // T-175-DOCS-05: 옛 전제 문구(Console 메일 링크 주소 · 모드 무관 · 이메일 주소 복원 ·
-//   결과 페이지 생략 가능 · callbackUri)가 매뉴얼 전체와 CHANGELOG 에 0 건이다.
-// T-175-DOCS-06: 확장 함수 invoker 명령 줄이 매뉴얼 · 발송 모드 절에 정확히 2줄이고
+//   결과 페이지 생략 가능 · callbackUri)가 두 가이드 전체와 CHANGELOG 에 0 건이다.
+// T-175-DOCS-06: 확장 함수 invoker 명령 줄이 guide.md · 발송 모드 절에 정확히 2줄이고
 //   배포 스크립트 `next:` echo 와 글자가 대응하며, 「켜기」 ⑤ ~ ⑧ · 명령 순서가
 //   스크립트 `next:` 순서와 같고, 반영 토큰 · 로고 바탕 문장 · 무조건 실행 문장이
 //   있으며 공개 · 프로젝트 단위 부여 안내가 0 건이다.
 // T-175-DOCS-07: 결과 페이지가 Referer 를 보내지 않는다(firebase.json Hosting
 //   `Referrer-Policy` = `no-referrer` · index.html meta)는 사실이 그대로이고, 웹 API
-//   키 안내 세 곳(매뉴얼 키 표 · 매뉴얼 문제 해결 첫 항목 · config/README 절)이 리퍼러
+//   키 안내 세 곳(setup.md 키 표 · guide.md 문제 해결 첫 항목 · config/README 절)이 리퍼러
 //   제한 · Referer · 거부 사실(「이 페이지에서 거부된다」) · 애플리케이션 제한사항이
 //   「없음」 인 키 토큰을 담고 옛 허용 목록 안내가 0 건이며, 문제 해결 항목은
 //   애플리케이션 제한사항이 「없음」 이 아닐 때의 조치로 제한을 「없음」 으로
 //   되돌리기 · 「없음」 인 키 따로 고르기를 둘 다 담는다.
-// T-175-DOCS-08: 웹 API 키 위치 안내 다섯 곳(매뉴얼 키 표 · 발송 모드 「켜기」 ② ·
+// T-175-DOCS-08: 웹 API 키 위치 안내 다섯 곳(setup.md 키 표 · 발송 모드 「켜기」 ② ·
 //   결과 페이지 문제 해결 · config/README 절 · CHANGELOG bullet)이 Google Cloud
 //   Console 사용자 인증 정보 경로와 Browser key 이름을 담고 금지 패턴이 0 건이다.
 //   CHANGELOG 밖 네 곳은 「키 표시」 를, ② 는 애플리케이션 제한사항이 「없음」 ·
-//   `AIza` 로 시작도 담는다. 매뉴얼 키 표의 인접 행은 `googleServerClientId` 가
+//   `AIza` 로 시작도 담는다. setup.md 키 표의 인접 행은 `googleServerClientId` 가
 //   같은 콘솔 경로 · 금지 패턴 0 이고, `firebaseProjectId` 가 프로젝트 설정 일반 탭
-//   경로를 유지하며 옛 구절 꼴에 걸리지 않는다. 매뉴얼 · config/README ·
+//   경로를 유지하며 옛 구절 꼴에 걸리지 않는다. setup.md · guide.md · config/README ·
 //   CHANGELOG · hosting/build.mjs 는 키 이름을 담고, 고치기 전 판의 옛 구절 꼴
 //   (「프로젝트 설정 → 일반」 다음에 `→` 나 「의」 로 이어진 「웹 API 키」, 굵게
 //   표시 유무 무관)과 `→` 로 이은 영문 단독 메뉴 표기가 0 건이며, 「API 및
@@ -46,10 +49,17 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/planning_docs.dart';
 import '../../helpers/source_text.dart';
 
-/// 매뉴얼 경로.
-const String _manualPath = 'docs/manual.md';
+/// 직접 하는 일 문서 경로 — 발송 모드 · 결과 페이지 절이 있다.
+const String _guidePath = 'docs/guide.md';
+
+/// 설정 문서 경로 — 설정 키 표(`firebaseWebApiKey` 등의 행)가 있다.
+const String _setupPath = 'docs/setup.md';
+
+/// 이 경로가 있는 트리(유지보수자 트리)에서만 최상위 group 을 돌린다.
+const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
 
 /// CHANGELOG 경로(킷 판별 변경 사항 — 옛 전제 문구 0 단언 대상).
 const String _changelogPath = 'CHANGELOG.md';
@@ -70,14 +80,8 @@ const String _extensionEnvExamplePath =
 /// 확장 manifest 가 있는 파일(확장 인스턴스 ID 의 진실원).
 const String _firebaseJsonPath = 'firebase.json';
 
-/// 「로그인 수단 켜고 끄기」 절 헤딩.
-const String _providerHeading = '## 로그인 수단 켜고 끄기';
-
 /// 「인증 메일 발송 모드 켜고 끄기」 절 헤딩 (정확히 한 줄).
 const String _deliveryHeading = '## 인증 메일 발송 모드 켜고 끄기';
-
-/// 「킷 업데이트 반영」 절 헤딩.
-const String _kitUpdateHeading = '## 킷 업데이트 반영';
 
 /// 「인증 결과 페이지 바꾸기」 절 헤딩 (정확히 한 줄).
 const String _resultPageHeading = '## 인증 결과 페이지 바꾸기';
@@ -87,20 +91,10 @@ final RegExp _resultPageTocPattern = RegExp(
   r'^\d+\. \[인증 결과 페이지 바꾸기\]\(#인증-결과-페이지-바꾸기\)$',
 );
 
-/// 「로그인 수단 켜고 끄기」 목차 항목 줄.
-final RegExp _providerTocPattern = RegExp(
-  r'^\d+\. \[로그인 수단 켜고 끄기\]\(#로그인-수단-켜고-끄기\)$',
-);
-
 /// 「인증 메일 발송 모드 켜고 끄기」 목차 항목 줄 — 「인증 결과 페이지 바꾸기」
 /// 바로 앞에 있어야 한다.
 final RegExp _deliveryTocPattern = RegExp(
   r'^\d+\. \[인증 메일 발송 모드 켜고 끄기\]\(#인증-메일-발송-모드-켜고-끄기\)$',
-);
-
-/// 「킷 업데이트 반영」 목차 항목 줄.
-final RegExp _kitUpdateTocPattern = RegExp(
-  r'^\d+\. \[킷 업데이트 반영\]\(#킷-업데이트-반영\)$',
 );
 
 /// 인자 없는 deploy 금지 문장 — 새 이메일 절마다 정확한 문자열로 있다.
@@ -160,7 +154,7 @@ const List<String> _deliveryCommandLines = <String>[
   'firebase functions:delete sendVerificationMail sendPasswordResetMail --region asia-northeast3 --project <your-project-id>',
 ];
 
-/// mail 컬렉션 TTL 정책 명령 — 매뉴얼 전체에 정확히 한 줄이다.
+/// mail 컬렉션 TTL 정책 명령 — guide.md 전체에 정확히 한 줄이다.
 const String _ttlCommandLine =
     'gcloud firestore fields ttls update delivery.expireAt '
     '--collection-group=mail --enable-ttl --project <your-project-id>';
@@ -175,7 +169,7 @@ const String _functionsApplyCommandLine =
     'bash scripts/deploy_functions.sh dev --apply';
 
 /// 확장 함수 invoker 부여 명령 — 발송 모드 절 「켜기」 ⑦ · 「문제 해결」 에
-/// 정확한 줄로 있고, 매뉴얼 전체에 정확히 2줄이다.
+/// 정확한 줄로 있고, guide.md 전체에 정확히 2줄이다.
 const String _invokerCommandLine =
     'gcloud run services add-iam-policy-binding '
     'ext-firestore-send-email-processqueue --region=us-central1 '
@@ -183,7 +177,7 @@ const String _invokerCommandLine =
     "--format='value(projectNumber)')-compute@developer.gserviceaccount.com "
     '--role=roles/run.invoker --project <your-project-id>';
 
-/// 매뉴얼 명령의 프로젝트 ID 자리표시.
+/// guide.md 명령의 프로젝트 ID 자리표시.
 const String _projectIdPlaceholder = '<your-project-id>';
 
 /// 배포 스크립트 소스에서 프로젝트 ID 를 담는 변수 꼴.
@@ -244,10 +238,10 @@ const String _resultPageHtmlPath = 'hosting/public/index.html';
 const String _webApiKeyReadmeHeading =
     '## `firebaseWebApiKey` — 결과 페이지의 Firebase 웹 API 키';
 
-/// 매뉴얼 키 표에서 `firebaseWebApiKey` 행의 머리.
+/// setup.md 키 표에서 `firebaseWebApiKey` 행의 머리.
 const String _webApiKeyRowPrefix = '| `firebaseWebApiKey` |';
 
-/// 매뉴얼 「문제 해결」 의 「문제가 발생했습니다」 항목 머리.
+/// guide.md 「문제 해결」 의 「문제가 발생했습니다」 항목 머리.
 const String _webApiKeyTroubleBulletPrefix = '- **링크를 열면 「문제가 발생했습니다」 가 뜬다.**';
 
 /// 웹 API 키 안내 세 곳이 모두 말해야 하는 토큰(공백 정규화 후 비교) —
@@ -275,17 +269,17 @@ const String _staleRefererSentence =
 /// 결과 페이지 빌드 스크립트 경로(웹 API 키 FAIL 메시지의 위치).
 const String _hostingBuildScriptPath = 'hosting/build.mjs';
 
-/// 매뉴얼 발송 모드 「켜기」 ② 의 `firebaseWebApiKey` 문단 머리.
+/// guide.md 발송 모드 「켜기」 ② 의 `firebaseWebApiKey` 문단 머리.
 const String _webApiKeyStepPrefix = '같은 파일의 `firebaseWebApiKey` 에 ';
 
 /// CHANGELOG `[Unreleased]` 의 `firebaseWebApiKey` bullet 머리.
 const String _webApiKeyChangelogBulletPrefix =
     '- config 의 `firebaseWebApiKey` 키를 더한다.';
 
-/// 매뉴얼 키 표에서 `googleServerClientId` 행의 머리.
+/// setup.md 키 표에서 `googleServerClientId` 행의 머리.
 const String _googleServerClientIdRowPrefix = '| `googleServerClientId` |';
 
-/// 매뉴얼 키 표에서 `firebaseProjectId` 행의 머리.
+/// setup.md 키 표에서 `firebaseProjectId` 행의 머리.
 const String _firebaseProjectIdRowPrefix = '| `firebaseProjectId` |';
 
 /// 웹 API 키가 있는 콘솔 경로 — 한국어 화면 라벨 + 영문 괄호.
@@ -309,7 +303,7 @@ final RegExp _staleWebApiKeyLocation = RegExp(
 );
 
 /// 고치기 전 판에 글자 그대로 있던 옛 위치 구절 — [_staleWebApiKeyLocation]
-/// 양성 대조용(매뉴얼 키 표 칸 · 「켜기」 ② · config/README 절).
+/// 양성 대조용(setup.md 키 표 칸 · 「켜기」 ② · config/README 절).
 const List<String> _staleWebApiKeyLocationSamples = <String>[
   'Firebase Console → 프로젝트 설정 → 일반 → **웹 API 키**(Web API Key)',
   'Firebase Console → 프로젝트 설정 → 일반 의 **웹 API 키**',
@@ -399,7 +393,7 @@ const List<String> _deliveryTokens = <String>[
   'https://<your-project-id>.web.app/',
 ];
 
-/// 결과 페이지의 옛 전제 문구 — 매뉴얼 전체 · CHANGELOG 에 0 건이어야 한다.
+/// 결과 페이지의 옛 전제 문구 — 두 가이드 전체 · CHANGELOG 에 0 건이어야 한다.
 ///
 /// Console 의 메일 링크 주소 변경 단계 · 결과 페이지가 발송 모드와 무관하다는
 /// 서술 · 이메일 주소 복원 화면 · 결과 페이지 없이도 된다는 서술 · Console 설정
@@ -433,37 +427,33 @@ String _readPreviousTocLine(String toc, RegExp entry) {
   return index > 0 ? lines[index - 1] : '';
 }
 
-/// 매뉴얼 [manual] 에서 [heading] 줄의 위치(줄 번호)를 돌려준다(없으면 -1).
-int _indexOfHeading(String manual, String heading) =>
-    manual.split('\n').indexOf(heading);
+/// 문서 [doc] 에서 [heading] 줄의 위치(줄 번호)를 돌려준다(없으면 -1).
+int _indexOfHeading(String doc, String heading) =>
+    doc.split('\n').indexOf(heading);
 
-/// [example] JSON 의 [key] 값을 매뉴얼 JSON 예시 줄 꼴(`"key": "value"`)로 만든다.
+/// [example] JSON 의 [key] 값을 guide.md JSON 예시 줄 꼴(`"key": "value"`)로 만든다.
 String _buildExampleLine(Map<String, Object?> example, String key) =>
     '"$key": "${example[key]}"';
 
 void main() {
-  final String manual = readTrackedFile(_manualPath);
-  final String toc = sliceTocBlock(manual);
+  final String guide = readTrackedFile(_guidePath);
+  final String toc = sliceTocBlock(guide);
   final String resultPage = sliceMarkdownSection(
-    manual,
+    guide,
     _resultPageHeading,
     maxLevel: 2,
   );
   final String delivery = sliceMarkdownSection(
-    manual,
+    guide,
     _deliveryHeading,
     maxLevel: 2,
   );
-  final String providerSection = sliceMarkdownSection(
-    manual,
-    _providerHeading,
-    maxLevel: 2,
-  );
+  final String setup = readTrackedFile(_setupPath);
 
-  group('매뉴얼 「인증 결과 페이지 바꾸기」 계약 (T-175-DOCS)', () {
+  group('guide.md 「인증 결과 페이지 바꾸기」 계약 (T-175-DOCS)', () {
     test('T-175-DOCS-01: 헤딩 1개 · 목차 항목 1개 · 발송 모드 항목 다음이다', () {
       expect(
-        countExactLines(manual, _resultPageHeading),
+        countExactLines(guide, _resultPageHeading),
         1,
         reason: '절 헤딩이 없거나 중복이다',
       );
@@ -554,12 +544,12 @@ void main() {
         reason: '절이 강제 옵션을 안내한다',
       );
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
-  group('매뉴얼 「인증 메일 발송 모드 켜고 끄기」 계약 (T-175-DOCS)', () {
-    test('T-175-DOCS-03: 헤딩 1개 · 목차 항목 1개 · 목차와 본문이 작업 순서다', () {
+  group('guide.md 「인증 메일 발송 모드 켜고 끄기」 계약 (T-175-DOCS)', () {
+    test('T-175-DOCS-03: 헤딩 1개 · 목차 항목 1개 · 목차와 본문에서 결과 페이지 바로 앞이다', () {
       expect(
-        countExactLines(manual, _deliveryHeading),
+        countExactLines(guide, _deliveryHeading),
         1,
         reason: '절 헤딩이 없거나 중복이다',
       );
@@ -570,25 +560,23 @@ void main() {
         reason: '목차 블록 안 「인증 메일 발송 모드 켜고 끄기」 항목이 없거나 중복이다',
       );
 
+      // 로그인 수단 절은 setup.md, 킷 업데이트 반영은 guide.md 의 다른 자리에 있다 —
+      // 순서는 발송 모드 → 결과 페이지 두 절의 인접만 본다.
       final List<int> tocOrder = <RegExp>[
-        _providerTocPattern,
         _deliveryTocPattern,
         _resultPageTocPattern,
-        _kitUpdateTocPattern,
       ].map((RegExp entry) => tocLines.indexWhere(entry.hasMatch)).toList();
       expect(tocOrder.first, greaterThanOrEqualTo(0), reason: '목차 항목을 찾지 못했다');
       expect(
         tocOrder,
-        List<int>.generate(4, (int i) => tocOrder.first + i),
-        reason: '목차가 로그인 수단 → 발송 모드 → 결과 페이지 → 킷 업데이트 반영으로 이어지지 않는다',
+        List<int>.generate(2, (int i) => tocOrder.first + i),
+        reason: '목차가 발송 모드 → 결과 페이지로 이어지지 않는다',
       );
 
       final List<int> bodyOrder = <String>[
-        _providerHeading,
         _deliveryHeading,
         _resultPageHeading,
-        _kitUpdateHeading,
-      ].map((String heading) => _indexOfHeading(manual, heading)).toList();
+      ].map((String heading) => _indexOfHeading(guide, heading)).toList();
       expect(bodyOrder.first, greaterThanOrEqualTo(0), reason: '본문 헤딩을 찾지 못했다');
       for (var i = 1; i < bodyOrder.length; i++) {
         expect(
@@ -597,23 +585,21 @@ void main() {
           reason: '본문 ## 순서가 목차와 다르다: $bodyOrder',
         );
       }
-      // 본문에서도 네 절 사이에 다른 ## 절이 끼지 않는다.
-      final List<String> between = manual
+      // 본문에서도 두 절 사이에 다른 ## 절이 끼지 않는다.
+      final List<String> between = guide
           .split('\n')
           .sublist(bodyOrder.first, bodyOrder.last + 1)
           .where((String line) => line.startsWith('## '))
           .toList();
       expect(between, <String>[
-        _providerHeading,
         _deliveryHeading,
         _resultPageHeading,
-        _kitUpdateHeading,
-      ], reason: '네 절 사이에 다른 ## 절이 있거나 순서가 다르다');
+      ], reason: '두 절 사이에 다른 ## 절이 있거나 순서가 다르다');
     });
 
     test('T-175-DOCS-04: kit 함수 문장 · 금지 0 · 명령 · 링크 · 예시 일치가 있다', () {
-      // 「로그인 수단 켜고 끄기」 「켜기」 ⑤ — kit 모드 메일 함수 목록 문장.
-      expect(providerSection.trim(), isNotEmpty, reason: '로그인 수단 절을 찾지 못했다');
+      // 함수는 위저드가 배포한다 — 로그인 수단 절에 kit 메일 함수 목록 · functions/ 의
+      // deploy 스크립트 안내 문장이 없으므로 그 절은 대조하지 않는다.
       final manifest =
           jsonDecode(readTrackedFile(_functionsManifestPath))
               as Map<String, Object?>;
@@ -624,22 +610,11 @@ void main() {
       expect(kitFunctions, isNotEmpty, reason: 'manifest 의 kit 함수를 읽지 못했다');
       for (final name in kitFunctions) {
         expect(
-          countOccurrences(providerSection, '`$name`'),
-          greaterThanOrEqualTo(1),
-          reason: '로그인 수단 절 「켜기」 ⑤ 에 kit 메일 함수 $name 이 없다',
-        );
-        expect(
           countOccurrences(delivery, '`$name`'),
           greaterThanOrEqualTo(1),
           reason: '발송 모드 절에 kit 메일 함수 $name 이 없다',
         );
       }
-      expect(
-        countOccurrences(providerSection, '`pnpm run deploy`'),
-        greaterThanOrEqualTo(1),
-        reason: '로그인 수단 절이 functions/ 의 deploy 스크립트를 쓰지 않는다고 말하지 않는다',
-      );
-
       // 발송 모드 절 — 금지 패턴 · 문의 채널 · 강제 옵션 · secret 반복문 0.
       expect(delivery.trim(), isNotEmpty, reason: '절 슬라이스가 비었다');
       final List<String> hits = _collectForbiddenHits(delivery);
@@ -688,9 +663,9 @@ void main() {
       }
       expect(countExactLines(delivery, _ttlCommandLine), 1);
       expect(
-        countExactLines(manual, _ttlCommandLine),
+        countExactLines(guide, _ttlCommandLine),
         1,
-        reason: 'TTL 명령은 매뉴얼 전체에 정확히 한 줄이다',
+        reason: 'TTL 명령은 guide.md 전체에 정확히 한 줄이다',
       );
       expect(countExactLines(delivery, _extensionUninstallLine), 1);
       expect(
@@ -729,10 +704,10 @@ void main() {
         );
       }
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
-  group('매뉴얼 · CHANGELOG 결과 페이지 옛 전제 문구 (T-175-DOCS)', () {
-    test('T-175-DOCS-05: 옛 전제 문구가 매뉴얼 · CHANGELOG 에 0 건이다', () {
+  group('두 가이드 · CHANGELOG 결과 페이지 옛 전제 문구 (T-175-DOCS)', () {
+    test('T-175-DOCS-05: 옛 전제 문구가 두 가이드 · CHANGELOG 에 0 건이다', () {
       // 양성 대조: 목록을 이은 문자열에서 첫 문구가 세어진다.
       expect(
         countOccurrences(
@@ -742,7 +717,8 @@ void main() {
         1,
       );
       final sources = <String, String>{
-        _manualPath: manual,
+        _setupPath: setup,
+        _guidePath: guide,
         _changelogPath: readTrackedFile(_changelogPath),
       };
       for (final MapEntry<String, String> source in sources.entries) {
@@ -756,9 +732,9 @@ void main() {
         }
       }
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
-  group('매뉴얼 발송 모드 invoker 단계 · UAT 반영 문장 (T-175-DOCS)', () {
+  group('guide.md 발송 모드 invoker 단계 · UAT 반영 문장 (T-175-DOCS)', () {
     test('T-175-DOCS-06: invoker 명령 줄 · 스크립트 대조 · 순서 · 반영 문장이 있다', () {
       expect(delivery.trim(), isNotEmpty, reason: '발송 모드 절 슬라이스가 비었다');
       expect(resultPage.trim(), isNotEmpty, reason: '결과 페이지 절 슬라이스가 비었다');
@@ -772,16 +748,16 @@ void main() {
         2,
       );
 
-      // ① invoker 명령 줄 — 「켜기」 ⑦ · 「문제 해결」 두 곳(매뉴얼 전체도 2줄).
+      // ① invoker 명령 줄 — 「켜기」 ⑦ · 「문제 해결」 두 곳(guide.md 전체도 2줄).
       expect(
         countExactLines(delivery, _invokerCommandLine),
         2,
         reason: '발송 모드 절의 invoker 명령 줄이 정확히 2줄이 아니다',
       );
       expect(
-        countExactLines(manual, _invokerCommandLine),
+        countExactLines(guide, _invokerCommandLine),
         2,
-        reason: '매뉴얼 전체의 invoker 명령 줄이 정확히 2줄이 아니다',
+        reason: 'guide.md 전체의 invoker 명령 줄이 정확히 2줄이 아니다',
       );
 
       // ② 배포 스크립트 `next:` 셋째 echo 와 글자가 대응한다.
@@ -790,7 +766,8 @@ void main() {
       expect(
         countOccurrences(script, invokerEcho),
         1,
-        reason: '$_deployEmailScriptPath 에 매뉴얼 invoker 명령의 echo 꼴이 1개가 아니다',
+        reason:
+            '$_deployEmailScriptPath 에 guide.md invoker 명령의 echo 꼴이 1개가 아니다',
       );
 
       // ③ 스크립트 `next:` 순서 — TTL < 메일 함수 배포 < invoker.
@@ -809,7 +786,7 @@ void main() {
         reason: '스크립트 next 순서가 함수 배포 → invoker 가 아니다',
       );
 
-      // ④ 매뉴얼 「켜기」 ⑤ ~ ⑧ 단계 머리 — 각 1개 · 순서 그대로.
+      // ④ guide.md 「켜기」 ⑤ ~ ⑧ 단계 머리 — 각 1개 · 순서 그대로.
       var previousHead = -1;
       for (final String head in _deliveryLateStepHeads) {
         expect(
@@ -826,7 +803,7 @@ void main() {
         previousHead = index;
       }
 
-      // ⑤ 매뉴얼 명령 순서 — TTL < 메일 함수 배포 < invoker(스크립트 next 순서와 같다).
+      // ⑤ guide.md 명령 순서 — TTL < 메일 함수 배포 < invoker(스크립트 next 순서와 같다).
       final int manualTtl = delivery.indexOf(_ttlCommandLine);
       final int manualFunctions = delivery.indexOf(_functionsApplyCommandLine);
       final int manualInvoker = delivery.indexOf(_invokerCommandLine);
@@ -834,12 +811,12 @@ void main() {
       expect(
         manualTtl,
         lessThan(manualFunctions),
-        reason: '매뉴얼 명령 순서가 TTL → 함수 배포가 아니다',
+        reason: 'guide.md 명령 순서가 TTL → 함수 배포가 아니다',
       );
       expect(
         manualFunctions,
         lessThan(manualInvoker),
-        reason: '매뉴얼 명령 순서가 함수 배포 → invoker 가 아니다',
+        reason: 'guide.md 명령 순서가 함수 배포 → invoker 가 아니다',
       );
 
       // ⑥ 발송 모드 절 반영 토큰.
@@ -879,7 +856,7 @@ void main() {
         );
       }
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
   group('웹 API 키 안내와 no-referrer 정책 일관성 (T-175-DOCS)', () {
     test('T-175-DOCS-07: 리퍼러 제한 키 거부 사실과 조치가 세 곳에 있고 옛 안내가 없다', () {
@@ -897,8 +874,8 @@ void main() {
 
       final String readme = readTrackedFile(_configReadmePath);
       final regions = <String, String>{
-        '매뉴얼 키 표 행': _readLineStartingWith(manual, _webApiKeyRowPrefix),
-        '매뉴얼 문제 해결 항목': _readLineStartingWith(
+        'setup.md 키 표 행': _readLineStartingWith(setup, _webApiKeyRowPrefix),
+        'guide.md 문제 해결 항목': _readLineStartingWith(
           _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
           _webApiKeyTroubleBulletPrefix,
         ),
@@ -951,7 +928,9 @@ void main() {
       // (d) 문제 해결 항목은 애플리케이션 제한사항이 「없음」 이 아닌 키 사용자에게
       // 제한을 「없음」 으로 되돌리거나 「없음」 인 키를 따로 고르라는 두 조치를 모두
       // 안내한다.
-      final String troubleFlat = _normalizeWhitespace(regions['매뉴얼 문제 해결 항목']!);
+      final String troubleFlat = _normalizeWhitespace(
+        regions['guide.md 문제 해결 항목']!,
+      );
       expect(
         countOccurrences(troubleFlat, '애플리케이션 제한사항이 「없음」 이 아니면'),
         greaterThanOrEqualTo(1),
@@ -969,10 +948,10 @@ void main() {
       );
 
       // (b) 파일 전체에서도 결과 페이지 주소 허용 목록 안내는 없다.
-      expect(countOccurrences(manual, 'web.app/*'), 0);
+      expect(countOccurrences('$setup\n$guide', 'web.app/*'), 0);
       expect(countOccurrences(readme, 'web.app/*'), 0);
     });
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
   group('웹 API 키 위치 안내 (T-175-DOCS)', () {
     test(
@@ -1001,15 +980,15 @@ void main() {
 
         // (b) 다섯 영역 — 경로 · 키 이름(+ 영역별 확인 토큰) · 금지 패턴 0.
         final regions = <String, (String, List<String>)>{
-          '매뉴얼 키 표 행': (
-            _readLineStartingWith(manual, _webApiKeyRowPrefix),
+          'setup.md 키 표 행': (
+            _readLineStartingWith(setup, _webApiKeyRowPrefix),
             <String>[
               _webApiKeyConsolePath,
               _webApiKeyBrowserKeyName,
               _webApiKeyShowKeyLabel,
             ],
           ),
-          '매뉴얼 켜기 ②': (
+          'guide.md 켜기 ②': (
             _readLineStartingWith(delivery, _webApiKeyStepPrefix),
             <String>[
               _webApiKeyConsolePath,
@@ -1019,7 +998,7 @@ void main() {
               '`AIza` 로 시작',
             ],
           ),
-          '매뉴얼 문제 해결 항목': (
+          'guide.md 문제 해결 항목': (
             _readLineStartingWith(
               _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
               _webApiKeyTroubleBulletPrefix,
@@ -1062,7 +1041,7 @@ void main() {
         // (c) 인접 행 — googleServerClientId 는 같은 경로, firebaseProjectId 는
         // 일반 탭 경로를 그대로 쓰고 옛 구절 꼴 패턴에 걸리지 않는다.
         final String serverClientIdRow = _readLineStartingWith(
-          manual,
+          setup,
           _googleServerClientIdRowPrefix,
         );
         expect(serverClientIdRow, isNotEmpty);
@@ -1078,7 +1057,7 @@ void main() {
           reason: 'googleServerClientId 행 금지 패턴: $rowHits',
         );
         final String projectIdRow = _readLineStartingWith(
-          manual,
+          setup,
           _firebaseProjectIdRowPrefix,
         );
         expect(
@@ -1092,10 +1071,11 @@ void main() {
           reason: '옛 위치 패턴이 firebaseProjectId 행의 유효한 경로를 잡는다',
         );
 
-        // (d) 네 파일 전체 — 키 이름 양성 대조 뒤 옛 구절 꼴 0 · 「API 및 서비스」 ·
+        // (d) 다섯 파일 전체 — 키 이름 양성 대조 뒤 옛 구절 꼴 0 · 「API 및 서비스」 ·
         // 「사용자 인증 정보」 영문 괄호 표기 한 가지 · `→` 영문 단독 표기 0.
         final files = <String, String>{
-          _manualPath: manual,
+          _setupPath: setup,
+          _guidePath: guide,
           _configReadmePath: readme,
           _changelogPath: changelog,
           _hostingBuildScriptPath: buildScript,
@@ -1130,5 +1110,5 @@ void main() {
         }
       },
     );
-  });
+  }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 }
