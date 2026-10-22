@@ -93,7 +93,7 @@ abstract final class AppConfig {
   /// 시 PlatformException 으로 즉시 발견 가능 (silent failure 아님).
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
-  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Kakao 단락 참조.
+  /// stg/prod 는 사용자가 자체 등록 — docs/setup.md 「Kakao · Naver 는 flavor 마다 새 앱」.
   static const String kakaoNativeAppKey = String.fromEnvironment(
     'kakaoNativeAppKey',
   );
@@ -120,7 +120,7 @@ abstract final class AppConfig {
   /// 실패가 된다 (계약 테스트 `T-16.5-NATIVE-01` 이 dev 값을 잠근다).
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
-  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 Naver 단락 참조.
+  /// stg/prod 는 사용자가 자체 등록 — docs/setup.md 「Kakao · Naver 는 flavor 마다 새 앱」.
   static const String naverClientId = String.fromEnvironment('naverClientId');
 
   /// 킷 웹 경로 콜백 scheme — 기존 iOS URL Scheme 재사용 (Phase 16.5 D-09).
@@ -154,7 +154,7 @@ abstract final class AppConfig {
   /// 첫 API 호출에서 즉시 실패하므로 silent failure 아님.
   ///
   /// dev flavor 만 실 키 주입 (memory `project_firebase_dev_only`),
-  /// stg/prod 는 사용자가 자체 등록 — manual.md 의 LINE 단락 참조.
+  /// stg/prod 는 사용자가 자체 등록 — docs/setup.md 「stg · prod 설정」.
   ///
   /// LINE Channel Secret 은 client 측에 미저장 (D-LINE-18 — Cloud Function
   /// 의 Secret Manager 단독 보관). client 는 Channel ID 만 보유하면 OIDC

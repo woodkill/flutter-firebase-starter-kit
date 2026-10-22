@@ -239,7 +239,7 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 /// 도착하는 시점에 이미 취소이고 배너 없이 silent 로 흡수된다. 킷 코드로는
 /// 고칠 수 없다 — 아래 [isNaverUserCancel] 을 좁혀도 `loggedOut` 밖의
 /// 정보가 남아 있지 않다. Android 의 「무반응」 제보는 취소 로그부터 확인할
-/// 것 (`docs/manual.md` Naver Pitfall 11).
+/// 것 (docs/setup.md 「Naver 로그인 켜기」).
 ///
 /// 16.4 레버 2 는 Phase 16.5 가 제거했다 — 웹 경로는 킷 소유 흐름(D-16).
 ///
@@ -252,7 +252,7 @@ const Set<String> _kNaverAndroidErrorCodes = <String>{
 ///
 /// Android 1-tap 은 호출부가 `false` 를 넘기므로 판정이 바뀌지 않는다. 킷 웹
 /// 경로는 설치 판정 `false` 분기가 먼저 반환하므로 이 함수에 닿지 않는다.
-/// `docs/manual.md` 의 Naver Pitfall 절을 참조할 것.
+/// docs/setup.md 「Naver 로그인 켜기」 를 참조할 것.
 @visibleForTesting
 bool isNaverUserCancel(
   NaverLoginStatus status,

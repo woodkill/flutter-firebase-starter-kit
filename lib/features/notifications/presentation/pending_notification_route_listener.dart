@@ -22,7 +22,7 @@ import '../application/pending_notification_route.dart';
 ///   홈 하위라 `go` 라도 홈이 맨 아래에 남고, 이 위젯의 `State` 도 유지된다(T-172-STACK-01).
 ///   중간 화면도 보이지 않는 아래 장으로 build 된다(설정 화면의 build 가 이
 ///   이동 시점에 돈다 — 킷 설정 화면의 알림 provider 는 `app.dart` 가 앱 시작
-///   때 이미 깨워 둬서 다시 build 되지 않는다 · docs/manual.md 「FCM 알림」).
+///   때 이미 깨워 둬서 다시 build 되지 않는다 · docs/guide.md 「FCM 알림」).
 /// - 경로가 홈이면 이동하지 않는다(허용 목록 밖 payload 포함).
 class PendingNotificationRouteListener extends ConsumerStatefulWidget {
   /// [PendingNotificationRouteListener] 를 생성한다.
