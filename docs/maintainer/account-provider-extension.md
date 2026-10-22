@@ -4,7 +4,7 @@
 
 ---
 
-`AccountProvider`(`lib/core/auth/provider_id.dart`)는 앱이 아는 로그인 수단 하나하나를 값으로 갖는 enum 이다. 지금 값은 일곱이다 — `google` · `apple` · `facebook` · `email` · `kakao` · `naver` · `line`(알 수 없는 값을 뜻하는 자리는 없다 — 모르는 slug 는 `AccountProvider.tryParse` 가 `null` 로 돌려준다). 이 문서는 enum 에 값 하나를 더할 때 함께 고치는 곳을 적는다. 새 Custom Token 로그인 수단 전체(서버 함수 · SDK · 설정 키 · 배포 목록)를 더하는 절차는 [Custom Token provider 추가 · 제거](custom-token-provider-add-remove.md#추가-가이드) 에 있고, 그 절차의 「Provider ID 등록」 · 「enum · 상수 · switch 일괄」 단계가 이 문서를 가리킨다 — 내용을 여기에 다시 적지 않는다.
+`AccountProvider`(`lib/core/auth/provider_id.dart`)는 앱이 아는 로그인 수단 하나하나를 값으로 갖는 enum 이다. 지금 값은 일곱이다 — `google` · `apple` · `facebook` · `email` · `kakao` · `naver` · `line`(알 수 없는 값을 뜻하는 자리는 없다 — 모르는 slug 는 `AccountProvider.tryParse` 가 `null` 로 돌려준다). 이 문서는 enum 에 값 하나를 더할 때 함께 고치는 곳을 적는다. 새 Custom Token 로그인 수단 전체(서버 함수 · SDK · 설정 키 · 배포 목록)를 더하는 절차는 [Custom Token provider 추가 · 제거](custom-token-provider-add-remove.md#추가-가이드) 에 있다. 그 절차의 「Provider ID 등록」 단계에서 enum 값을 더할 때 이 문서의 표와 절차로 빠진 곳을 찾는다 — 그 절차 내용은 여기에 다시 적지 않는다.
 
 ## 값이 쓰이는 곳
 
