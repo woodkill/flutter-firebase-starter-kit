@@ -775,9 +775,10 @@ import '../../features/memos/presentation/memo_list_screen.dart';
 
 ### ⑦ ARB 세 언어
 
-`lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` 에 같은 키 다섯을 더한다. 각 파일 맨
-끝 항목의 닫는 괄호 뒤에 쉼표를 붙이고, 파일의 마지막 `}` 앞에 넣는다. 설명(`@` 키)은
-템플릿 파일인 `app_en.arb` 에만 둔다.
+`lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` 에 같은 키 다섯을 더한다. 각 파일의
+맨 끝 항목(`app_en.arb` 는 `@` 설명 블록의 닫는 `}`, `app_ko.arb` · `app_ja.arb` 는 문자열
+값) 뒤에 쉼표를 붙이고, 파일의 마지막 `}` 앞에 아래 줄을 넣는다. 설명(`@` 키)은 템플릿
+파일인 `app_en.arb` 에만 둔다.
 
 `lib/l10n/app_en.arb`:
 
