@@ -400,9 +400,60 @@ gcloud iam service-accounts add-iam-policy-binding <service-account-email> --mem
 
 ## 알림(APNs) · App Check
 
+iOS 실기기의 푸시 알림은 Firebase 에 APNs 인증 키가 있어야 도착하고, 킷의 보호된 기능(회원탈퇴 등)은 App Check 등록이 있어야 동작한다. 둘 다 위저드의 출시용 단계가 안내하거나 등록한다 — 이 절은 콘솔에서 할 일과 확인하는 화면을 적는다.
+
 ### APNs 인증 키 올리기
 
+iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 쓰지 않으면 이 절을 건너뛴다 — Android 알림에는 필요 없다.
+
+**전제:** Apple Developer 에서 APNs 를 켠 `.p8` 키가 있다. [Apple 로그인 켜기](#apple-로그인-켜기) 콘솔 단계 5 의 키(APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나)를 그대로 쓴다.
+
+#### 콘솔 단계
+
+1. 위저드의 「App Check — DeviceCheck」 단계에서 Apple 키를 넣으면, 이어지는 「APNs 키」 단계가 `Firebase 콘솔에 올릴 APNs 인증 키` 값 표를 보인다. 행은 아래와 같다.
+   - `iOS 앱 (번들 ID)` — 키를 올릴 iOS 앱이다. 위저드 노트대로 Firebase 프로젝트에 iOS 앱이 여럿이면 이 번들 ID 의 앱에 올린다.
+   - `.p8` — `Key ID <Key ID> 의 .p8` 꼴로, 올릴 키 파일을 가리킨다.
+   - `Key ID` · `Team ID` — 키를 올릴 때 함께 넣는 값이다.
+2. Firebase 콘솔에서 그 프로젝트를 열고 `프로젝트 설정` → `클라우드 메시징` → `Apple 앱 구성` 에서 값 표의 번들 ID 앱을 찾는다.
+3. `APN 인증 키` 아래 `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸에 같은 `.p8` 을 올린다(할 일 줄 `Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키`). 올리는 창의 [[LABEL: Firebase — APNs 인증 키 올리는 창의 키 ID · 팀 ID 칸]] 에 값 표의 `Key ID` · `Team ID` 를 넣는다.
+4. stg · prod 는 그 flavor 의 Firebase 프로젝트에서 같은 일을 한다. 키 파일은 저장소에 두지 않는다.
+
+#### 확인 방법
+
+- 위저드는 업로드 여부를 읽을 수 없어 「APNs 키」 줄을 `콘솔 업로드(확인은 실기기 알림)` 로 남긴다 — 확인은 iOS 실기기에서 알림이 도착하는지로 한다.
+- 알림을 켜고 보내 보는 법은 [FCM 알림](guide.md#fcm-알림) 에 있다.
+
+#### 문제 해결
+
+- **iOS 실기기에 알림이 오지 않는다.** 값 표의 번들 ID 앱에 키를 올렸는지, `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸 모두 올렸는지 본다. 앱 쪽 설정(Push Notifications capability · `aps-environment`)은 [FCM 알림](guide.md#fcm-알림) 에서 확인한다.
+- **`.p8` 파일을 잃어버렸다.** 같은 키는 다시 내려받을 수 없다 — Apple Developer 의 Keys 에서 새 키를 만들고 `./setup.sh` 를 다시 실행해 DeviceCheck 에 새 키를 넣은 뒤, 같은 키를 이 절대로 올린다.
+
+#### 되돌리기
+
+올린 키는 같은 `APN 인증 키` 칸에서 지우거나 새 키로 바꾼다. 지우면 iOS 실기기에 알림이 오지 않는다.
+
 ### App Check 등록 확인
+
+킷의 보호된 기능(회원탈퇴 · 테스트 알림 등)을 부르는 함수는 App Check 토큰이 있는 호출만 받는다. 위저드가 아래를 등록하고, 이 절은 그 등록을 콘솔에서 확인하는 화면을 적는다.
+
+| 위저드 단계 | 등록하는 것 | 언제 |
+|---|---|---|
+| App Check 디버그 토큰 | `config/<flavor>.json` 의 `appCheckDebugToken` 을 iOS · Android 앱의 디버그 토큰으로 등록한다 — 표시 이름은 `setup-wizard-<flavor>` 다 | 항상 — debug 빌드용 |
+| App Check — Play Integrity | Play Integrity API 를 켜고 Android 앱에 Play Integrity 를 등록한다. dev · stg 는 디버그 SHA-256 을 등록하고 Play 밖 설치를 허용한다. prod 는 Play 에 올린 뒤 Play 앱 서명 키(업로드 키와 다르다)의 SHA-256 을 받는다 | 출시용 단계 — `지금 안 함` 으로 미룰 수 있다 |
+| App Check — DeviceCheck | Apple 키(`.p8` 경로 · Key ID)와 Team ID 를 받아 iOS 앱에 DeviceCheck 를 등록한다 | 출시용 단계 — `지금 안 함` 으로 미룰 수 있다 |
+
+미룬 단계는 위저드 끝의 「release 빌드 전에 끝내야 할 일」 목록에 보인다.
+
+#### 확인 방법
+
+- Firebase 콘솔에서 그 프로젝트를 열고 [[LABEL: Firebase — App Check 의 앱 목록(Play Integrity · DeviceCheck 등록 상태)]] 에서 Android 앱에 Play Integrity, iOS 앱에 DeviceCheck 가 등록돼 있는지 본다.
+- [[LABEL: Firebase — App Check 앱의 디버그 토큰 관리 화면]] 에 표시 이름 `setup-wizard-<flavor>` 인 디버그 토큰이 iOS · Android 앱마다 있는지 본다.
+- debug 빌드에서 회원탈퇴 같은 보호된 기능이 동작한다. dev · stg 의 Play Integrity 는 설정 뒤 1~2분 지나 release 빌드로 확인한다.
+
+#### 문제 해결
+
+- **debug 빌드에서 보호된 기능이 실패한다.** 디버그 토큰 등록을 본다 — [그 밖의 문제](#그-밖의-문제) 의 App Check 디버그 토큰 항목.
+- **release 빌드에서 보호된 기능이 실패한다.** 출시용 단계를 미뤘으면 `./setup.sh` 를 다시 실행해 「App Check — Play Integrity」 · 「App Check — DeviceCheck」 를 마친다. prod 의 Android 는 Play 에 앱을 올린 뒤 Play 앱 서명 키의 SHA-256 을 넣는다.
 
 ## stg · prod 설정
 
@@ -550,6 +601,29 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 > - the login service does not collect interactions with your app for advertising purposes without consent.
 
 ## 위저드를 끝낸 뒤
+
+위저드를 끝냈으면 아래 목록에서 할 일을 고른다. 절차는 각 링크의 절에 있다.
+
+### 꼭 할 일
+
+- 위저드 끝의 `release 빌드 전에 끝내야 할 일:` 목록을 처리한다 — 출시용 단계는 [알림(APNs) · App Check](#알림apns--app-check) 에서, release 빌드 준비는 [빌드 · 출시](guide.md#빌드--출시) 에서 한다.
+- 위저드 끝에 보인 바뀐 추적 파일 목록을 확인하고 직접 커밋한다([위저드 실행](#위저드-실행) 의 「중단 · 다시 실행 · 실행 기록」).
+- Firebase 콘솔에서 그 프로젝트의 Crashlytics 를 열어 [[LABEL: Firebase — Crashlytics 첫 화면(사용 설정 · 온보딩 화면이면 그 버튼)]] 을 확인한다 — 오류 보고가 들어오는지 보는 법은 [Crashlytics · Analytics](guide.md#crashlytics--analytics) 에 있다.
+- 출시 전에 검수 · 브랜드 자산 · 서명을 점검한다 — [출시 전 점검](guide.md#출시-전-점검).
+
+### 필요할 때 할 일
+
+- 홈 화면을 내 화면으로 바꿀 때 — [홈 화면 바꾸기](guide.md#홈-화면-바꾸기)
+- 새 화면 · 기능을 더할 때 — [내 기능 추가하기](guide.md#내-기능-추가하기)
+- 색 · 글꼴 같은 디자인을 바꿀 때 — [디자인 토큰 바꾸기](guide.md#디자인-토큰-바꾸기)
+- 앱 아이콘을 바꿀 때 — [앱 아이콘 바꾸기](guide.md#앱-아이콘-바꾸기)
+- 스플래시 화면을 바꿀 때 — [스플래시 바꾸기](guide.md#스플래시-바꾸기)
+- 인증 · 재설정 메일을 킷이 보내게 할 때 — [인증 메일 발송 모드 켜고 끄기](guide.md#인증-메일-발송-모드-켜고-끄기)
+- 메일 링크를 연 뒤 보이는 결과 페이지를 바꿀 때 — [인증 결과 페이지 바꾸기](guide.md#인증-결과-페이지-바꾸기)
+- 알림 · Remote Config · Storage · Firestore 를 쓸 때 — [Firebase 서비스 쓰기](guide.md#firebase-서비스-쓰기)
+- release 서명 키를 만들 때 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore)
+- 출시 뒤 로그인 수단을 막거나 알림을 보낼 때 — [앱 운영하기](guide.md#앱-운영하기)
+- 킷의 새 판을 받을 때 — [킷 업데이트 반영](guide.md#킷-업데이트-반영)
 
 ## 문제가 생기면
 
