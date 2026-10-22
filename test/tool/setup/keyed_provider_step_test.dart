@@ -481,7 +481,7 @@ void main() {
       ),
     );
     expect(h.output, contains('── Kakao 콘솔에 넣을 값 — stg ──'));
-    expect(h.output, contains('매뉴얼 「Kakao 검수」'));
+    expect(h.output, contains('docs/setup.md 「Kakao · Naver 는 flavor 마다 새 앱」'));
     expect(h.screen.asks, <String>[
       stepConfirmQuestion,
       consoleReadyQuestion,
@@ -928,7 +928,7 @@ void main() {
     const staleGuide =
         'Secret Manager $adminSecret 값을 고치거나 $secretPlaceholderValue 으로 '
         '되돌린 뒤 다시 실행하면 새로 묻습니다 '
-        '(매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④)';
+        '(docs/setup.md 「secret 값 확인하기」)';
 
     test('입력 실행 — 새 네이티브 앱 키 + 옛 어드민 키', () async {
       final String newNative = buildNativeKey('5');

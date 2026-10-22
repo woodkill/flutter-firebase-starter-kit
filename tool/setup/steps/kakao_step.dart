@@ -124,7 +124,7 @@ final class KakaoStep extends KeyedProviderStep {
     '애플리케이션 새로 만들기',
     '네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록',
     '카카오 로그인 · OpenID Connect 켜기',
-    '동의 항목에서 이메일을 받도록 설정 — ${formatManualReference(emailManualHeading)}',
+    '동의 항목에서 이메일을 받도록 설정 — ${formatDocReference(emailDocRef)}',
   ];
 
   /// 어드민 키를 입력받았을 때만 서버로 확인한다.

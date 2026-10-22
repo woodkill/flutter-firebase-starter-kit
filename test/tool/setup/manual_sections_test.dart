@@ -16,11 +16,25 @@ const String providersWizardLine =
     '> **로그인 수단을 켜고 끄는 일은 저장소 루트에서 `./setup.sh --providers` 를 '
     '실행하면 설정 위저드가 대신한다.**';
 
-/// 모은 매뉴얼 절 머리 수의 하한 — 수집이 비어 공허하게 통과하지 않게 한다.
-const int minManualHeadingCount = 5;
+/// DocRef 밖에 남은 매뉴얼 절 머리 수의 하한 — 수집이 비어 공허하게 통과하지
+/// 않게 한다.
+const int minManualHeadingCount = 1;
+
+/// 서로 다른 DocRef (문서 파일, 머리) 쌍 수의 하한 — 로그인 수단 여섯 · 이메일
+/// 받기 · flavor 새 앱 · secret 확인 절.
+const int minDocRefCount = 9;
 
 /// 작은따옴표 문자열 전체가 매뉴얼 절 머리(`## ` · `### ` 로 시작)인 리터럴.
 final RegExp manualHeadingLiteral = RegExp("'(#{2,3} [^']+)'");
+
+/// 위저드의 문서 참조 리터럴 — `DocRef(<문서 파일>, <머리>)` 의 두 작은따옴표
+/// 인자를 잡는다(포매터가 인자를 여러 줄로 나눠도 맞는다).
+final RegExp docRefLiteral = RegExp(
+  r"DocRef\(\s*'([^']+)',\s*'(#{2,3} [^']+)',?\s*\)",
+);
+
+/// 위저드가 가리키는 문서 절 하나 — 문서 파일 경로와 그 절의 머리 줄.
+typedef DocRefPair = ({String file, String heading});
 
 /// [directory] 아래의 `.dart` 파일 경로를 재귀로 모아 정렬해 돌려준다.
 List<String> listDartSources(String directory) =>
@@ -38,14 +52,31 @@ List<String> extractManualHeadings(String source) => manualHeadingLiteral
     .map((RegExpMatch match) => match.group(1)!)
     .toList();
 
-/// [paths] 의 파일에서 매뉴얼 절 머리를 모아 중복 없이 정렬해 돌려준다.
+/// [source] 에서 DocRef 리터럴을 지운다 — 그 밖의 머리 리터럴만 남긴다.
+String removeDocRefs(String source) => source.replaceAll(docRefLiteral, '');
+
+/// [source] 의 DocRef 리터럴을 (문서 파일, 머리) 쌍으로 순서대로 뽑는다.
+List<DocRefPair> extractDocRefs(String source) => docRefLiteral
+    .allMatches(source)
+    .map(
+      (RegExpMatch match) => (file: match.group(1)!, heading: match.group(2)!),
+    )
+    .toList();
+
+/// [paths] 의 파일에서 DocRef 밖의 매뉴얼 절 머리를 모아 중복 없이 정렬해
+/// 돌려준다.
 List<String> collectManualHeadings(List<String> paths) {
   final headings = <String>{
     for (final path in paths)
-      ...extractManualHeadings(File(path).readAsStringSync()),
+      ...extractManualHeadings(removeDocRefs(File(path).readAsStringSync())),
   };
   return headings.toList()..sort();
 }
+
+/// [paths] 의 파일에서 DocRef 쌍을 중복 없이 모은다.
+Set<DocRefPair> collectDocRefs(List<String> paths) => <DocRefPair>{
+  for (final path in paths) ...extractDocRefs(File(path).readAsStringSync()),
+};
 
 /// [headings] 가운데 [manualLines] 의 어느 머리 줄(`#` 로 시작)의 앞부분과도
 /// 같지 않은 것을 돌려준다.
@@ -83,7 +114,27 @@ int countOccurrences(String text, String pattern) =>
     pattern.allMatches(text).length;
 
 void main() {
-  test('T-20-DOCS-01: 위저드가 가리키는 매뉴얼 절 머리가 모두 매뉴얼에 있다', () {
+  test('T-21-WIZ-01: 위저드의 DocRef 머리가 그 문서에 한 줄씩 있다', () {
+    final Set<DocRefPair> refs = collectDocRefs(
+      listDartSources(wizardSourceDirectory),
+    );
+
+    expect(refs.length, greaterThanOrEqualTo(minDocRefCount));
+    for (final ref in refs) {
+      expect(ref.file, startsWith('docs/'));
+      final document = File(ref.file);
+      expect(document.existsSync(), isTrue, reason: '${ref.file} 문서가 없다');
+      expect(
+        document.readAsLinesSync().where((String line) => line == ref.heading),
+        hasLength(1),
+        reason:
+            '${ref.file} 에 「${ref.heading}」 줄이 한 번 있어야 한다 — 문서 절 '
+            '제목을 바꿨으면 위저드의 DocRef 도 함께 고친다',
+      );
+    }
+  });
+
+  test('T-20-DOCS-01: DocRef 밖 절 머리 리터럴은 원본 매뉴얼에 있다', () {
     final List<String> headings = collectManualHeadings(
       listDartSources(wizardSourceDirectory),
     );

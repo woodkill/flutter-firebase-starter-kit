@@ -357,7 +357,7 @@ void main() {
       expect(output, contains('OpenID Connect'));
       expect(output, contains('Tester'));
       expect(output, contains('Admin'));
-      expect(output, contains('매뉴얼 「LINE Login」'));
+      expect(output, contains('docs/setup.md 「LINE 로그인 켜기」'));
       expect(countText(output, 'line3rdp.'), 0);
       for (final text in <String>[output, h.log.text]) {
         expect(RegExp(r'\bD-[0-9]{2}\b').hasMatch(text), isFalse);

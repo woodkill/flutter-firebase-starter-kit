@@ -180,7 +180,7 @@ final class FacebookStep extends KeyedProviderStep {
     return ProviderEntry(
       token: catalog.token,
       displayName: catalog.displayName,
-      manualSectionPrefix: catalog.manualSectionPrefix,
+      docRef: catalog.docRef,
       consoleUrl: consoleUrl,
     );
   }
@@ -240,7 +240,7 @@ final class FacebookStep extends KeyedProviderStep {
     '앱 만들기 · Facebook 로그인 사용 사례 추가',
     'Android 플랫폼에 패키지명 · 클래스 이름 · 키 해시, iOS 플랫폼에 번들 ID 등록',
     'Facebook 로그인 설정의 OAuth redirect URI 에 위 주소 등록',
-    '이메일 권한 받기 — ${formatManualReference(emailManualHeading)}',
+    '이메일 권한 받기 — ${formatDocReference(emailDocRef)}',
     '개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있습니다',
   ];
 

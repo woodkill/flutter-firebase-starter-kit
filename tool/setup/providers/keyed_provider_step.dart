@@ -37,18 +37,26 @@ const String alignReasonPrefix = 'config 와 다른 자리: ';
 /// 입력한 키가 다른 flavor 의 키와 같을 때 덧붙이는 안내.
 const String duplicateInputHint = 'flavor 마다 새 콘솔 앱의 키를 넣으세요';
 
-/// 로그인 수단 토큰 → 매뉴얼에서 flavor 마다 새 콘솔 앱을 만드는 절 머리의 앞부분.
+/// Kakao · Naver 가 flavor 마다 새 콘솔 앱을 만드는 절.
+const DocRef flavorAppDocRef = DocRef(
+  'docs/setup.md',
+  '### Kakao · Naver 는 flavor 마다 새 앱',
+);
+
+/// 로그인 수단 토큰 → flavor 마다 새 콘솔 앱을 만드는 문서 절.
 ///
-/// 표에 없는 수단은 그 수단의 기본 절([ProviderEntry.manualSectionPrefix])을
-/// 가리킨다.
-const Map<String, String> flavorAppManualHeadings = <String, String>{
-  'kakao': '## Kakao 검수',
-  'naver': '## Naver 검수',
+/// 표에 없는 수단은 그 수단의 기본 절([ProviderEntry.docRef])을 가리킨다.
+const Map<String, DocRef> flavorAppDocRefs = <String, DocRef>{
+  'kakao': flavorAppDocRef,
+  'naver': flavorAppDocRef,
 };
 
-/// [entry] 의 flavor 별 새 앱 절 머리를 찾는다 — 표에 없으면 그 수단의 기본 절.
-String findFlavorAppManualHeading(ProviderEntry entry) =>
-    flavorAppManualHeadings[entry.token] ?? entry.manualSectionPrefix;
+/// [entry] 의 flavor 별 새 앱 절을 찾는다 — 표에 없으면 그 수단의 기본 절.
+DocRef findFlavorAppDocRef(ProviderEntry entry) =>
+    flavorAppDocRefs[entry.token] ?? entry.docRef;
+
+/// Secret Manager 에 든 서버 전용 secret 값을 확인하고 되돌리는 절.
+const DocRef secretCheckDocRef = DocRef('docs/setup.md', '### secret 값 확인하기');
 
 /// [flavor] 문맥에서 지금 만들 콘솔 앱의 범위를 밝히는 안내 줄을 만든다.
 ///
@@ -495,7 +503,7 @@ abstract class KeyedProviderStep implements Step {
     // 아직 검사되지 않은 바퀴면 여기서 한 번 계산한다(세션 캐시라 keytool 은
     // 한 실행에 한 번).
     await readDebugFingerprints(context);
-    final String newAppHeading = findFlavorAppManualHeading(entry);
+    final DocRef newAppDocRef = findFlavorAppDocRef(entry);
     writeSummary(
       context.terminal,
       title: '${entry.displayName} 콘솔에 넣을 값 — ${context.flavor.name}',
@@ -507,8 +515,8 @@ abstract class KeyedProviderStep implements Step {
         ...todoLines,
         ?iconNote,
         if (isDuplicate)
-          'flavor 마다 새 앱 만들기: ${formatManualReference(newAppHeading)}',
-        '자세한 절차: ${formatManualReference(entry.manualSectionPrefix)}',
+          'flavor 마다 새 앱 만들기: ${formatDocReference(newAppDocRef)}',
+        '자세한 절차: ${formatDocReference(entry.docRef)}',
       ],
     );
     final values = Map<KeyField, String>.of(_knownValues);
@@ -521,9 +529,7 @@ abstract class KeyedProviderStep implements Step {
       if (choice == null) return const Declined();
       if (choice == 1) {
         return ExitForUser(
-          _buildLaterGuide(
-            isDuplicate ? newAppHeading : entry.manualSectionPrefix,
-          ),
+          _buildLaterGuide(isDuplicate ? newAppDocRef : entry.docRef),
         );
       }
       for (final KeyField field in _askFields) {
@@ -611,16 +617,16 @@ abstract class KeyedProviderStep implements Step {
       guides.add(
         '${secretPlaces.join(' · ')} 값을 고치거나 $secretPlaceholderValue 으로 '
         '되돌린 뒤 다시 실행하면 새로 묻습니다 '
-        '(${formatManualReference(providersManualHeading)} 「켜기」 ④)',
+        '(${formatDocReference(secretCheckDocRef)})',
       );
     }
     return Failed('$reason — ${guides.join(' · ')}');
   }
 
-  /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내 — [heading] 절을 가리킨다.
-  String _buildLaterGuide(String heading) =>
+  /// 콘솔 작업이 남았을 때의 위저드 밖 작업 안내 — [docRef] 절을 가리킨다.
+  String _buildLaterGuide(DocRef docRef) =>
       '  ${entry.displayName} 콘솔에서 위 할 일을 마치고 키를 받은 뒤 다시 실행하세요 — '
-      '${formatManualReference(heading)}\n'
+      '${formatDocReference(docRef)}\n'
       '  급하면 ./setup.sh --providers 로 ${entry.displayName} 로그인을 잠시 끌 수 '
       '있습니다.';
 

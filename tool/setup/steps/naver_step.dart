@@ -192,7 +192,7 @@ final class NaverStep extends KeyedProviderStep {
     '애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)',
     'iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록',
     '다운로드 URL 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 바꿉니다',
-    '제공 정보에서 이메일 주소 받기 — ${formatManualReference(emailManualHeading)}',
+    '제공 정보에서 이메일 주소 받기 — ${formatDocReference(emailDocRef)}',
     '개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다',
   ];
 

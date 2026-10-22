@@ -8,19 +8,44 @@ const String enabledProvidersKey = 'enabledAuthProviders';
 /// 매뉴얼에서 로그인 수단 표가 있는 절의 머리.
 const String providersManualHeading = '## 로그인 수단 켜고 끄기';
 
-/// 매뉴얼에서 로그인 수단마다 이메일을 받도록 설정하는 절의 머리.
-const String emailManualHeading = '## 로그인 수단에서 이메일 받기';
+/// 위저드가 가리키는 문서의 절 하나 — 문서 파일 경로와 그 절의 머리 줄.
+///
+/// 화면에는 [formatDocReference] 로 `<파일> 「<절 제목>」` 꼴로 보인다. 머리 줄은
+/// 문서의 그 줄과 글자가 같아야 한다 — 시험이 문서에서 그 줄을 찾는다.
+final class DocRef {
+  /// [file] 문서의 [heading] 절을 가리킨다.
+  const DocRef(this.file, this.heading);
+
+  /// 저장소 루트 상대 문서 경로.
+  final String file;
+
+  /// `#` 로 시작하는 문서 머리 한 줄.
+  final String heading;
+}
+
+/// [ref] 를 화면 표시형 `<파일> 「<절 제목>」` 으로 바꾼다 — 머리의 `#` 은 뺀다.
+String formatDocReference(DocRef ref) =>
+    '${ref.file} 「${ref.heading.replaceFirst(RegExp(r'^#+\s*'), '')}」';
+
+/// Google 로그인을 켜는 절.
+const DocRef googleDocRef = DocRef('docs/setup.md', '### Google 로그인 켜기');
+
+/// Apple 로그인을 켜는 절.
+const DocRef appleDocRef = DocRef('docs/setup.md', '### Apple 로그인 켜기');
+
+/// 로그인 수단마다 이메일을 받도록 설정하는 절.
+const DocRef emailDocRef = DocRef('docs/setup.md', '### 로그인 수단에서 이메일 받기');
 
 /// 콘솔 주소를 따로 두지 않은 로그인 수단이 쓰는 Firebase 콘솔 주소.
 const String firebaseConsoleUrl = 'https://console.firebase.google.com';
 
 /// 로그인 수단 하나의 표 행.
 final class ProviderEntry {
-  /// 토큰 · 표시 이름 · 매뉴얼 절 머리 · 콘솔 주소로 행을 만든다.
+  /// 토큰 · 표시 이름 · 문서 절 · 콘솔 주소로 행을 만든다.
   const ProviderEntry({
     required this.token,
     required this.displayName,
-    required this.manualSectionPrefix,
+    required this.docRef,
     required this.consoleUrl,
   });
 
@@ -30,8 +55,8 @@ final class ProviderEntry {
   /// 화면에 보일 이름.
   final String displayName;
 
-  /// 매뉴얼에서 이 로그인 수단을 설명하는 절 제목의 앞부분(`## ` 포함).
-  final String manualSectionPrefix;
+  /// 이 로그인 수단을 켜는 절차를 설명하는 문서 절.
+  final DocRef docRef;
 
   /// 키를 발급받는 콘솔 주소.
   final String consoleUrl;
@@ -45,37 +70,37 @@ const List<ProviderEntry> providerCatalog = <ProviderEntry>[
   ProviderEntry(
     token: 'google',
     displayName: 'Google',
-    manualSectionPrefix: providersManualHeading,
+    docRef: googleDocRef,
     consoleUrl: firebaseConsoleUrl,
   ),
   ProviderEntry(
     token: 'apple',
     displayName: 'Apple',
-    manualSectionPrefix: providersManualHeading,
+    docRef: appleDocRef,
     consoleUrl: firebaseConsoleUrl,
   ),
   ProviderEntry(
     token: 'facebook',
     displayName: 'Facebook',
-    manualSectionPrefix: providersManualHeading,
+    docRef: DocRef('docs/setup.md', '### Facebook 로그인 켜기'),
     consoleUrl: firebaseConsoleUrl,
   ),
   ProviderEntry(
     token: 'kakao',
     displayName: 'Kakao',
-    manualSectionPrefix: '## Kakao Login',
+    docRef: DocRef('docs/setup.md', '### Kakao 로그인 켜기'),
     consoleUrl: 'https://developers.kakao.com/console/app',
   ),
   ProviderEntry(
     token: 'naver',
     displayName: 'Naver',
-    manualSectionPrefix: '## Naver Login',
+    docRef: DocRef('docs/setup.md', '### Naver 로그인 켜기'),
     consoleUrl: 'https://developers.naver.com',
   ),
   ProviderEntry(
     token: 'line',
     displayName: 'LINE',
-    manualSectionPrefix: '## LINE Login',
+    docRef: DocRef('docs/setup.md', '### LINE 로그인 켜기'),
     consoleUrl: 'https://developers.line.biz/console/',
   ),
 ];

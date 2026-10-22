@@ -419,8 +419,8 @@ void main() {
         expect(output, contains(line));
       }
       expect(output, contains('앱 역할'));
-      expect(output, contains('매뉴얼 「로그인 수단 켜고 끄기」'));
-      expect(output, contains('매뉴얼 「로그인 수단에서 이메일 받기」'));
+      expect(output, contains('docs/setup.md 「Facebook 로그인 켜기」'));
+      expect(output, contains('docs/setup.md 「로그인 수단에서 이메일 받기」'));
       expect(
         output,
         contains('https://$projectId.firebaseapp.com/__/auth/handler'),

@@ -437,8 +437,8 @@ void main() {
     expect(output, contains('$applicationId.dev'));
     expect(output, contains(devBundleId));
     expect(output, contains('https://developers.kakao.com/console/app'));
-    expect(output, contains('매뉴얼 「Kakao Login」'));
-    expect(output, contains('매뉴얼 「로그인 수단에서 이메일 받기」'));
+    expect(output, contains('docs/setup.md 「Kakao 로그인 켜기」'));
+    expect(output, contains('docs/setup.md 「로그인 수단에서 이메일 받기」'));
     for (final text in <String>[output, h.log.text]) {
       expect(countText(text, adminKey), 0);
       expect(RegExp(r'\bD-[0-9]{2}\b').hasMatch(text), isFalse);
