@@ -1039,8 +1039,8 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile
 5. 두 파일을 **같은 커밋**에 함께 담는다.
 
 - FlutterFire 계열(`firebase_*` · `cloud_*`)은 플러그인이 `exact` 로 고정하므로 **pub
-  패키지를 올리면 네이티브 SDK 가 따라 올라간다** — `Package.resolved` 를 손으로
-  고치는 대상이 아니다.
+  패키지를 올리면 네이티브 SDK 가 따라 올라간다** — `Package.resolved` 는 손으로
+  고치지 않는다.
 
 > ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를
 > 누르지 말 것.**
