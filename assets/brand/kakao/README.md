@@ -1,6 +1,7 @@
 # Kakao Brand Asset
 
-Phase 13.1 — Kakao 로그인 버튼 공식 자상 (D-52 retroactive 정정).
+Kakao 로그인 버튼의 로고 자산이다. Kakao 공식 리소스의 말풍선 심볼 하나를 SVG 로
+싣고, 버튼 바탕 · 라벨은 `BrandedSocialButton` 의 공통 골격이 그린다(배경 `#FEE500`).
 
 ## 공식 BI URL
 https://developers.kakao.com/docs/ko/kakaologin/design-guide
@@ -9,42 +10,30 @@ https://developers.kakao.com/docs/ko/kakaologin/design-guide
 https://developers.kakao.com/tool/resource/login (PSD ZIP 패키지)
 
 ## 다운로드 일자
-2026-05-09 (Plan 13.1-07 checkpoint commit)
+받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 라이선스
-Kakao Resources Terms (https://developers.kakao.com/policy/terms — verbatim 텍스트는 LICENSE.txt 참조). Phase 13.1 Plan 13-08 에서 LICENSE.txt 동봉 의무.
+Kakao Resources Terms (https://developers.kakao.com/policy/terms — 원문 텍스트는 `LICENSE.txt` 참조).
 
 ## 사전 검수 절차
-N/A (Kakao 공식 디자인 가이드는 사전 검수 신청 미발견 — 자상 가이드 준수만 의무).
+Kakao 공식 디자인 가이드에는 로고 사용의 사전 검수 신청 절차가 없다 — 가이드를 지키면 된다. 앱 출시 전에 하는 Kakao 쪽 검수(비즈 앱 · 동의 항목)는 [직접 하는 일 — 로그인 수단 검수 · 인증](../../../docs/guide.md#로그인-수단-검수--인증) 에 있다.
 
 ## 미포함 변형 추가 절차
-Kakao Resources Terms 가 자상 변형 (색상 / 비율 / 회전) 금지 명시. 신규 변형 (예: 추가 라벨 텍스트) 도입 시 1) Kakao Developer Console 사전 문의 + 2) 별 phase 에서 처리.
+Kakao Resources Terms 는 로고 변형(색상 / 비율 / 회전)을 금지한다. 다른 변형(예: 라벨이 그림에 들어 있는 버튼 이미지)을 쓰려면 Kakao Developers 에 먼저 문의하고, 공식 리소스의 파일을 내용 그대로 이 디렉토리에 둔다. 하위 디렉토리를 새로 만들면 `pubspec.yaml` 의 `assets:` 에 그 디렉토리를 따로 등록한다(디렉토리 등록은 재귀가 아니다).
 
 ## 자산 freshness 갱신 빈도
-1년 권장 — `다운로드 일자` 1년 경과 시 https://developers.kakao.com/tool/resource/login 재방문 + 자상 갱신 여부 확인.
+1년마다 공식 페이지(https://developers.kakao.com/tool/resource/login)를 다시 확인한다 — 절차는 [브랜드 자산 갱신 — freshness 갱신](../../../docs/maintainer/brand-assets.md#freshness-갱신) 에 있다.
 
-## 디렉토리 구조 (Phase 13.3 Wave 3 이후)
+## 디렉토리 구조
 ```
 assets/brand/kakao/
-├── btn_signin_icon.svg   (D-107 symbol SVG, Wave 4 Step 2 분리)
+├── btn_signin_icon.svg   (말풍선 심볼 SVG, viewBox 0 0 20 20, fill=currentColor)
 ├── LICENSE.txt
-└── README.md  (본 파일)
+└── README.md  (이 파일)
 ```
 
-**Phase 13.3 Wave 3 (commit c73c9a3) supersede:** 이전 wide 자상 (ko/en/light/
-kakao_login_*_wide.png) 18 file 폐기. 사유: logo-only symbol SVG inline 패턴
-채택 (Wave 1 D-107) + Wave 4 Step 2 외부 자산 파일 분리. wide 자상 통째
-buttons 패턴 (자상에 배경+라벨+로고 baked-in) → symbol SVG + ARB 라벨 외부
-layer + render-time 색/폰트 hardcode 패턴 전환. locale/theme leaf 디렉토리
-(`ko/`, `en/`, `light/`, `dark/`) 모두 폐기.
-
-**Phase 13.3 WR-03 정정 (2026-05-17):** 빈 leaf 디렉토리 (`en/`, `ko/`) 가
-git untracked 형식으로 잔존하던 잔재를 cleanup. **single-level asset
-directory** — locale/theme leaf 폐기 후 자상은 디렉토리 root 에 commit. 사용자
-가 future locale-specific asset 추가 시점에 새로 디렉토리 생성 + `pubspec.yaml`
-의 `assets:` 단락에 신규 leaf 명시 등록 의무 (Flutter directory 등록은 단일
-레벨, 재귀 아님).
+로고는 디렉토리 바로 아래 한 장이고, 언어 · 밝기별 하위 디렉토리는 없다. 라벨은 그림에 들어 있지 않다 — ARB 문구를 `BrandedSocialButton` 이 그리고, 심볼 색도 그릴 때 정한다.
 
 ## 주의
-- hand-crafted SVG 자체 생성 절대 금지 (R3 retroactive — `assets/icons/kakao_logo.svg` 폐기 사유).
-- 공식 BI 자상 (Kakao 공식 SDK strings/PSD) verbatim 유지 의무.
+- 로고를 직접 그려 만들지 않는다 — Kakao 공식 리소스의 그림만 쓴다.
+- 공식 BI 자산(Kakao 공식 SDK · PSD)의 그림을 바꾸지 않는다.

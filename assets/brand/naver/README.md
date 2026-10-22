@@ -1,48 +1,37 @@
 # Naver Brand Asset
 
-Phase 13.1 — NAVER ID 로그인 버튼 공식 자상 (R1 retroactive 정정).
+NAVER ID 로그인 버튼의 로고 자산이다. NAVER 공식 N 심볼 하나를 SVG 로 싣고, 버튼
+바탕 · 라벨은 `BrandedSocialButton` 의 공통 골격이 그린다(배경 `#03A94D`).
 
 ## 공식 BI URL
 https://developers.naver.com/docs/login/bi/bi.md (NAVER ID 로그인 BI — `#03A94D`)
 
-**D-Note (R1 / 13.1-CONTEXT specifics):** 회사 브랜드 (`#03C75A`, NAVER Corp + NCloud SSO) ↔ 로그인 버튼 (`#03A94D`, NAVER ID 로그인 BI) 컨텍스트 분리. Phase 13 단계는 third-party 출처 채택 오류, Phase 13.1 정정.
+NAVER 의 회사 브랜드 색(`#03C75A`, NAVER Corp + NCloud SSO)과 로그인 버튼 색(`#03A94D`, NAVER ID 로그인 BI)은 쓰는 곳이 다르다. 로그인 버튼은 NAVER ID 로그인 BI 페이지의 `#03A94D` 를 쓴다 — 다른 출처에서 `#03C75A` 를 보더라도 버튼 색으로 쓰지 않는다.
 
 ## 자산 다운로드 URL
 https://developers.naver.com/docs/login/bi/bi.md → "디자인 가이드" 단락 (PNG + Figma + AI export)
 
 ## 다운로드 일자
-2026-05-09 (Plan 13.1-07 checkpoint commit)
+받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 라이선스
-NAVER Brand License (LICENSE.txt 의 verbatim 라이선스 텍스트). Plan 13.1-08 에서 LICENSE.txt 동봉 의무.
+NAVER Brand License (`LICENSE.txt` 의 원문 라이선스 텍스트).
 
 ## 사전 검수 절차
-사용자 책임 — Naver BI 페이지에 일부 사용 시 사전 검수 신청 절차 명시 가능 (사전 조사 결과 미발견, 사용자 직접 확인 의무 — `docs/manual.md` 의 "Brand Asset Management" 단락 참조).
+NAVER BI 페이지에는 로고 사용의 사전 검수 신청 절차가 보이지 않는다 — 출시 전에 BI 페이지를 직접 열어 신청 절차가 있는지 확인한다. 앱 출시 전에 하는 Naver 쪽 검수(검수 요청 · 추가 항목)는 [직접 하는 일 — 로그인 수단 검수 · 인증](../../../docs/guide.md#로그인-수단-검수--인증) 에 있다.
 
 ## 미포함 변형 추가 절차
-Naver BI 가 자상 변형 (색상 / 회전 / 비율) 금지 명시. 신규 변형 도입 시 1) Naver Developer Console 사전 검수 + 2) 별 phase 에서 처리.
+NAVER BI 는 로고 변형(색상 / 회전 / 비율)을 금지한다. 다른 변형(예: 라벨이 그림에 들어 있는 버튼 이미지)을 쓰려면 NAVER Developers 의 가이드를 먼저 확인하고, BI 페이지의 파일을 내용 그대로 이 디렉토리에 둔다. 하위 디렉토리를 새로 만들면 `pubspec.yaml` 의 `assets:` 에 그 디렉토리를 따로 등록한다(디렉토리 등록은 재귀가 아니다).
 
 ## 자산 freshness 갱신 빈도
-1년 권장.
+1년마다 공식 페이지(https://developers.naver.com/docs/login/bi/bi.md)를 다시 확인한다 — 절차는 [브랜드 자산 갱신 — freshness 갱신](../../../docs/maintainer/brand-assets.md#freshness-갱신) 에 있다.
 
-## 디렉토리 구조 (Phase 13.3 Wave 3 이후)
+## 디렉토리 구조
 ```
 assets/brand/naver/
-├── btn_signin_icon.svg   (D-107 N symbol SVG, Wave 4 Step 2 분리)
+├── btn_signin_icon.svg   (N 심볼 SVG, viewBox 0 0 20 20, fill=currentColor)
 ├── LICENSE.txt
 └── README.md
 ```
 
-**Phase 13.3 Wave 3 (commit c73c9a3) supersede:** 이전 wide 자상 (ko/en ×
-light/dark × h48/h56_wide.png) 8 file 폐기. 사유: NAVER 공식 N symbol SVG
-inline 패턴 채택 (Wave 1 D-107) + Wave 4 Step 2 외부 자산 파일 분리. wide
-자상 통째 buttons 패턴 → symbol SVG + ARB 라벨 외부 layer + render-time 색/폰트
-hardcode 패턴 전환. locale/theme leaf 디렉토리 (`ko/`, `en/`, `light/`, `dark/`)
-모두 폐기.
-
-**Phase 13.3 WR-03 정정 (2026-05-17):** 빈 leaf 디렉토리 (`en/`) 가 git
-untracked 형식으로 잔존하던 잔재를 cleanup. **single-level asset directory** —
-locale/theme leaf 폐기 후 자상은 디렉토리 root 에 commit. 사용자가 future
-locale-specific asset 추가 시점에 새로 디렉토리 생성 + `pubspec.yaml` 의
-`assets:` 단락에 신규 leaf 명시 등록 의무 (Flutter directory 등록은 단일 레벨,
-재귀 아님).
+로고는 디렉토리 바로 아래 한 장이고, 언어 · 밝기별 하위 디렉토리는 없다. 라벨은 그림에 들어 있지 않다 — ARB 문구를 `BrandedSocialButton` 이 그리고, 심볼 색도 그릴 때 정한다.

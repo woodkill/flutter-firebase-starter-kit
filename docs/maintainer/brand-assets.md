@@ -119,11 +119,26 @@ assets/brand/
    저장소에 두지 않는다.
 5. `LICENSE.txt` 의 원문 조항이 바뀌었으면 조항을 검토한 뒤 반영한다.
 
+그림을 다시 옮기는 방법은 자산마다 다르다:
+
+- Facebook — Brand Asset Pack 의 `Logo/Primary Logo/Facebook_Logo_Primary.ai` 에서 vector
+  path 2개(파란 원 + 흰 'f')를 옮겨 `btn_signin_icon.svg` 를 만든다.
+- LINE — `LINE_Login_Button_Image.zip` 의 PSD 안 vector smart-object(`벡터 고급 개체.ai`)를
+  다시 옮기고, `git diff` 로 path 가 바뀌었는지 본다. Usage Guidelines 원문이 바뀌었으면
+  `LICENSE.txt` 발췌를 고친다. LINE 이 BI 갱신을 알리면(Usage Guidelines Section 4.16)
+  1년을 기다리지 않고 바로 갱신한다.
+- Google — 그 README 의 「만드는 절차」 · 「다시 만들 때의 확인」 절을 따른다.
+- Apple — 그 README 의 「자산 다운로드 URL」 절에 적힌 대로 공식 웹 로그인 스크립트의 `medium`
+  로고 객체를 좌표 그대로 옮긴다.
+
 ## 받은 날 · 만든 날
 
 | 자산 | 받은 날 · 만든 날 | 확인한 공식 페이지 |
 |---|---|---|
 | Facebook 로고(`facebook/btn_signin_icon.svg`) | 2026-05-13 받음(Facebook Brand Asset Pack ZIP) · 다음 확인 2027-05-13 | https://www.meta.com/brand/resources/facebook/logo/ |
+| Kakao 로고(`kakao/btn_signin_icon.svg`) | 2026-05-09 받음(로그인 버튼 리소스 PSD ZIP) | https://developers.kakao.com/tool/resource/login · https://developers.kakao.com/docs/ko/kakaologin/design-guide |
+| Naver 로고(`naver/btn_signin_icon.svg`) | 2026-05-09 받음(NAVER ID 로그인 BI 디자인 가이드 자료) | https://developers.naver.com/docs/login/bi/bi.md |
+| LINE 로고(`line/btn_signin_icon.svg`) | 2026-05-19 받음(LINE Login Button Image ZIP · Usage Guidelines 원문 발췌) | https://developers.line.biz/en/docs/line-login/login-button/ · https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button |
 
 ## 회귀 가드
 
