@@ -32,7 +32,7 @@ assets/brand/google/
 ## 공식 BI URL
 
 - https://developers.google.com/identity/branding-guidelines (Sign in with Google
-  Branding Guidelines · 본문 끝 표기 `Last updated 2026-07-07 UTC`)
+  Branding Guidelines — 본문 끝의 갱신 표기(`Last updated …`)를 확인한다)
 - 이 가이드는 「the standard color gradient super G logo」 를 요구한다. 단색 G · 직접 만든
   아이콘 · 색이나 크기를 바꾼 G 는 쓰면 안 되는 예로 든다.
 
@@ -47,7 +47,7 @@ assets/brand/google/
 
 ## 다운로드 일자
 
-2026-10-12 (묶음을 받아 PNG 4장을 만든 날)
+받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 만드는 절차
 
@@ -155,5 +155,9 @@ Google 은 로그인 버튼에 대해 사전 검수 신청을 받지 않는다. 
 
 ## 자산 freshness 갱신 빈도
 
-1년에 한 번, 그리고 가이드의 `Last updated` 날짜가 바뀌었을 때 본다. 묶음을 다시 받아
+1년마다 공식 페이지(https://developers.google.com/identity/branding-guidelines)를 다시
+확인한다 — 절차는 [브랜드 자산 갱신 — freshness 갱신](../../../docs/maintainer/brand-assets.md#freshness-갱신)
+에 있다.
+
+가이드 본문 끝의 `Last updated` 날짜가 바뀌었을 때도 본다. 묶음을 다시 받아
 sha256 이 위 값과 다르면 「만드는 절차」 로 다시 만들고 「다시 만들 때의 확인」 을 거친다.

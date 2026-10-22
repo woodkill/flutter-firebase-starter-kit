@@ -40,7 +40,7 @@ assets/brand/apple/
 
 ## 다운로드 일자
 
-2026-10-12 (스크립트를 받아 `medium` path 를 옮긴 날)
+받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
 
 ## 지금 그리는 값
 
@@ -104,7 +104,11 @@ fvm flutter test --no-pub test/features/auth/presentation/_widgets/brand_button_
 
 ## 자산 freshness 갱신 빈도
 
-1년에 한 번, 그리고 스크립트의 sha256 이 위 값과 달라졌을 때 본다. 달라졌으면 `medium`
+1년마다 공식 페이지(https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple)를
+다시 확인한다 — 절차는 [브랜드 자산 갱신 — freshness 갱신](../../../docs/maintainer/brand-assets.md#freshness-갱신)
+에 있다.
+
+스크립트의 sha256 이 위 값과 달라졌을 때도 본다. 달라졌으면 `medium`
 객체의 `height` · `width` · `logoWidth` · `path` 를 지금 값과 견주고, 바뀐 것이 있으면
 SVG 2장과 이 README · 자산 계약 테스트의 값을 함께 고친다.
 

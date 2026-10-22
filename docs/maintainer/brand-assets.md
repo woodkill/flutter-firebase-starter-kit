@@ -135,6 +135,8 @@ assets/brand/
 
 | 자산 | 받은 날 · 만든 날 | 확인한 공식 페이지 |
 |---|---|---|
+| Apple 로고(`apple/{black_logo,white_logo}/btn_signin_icon.svg`) | 2026-10-12 공식 웹 로그인 스크립트를 받아 `medium` path 를 옮김 | https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js · https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple |
+| Google 로고(`google/g.png` · `2.0x` · `3.0x` · `4.0x`) | 2026-10-12 공식 묶음을 받아 PNG 4장을 만듦 · 확인한 가이드 본문 끝 표기 `Last updated 2026-07-07 UTC` | https://developers.google.com/static/identity/images/signin-assets.zip · https://developers.google.com/identity/branding-guidelines |
 | Facebook 로고(`facebook/btn_signin_icon.svg`) | 2026-05-13 받음(Facebook Brand Asset Pack ZIP) · 다음 확인 2027-05-13 | https://www.meta.com/brand/resources/facebook/logo/ |
 | Kakao 로고(`kakao/btn_signin_icon.svg`) | 2026-05-09 받음(로그인 버튼 리소스 PSD ZIP) | https://developers.kakao.com/tool/resource/login · https://developers.kakao.com/docs/ko/kakaologin/design-guide |
 | Naver 로고(`naver/btn_signin_icon.svg`) | 2026-05-09 받음(NAVER ID 로그인 BI 디자인 가이드 자료) | https://developers.naver.com/docs/login/bi/bi.md |

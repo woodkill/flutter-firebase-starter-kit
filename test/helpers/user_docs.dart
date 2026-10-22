@@ -41,8 +41,6 @@ const List<String> kUserExampleFiles = <String>[
 /// 줄어들게 한다.
 const Set<String> kDocsAwaitingRewrite = <String>{
   'README.md',
-  'assets/brand/apple/README.md',
-  'assets/brand/google/README.md',
   'assets/fonts/googlesans/README.md',
   'assets/fonts/roboto/README.md',
   'assets/images/splash/README.md',
