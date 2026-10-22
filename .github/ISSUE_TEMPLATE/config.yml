@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: 사용 매뉴얼
-    url: https://github.com/woodkill/flutter-firebase-starter-kit/blob/main/docs/manual.md
-    about: 설정 · 업데이트 반영 · 문제 해결
+  - name: 설정 · 문제 해결
+    url: https://github.com/woodkill/flutter-firebase-starter-kit/blob/main/docs/setup.md
+    about: 위저드 실행 · 로그인 수단 켜기 · 문제 해결
+  - name: 직접 하는 일 · 업데이트 반영
+    url: https://github.com/woodkill/flutter-firebase-starter-kit/blob/main/docs/guide.md
+    about: 홈 화면 · 기능 · 빌드 · 출시 · 킷 업데이트 반영

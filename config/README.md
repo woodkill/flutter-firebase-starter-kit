@@ -17,17 +17,21 @@
   값이 비어 있어서, 복사한 직후 로그인 화면에는 「이메일로 계속」 만 보인다.
 - **켠 provider 만 키 · 콘솔 등록이 필요하다.** 끈 provider 의 키는 비워 둬도
   빌드 · 실행된다. provider 를 켜기 전에 그 provider 의 키를 채운다.
-- **Cloud Functions secret 은 끈 provider 것도 만들어 둔다.** 함수 배포는 코드에
+- **Cloud Functions secret 은 끈 provider 것도 있어야 한다.** 함수 배포는 코드에
   선언된 secret 이 Secret Manager 에 모두 있어야 진행된다. 끈 provider 의
-  secret 은 자리표시 값이면 된다 — 일괄 생성 명령은 `docs/manual.md`
-  「[로그인 수단 켜고 끄기](../docs/manual.md#로그인-수단-켜고-끄기)」 의 「켜기」 ④.
+  secret 은 자리표시 값이면 된다 — 위저드(`./setup.sh`)의 「Cloud Functions 배포」
+  단계가 배포 전에 Secret Manager 의 secret 목록과 코드의 선언을 대조해 없는
+  secret 만 자리표시 값 `unset` 으로 만든다(이미 있는 secret 의 값은 읽거나 바꾸지
+  않는다). 켠 provider 의 secret 은 `./setup.sh --providers` 가 콘솔에서 받은 키로
+  기록한다 — 확인은 [secret 값 확인하기](../docs/setup.md#secret-값-확인하기).
 - **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
 - **출시 뒤 provider 를 끌 때는 이 값을 고치지 않는다.** Remote Config kill
-  switch 로 끈다 — `docs/manual.md` 의 [RC Kill Switch 운영 절차](../docs/manual.md#rc-kill-switch-운영-절차-emergency-disable).
+  switch 로 끈다 — [Kill Switch 로 로그인 수단 막기](../docs/guide.md#kill-switch-로-로그인-수단-막기).
   CSV 에서 빼면 그 provider 로 가입한 사용자는 로그인 · 재인증 · 회원탈퇴를
   할 수 없다.
 
-provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_functions.sh <flavor>`)는 `docs/manual.md` 「[로그인 수단 켜고 끄기](../docs/manual.md#로그인-수단-켜고-끄기)」.
+provider 마다 켤 때 필요한 것은 [로그인 수단 켜기](../docs/setup.md#로그인-수단-켜기) 에 있다.
+함수 배포는 위저드(`./setup.sh --providers`)가 한다.
 
 ## `brandColor` — 브랜드 색
 
@@ -58,8 +62,8 @@ provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_func
   세 example 파일 모두 빈 문자열이다.
 - **`firebase`(기본값)** — Firebase 가 기본 템플릿으로 보낸다. 추가 설정이 없다.
 - **`kit`** — 킷이 앱 이름 · `brandColor` · 로고로 메일을 만들어 내 발송 서비스로
-  보낸다. 발송 서비스 · 확장 설정이 필요하다 — `docs/manual.md` 「인증 메일 발송
-  모드 켜고 끄기」.
+  보낸다. 발송 서비스 · 확장 설정이 필요하다 —
+  [인증 메일 발송 모드 켜고 끄기](../docs/guide.md#인증-메일-발송-모드-켜고-끄기).
 - **그 밖의 값은 배포 스크립트가 거부한다.** 대소문자 · 공백도 그대로 비교하므로
   `Kit` · ` kit` 도 틀린 값이다. debug 빌드 앱도 이 값을 읽는 순간 오류로 알린다.
 - **값은 빌드 때 들어간다.** 바꾼 뒤에는 앱을 다시 빌드한다.
@@ -85,8 +89,8 @@ provider 마다 켤 때 필요한 것과 함수 배포(`bash scripts/deploy_func
   로 끝난다.
 - **비었거나 자리표시 값이면 결과 페이지 빌드가 `FAIL:` 로 멈춘다.** 값은 출력하지
   않는다.
-- **바꾼 뒤에는 결과 페이지를 다시 배포한다** — `docs/manual.md` 「인증 결과 페이지
-  바꾸기」 의 「바꾸고 배포하기」 ③.
+- **바꾼 뒤에는 결과 페이지를 다시 배포한다** —
+  [인증 결과 페이지 바꾸기](../docs/guide.md#인증-결과-페이지-바꾸기) 의 「바꾸고 배포하기」 ③.
 
 ## `appCheckDebugToken` — debug 빌드의 App Check 디버그 토큰
 
@@ -124,8 +128,9 @@ debug 빌드 앱이 App Check 에 내는 디버그 토큰이다.
 
 **Firebase Secret Manager (서버 쪽, 2종):** `NAVER_CLIENT_SECRET` · `NAVER_CLIENT_ID` —
 웹 경로(로그인 · 계정 연결)의 code 교환과 연결 해제의 token revoke 가 쓴다.
-`NAVER_CLIENT_ID` 는 json 의 `naverClientId` 와 같은 값이다. 등록 절차는
-`docs/manual.md` Naver 8단계.
+`NAVER_CLIENT_ID` 는 json 의 `naverClientId` 와 같은 값이다. `./setup.sh --providers`
+로 Naver 를 켜면 위저드가 두 secret 을 등록한다 — 확인은
+[secret 값 확인하기](../docs/setup.md#secret-값-확인하기).
 
 - **iOS SDK 는 `ios/Flutter/{flavor}.xcconfig` 가 실제 출처다.** 플러그인이 Dart 가
   뜨기 전(`register(with:)` 시점)에 `Info.plist` 를 직접 읽기 때문에 값이 빌드
@@ -143,6 +148,6 @@ debug 빌드 앱이 App Check 에 내는 디버그 토큰이다.
 
 ## See Also
 
-- `docs/manual.md` 의 "5단계 — Firebase Secret Manager 등록" / "소셜 로그인
-  설정" 단락 — provider 별 신청 절차 + 키 메모 + 콘솔 설정.
+- [로그인 수단 켜기](../docs/setup.md#로그인-수단-켜기) — provider 별 콘솔 단계와
+  위저드가 받는 값.
 - `lib/core/config/app_config.dart` — CSV 파싱 + provider gate 로직.
