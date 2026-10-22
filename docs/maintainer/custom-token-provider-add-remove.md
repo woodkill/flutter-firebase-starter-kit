@@ -1,7 +1,8 @@
 # Custom Token provider 추가 · 제거 (유지보수자 문서)
 
-> 킷 사용자 문서가 아니다 — 킷 사용자는 provider 를 끄고 켜기만 한다(`docs/manual.md`
-> 「로그인 수단 켜고 끄기」). 추가 · 제거는 킷 유지보수자 작업이다.
+> 킷 사용자 문서가 아니다 — 킷 사용자는 provider 를 끄고 켜기만 한다
+> ([로그인 수단 켜기](../setup.md#로그인-수단-켜기) · [로그인 수단 끄기](../setup.md#로그인-수단-끄기)).
+> 추가 · 제거는 킷 유지보수자 작업이다.
 
 배경과 이력은 아래 원본에 있고, 이 문서는 내용을 복사하지 않는다.
 
@@ -93,20 +94,22 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      Firebase CLI 는 `--only` 필터와 상관없이 코드베이스가 선언한 `defineSecret` 전부의
      존재를 확인하고 없으면 값을 묻는다(firebase-tools 15.29.0 `deploy/functions/params.js`
      `resolveParams` → `ensureSecret`). 그래서 끈 provider 의 secret 도 자리표시 값으로
-     만들어 둔다 — 매뉴얼 「로그인 수단 켜고 끄기」 「켜기」 ④. 그 반복문은
-     `functions:secrets:get` 의 출력에 `HTTP Error: 404` 가 있을 때만 `unset` 으로
-     만들고, 다른 실패(로그인 · 권한 · 네트워크)에서는 메시지를 보이고 멈춘다 — 기존
-     secret 에 `secrets:set` 을 부르면 새 버전 `unset` 이 더해지기 때문이다
-     (`functions-secrets-set.js` → `ensureSecret` → `addVersion`). 이 문구는
-     firebase-tools 의 `lib/responseToError.js`(`"HTTP Error: " + statusCode + ", " …`)가
-     만들고 종료 코드로는 404 와 403 을 가를 수 없으므로(둘 다 1), CLI 를 올릴 때 이
-     형식이 그대로인지 확인한다. 새 provider 의
-     `defineSecret` 을 더하면 그 반복문의 secret 이름 목록에도 더한다. 같은 이름을
-     `functions/test/deploy_manifest.test.ts` 의 `PROVIDER_SECRET_OWNER` 와
-     `test/features/auth/manual_provider_on_off_contract_test.dart` 의 `_providerSecrets`
-     에도 더한다 — T-173-DEPLOY-15 가 `functions/src` 의 `defineSecret` 선언 · 소유 맵 ·
-     반복문을, T-173-DOCS-04 가 반복문 · `_providerSecrets` 를 집합으로 대조한다. 매뉴얼 ·
-     `config/README.md` · 배포 스크립트 머리말은 secret 개수를 적지 않는다(반복문이 목록).
+     있어야 한다 — 위저드 「Cloud Functions 배포」 단계(`tool/setup/steps/functions_step.dart`)가
+     Secret Manager 의 secret 목록과 `functions/src` 의 `defineSecret` 선언을 대조해 없는
+     secret 만 `unset` 으로 만든다. 목록 대조라 이미 있는 secret 에는 `secrets:set` 을 부르지
+     않는다(부르면 새 버전 `unset` 이 더해진다 — `functions-secrets-set.js` → `ensureSecret` →
+     `addVersion`). 새 provider 의 `defineSecret` 을 더하면 같은 이름을 provider 단계
+     `KeyField` 의 `secretNames`(`tool/setup/steps/<provider>_step.dart` · 필드 정의는
+     `tool/setup/providers/keyed_provider_step.dart`)와 `functions/test/deploy_manifest.test.ts`
+     의 `PROVIDER_SECRET_OWNER` 에 더한다 — `test/tool/setup/secret_names_test.dart` 의
+     T-19-SECRET-01 · 04 가 `functions/src` 선언 집합과 단계 `secretNames` 합집합을,
+     T-173-DEPLOY-15 가 선언 · 소유 맵 · 단계 `secretNames` · provider 토큰을 대조한다.
+     사용자 문서에도 그 이름을 적는다(14 단계) — T-173-DOCS-04 가
+     `test/features/auth/manual_provider_on_off_contract_test.dart` 의 provider secret 목록이
+     `docs/setup.md` 「로그인 수단 켜기」 절에 있는지 본다. 사용자 문서 · `config/README.md` ·
+     배포 스크립트 머리말은 secret 개수를 적지 않는다. provider 단계가 secret 값을 읽을 때의
+     「없음」 판정은 `tool/setup/secret_store.dart` 의 `readSecret` 이 CLI 출력의 `404` ·
+     `not found` 조각으로 하므로, CLI 를 올릴 때 이 출력 형식이 그대로인지 확인한다.
    - `functions/src/index.ts` 에 export 1줄씩. 클라이언트는
      `AuthRepository.linkCustomTokenProviderArm` 의 callable 이름 switch 에 1행
      (`lib/features/auth/data/auth_repository.dart`), access token provider 는
@@ -147,10 +150,13 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
     0개 기본). `scripts/verify_placeholder_builds.sh` 의 `all` case 가 새 키를 넣는지
     확인한다.
 
-14. **사용자 매뉴얼** — `docs/manual.md` 「로그인 수단 켜고 끄기」 절의 provider 표에
-    1행(토큰 · config 키 · xcconfig 변수 · 함수 · secret · 콘솔 등록)과 그 provider 의
-    설정 절. 계약 테스트 `test/features/auth/manual_provider_on_off_contract_test.dart`
-    (T-173-DOCS-03 · 04)가 표의 함수 · 키를 manifest · example 파일과 대조한다.
+14. **사용자 문서** — `docs/setup.md` 「켜는 순서와 수단별로 필요한 것」 의 「수단별로
+    필요한 것」 표에 1행(토큰 · config 키 · xcconfig 변수 · Cloud Functions · secret · 콘솔
+    단계 링크), 그 수단의 하위 절 `### <Provider> 로그인 켜기`, secret 을 쓰는 수단이면
+    「secret 값 확인하기」 표 행, 위저드 카탈로그 `tool/setup/providers/provider_catalog.dart`
+    의 `DocRef('docs/setup.md', '### <Provider> 로그인 켜기')`. 계약 테스트
+    `test/features/auth/manual_provider_on_off_contract_test.dart`(T-173-DOCS-03 · 04)가
+    표의 함수 · 키 · secret 을 manifest · example 파일 · 그 시험 파일의 목록과 대조한다.
 
 각 단계 뒤 게이트는 「제거 가이드」 2 의 게이트 블록과 같다.
 
@@ -166,7 +172,7 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
    | 레버 | 시점 | 방법 |
    |------|------|------|
    | 정적 CSV | 빌드 | `config/{flavor}.json` 의 `enabledAuthProviders` 에서 `<slug>` 토큰을 뺀다 |
-   | Remote Config | 운영 | `auth_provider_<slug>_enabled = false` 게시 — 매뉴얼 「RC Kill Switch 운영 절차」 |
+   | Remote Config | 운영 | `auth_provider_<slug>_enabled = false` 게시 — [Kill Switch 로 로그인 수단 막기](../guide.md#kill-switch-로-로그인-수단-막기) |
 
    정적 CSV 에서 빠진 provider 는 RC 로 켤 수 없다(정적 false 절대 우위). 그래서
    「이 앱은 이 provider 를 쓰지 않는다」 는 CSV 토큰 제거만으로 확정되고, 운영 중 임시
@@ -283,9 +289,9 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      native provider(Google · Apple · Facebook)를 제거할 때도 레지스트리의 그 줄과
      (Google · Apple 이면) step 파일을 ② 와 같은 커밋에서 지운다 — `AccountProvider`
      enum 값이 사라지면 그 줄이 컴파일되지 않는다.
-   - ⑧ **문서 · 스킬 · 계획 문서** — 사용자 매뉴얼의 provider 절 · 목차 ·
-     「로그인 수단 켜고 끄기」 provider 표 행, 이 문서의 예 · 표, 스킬 `references/`,
-     `.planning` 활성 문서.
+   - ⑧ **문서 · 스킬 · 계획 문서** — 사용자 문서 `docs/setup.md` 의 provider 하위 절 ·
+     목차 · 「수단별로 필요한 것」 표 행 · 「secret 값 확인하기」 표 행과 위저드 카탈로그의
+     `DocRef`(추가 가이드 14), 이 문서의 예 · 표, 스킬 `references/`, `.planning` 활성 문서.
 
    각 항목의 게이트(C-04):
 
@@ -364,7 +370,8 @@ Kakao(OIDC ID token) · Naver(access token / REST) · LINE(OIDC ID token)의 통
      삭제하거나 「Update to Latest Package Versions」 · `flutter clean` 을 돌리면 킷의 모든
      핀이 풀린다. 판독은 `cmp -s` 두 파일 → `git diff --stat -- '**/Package.resolved'` →
      `jq -r '.pins[].identity'` 전후 비교 → `test/ios/spm_policy_test.dart` 순서로 하고,
-     핀이 남은 이유를 매뉴얼 「iOS 의존성 관리 (SPM)」 절 고정값 표 비고에 적는다.
+     핀이 남은 이유를 `docs/guide.md` 「iOS 의존성 관리 (SPM)」 ② 고정 버전 표의 비고에
+     적는다.
    - **(d) 골든 재생성.** `fvm flutter test --no-pub --update-goldens <파일>` 은 그 파일의
      골든 전부를 다시 찍는다. 대상 외 fixture 가 제거 직전 tag 와 바이트 동일한지 `cmp` 로
      확인한다 — 다르면 폰트 · SDK 환경 drift 이므로 원인부터 추적한다. 대상 수는 harness

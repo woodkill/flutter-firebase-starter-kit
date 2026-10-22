@@ -1,7 +1,7 @@
 # 킷 공개본 발행 (유지보수자 문서)
 
-> 킷 사용자 문서가 아니다 — 킷 사용자는 공개 저장소의 새 판을 받기만 한다(`docs/manual.md`
-> 「킷 업데이트 반영」). 공개본을 만들고 내보내는 일은 킷 유지보수자 작업이다.
+> 킷 사용자 문서가 아니다 — 킷 사용자는 공개 저장소의 새 판을 받기만 한다
+> ([킷 업데이트 반영](../guide.md#킷-업데이트-반영)). 공개본을 만들고 내보내는 일은 킷 유지보수자 작업이다.
 
 배경 · 결정 · 실측은 아래 원본에 있고, 이 문서는 절차만 적는다.
 
@@ -142,8 +142,8 @@ D-28 순서다 — 새 저장소를 비공개로 만들고 검수를 마친 뒤 
 `gh` 명령은 유지보수자가 직접 실행한다(한 단계씩 결과를 확인하고 다음으로).
 
 1. 「릴리스 컷」(`1.0.0-rc.1`) → `git push origin master` → `mirror` · `scan` · `verify` 통과.
-   첫 공개에만 키 없는 빌드 게이트 `scripts/verify_placeholder_builds.sh`(3케이스)와 매뉴얼
-   「킷 업데이트 반영」 절차 시뮬레이션도 통과시킨다(D-31 · D-39).
+   첫 공개에만 키 없는 빌드 게이트 `scripts/verify_placeholder_builds.sh`(3케이스)와
+   `docs/guide.md` 「킷 업데이트 반영」 절차 시뮬레이션도 통과시킨다(D-31 · D-39).
 2. 비공개로 저장소를 만든다:
 
    ```bash
@@ -159,8 +159,8 @@ D-28 순서다 — 새 저장소를 비공개로 만들고 검수를 마친 뒤 
    gh repo edit woodkill/flutter-firebase-starter-kit --default-branch main --enable-issues --enable-wiki=false --enable-projects=false --template
    ```
 
-6. 실제 「Use this template」 를 한 번 해 본다 — 임시 저장소를 만들고 매뉴얼 「킷 업데이트
-   반영」 의 문구 그대로 기준점 merge 까지 따라간 뒤, 임시 저장소는 GitHub 웹 콘솔(Settings →
+6. 실제 「Use this template」 를 한 번 해 본다 — 임시 저장소를 만들고 `docs/guide.md` 「킷
+   업데이트 반영」 의 문구 그대로 기준점 merge 까지 따라간 뒤, 임시 저장소는 GitHub 웹 콘솔(Settings →
    Danger Zone)에서 지운다(로그인 토큰에 `delete_repo` 권한이 없다):
 
    ```bash
@@ -253,7 +253,7 @@ D-28 순서다 — 새 저장소를 비공개로 만들고 검수를 마친 뒤 
 - skip-worktree 2파일(`lib/core/firebase/firebase_options_dev.dart` ·
   `ios/config/dev/GoogleService-Info.plist`)에는 이 트리의 실 값이 있다. 작업 트리를 grep 해서
   공개 위생을 판정하지 않는다(검사 대상은 mirror 이력뿐). 킷이 이 파일을 고치면 사용자 merge 가
-  멈춘다 — 매뉴얼 「킷 업데이트 반영」 의 충돌 풀기 절차가 필요한 MAJOR 변경이다.
+  멈춘다 — `docs/guide.md` 「킷 업데이트 반영」 의 충돌 풀기 절차가 필요한 MAJOR 변경이다.
 - ruleset · push protection 을 비공개 상태에서 시도하면 실패한다(GitHub Free) — 공개 전환 뒤에 건다.
 - 태그 ruleset 에 `creation` 을 넣거나 `main` ruleset 에 `update` 를 넣으면 우회 대상이 없는
   유지보수자도 발행할 수 없다 — payload 파일의 규칙 종류를 바꾸지 않는다.
