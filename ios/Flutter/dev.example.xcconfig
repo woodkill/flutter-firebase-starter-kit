@@ -1,22 +1,32 @@
-// dev flavor 공통 변수 (placeholder — 본인 키로 채우기. dev.xcconfig 는 .gitignored)
+// dev flavor 의 iOS 빌드 변수 예시 — 값은 모두 자리표시다.
+// ./setup.sh 의 「사용자 설정 파일」 단계가 이 파일을 ios/Flutter/dev.xcconfig 로 복사하고,
+// 뒤 단계가 그 복사본에 값을 채운다(docs/setup.md 「위저드 실행」).
+// 복사본은 git 에 올라가지 않고 이 예시만 tracked 다 — 본인 값은 복사본에만 넣는다.
+// 앱 ID · 표시 이름 — 「앱 정체성」 단계가 복사본에서 맞춘다.
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev
 DISPLAY_NAME = FSK Dev
 FLAVOR = dev
+// Google 로그인 URL scheme — Google 을 켜면 「Google — iOS 쪽」 단계가 iOS 설정 파일의 값을 쓴다
+// (docs/setup.md 「Google 로그인 켜기」).
 REVERSED_CLIENT_ID = com.googleusercontent.apps.YOUR_REVERSED_CLIENT_ID_HERE
+// Facebook App ID · Client Token — config/dev.json 의 facebookAppId · facebookClientToken 과 같은 값.
+// Facebook 을 켜면 「Facebook 로그인」 단계가 받은 값을 두 파일에 쓴다(docs/setup.md 「Facebook 로그인 켜기」).
 FACEBOOK_APP_ID = YOUR_FACEBOOK_APP_ID_HERE
 FACEBOOK_CLIENT_TOKEN = YOUR_FACEBOOK_CLIENT_TOKEN_HERE
-// Kakao SDK 네이티브 앱 키 (Phase 12 D-20 — see ROADMAP.md). manual.md "## 0. Initial Setup" 절차 참조.
+// Kakao 네이티브 앱 키(REST API 키와 다르다) — config/dev.json 의 kakaoNativeAppKey 와 같은 값.
+// Kakao 를 켜면 「Kakao 로그인」 단계가 받은 키를 두 파일에 쓴다(docs/setup.md 「Kakao 로그인 켜기」).
 KAKAO_NATIVE_APP_KEY = REPLACE_WITH_DEV_NATIVE_APP_KEY
-// Naver Login URL scheme (Phase 13 — see ROADMAP.md). Naver Developers Console > API 설정 > iOS > URL Scheme.
+// Naver 웹 로그인의 콜백 URL scheme(소문자 영숫자) — config/dev.json 의 naverUrlScheme 과 같은 값.
+// Naver 를 켜면 「Naver 로그인」 단계가 아래 세 값을 두 파일에 쓴다(docs/setup.md 「Naver 로그인 켜기」).
 NAVER_URL_SCHEME = your-naver-url-scheme-here
-// Naver Login Client ID · Secret (Phase 16.2 D-02 — see ROADMAP.md).
-// naver_login_flutter 는 runtime initialize 가 없고 Info.plist 의 Nid* 키를
-// plugin registration 시점에 읽는다. config/dev.json 의 naver 키와 같은 값을
-// 넣는다(값 중복은 의도된 것). manual.md "## Naver Login (Phase 13)" 7단계 참조.
+// Naver Client ID · Secret — config/dev.json 의 naverClientId · naverClientSecret 과 같은 값.
+// iOS 의 Naver 로그인 plugin 은 앱 시작 때 Info.plist 의 Nid* 키(이 두 값)를 읽으므로 두 파일에 같은 값을 둔다.
 NAVER_CLIENT_ID = your-naver-client-id-here
 NAVER_CLIENT_SECRET = your-naver-client-secret-here
-// LINE Channel ID (Phase 14 — see ROADMAP.md, D-LINE-16). manual.md "## LINE Login (Phase 14)" 절차 참조.
-// dev flavor 만 실 키 주입 (D-LINE-19 / memory `project_firebase_dev_only`).
+// LINE Channel ID — config/dev.json 의 lineChannelId 와 같은 값.
+// LINE 을 켜면 「LINE 로그인」 단계가 받은 값을 두 파일에 쓴다(docs/setup.md 「LINE 로그인 켜기」).
 LINE_CHANNEL_ID = REPLACE_WITH_DEV_LINE_CHANNEL_ID
-// Apple Developer Team ID (10자) — 실기기에 설치할 때만 필요하다. Xcode > Runner > Signing & Capabilities 의 Team 과 같은 값. 시뮬레이터 빌드는 비워 둬도 된다 (Phase 17.4 D-11 — see ROADMAP.md).
+// 아래 줄은 Apple Developer Team ID(10자) — 실기기에 설치할 때만 필요하고, 시뮬레이터 빌드는 비워 둬도 된다.
+// Xcode > Runner > Signing & Capabilities 의 Team 과 같은 값이다. 비어 있으면 Team ID 가 필요한
+// 위저드 단계(Apple 로그인 · App Check — DeviceCheck · APNs 키)가 한 번 묻고 복사본에 쓴다.
 DEVELOPMENT_TEAM =

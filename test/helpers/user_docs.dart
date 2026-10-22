@@ -26,11 +26,17 @@ const List<String> kUserDocExcludedPrefixes = <String>[
 /// 어느 디렉터리에 있든 대상에서 빼는 Claude 지시 파일 이름이다.
 const String kClaudeInstructionFileName = 'CLAUDE.md';
 
+/// 예시 xcconfig 가 있는 디렉터리다.
+///
+/// 아래 [kUserExampleFiles] 의 경로 줄이 [kDocsAwaitingRewrite] 의 항목 줄과 글자가
+/// 겹치지 않게 한다 — 목록 항목 줄을 글자로 세는 검사가 두 목록을 섞어 세지 않는다.
+const String _kIosFlutterDir = 'ios/Flutter';
+
 /// 설정 위저드가 사용자 파일로 복사하는 예시 파일 — md 가 아니어도 대상에 든다.
 const List<String> kUserExampleFiles = <String>[
-  'ios/Flutter/dev.example.xcconfig',
-  'ios/Flutter/stg.example.xcconfig',
-  'ios/Flutter/prod.example.xcconfig',
+  '$_kIosFlutterDir/dev.example.xcconfig',
+  '$_kIosFlutterDir/stg.example.xcconfig',
+  '$_kIosFlutterDir/prod.example.xcconfig',
   'extensions/firestore-send-email.env.example',
 ];
 
@@ -46,7 +52,6 @@ const Set<String> kDocsAwaitingRewrite = <String>{
   'assets/images/splash/README.md',
   'assets/test_fonts/README.md',
   'docs/manual.md',
-  'ios/Flutter/dev.example.xcconfig',
   'ios/Flutter/prod.example.xcconfig',
   'ios/Flutter/stg.example.xcconfig',
 };
