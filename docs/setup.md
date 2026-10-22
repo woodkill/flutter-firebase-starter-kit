@@ -195,9 +195,97 @@
 
 ## 로그인 수단 끄기
 
+켠 소셜 로그인 수단을 로그인 화면에서 빼려면 이 절을 따른다. 끄는 일도 위저드가 한다 — `config/<flavor>.json` 을 손으로 고치거나 배포된 함수를 손으로 지우지 않는다. 출시 뒤 이미 가입자가 있는 수단은 목록에서 빼지 않고 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 로 버튼만 숨긴다 — 목록에서 빼면 그 수단으로 가입한 사용자가 로그인 · 재인증 · 회원탈퇴를 할 수 없다.
+
+**전제**
+
+- [위저드 실행](#위저드-실행) 으로 그 flavor 의 처음 설정이 끝나 있다.
+- 끌 수단이 [로그인 수단 켜기](#로그인-수단-켜기) 로 켜져 있다.
+
+**단계**
+
+1. 저장소 루트에서 체크 목록을 연다. stg · prod 는 `--flavor stg` · `--flavor prod` 를 함께 준다.
+
+   ```bash
+   ./setup.sh --providers
+   ```
+
+2. 위저드가 `로그인 수단 — 이메일 로그인은 늘 켜져 있습니다` 아래에 번호 목록을 보인다 — 켜진 수단은 `1) [x] Google` 처럼 `[x]` 가 붙는다. 번호를 묻는 질문에 **남길 수단의 번호만** 띄어 써서 입력한다. 끌 수단의 번호를 빼면 그 수단이 꺼진다. 소셜 로그인을 모두 끄려면 `0`(이메일만)을 입력한다.
+3. 위저드가 뺀 수단의 가입자 수를 센다 — 화면에는 수단 이름과 개수만 보인다. 여기서 아래 두 갈래로 나뉜다.
+
+**가입자가 있으면** — 위저드는 로그인 수단 목록을 바꾸지 않고 아래 안내를 보인 뒤 끝난다. `<n>` · `<수단>` · `<토큰>` 에는 실제 값이 들어간다.
+
+```text
+<n>명이 <수단> 로그인으로 가입했습니다 — 빼면 이 사용자들이 로그인 · 재인증 · 회원탈퇴를 못 합니다
+그래서 로그인 수단 목록(enabledAuthProviders)을 바꾸지 않았습니다.
+앱에서 버튼만 숨기려면 Remote Config 에서 auth_provider_<토큰>_enabled 를 false 로 게시하세요 — … (위저드는 Remote Config 를 바꾸지 않습니다)
+테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요
+끝나면 ./setup.sh 를 다시 실행하세요 — 끝난 단계는 건너뜁니다.
+```
+
+`…` 자리에는 버튼을 숨기는 절차의 위치가 나온다. 그 절차는 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다 — 위저드는 Remote Config 를 바꾸지 않으므로 키 게시는 그 절차대로 직접 한다.
+
+**켠 직후 끄는 개발 프로젝트** — 수단을 켜면 위저드의 「소셜 로그인 확인」 단계에서 그 수단으로 한 번 로그인하므로 테스트 계정이 생긴다. 그래서 켠 직후 끄면 위저드는 가입자가 있는 갈래로 가고, 안내 끝에 `테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요` 를 보인다. 가입자가 그 테스트 계정뿐이면 아래처럼 한다.
+
+1. 테스트 계정을 지운다.
+   - Google · Apple · Facebook — Firebase 콘솔에서 그 프로젝트를 열고 [[LABEL: Firebase — Authentication 사용자 목록 메뉴]] 에서 그 계정을 지운다.
+   - Kakao · Naver · LINE — 위저드는 이 셋의 가입자를 Firestore 의 가입 기록으로 센다. 콘솔의 Authentication 사용자 목록에서만 지우면 그 기록이 남아 다시 가입자로 세어진다. 앱에서 그 테스트 계정으로 로그인한 뒤 「설정」 의 「회원탈퇴」 로 지운다 — 확인 칸에 `탈퇴` 를 입력하면 계정과 가입 기록이 함께 지워진다.
+2. 체크 목록을 다시 연다.
+
+   ```bash
+   ./setup.sh --providers
+   ```
+
+3. 같은 번호를 다시 입력한다. 이번에는 가입자가 0명이라 아래 「가입자가 없으면」 갈래로 간다.
+
+**가입자가 없으면** — 위저드는 「지금 · 새 값 · 뺀 것 · 기록」 값 표를 보이고, `y` 를 받은 뒤 `config/<flavor>.json` 의 `enabledAuthProviders` 에서 그 수단을 뺀다. 그 수단의 키 · secret 값은 남긴다. 이어서 그 수단의 함수가 배포돼 있으면 이름을 보이고 지울지 따로 묻는다.
+
+```text
+뺀 로그인 수단의 함수 <n>개가 배포돼 있습니다 (<리전>): <함수 이름> · …
+지우면 다시 켤 때 다시 배포합니다 — 키 · secret 값은 남깁니다.
+지울까요? [y/N]
+```
+
+- 기본은 아니요다. 아니요면 위저드가 `함수를 남겼습니다.` 를 보이고 함수는 그대로 남는다. 남은 함수는 「Cloud Functions 배포」 단계가 끝남 줄에 `꺼진 로그인 수단의 함수 <n>개가 남아 있습니다` 로 개수와 지우는 명령을 알린다.
+- `y` 면 위저드가 그 함수를 지우고 `함수 <n>개를 지웠습니다.` 를 보인다. 이미 지워져 있으면 `지울 함수가 이미 지워져 있습니다 — 그대로 진행합니다.` 를 보이고 이어 간다.
+
+그 뒤 위저드는 바뀐 목록으로 단계 목록을 다시 짜고 남은 단계를 이어 간다.
+
+### 확인 방법
+
+- `./setup.sh` 를 다시 실행하면 점검표의 「로그인 수단」 줄이 남은 수단만 보인다(예: `이메일 + Google · 바꾸기: ./setup.sh --providers`).
+- 앱을 다시 빌드해 실행하면 로그인 화면에서 뺀 수단의 버튼이 사라진다. `enabledAuthProviders` 는 빌드 때 앱에 들어가므로 실행 중인 앱에는 다시 빌드해야 반영된다.
+
+  ```bash
+  fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+  ```
+
+- 소셜 로그인을 모두 끄면 로그인 화면에는 「이메일로 계속」 만 남는다.
+
+### 되돌리기
+
+`./setup.sh --providers` 를 다시 실행해 끈 수단의 번호를 다시 넣는다. 키 · secret 값은 남아 있으므로 다시 입력하지 않아도 되고, 지운 함수는 「Cloud Functions 배포」 단계가 다시 배포한다. Kill Switch 로 숨긴 버튼을 되살리는 법은 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다.
+
 ### iOS 서명 — Apple 을 꺼도 필요한 capability
 
+Apple 을 꺼도 iOS 실기기 서명에는 App ID 의 Sign in with Apple capability 가 필요하다. 자동 서명이면 Xcode 가 켠다. 수동 서명이면 Apple Developer → Certificates, Identifiers & Profiles → Identifiers 에서 앱의 App ID 를 열고 Sign in with Apple 을 켠다.
+
+Apple 을 끈 앱도 이 capability 를 그대로 두는 이유는 다음과 같다.
+
+- capability 는 추가 비용 없이 체크 한 번으로 켜진다.
+- `ios/Runner/Runner.entitlements` 의 `com.apple.developer.applesignin` 은 provider 마다 나누지 않는다. 빌드 설정 9곳이 같은 파일을 쓰고, 그 파일에 푸시 알림용 `aps-environment` 도 들어 있다.
+- 파일을 나누면 `enabledAuthProviders` 와 xcconfig 두 곳을 서로 맞춰야 한다.
+- 시뮬레이터 빌드에는 영향이 없다.
+
 ### App Store 심사 4.8 (Login Services) 주의
+
+Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4.8 의 「동등한 다른 로그인 수단」 요건을 검토해야 한다. 이메일/비밀번호 로그인이 그 요건을 채우는지는 Apple 이 심사에서 판단한다. 제출 전에 심사 시점의 원문을 확인한다 — <https://developer.apple.com/app-store/review/guidelines/#login-services>. 아래 인용은 4.8 원문 첫 문단과 세 조건이다.
+
+> Apps that use a third-party or social login service (such as Facebook Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login with Amazon, or WeChat Login) to set up or authenticate the user’s primary account with the app must also offer as an equivalent option another login service with the following features:
+>
+> - the login service limits data collection to the user’s name and email address;
+> - the login service allows users to keep their email address private as part of setting up their account; and
+> - the login service does not collect interactions with your app for advertising purposes without consent.
 
 ## 위저드를 끝낸 뒤
 
