@@ -2278,7 +2278,7 @@ dSYM 이 없으면 Crashlytics 대시보드에 "Missing dSYM" 알림이 뜨고, 
 firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug-info 디렉터리>
 ```
 
-공식 안내: <https://firebase.google.com/docs/crashlytics/flutter/get-deobfuscated-reports> · 난독화 옵션: <https://docs.flutter.dev/deployment/obfuscate>. 네이티브(NDK) 크래시의 기호 업로드는 킷에 설정이 없다 — 네이티브 코드를 더하는 앱은 Firebase 의 Android 안내 <https://firebase.google.com/docs/crashlytics/android/get-deobfuscated-reports> 를 따른다.
+공식 안내: <https://firebase.google.com/docs/crashlytics/flutter/get-deobfuscated-reports> · 난독화 옵션: <https://docs.flutter.dev/deployment/obfuscate>. 네이티브(NDK) 크래시의 기호 업로드는 킷에 설정이 없다 — 네이티브 코드를 더하는 앱은 Firebase 의 Android NDK 안내 <https://firebase.google.com/docs/crashlytics/android/get-started-ndk> 를 따른다.
 
 ### 확인 방법
 
@@ -2444,7 +2444,7 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 **흔한 실수:**
 
-- **iOS 에서 Facebook 으로 가입했는데 프로필 사진이 비어 있다.** ATT 가 없는 기본 설정의 정상 동작이다 — Limited Login 은 사진을 가져오지 않는다(`auth_repository.dart`).
+- **iOS 에서 Facebook 으로 가입했는데 프로필 사진이 비어 있다.** ATT 가 없는 기본 설정의 정상 동작이다 — 킷은 Limited Login 에서 사진을 가져오는 단계를 건너뛴다(`auth_repository.dart`).
 - **Limited 토큰으로 Graph API 의 추가 데이터를 기대한다.** 친구 · 사진 · 페이지 같은 데이터는 Limited 토큰으로 요청할 수 없다.
 - **Facebook 앱으로 넘어가지 않는 것을 오류로 본다.** Limited Login 은 웹 인증 세션을 쓰므로 Facebook 앱으로 넘어가지 않는 것이 정상이다.
 - **`LoginTracking.enabled` 를 넘겼으니 Classic 이라고 가정한다.** iOS 는 ATT 가 허용 상태가 아니면 그 요청과 무관하게 Limited Login 으로 간다.
