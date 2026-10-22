@@ -525,12 +525,234 @@ git revert -m 1 <merge 커밋>
 
 ## 정적 분석 — woody_lints · riverpod_lint
 
+킷의 analyze 규칙은 `woody_lints` 패키지에서 온다. 규칙이나 riverpod_lint
+진단을 끄거나 woody_lints 판을 올릴 때 이 절을 본다.
+
+### 구성
+
+`pubspec.yaml` 의 `dev_dependencies` 가 woody_lints 를 공개 GitHub 저장소의
+tag 로 받는다.
+
+```yaml
+dev_dependencies:
+  woody_lints:
+    git:
+      url: https://github.com/woodkill/woody_lints.git
+      ref: v2.0.0
+```
+
+`analysis_options.yaml` 은 묶음 프리셋 하나를 include 한다. 기본 규칙 ·
+riverpod_lint plugin · 코드 생성(freezed · json_serializable) 설정이 함께
+들어온다.
+
+```yaml
+include: package:woody_lints/recommended.yaml
+```
+
+- 킷 옵션 파일의 `analyzer: exclude:` 목록(생성 파일 `**/*.g.dart` ·
+  `**/*.freezed.dart`, `functions/**`, 플랫폼 폴더)은 지우지 않는다. 프리셋에도
+  생성 파일 제외가 있지만 riverpod_lint 진단에는 닿지 않아, 프로젝트의 옵션
+  파일에 직접 적어야 막힌다.
+- riverpod_lint 는 프리셋의 `plugins:` 가 `^3.1.9` 범위로 선언하고, 분석할 때
+  pub.dev 에서 받는다. 그래서 분석에는 네트워크가 필요하고, `pubspec.yaml` ·
+  `pubspec.lock` 에는 riverpod_lint 를 따로 적지 않는다. woody_lints 를 tag 로
+  고정해도 plugin 은 그 범위 안의 최신 판으로 풀린다.
+- woody_lints 2.0.0 은 Dart 3.13 이상이 필요하다. 킷의 `.fvmrc` 가 고정한
+  Flutter 가 이를 충족한다.
+
+### 확인 방법
+
+저장소 루트에서 두 명령을 모두 실행하고, 둘 다 `No issues found!` 인지 본다.
+
+```bash
+fvm flutter analyze
+fvm dart analyze
+```
+
+- `fvm flutter analyze` 는 info 진단도 실패로 친다.
+- riverpod_lint 진단은 `fvm dart analyze` 에만 나온다.
+
+plugin 준비가 실패하면 출력에 `An error occurred while executing an analyzer plugin:`
+머리말이 보인다(첫 줄이 아닐 수 있다). 이때도 종료 코드는 남은 진단대로 나오므로
+종료 코드만으로는 알 수 없다.
+
+### 진단 고치기
+
+```bash
+fvm dart fix --dry-run
+fvm dart fix --apply
+```
+
+`--dry-run` 으로 자동으로 고칠 것을 보고 `--apply` 로 고친다. 한 규칙만 고치려면
+`--code=<규칙>` 을 붙인다. riverpod_lint 진단은 `dart fix` 가 고치지 않으므로,
+자동으로 고쳐지지 않은 진단과 함께 손으로 고친다.
+
+### 한 줄 · 파일 단위로 끄기
+
+- 한 줄: 진단이 시작하는 줄 바로 위에 `// ignore: <규칙>` 을 적는다.
+- 파일: 파일 맨 위에 `// ignore_for_file: <규칙>` 을 적는다.
+- riverpod_lint 진단은 `riverpod_lint/<규칙>` 처럼 접두사를 붙인다. 접두사가
+  없으면 꺼지지 않는다.
+- 무시 주석 바로 윗줄에는 끄는 까닭을 적은 주석을 둔다. 없으면 그 무시 주석에
+  `document_ignores` info 가 붙는다.
+- `///` 문서 주석이 있는 멤버는 진단이 `///` 첫 줄에서 시작하므로, 이유 주석 →
+  무시 주석 → `///` 블록 순서로 적는다.
+
+```dart
+// 서버가 보낸 표기를 그대로 보여 주는 진단 화면이라 큰따옴표를 둔다.
+// ignore: prefer_single_quotes
+const String serverSample = "ok";
+
+// 이 자리에서는 <규칙> 이 맞지 않는 까닭을 적는다.
+// ignore: riverpod_lint/<규칙>
+final items = ref.watch(itemsProvider);
+```
+
+### 프로젝트 전체에서 끄기
+
+- 규칙: 킷 `analysis_options.yaml` 에 이미 있는 `linter:` → `rules:` 아래에
+  `<규칙>: false` 를 맵 꼴로 더한다. 같은 `rules:` 에 목록 꼴(`- 이름`)을 섞으면
+  YAML 이 깨져 `fvm dart analyze` 가 진단 없이 종료 코드 3 으로 끝난다.
+- riverpod_lint 진단: 파일 끝에 최상위 `plugins:` → `riverpod_lint:` 를 두고, 그
+  아래에 `version: ^3.1.9` 와 `diagnostics:` → `<규칙>: false` 를 적는다.
+  - `version` 없이 `diagnostics:` 만 적으면 경고 없이 무시된다.
+  - 이 블록이 프리셋의 plugin 선언을 대신하므로 `version` 값은 프리셋 선언과
+    같게 적는다.
+  - `analyzer: errors:` 로는 riverpod_lint 진단을 끌 수 없다.
+
+```yaml
+linter:
+  rules:
+    prefer_final_locals: false
+
+plugins:
+  riverpod_lint:
+    version: ^3.1.9
+    diagnostics:
+      avoid_public_notifier_properties: false
+```
+
+바꾼 뒤에는 IDE 의 Analysis Server 를 재시작한다 — VS Code 는 명령 팔레트의
+`Dart: Restart Analysis Server`.
+
+### woody_lints 판 올리기
+
+1. 새 tag 의 woody_lints `CHANGELOG.md` 에서 「새로 생기는 경고」 와 요구 SDK 를
+   본다.
+2. `pubspec.yaml` 의 `ref:` 를 새 tag 로 고친다.
+3. `fvm flutter pub get`
+4. `pubspec.yaml` 과 `pubspec.lock` 을 함께 커밋한다 — `ref:` 만 바꾸고 lock 을
+   그대로 두면 `fvm flutter pub get --enforce-lockfile` 이 실패한다.
+5. `fvm flutter analyze` · `fvm dart analyze` 로 새 진단을 본다.
+6. `fvm dart fix --apply` 로 고칠 수 있는 것을 고치고, 남은 것은 손으로 고친다.
+7. IDE 의 Analysis Server 를 재시작한다.
+
+### 테스트 작성 규칙
+
+- generator provider 를 override 하는 `ProviderScope` 는
+  `await tester.pumpWidget(ProviderScope(...))` 처럼 **pumpWidget 의 직접
+  인자**로 넘긴다. helper 가 `ProviderScope` 위젯을 반환하거나 다른 위젯으로
+  감싸면 규칙이 root scope 로 보지 않아 `scoped_providers_should_specify_dependencies`
+  가 난다 → helper 는 `WidgetTester` 를 받아 직접 pump 한다
+  (예: `Future<void> _pumpApp(WidgetTester tester, {...})`).
+- fake Notifier 에 public 카운터 · 기록 필드 · getter 를 두지 않는다
+  (`avoid_public_notifier_properties`). 호출 기록은 생성자로 받은 **외부
+  recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
+
+### 새 코드를 쓸 때의 규칙
+
+1. **Notifier 는 불변 state 만 노출한다.** public 필드 · getter 를 두지 말고
+   값을 `state` 에 담는다. 값이 여러 개면 record 나 freezed 값 객체로 묶고,
+   파생값은 notifier 밖 순수 함수 · extension 으로 뺀다. 킷의 `TermsState` 가
+   그 예다 — 약관 동의 스냅샷 JSON 은 `buildAcceptanceSnapshotJson()` 이 만들고,
+   `lastReloadedUid` 는 `ref.read(termsProvider).lastReloadedUid` 로 읽는다.
+2. **provider 는 `Listenable` 같은 가변 객체를 값으로 반환하지 않는다.**
+   필요하면 **소비하는 쪽**이 만들어 소유하고 `ref.listen` 으로 값을 받아
+   올린다 — 그 객체는 소비자의 구현 세부이고, 정리(`ref.onDispose`)도
+   소비자 책임이다. `AuthRefresh` notifier 는 인증 상태를 불변 state 로만
+   내고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 의
+   `RouterRefreshListenable` 이 만들어 소유한다.
+
+킷 코드(lib · test · tool · bin)에는 riverpod_lint 무시 주석이 없다.
+
+### 문제 해결
+
+- riverpod_lint 진단이 보이지 않는다:
+  - `fvm flutter analyze` 로 보고 있다 → `fvm dart analyze` 로 본다.
+  - 출력에 `An error occurred while executing an analyzer plugin:` 이 있다 →
+    pub.dev 에 닿는지 네트워크를 확인하고 다시 분석한다.
+  - 끄는 설정이 듣지 않는다 → `plugins:` 의 `riverpod_lint:` 아래에 `version`
+    을 적었는지 본다.
+- Analysis Server 를 재시작해도 plugin 준비가 계속 실패하면 woody_lints README 의
+  「문제 해결」 을 본다 — <https://github.com/woodkill/woody_lints#문제-해결>.
+
+### 되돌리기
+
+- 끈 줄(`linter: rules:` 의 `<규칙>: false` · `diagnostics:` 아래 줄 · 무시
+  주석)을 지우면 다시 켜진다. `plugins:` 블록을 통째로 지우면 프리셋의 plugin
+  선언으로 돌아간다.
+- 판을 되돌리려면 `pubspec.yaml` 의 `ref:` 를 전 tag 로 고치고
+  `fvm flutter pub get` 을 한 뒤 `pubspec.yaml` 과 `pubspec.lock` 을 함께
+  커밋한다.
+
 ## Git Hooks 활성화 (선택)
+
+실제 Firebase 키가 저장소에 커밋되지 않게 커밋 때마다 검사하고 싶을 때 켠다. 켜지
+않아도 빌드 · 시험에는 영향이 없다.
+
+hook(`scripts/git-hooks/pre-commit`)은 커밋할 때 stage 된 파일에 가드 넷을 돌린다.
+1 ~ 3 은 **실제 Firebase 키가 저장소에 커밋되는 것을 막는다** — 아래 설정 파일은
+자리표시 값으로 tracked 되어 있어, 실제 키로 다시 만든 파일이 그대로 커밋 대상이 되기
+때문이다. 4 는 코드 주석의 phase 참조 · `TODO` 주석 검사로, 킷 유지보수자 저장소에서만
+돈다 — 킷 사용자 저장소에서는 `[SKIP]` 을 출력하고 커밋을 막지 않는다(규칙과 예시:
+[유지보수자 문서](maintainer/code-comment-refs.md)).
+
+| 가드 | 대상 | 막는 조건 |
+|------|------|-----------|
+| 1 | `lib/core/firebase/firebase_options_{dev,stg,prod}.dart` | index 내용에 FlutterFire CLI 생성 마커가 있음 |
+| 2 | `android/app/src/{stg,prod}/google-services.json` | Google API 키 접두사가 있거나 placeholder `project_number` 가 사라짐 |
+| 3 | `ios/config/dev/GoogleService-Info.plist` · `ios/config/stg/GoogleService-Info.plist` · `ios/config/prod/GoogleService-Info.plist` | Google API 키 접두사가 있거나 placeholder `GCM_SENDER_ID` 가 사라짐 |
+| 4 | 코드 주석의 phase 참조 · `TODO` 주석 | 킷 유지보수자 저장소에서만 검사 — 킷 사용자 저장소에서는 건너뜀 |
+
+**켜기** (clone 직후 1회):
+
+```bash
+# scripts/git-hooks/pre-commit 을 .git/hooks/pre-commit 으로 symlink.
+# .git/hooks/ 디렉토리 자체는 git tracked 불가 — scripts/git-hooks/pre-commit
+# 만 tracked 상태로 두고 symlink 로 활성화한다.
+ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+이후 커밋할 때마다 hook 이 돈다. 가드 1 ~ 3 에 걸리면 커밋이 막히고, 걸린 파일과 해제
+절차(`git restore --staged` → `git update-index --skip-worktree`)가 함께 출력된다.
+자리표시 파일 자체를 일부러 고치려면 자리표시 값을 남긴 채 실제 키만 지우고 커밋한다.
+
+**끄기:** `rm .git/hooks/pre-commit`.
+
+> ⚠ hook 은 **dart format · analyze · test 를 돌리지 않는다** — 커밋 전
+> `fvm dart format --output=none --set-exit-if-changed lib test bin tool` 를 따로
+> 돌린다(나머지 검사는 [테스트 돌리기](#테스트-돌리기)).
 
 ## Flutter SDK 상향 (FVM)
 
 ## iOS 의존성 관리 (SPM)
 
 ## 테스트 돌리기
+
+코드를 바꾼 뒤 · 커밋 전 · 킷 새 판을 받은 뒤에 돌린다. 명령은 저장소 루트에서 실행한다.
+
+- **앱 전체 시험:** `fvm flutter test`. 생성 코드(`*.g.dart` · `*.freezed.dart`)가
+  없으면(clone 직후 등) 먼저
+  `fvm dart run build_runner build --delete-conflicting-outputs` 를 돌린다.
+- **Cloud Functions 시험:** `cd functions && pnpm test`.
+- **golden 이 실패하면:** `failures/` 의 비교 이미지를 보고, 의도한 변화일 때만 실패한
+  golden 시험 파일 하나를 대상으로 `fvm flutter test --update-goldens <파일>` 로 기준
+  이미지를 다시 만든다. 모든 시험에 한꺼번에 `--update-goldens` 를 쓰지 않는다.
+- **커밋 전 검사:** format 검사 · `fvm flutter analyze` · `fvm dart analyze` ·
+  `fvm flutter test` 넷이 오류 없이 끝나야 한다.
+
+자세한 것(디렉터리 구조 · 이름 짓기 · 기능을 바꾸거나 지울 때 시험 다루기 · macOS 의
+iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 
 ## 알아 둘 동작
