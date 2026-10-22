@@ -283,7 +283,79 @@ Google 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에
 
 ### Apple 로그인 켜기
 
+Apple 로그인을 앱에 둘 때 이 절을 따른다. Apple 을 켜지 않으면 이 절을 건너뛴다. iOS 앱은 기기의 Apple 로그인을 쓰고, Android 앱은 Apple 웹 로그인을 거치므로 Apple Developer 에 Services ID 와 키를 더 만든다.
+
+**전제:** Apple Developer 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Apple 을 골랐다.
+
+#### 콘솔 단계
+
+1. 「Apple 로그인 — iOS 쪽」 단계가 Firebase 에서 Apple 로그인을 켜고 앱의 번들 ID 를 등록한다 — iOS 쪽은 콘솔에서 할 일이 없다. App ID 의 Sign in with Apple capability 는 자동 서명이면 Xcode 가 켠다. 수동 서명이면 [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
+2. 「Apple 로그인 — Android 쪽」 단계가 `Apple 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 행은 아래와 같다.
+   - `Services ID (제안)` — 번들 ID 를 소문자로 쓰고 `.signin` 을 붙인 값이다. 만들 Services ID 의 identifier 로 쓴다.
+   - `Return URL` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
+   - `도메인` — `<your-project-id>.firebaseapp.com`
+   - `primary App ID (번들 ID)` — iOS 앱의 번들 ID 다. Services ID 를 이 App ID 에 묶는다.
+3. Apple Developer(<https://developer.apple.com/account>)의 Certificates, Identifiers & Profiles 에서 Services ID 를 만든다 — [[LABEL: Apple Developer — Identifiers 에서 Services IDs 만들기]] 에서 identifier 칸에 `Services ID (제안)` 값을 넣는다.
+4. 만든 Services ID 에서 Sign in with Apple 을 켜고 설정 화면을 연다. [[LABEL: Apple Developer — Services ID 의 Sign in with Apple 설정 화면(primary App ID · 도메인 · Return URL 칸)]] 에서 primary App ID 로 `primary App ID (번들 ID)` 의 App ID 를 고르고, 도메인 칸에 `도메인` 값을, Return URL 칸에 `Return URL` 값을 넣은 뒤 저장한다.
+5. 키를 만든다 — Certificates, Identifiers & Profiles → Keys 에서 새 키를 만들고 [[LABEL: Apple Developer — Keys 의 서비스 체크 상자(APNs · DeviceCheck · Sign in with Apple)와 Sign in with Apple 의 Configure]] 를 켠다. 위저드 할 일 줄 `APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나를 만들고 .p8 을 내려받기` 대로 만들면 같은 키를 APNs · App Check 에도 쓴다. `.p8` 파일은 한 번만 내려받을 수 있으므로 안전한 곳에 둔다. Key ID 는 키 화면에 보이고, 내려받은 파일 이름(`AuthKey_<Key ID>.p8`)에도 들어 있다.
+6. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 Services ID · `.p8` 파일 경로 · Key ID 를 입력한다 — 파일 경로는 Finder 에서 `.p8` 파일을 터미널 창으로 끌어다 놓으면 들어간다. Team ID 는 `ios/Flutter/<flavor>.xcconfig` 의 `DEVELOPMENT_TEAM` 이 형식에 맞으면 묻지 않고, 비었으면 `Apple Team ID` 를 물어 그 자리에 쓴다 — Team ID 는 [[LABEL: Apple Developer — 멤버십 세부 사항의 Team ID]] 에 있다. 위저드가 Firebase 의 Apple 로그인 설정에 기록한다.
+7. Android 쪽 콘솔 작업을 미루려면 `지금 안 함` 을 고른다. Android 에서 Apple 로그인만 막히고, 미룬 일은 위저드 끝의 「release 빌드 전에 끝내야 할 일」 목록에 보인다.
+
+#### 확인 방법
+
+- iOS 앱의 로그인 화면에서 Apple 버튼을 누르면 Apple 로그인 시트가 뜨고, 로그인하면 앱에 로그인된다.
+- Android 앱에서 Apple 버튼을 누르면 Apple 웹 로그인 화면이 브라우저로 열리고, 로그인하면 앱으로 돌아와 로그인된다.
+- 위저드의 「소셜 로그인 확인」 단계가 `Apple 1명` 꼴로 1명 이상을 센다.
+
+#### 문제 해결
+
+- **Android 에서 Apple 로그인 뒤 브라우저가 닫히지 않는다.** 기기 · 브라우저에 따라 로그인 뒤 브라우저가 자동으로 닫히지 않는다 — 앱으로 직접 돌아오면 로그인이 끝나 있다. 브라우저를 로그인 전에 닫은 뒤 Apple 버튼이 반응하지 않으면 앱을 다시 실행한다.
+- **Android 에서 Apple 웹 로그인이 오류 화면으로 끝난다.** Services ID 의 도메인 · Return URL 이 값 표와 글자 그대로 같은지, 위저드에 넣은 Services ID 가 만든 것과 같은지 본다. 위저드의 Apple 키 입력을 미뤘다면 `./setup.sh` 를 다시 실행해 「Apple 로그인 — Android 쪽」 단계를 마친다.
+- **`.p8` 파일을 잃어버렸다.** 같은 키는 다시 내려받을 수 없다 — Keys 에서 새 키를 만들고 `./setup.sh --providers` 를 다시 실행해 새 키를 넣는다.
+- **iOS 실기기 빌드가 서명 오류로 끝난다.** App ID 에 Sign in with Apple capability 가 없는 것이다 — [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
+
+#### 되돌리기
+
+Apple 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 있다. Apple 을 꺼도 iOS 실기기 서명에는 capability 가 그대로 필요하다.
+
 ### Facebook 로그인 켜기
+
+Facebook 로그인을 앱에 둘 때 이 절을 따른다. Facebook 을 켜지 않으면 이 절을 건너뛴다.
+
+**전제:** Meta for Developers 계정이 있다. [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Facebook 을 골랐다. Android 키 해시는 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
+
+#### 콘솔 단계
+
+1. 위저드가 `Facebook 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.facebook.com/apps` 줄에 있고, 행은 아래와 같다.
+   - `iOS 번들 ID` · `Android 패키지명` · `Android 클래스 이름` · `Android 키 해시` — Facebook 앱의 iOS · Android 플랫폼에 넣는 값이다. 키 해시를 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
+   - `OAuth redirect URI` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
+   - `앱 아이콘(1024 x 1024) · 앱 게시 때 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/facebook-1024x1024.png` 다.
+2. 앱을 만들고 Facebook 로그인 사용 사례를 더한다(할 일 줄 `앱 만들기 · Facebook 로그인 사용 사례 추가`) — [[LABEL: Meta — 앱 만들기의 사용 사례(Facebook 로그인) 고르기]].
+3. 리디렉션 주소를 넣는다 — `Facebook 로그인 → 설정 → 클라이언트 OAuth 설정 → 유효한 OAuth 리디렉션 URI` 칸에 `OAuth redirect URI` 값을 넣고 저장한다.
+4. Android 플랫폼을 더한다 — 빠른 시작 Android 에서 [[LABEL: Meta — 빠른 시작 Android 의 패키지 이름 · 클래스 이름 칸]] 에 `Android 패키지명` · `Android 클래스 이름` 값을 넣는다. `키 해시` 칸에 `Android 키 해시` 값을 넣고 `Save` 를 누른 뒤 `계속` 을 누른다 — 키 해시를 넣기 전에는 `계속` 이 눌리지 않는다.
+5. iOS 플랫폼을 더한다 — [[LABEL: Meta — 빠른 시작 iOS 의 번들 ID 칸]] 에 `iOS 번들 ID` 값을 넣는다.
+6. 키 세 개를 모은다. App ID · App Secret 은 [[LABEL: Meta — App ID · App Secret 이 보이는 화면]] 에, Client Token 은 [[LABEL: Meta — Client Token 이 보이는 화면]] 에 있다.
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Facebook App ID` · `Facebook Client Token` · `Facebook App Secret` 을 입력한다. 위저드가 App ID 와 App Secret 의 짝을 Facebook 서버로 확인한 뒤 config · xcconfig · Secret Manager 와 Firebase 의 Facebook 로그인 설정에 기록한다.
+8. 이메일은 Facebook 에서 필수로 받을 수 없다 — 할 일 줄의 이메일 권한은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
+9. 개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있다. 테스트할 Facebook 계정을 [[LABEL: Meta — 앱 역할(테스터 · 개발자) 더하기]] 에서 더한다.
+10. 출시 전에 앱을 게시한다. 게시 화면에 `Currently ineligible for submission` 이 보이면 그 아래 항목 — 앱 아이콘(1024 x 1024) · 개인정보처리방침 URL · 사용자 데이터 삭제 · 카테고리 — 을 채운다. 앱 아이콘은 `.setup/icons/facebook-1024x1024.png` 를 [[LABEL: Meta — 앱 아이콘 올리는 칸]] 에 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 앱 아이콘은 게시 때 필수이고 개발 모드 로그인에는 필요 없다.
+
+#### 확인 방법
+
+- 앱 역할이 있는 Facebook 계정으로 앱에서 Facebook 로그인이 된다.
+- 위저드의 「소셜 로그인 확인」 단계가 `Facebook 1명` 꼴로 1명 이상을 센다.
+
+#### 문제 해결
+
+- **역할이 없는 계정으로 로그인하면 거부된다.** 앱이 개발 모드다 — 그 계정에 앱 역할을 주거나, 콘솔 단계 10 대로 앱을 게시한다.
+- **Facebook 이 리디렉션 주소를 거부한다.** `유효한 OAuth 리디렉션 URI` 칸에 값 표의 `OAuth redirect URI` 가 글자 그대로 들어 있는지 본다.
+- **Android 에서 키 해시가 맞지 않는다는 오류가 뜬다.** 그 빌드를 서명한 키의 키 해시가 Facebook 앱에 없는 것이다. debug 빌드는 값 표의 `Android 키 해시` 를, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 키 해시를 `키 해시` 칸에 더한다.
+- **위저드가 `App Secret 이 App ID 와 맞지 않습니다` 를 보인다.** 두 값을 같은 Facebook 앱에서 다시 복사해 넣는다.
+- **계정 정보의 「이메일」 행이 「-」 다.** 사용자가 이메일 권한을 거부했거나 Facebook 계정에 유효한 이메일이 없다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
+
+#### 되돌리기
+
+Facebook 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 있다.
 
 ### Kakao 로그인 켜기
 
@@ -292,6 +364,37 @@ Google 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에
 ### LINE 로그인 켜기
 
 ### Kakao · Naver · LINE 서명 권한(Token Creator)
+
+Kakao · Naver · LINE 의 함수는 로그인 때(Naver · LINE 은 연결 해제 · 회원탈퇴 때도) Firebase Custom Token 을 만들어 서명한다. 그래서 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다. 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 수단의 로그인이 앱에서 오류 배너로 끝나고 Naver · LINE 의 연결 해제 · 회원탈퇴도 오류로 끝난다. 셋 가운데 하나도 켜지 않으면 이 절을 건너뛴다.
+
+**위저드가 하는 일:** 「Cloud Functions 배포」 뒤 「Custom Token 서명 권한」 단계가 켠 수단 함수의 런타임 서비스 계정을 읽고, 권한이 없으면 그 계정에 조건 없이 붙인다 — 프로젝트 수준 역할은 바꾸지 않는다. 권한이 있으면 `함수 런타임 서비스 계정 <n>개 · Token Creator 있음` 으로 지나가고, 막 붙였으면 `Token Creator 를 붙였습니다 — 반영에 몇 분 걸릴 수 있어 …` 를 보인다. 프로젝트마다 한 번 하면 되고, 위저드를 다시 실행할 때마다 다시 확인한다.
+
+#### 직접 확인하고 붙이기
+
+위저드 밖에서 확인하거나, 위저드가 붙이지 못했을 때 아래 명령을 쓴다. 먼저 함수의 서비스 계정을 읽는다. 서비스 이름은 함수 이름을 소문자로 쓴 것이다(Kakao `kakaocustomtoken` · Naver `navercustomtoken` · LINE `linecustomtoken`). `--region` 은 `config/<flavor>.json` 의 `functionsRegion` 값이고(아래 `asia-northeast3` 은 example 값), `<your-project-id>` 는 `firebaseProjectId` 값이다. 출력된 이메일이 아래 명령의 `<service-account-email>` 자리에 들어간다.
+
+```bash
+gcloud run services describe kakaocustomtoken --region asia-northeast3 --project <your-project-id> --format='value(spec.template.spec.serviceAccountName)'
+```
+
+그 계정의 IAM 정책에 `roles/iam.serviceAccountTokenCreator` 역할과 `serviceAccount:<service-account-email>` 구성원이 함께 든, 조건(`condition`)이 없는 바인딩이 있는지 본다.
+
+```bash
+gcloud iam service-accounts get-iam-policy <service-account-email> --project <your-project-id> --format=json
+```
+
+없으면 붙인다. 그 서비스 계정에만 붙고 프로젝트 수준 역할은 바뀌지 않는다.
+
+```bash
+gcloud iam service-accounts add-iam-policy-binding <service-account-email> --member=serviceAccount:<service-account-email> --role=roles/iam.serviceAccountTokenCreator --condition=None --project <your-project-id>
+```
+
+성공하면 `Updated IAM policy for serviceAccount` 로 시작하는 줄이 나온다. 권한이 반영되기까지 몇 분 걸릴 수 있다. 켠 수단의 함수가 서로 다른 서비스 계정을 쓰면 계정마다 한다.
+
+#### 문제 해결
+
+- **위저드가 `함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다` 를 보인다.** 서비스 계정의 IAM 정책을 바꿀 수 있는 계정(예: 프로젝트 소유자)으로 gcloud 에 로그인했는지 확인한다. 조직 정책이 막으면 조직 관리자에게 그 프로젝트의 예외를 요청한다. 권한이 생긴 뒤 `./setup.sh` 를 다시 실행하면 이어진다.
+- **Kakao · Naver · LINE 로그인이 오류 배너로 끝나거나, Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로 끝난다.** 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 이 권한이 없는 것이다 — 위 명령으로 확인하고 붙인다. 막 붙였다면 몇 분 기다린 뒤 로그인 · 해제 · 탈퇴를 다시 시도한다. 해제 · 탈퇴는 그 수단 쪽 연결이 이미 끊긴 상태에서 실패한 것이므로 다시 시도할 때 그 수단의 로그인을 다시 거친다.
 
 ### 로그인 수단에서 이메일 받기
 
