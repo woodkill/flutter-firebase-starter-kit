@@ -2374,7 +2374,81 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 
 ### 소셜 로고 · 브랜드 자산
 
+로그인 버튼 6개의 로고는 각 회사의 상표다. 킷은 `assets/brand/<provider>/` 에 공식 로고 자산과 출처 · 라이선스 · 사전 검수 설명(README)을 둔다. 출시 전에 켠 수단의 README 를 확인한다.
+
+| 수단 | 라이선스 | 공식 BI | 라이선스 본문 | 사전 검수 |
+|---|---|---|---|---|
+| Apple | 동봉 라이선스 없음 — Human Interface Guidelines 범위 안에서 쓴다 | [공식 BI URL](../assets/brand/apple/README.md#공식-bi-url) | [라이선스](../assets/brand/apple/README.md#라이선스) | [사전 검수 절차](../assets/brand/apple/README.md#사전-검수-절차) |
+| Facebook | Meta Brand Resource Center License | [공식 BI URL](../assets/brand/facebook/README.md#공식-bi-url) | [라이선스](../assets/brand/facebook/README.md#라이선스) | [사전 검수 절차](../assets/brand/facebook/README.md#사전-검수-절차) |
+| Google | Google 브랜드 가이드(조항 원문은 `LICENSE.txt`) | [공식 BI URL](../assets/brand/google/README.md#공식-bi-url) | [라이선스](../assets/brand/google/README.md#라이선스) | [사전 검수 절차](../assets/brand/google/README.md#사전-검수-절차) |
+| Kakao | Kakao Resources Terms | [공식 BI URL](../assets/brand/kakao/README.md#공식-bi-url) | [라이선스](../assets/brand/kakao/README.md#라이선스) | [사전 검수 절차](../assets/brand/kakao/README.md#사전-검수-절차) |
+| LINE | LINE Branding License | [공식 BI URL](../assets/brand/line/README.md#공식-bi-url) | [라이선스](../assets/brand/line/README.md#라이선스) | [사전 검수 절차](../assets/brand/line/README.md#사전-검수-절차) |
+| Naver | NAVER Brand License | [공식 BI URL](../assets/brand/naver/README.md#공식-bi-url) | [라이선스](../assets/brand/naver/README.md#라이선스) | [사전 검수 절차](../assets/brand/naver/README.md#사전-검수-절차) |
+
+**변형 정책.** 6개 버튼은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 맨 위 상수로 한 골격을 쓴다 — 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) · 라벨 크기 `kBrandLabelFontSize`(16) · 로고 상자. 브랜드마다 다른 것은 배경색 · 글자색 · 외곽선 · 로고 · 문구다. Kakao · Naver · LINE 로고는 단색 심볼 SVG 에 각 가이드의 색(Kakao 검정 · Naver · LINE 흰색)을 칠하고, Google 로고는 비트맵 PNG 라 칠하지 않으며, Apple · Facebook 로고는 SVG 를 칠하지 않고 그대로 그린다.
+
+- 로고 그림 · 가이드 색 · 비율을 바꾸지 않는다.
+- 버튼 색을 앱 테마 색(시드 컬러)으로 바꾸지 않는다 — 버튼 색은 각 브랜드 가이드의 색이다.
+- 골격 상수를 바꾸면 여섯 버튼이 함께 바뀐다.
+
+**알고 둔 가이드와의 차이.** 한 화면의 버튼을 맞추느라 킷이 각 가이드 문장과 다르게 둔 곳이 셋 있다. 심사에서 지적되면 아래 자리를 고친다.
+
+| 차이 | 고치는 자리 |
+|---|---|
+| Apple 라벨 크기 16 은 Human Interface Guidelines 가 권하는 크기(버튼 높이의 43%)보다 작다 | `kBrandLabelFontSize` — 여섯 버튼이 함께 바뀐다 |
+| LINE 로고와 글자 사이 8 은 LINE 가이드의 padding 조항(로고 말풍선 폭 이상)보다 좁다 | LINE 스킨의 `resolveLogoGap`(기본은 `kBrandButtonLogoGap`) |
+| 계정 정보 화면 「계정 연결」 의 「○○ 연결」 버튼 문구는 Apple · LINE 가이드의 로그인 버튼 문구 조항과 다르다 | ARB `settingsLinkProviderCta` |
+
+**사용 전 확인:**
+
+1. 켠 수단마다 위 표의 「라이선스」 · 「사전 검수 절차」 를 읽는다. 사전 검수 신청 절차를 둔 회사는 그 절차를 따른다.
+2. 로고를 로그인 버튼 밖(마케팅 자료 · 비교 자료 · 눈에 띄는 배치 등)에서 쓰면, 쓰기 전에 각 회사 브랜드 페이지의 조건을 다시 확인한다 — 로그인 버튼과 조건이 다를 수 있고 별도 허가가 필요할 수 있다.
+3. 위 「알고 둔 가이드와의 차이」 셋을 내 앱에 그대로 둘지 정한다.
+
+자산을 다시 받거나 바꾸는 절차는 [유지보수자 문서](maintainer/brand-assets.md) 에 있다.
+
 ### ATT 와 iOS Facebook 로그인
+
+ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이트에 걸쳐 사용자를 추적할 때 받는 동의다. 킷은 ATT 요청을 하지 않는다 — `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription` 이 없고 `pubspec.yaml` 에 `app_tracking_transparency` 같은 패키지가 없다. ATT 요청과 목적 문구는 킷 위에 만드는 앱이 정한다. 다만 ATT 허용 여부가 iOS 의 Facebook 로그인 방식을 바꾸므로 그 경계를 적는다.
+
+**킷이 보장하는 것 · 보장하지 않는 것:**
+
+| 구분 | 내용 |
+|---|---|
+| 보장 | ATT 가 없는 기본 설정 그대로 iOS Facebook 로그인이 동작한다 |
+| 보장 | ATT 를 허용한 경우의 분기(Classic 토큰)를 인증 코드에 둔다 — ATT 를 붙이는 앱도 인증 코드를 바꾸지 않는다 |
+| 보장하지 않음 | ATT 요청 창 · 목적 문구 · 추적 동의 UX |
+| 보장하지 않음 | App Store 개인정보 라벨 · privacy manifest · 심사 대응 |
+| 보장하지 않음 | 광고 · 어트리뷰션 기능 — 킷의 의존성에 광고 패키지가 없다 |
+| 보장하지 않음 | ATT 를 허용한 상태의 로그인(Classic 경로) — 킷이 실기기로 확인하지 않은 경로다. ATT 를 붙이는 앱이 실기기에서 직접 확인한다 |
+
+**ATT 상태에 따른 Facebook 로그인:**
+
+| 상태 | 로그인 방식 | Firebase 로 보내는 credential | 가입 때 프로필 사진 | Facebook 앱 전환 |
+|---|---|---|---|---|
+| iOS · ATT 요청 안 함(킷 기본) | Limited Login — OIDC 토큰 | `OAuthProvider('facebook.com')` (ID 토큰 · nonce) | 가져오지 않는다 | 넘어가지 않는다 — 웹 인증 세션 |
+| iOS · ATT 거부 | Limited Login — OIDC 토큰 | 위와 같다 | 가져오지 않는다 | 넘어가지 않는다 — 웹 인증 세션 |
+| iOS · ATT 허용 | Classic — access token | `FacebookAuthProvider` | Graph API 로 가져온다 | 앱이 실기기에서 확인한다 |
+| Android(ATT 와 무관) | Classic — access token | `FacebookAuthProvider` | Graph API 로 가져온다 | SDK 기본 동작 |
+
+킷의 로그인 호출(`lib/features/auth/data/auth_repository.dart` 의 `_facebookAuth.login`)은 `LoginTracking.enabled` 와 해시한 nonce 를 넘긴다. iOS 에서 ATT 가 허용 상태가 아니면 Facebook SDK 가 이 요청을 Limited Login 으로 바꾼다. Limited Login 의 토큰으로는 Graph API 의 추가 데이터를 요청할 수 없다 — Facebook 원문 "The ID token cannot be used to request additional data using the Graph API, such as friends, photos, or pages". 그래서 iOS 에서는 가입 때 Facebook 프로필 사진을 가져오는 단계를 건너뛴다. 공식 문서: [Limited Login](https://developers.facebook.com/docs/facebook-login/limited-login/)
+
+**추적하는 앱이 할 일:**
+
+1. ATT 요청 패키지(예: `app_tracking_transparency`)를 더하고 요청 시점을 정한다. 요청 창은 앱이 활성 상태일 때만 뜨고, 설정에서 추적 요청을 끈 사용자에게는 뜨지 않는다.
+2. `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription`(목적 문구)을 넣는다. 필수 키다 — 이 키 없이 ATT 프레임워크를 쓰면 앱이 종료된다. 공식 문서: [App Tracking Transparency](https://developer.apple.com/documentation/apptrackingtransparency) · [NSUserTrackingUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsusertrackingusagedescription)
+3. 순서를 정한다. Facebook 로그인 뒤에 ATT 를 허용받으면 그 전의 로그인은 이미 Limited Login 으로 끝났다. Classic 로그인을 쓰려면 로그인 전에 요청한다.
+4. Facebook SDK for iOS 17.0.0 이상은 iOS 17 이상 기기에서 Apple 의 ATT 상태로 추적 허용을 판단한다. 킷의 Facebook iOS SDK 는 18 판이라 그 기기에서는 SDK 쪽 설정을 따로 하지 않는다. 킷의 최소 iOS 는 15.6 이다 — iOS 17 미만 기기의 설정은 [Facebook 문서](https://developers.facebook.com/docs/app-events/guides/advertising-tracking-enabled/)를 따른다.
+5. App Store 개인정보 라벨 · privacy manifest 를 앱이 하는 추적에 맞춘다.
+6. ATT 를 허용한 상태로 iOS Facebook 로그인 · 가입 · 프로필 사진을 실기기에서 확인한다.
+
+**흔한 실수:**
+
+- **iOS 에서 Facebook 으로 가입했는데 프로필 사진이 비어 있다.** ATT 가 없는 기본 설정의 정상 동작이다 — Limited Login 은 사진을 가져오지 않는다(`auth_repository.dart`).
+- **Limited 토큰으로 Graph API 의 추가 데이터를 기대한다.** 친구 · 사진 · 페이지 같은 데이터는 Limited 토큰으로 요청할 수 없다.
+- **Facebook 앱으로 넘어가지 않는 것을 오류로 본다.** Limited Login 은 웹 인증 세션을 쓰므로 Facebook 앱으로 넘어가지 않는 것이 정상이다.
+- **`LoginTracking.enabled` 를 넘겼으니 Classic 이라고 가정한다.** iOS 는 ATT 가 허용 상태가 아니면 그 요청과 무관하게 Limited Login 으로 간다.
+- **ATT 를 붙이면서 인증 코드를 갈아엎는다.** Classic 분기는 이미 있다. 바꿀 것은 ATT 요청 · 목적 문구 쪽이고, 허용 상태의 로그인은 앱이 실기기에서 확인한다.
 
 ## 앱 운영하기
 
