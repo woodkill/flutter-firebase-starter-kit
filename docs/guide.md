@@ -1778,7 +1778,7 @@ bash scripts/deploy_email.sh dev kit --apply
 gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project <your-project-id>
 ```
 
-**⑥ 메일 함수를 배포한다.** 아래 배포 스크립트로 배포한다. 옵션 없이 실행한 출력에 `mode: kit` 이 있고 `functions` 목록에 `sendVerificationMail` · `sendPasswordResetMail` 이 있는지 본 뒤 `--apply` 를 붙인다. ④ 의 `--apply` 를 하지 않았으면 `--apply` 가 `FAIL:` 로 멈춘다. 위저드 함수 단계는 이 두 함수의 공개 호출을 확인하지 않는다 — 인증 없이 보낸 POST(`curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'`)가 `401` 이면 정상이고, `403` 이면 첫 배포가 도중에 끊겨 공개 호출이 빠진 것이다 — Google Cloud 콘솔 → Cloud Run 의 그 서비스(`sendverificationmail` · `sendpasswordresetmail`)에서 [[LABEL: Google Cloud 콘솔 — Cloud Run 서비스의 공개 호출 허용 칸]] 을 켠다.
+**⑥ 메일 함수를 배포한다.** 아래 배포 스크립트로 배포한다. 옵션 없이 실행한 출력에 `mode: kit` 이 있고 `functions` 목록에 `sendVerificationMail` · `sendPasswordResetMail` 이 있는지 본 뒤 `--apply` 를 붙인다. ④ 의 `--apply` 를 하지 않았으면 `--apply` 가 `FAIL:` 로 멈춘다. 위저드 함수 단계는 이 두 함수의 공개 호출을 확인하지 않는다 — 인증 없이 보낸 POST(`curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'`)가 `401` 이면 정상이고, `403` 이면 첫 배포가 도중에 끊겨 공개 호출이 빠진 것이다 — Google Cloud 콘솔 → Cloud Run 의 그 서비스(`sendverificationmail` · `sendpasswordresetmail`)의 「보안」 탭 → 「인증」 에서 「공개 액세스 허용」 을 고른다.
 
 ```bash
 bash scripts/deploy_functions.sh dev
@@ -2237,14 +2237,14 @@ bash scripts/deploy_functions.sh dev --apply
 
    | 등록할 곳 | 값 | 콘솔 단계 |
    |---|---|---|
-   | Firebase 의 Android 앱 — [[LABEL: Firebase — Android 앱의 SHA 인증서 지문 추가]] | SHA-1(Google 로그인) · SHA-256(App Check Play Integrity — 위저드는 dev · stg 에 디버그 키의 SHA-256 을 넣는다) | [Google 로그인 켜기](setup.md#google-로그인-켜기) · [App Check 등록 확인](setup.md#app-check-등록-확인) |
+   | Firebase 의 Android 앱 — 프로젝트 설정 → 「일반」 의 「SHA 인증서 지문」 표 아래 「디지털 지문 추가」 | SHA-1(Google 로그인) · SHA-256(App Check Play Integrity — 위저드는 dev · stg 에 디버그 키의 SHA-256 을 넣는다) | [Google 로그인 켜기](setup.md#google-로그인-켜기) · [App Check 등록 확인](setup.md#app-check-등록-확인) |
    | Facebook 앱의 `키 해시` 칸 | 키 해시 | [Facebook 로그인 켜기](setup.md#facebook-로그인-켜기) |
    | Kakao 앱의 Android 키 해시 칸 | 키 해시 | [Kakao 로그인 켜기](setup.md#kakao-로그인-켜기) |
    | LINE 채널의 `Package signatures` | SHA-1(대문자 · 콜론 꼴 — `keytool` 출력 그대로) | [LINE 로그인 켜기](setup.md#line-로그인-켜기) |
 
    flavor 마다 Firebase 프로젝트 · 콘솔 앱이 다르므로, 그 flavor 의 release 빌드를 쓰는 곳에 각각 더한다.
 
-**Google Play 앱 서명.** Play 로 배포하면 Google 이 앱 서명 키로 다시 서명해 사용자에게 보낸다. 내가 만든 키는 업로드 키가 되고, 사용자 기기의 앱은 앱 서명 키로 서명돼 있다. 그래서 위 표의 곳에는 Play Console 의 [[LABEL: Play Console — 앱 서명 키 인증서(지문) 화면]] 에 있는 앱 서명 키의 SHA-1 · SHA-256 도 등록한다(prod 의 App Check Play Integrity 는 위저드가 이 SHA-256 을 받는다). 앱 서명 키의 키 해시는 SHA-1 에서 만든다 — `echo <SHA-1> | tr -d ':' | xxd -r -p | openssl base64`. 공식 안내: <https://support.google.com/googleplay/android-developer/answer/9842756>
+**Google Play 앱 서명.** Play 로 배포하면 Google 이 앱 서명 키로 다시 서명해 사용자에게 보낸다. 내가 만든 키는 업로드 키가 되고, 사용자 기기의 앱은 앱 서명 키로 서명돼 있다. 그래서 위 표의 곳에는 Play Console 의 「앱 서명」 화면에 있는 앱 서명 키의 SHA-1 · SHA-256 도 등록한다(prod 의 App Check Play Integrity 는 위저드가 이 SHA-256 을 받는다). 그 화면은 Play Console 에서 앱을 열고 왼쪽 「Google Play로 보호됨」 → 「Play 스토어 보호」 를 펼쳐 「앱 서명 키 보호」 의 「Play 앱 서명 관리」 를 누르면 열린다 — 「테스트 및 출시」 → 「앱 무결성」 은 「앱 무결성 설정의 위치가 변경되었습니다」 안내 뒤 같은 곳으로 보낸다. 앱 서명 키의 키 해시는 SHA-1 에서 만든다 — `echo <SHA-1> | tr -d ':' | xxd -r -p | openssl base64`. 공식 안내: <https://support.google.com/googleplay/android-developer/answer/9842756>
 
 **키를 잃으면.** Play 앱 서명을 쓰면 업로드 키를 잃어도 Play Console 에서 업로드 키 재설정을 요청할 수 있다. Play 앱 서명 없이 앱 서명 키를 직접 관리하다 잃으면 재설정할 수 없고, 같은 앱으로 업데이트를 올릴 수 없다. keystore 파일과 비밀번호는 저장소 밖 안전한 곳에 따로 보관한다.
 
@@ -2295,7 +2295,7 @@ firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug
   codesign -dvv build/ios/archive/*.xcarchive/Products/Applications/*.app
   ```
 
-- **dSYM:** release 빌드를 실기기에 설치해 크래시를 낸 뒤 Firebase 콘솔의 Crashlytics 에서 [[LABEL: Firebase — Crashlytics 의 dSYM 누락 알림 · dSYM 화면]] 을 본다. "Missing dSYM" 알림이 없고 크래시의 스택이 함수 이름으로 보이면 된다.
+- **dSYM:** release 빌드를 실기기에 설치해 크래시를 낸 뒤 Firebase 콘솔의 Crashlytics 의 「dSYM」 탭에서 「누락된 dSYM 파일」 표를 본다. 표의 경고가 「경고 0개」 이고 크래시의 스택이 함수 이름으로 보이면 된다.
 
 ### 문제 해결
 
@@ -2470,9 +2470,9 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 **단계:**
 
-1. Firebase 콘솔(<https://console.firebase.google.com>)에서 막을 flavor 의 프로젝트를 열고 Remote Config 화면으로 간다 — [[LABEL: Firebase — Remote Config 메뉴 위치]].
-2. 매개변수를 더한다 — [[LABEL: Firebase — Remote Config 매개변수 추가 창(이름 · 데이터 유형 · 기본값 칸)]]. 이름은 위 키(예: `auth_provider_kakao_enabled`), 데이터 유형은 `Boolean`, 기본값은 `false` 다. 같은 이름의 매개변수가 이미 있으면 그 값을 `false` 로 바꾼다.
-3. 변경사항을 게시한다 — [[LABEL: Firebase — Remote Config 변경사항 게시 버튼]]. 게시하기 전의 값은 앱에 가지 않는다.
+1. Firebase 콘솔(<https://console.firebase.google.com>)에서 막을 flavor 의 프로젝트를 열고 Remote Config 화면으로 간다 — 왼쪽 메뉴 「DevOps 및 사용자 참여」 → 「Remote Config」.
+2. 매개변수를 더한다 — 매개변수가 하나도 없는 프로젝트는 첫 화면의 「구성 만들기」 가 「첫 번째 매개변수 만들기」 창을 연다. 창의 「매개변수 이름(키)」 은 위 키(예: `auth_provider_kakao_enabled`), 「데이터 유형」 은 「부울」, 「Default value」 는 `false` 다. 같은 이름의 매개변수가 이미 있으면 그 값을 `false` 로 바꾼다.
+3. 변경사항을 게시한다. 게시하기 전의 값은 앱에 가지 않는다.
 
 **언제 반영되나:** 앱은 시작할 때 Remote Config 를 가져와 적용한다. dev 는 시작할 때마다 새 값을 가져오고, stg · prod 는 마지막으로 가져온 지 12시간이 지난 뒤에 새 값을 가져온다. 앱이 떠 있는 동안(홈 화면을 한 번 연 뒤)에는 게시한 값이 다시 시작하지 않아도 곧 반영될 수 있다.
 
@@ -2480,16 +2480,16 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 **문제 해결:**
 
-- **게시했는데 버튼이 그대로 보인다.** 매개변수 이름이 위 키와 글자까지 같은지(토큰은 소문자), 데이터 유형이 `Boolean` 인지, 막을 flavor 의 프로젝트에 게시했는지 본다. stg · prod 는 마지막으로 가져온 지 12시간이 지나야 새 값을 가져온다 — 바로 확인하려면 앱을 지웠다가 다시 설치한다.
+- **게시했는데 버튼이 그대로 보인다.** 매개변수 이름이 위 키와 글자까지 같은지(토큰은 소문자), 데이터 유형이 「부울」 인지, 막을 flavor 의 프로젝트에 게시했는지 본다. stg · prod 는 마지막으로 가져온 지 12시간이 지나야 새 값을 가져온다 — 바로 확인하려면 앱을 지웠다가 다시 설치한다.
 - **목록에 없는 수단을 `true` 로 게시했는데 버튼이 없다.** Remote Config 는 목록에 있는 수단만 숨길 수 있다. 수단을 켜는 일은 [로그인 수단 켜기](setup.md#로그인-수단-켜기) 다.
 
 **되돌리기:** 그 매개변수를 `true` 로 바꾸거나 매개변수를 지우고 게시한다 — 키가 없으면 버튼이 보인다. 반영 시점은 위 「언제 반영되나」 와 같다. 수단을 목록에서 아예 빼는 법은 [로그인 수단 끄기](setup.md#로그인-수단-끄기) 다 — 가입자가 있는 수단은 목록에서 빼지 않는다.
 
 ### Crashlytics · Analytics
 
-오류 보고(Crashlytics)와 사용 통계(Analytics) 코드는 모든 flavor 에서 켜져 있다. 할 일은 받는 쪽 확인이다 — Firebase 콘솔에서 그 프로젝트의 Crashlytics 를 쓰기 시작하기 전이면 오류 보고가 들어오지 않는다.
+오류 보고(Crashlytics)와 사용 통계(Analytics) 코드는 모든 flavor 에서 켜져 있다. 할 일은 받는 쪽 확인이다 — 아래 시험으로 오류 보고와 이벤트가 콘솔에 들어오는지 본다.
 
-**첫 화면 확인:** Firebase 콘솔에서 그 프로젝트의 Crashlytics 를 열어 [[LABEL: Firebase — Crashlytics 첫 화면(사용 설정 · 온보딩 화면이면 그 버튼)]] 을 확인한다. 프로젝트마다 한 번 본다.
+**첫 화면 확인:** 콘솔에서 켤 것은 없다 — 앱이 첫 보고를 보내면 Crashlytics 의 「대시보드」 탭이 열린다. 그 전에는 「SDK 추가」 안내 화면이나 「앱이 감지되었으며 비정상 종료를 기다리는 중입니다.」 가 보이고, 누르지 않아도 된다.
 
 **오류 보고 시험(dev):**
 
@@ -2500,7 +2500,7 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
    ```
 
 2. 데모 화면의 Dev Tools 에서 「테스트 에러 전송」 을 누른다. Dev Tools 는 debug 빌드에만 있다 — 데모 화면 위치는 [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법).
-3. Firebase 콘솔의 Crashlytics 에 non-fatal 오류 `Dev Tools test error` 가 나타난다. 나타나기까지 시간이 걸릴 수 있다.
+3. Firebase 콘솔의 Crashlytics 에 non-fatal 오류 `Dev Tools test error` 가 나타난다. 나타나기까지 시간이 걸릴 수 있다. 「대시보드」 탭 맨 위 필터 칩이 기본으로 「이벤트 유형 = "비정상 종료"」 라 이 오류는 가려진다 — 칩에서 「심각하지 않음」 을 고른다.
 
 **사용 통계 확인(DebugView):** Analytics 의 일반 보고서는 늦게 반영되고, DebugView 는 디버그 모드로 켠 기기의 이벤트를 바로 보여 준다. 킷은 디버그 모드를 저절로 켜지 않으므로 기기에서 켠다.
 
@@ -2512,13 +2512,13 @@ adb shell setprop debug.firebase.analytics.app com.slimpumpkin.flutter_starter_k
 adb shell setprop debug.firebase.analytics.app .none.
 ```
 
-패키지 이름을 바꿨으면 `com.slimpumpkin.flutter_starter_kit` 자리에 내 패키지 이름을 쓴다(dev flavor 는 끝에 `.dev`). iOS 는 Xcode → Product → Scheme → Edit Scheme → Run → Arguments 의 Arguments Passed On Launch 에 `-FIRDebugEnabled` 를 더한다. 켠 뒤 Dev Tools 의 「Analytics 이벤트 전송」 을 누르면 [[LABEL: Firebase — Analytics DebugView 메뉴 위치]] 에 이벤트 `dev_tools_test_event` 가 나타난다.
+패키지 이름을 바꿨으면 `com.slimpumpkin.flutter_starter_kit` 자리에 내 패키지 이름을 쓴다(dev flavor 는 끝에 `.dev`). iOS 는 Xcode → Product → Scheme → Edit Scheme → Run → Arguments 의 Arguments Passed On Launch 에 `-FIRDebugEnabled` 를 더한다. 켠 뒤 Dev Tools 의 「Analytics 이벤트 전송」 을 누르면 왼쪽 메뉴 「애널리틱스」 → 「DebugView」 에 이벤트 `dev_tools_test_event` 가 나타난다.
 
 **출시 빌드:** release 빌드의 크래시 위치를 읽으려면 dSYM(iOS) · NDK 기호(Android)를 올린다 — [빌드 · 출시](#빌드--출시) 에 있다.
 
 **문제 해결:**
 
-- **오류 보고가 들어오지 않는다.** 앱 실행 로그에 `"firebase_crashlytics_enabled": false` 가 보이면 그 프로젝트에서 Crashlytics 를 쓰기 시작하기 전이다. 위 「첫 화면 확인」 대로 콘솔에서 Crashlytics 사용 설정을 확인한 뒤 「테스트 에러 전송」 을 다시 누른다. `android/app/src/main/AndroidManifest.xml` 에 `firebase_crashlytics_collection_enabled` 를 `false` 로 넣었다면 지운다 — 킷은 이 값을 넣지 않는다.
+- **오류 보고가 들어오지 않는다.** 「대시보드」 맨 위 필터 칩 「이벤트 유형 = "비정상 종료"」 가 기본이라 「테스트 에러 전송」 의 심각하지 않은 오류가 가려진다 — 칩에서 「심각하지 않음」 을 고른다. `android/app/src/main/AndroidManifest.xml` 에 `firebase_crashlytics_collection_enabled` 를 `false` 로 넣었다면 지운다 — 킷은 이 값을 넣지 않는다.
 - **DebugView 에 이벤트가 없다.** 위 명령의 패키지 이름이 실행한 flavor 의 패키지 이름과 같은지 본다. 명령을 실행한 뒤 앱을 다시 시작한다.
 
 ### 알림 시험 발송
@@ -2572,8 +2572,8 @@ adb shell setprop debug.firebase.analytics.app .none.
 
 **켜기:**
 
-1. Firebase 콘솔의 Authentication 설정에서 프로젝트를 Identity Platform 으로 업그레이드한다 — [[LABEL: Firebase — Authentication 설정의 Identity Platform 업그레이드 버튼]]. 앱 코드는 바꾸지 않아도 된다(「You do not need to change your apps when upgrading from Firebase Authentication to Identity Platform…」 — <https://docs.cloud.google.com/identity-platform/docs/product-comparison>). 요금 · MAU 한도 · 되돌릴 수 있는지는 공식 문서(<https://firebase.google.com/pricing> · 위 product-comparison 페이지)로 확인한다.
-2. 같은 설정에서 익명 계정 자동 정리를 켠다 — [[LABEL: Firebase — Authentication 설정의 익명 계정 자동 정리 칸]].
+1. Firebase 콘솔의 Authentication 에서 프로젝트를 Identity Platform 으로 업그레이드한다. 업그레이드된 프로젝트는 Authentication 머리에 「Authentication with Identity Platform」 이 보인다. 앱 코드는 바꾸지 않아도 된다(「You do not need to change your apps when upgrading from Firebase Authentication to Identity Platform…」 — <https://docs.cloud.google.com/identity-platform/docs/product-comparison>). 요금 · MAU 한도 · 되돌릴 수 있는지는 공식 문서(<https://firebase.google.com/pricing> · 위 product-comparison 페이지)로 확인한다.
+2. 익명 계정 자동 정리를 켠다 — Authentication 의 「로그인 방법」 탭에서 로그인 제공업체 「익명」 행을 수정하면 「자동 정리 사용 설정」 체크 상자가 있다(「설정」 탭에는 없다).
 
 **알아 둘 것:**
 

@@ -259,11 +259,11 @@ Google 로그인을 앱에 둘 때 이 절을 따른다. Google 을 켜지 않�
    - `지원 이메일` — 동의 화면의 지원 이메일이다. 위저드가 gcloud 에 로그인한 계정을 제안하고, `지원 이메일 고치기` 로 바꿀 수 있다.
    - `동의 화면 로고 · 출시 전 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/google-120x120.png` 다.
 2. 이미 동의 화면이 있는 프로젝트면 위저드 안내(`이미 동의 화면이 있으면 그 이름 · 이메일을 넣으세요`)대로 그 이메일을 넣는다. 값이 맞으면 `이대로 진행` 을 고른다 — 위저드가 Google 로그인을 켜고 동의 화면을 만든다.
-3. 값 표 아래에 `조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다` 가 보이면 프로젝트가 조직 아래에 있는 것이다. Google Cloud 콘솔의 OAuth 동의 화면에서 [[LABEL: Google Cloud — OAuth 동의 화면 대상(사용자 유형)을 외부로 바꾸기]] 를 한다. 조직이 없는 프로젝트는 이 줄이 보이지 않고 이 단계를 건너뛴다.
+3. 값 표 아래에 `조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다` 가 보이면 프로젝트가 조직 아래에 있는 것이다. Google Cloud 콘솔의 OAuth 동의 화면(콘솔 이름 「Google 인증 플랫폼」) → 「대상」 에서 「사용자 유형」 을 외부로 바꾼다. 조직이 없는 프로젝트는 「사용자 유형」 이 이미 「외부」 이고, 이 줄이 보이지 않아 이 단계를 건너뛴다.
 4. 결과를 콘솔에서 본다 — Google Cloud 콘솔의 프로젝트 선택 창에서 그 프로젝트를 고른다(조직이 없는 프로젝트는 「조직 없음」 아래에 있다). 이어서 `OAuth 동의 화면` → `브랜딩` 을 열면 앱 이름 · 지원 이메일이 값 표와 같다.
-5. 동의 화면 로고는 출시 전 선택이다. 올리려면 `브랜딩` 화면의 [[LABEL: Google Cloud — 브랜딩 화면의 로고 칸]] 에 `.setup/icons/google-120x120.png` 를 올린다. 위저드 노트대로 로고는 Google 의 브랜드 인증을 거쳐야 동의 화면에 보인다.
-6. 출시 전에 [[LABEL: Google Cloud — 동의 화면 게시 상태 · 브랜드 인증 전환 버튼]] 에서 동의 화면의 게시 상태와 브랜드 인증을 확인한다.
-7. iOS · Android 쪽은 위저드가 한다. 「Google — iOS 쪽」 단계가 설정 파일의 `REVERSED_CLIENT_ID` 를 `ios/Flutter/<flavor>.xcconfig` 에 쓰고, 「Google — Android 쪽」 단계가 디버그 서명 키의 SHA-1 을 Firebase 의 Android 앱에 등록한다. release 서명 키의 SHA-1 은 위저드가 등록하지 않는다 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 Firebase 콘솔 → 프로젝트 설정 의 [[LABEL: Firebase — Android 앱의 SHA 인증서 지문 추가]] 에 더한다.
+5. 동의 화면 로고는 출시 전 선택이다. 올리려면 「브랜딩」 화면의 「앱 로고」 → 「업로드할 로고 파일」 에 `.setup/icons/google-120x120.png` 를 올린다. 위저드 노트대로 로고는 Google 의 브랜드 인증을 거쳐야 동의 화면에 보인다.
+6. 출시 전에 「대상」 화면의 「게시 상태」 와 「브랜딩」 화면 맨 아래 「인증 상태」 의 「브랜딩 확인」 에서 동의 화면의 게시 상태와 브랜드 인증을 확인한다.
+7. iOS · Android 쪽은 위저드가 한다. 「Google — iOS 쪽」 단계가 설정 파일의 `REVERSED_CLIENT_ID` 를 `ios/Flutter/<flavor>.xcconfig` 에 쓰고, 「Google — Android 쪽」 단계가 디버그 서명 키의 SHA-1 을 Firebase 의 Android 앱에 등록한다. release 서명 키의 SHA-1 은 위저드가 등록하지 않는다 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 Firebase 콘솔 → 프로젝트 설정 → 「일반」 의 Android 앱에서 「SHA 인증서 지문」 표 아래 「디지털 지문 추가」 로 더한다.
 
 #### 확인 방법
 
@@ -295,10 +295,10 @@ Apple 로그인을 앱에 둘 때 이 절을 따른다. Apple 을 켜지 않으�
    - `Return URL` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
    - `도메인` — `<your-project-id>.firebaseapp.com`
    - `primary App ID (번들 ID)` — iOS 앱의 번들 ID 다. Services ID 를 이 App ID 에 묶는다.
-3. Apple Developer(<https://developer.apple.com/account>)의 Certificates, Identifiers & Profiles 에서 Services ID 를 만든다 — [[LABEL: Apple Developer — Identifiers 에서 Services IDs 만들기]] 에서 identifier 칸에 `Services ID (제안)` 값을 넣는다.
-4. 만든 Services ID 에서 Sign in with Apple 을 켜고 설정 화면을 연다. [[LABEL: Apple Developer — Services ID 의 Sign in with Apple 설정 화면(primary App ID · 도메인 · Return URL 칸)]] 에서 primary App ID 로 `primary App ID (번들 ID)` 의 App ID 를 고르고, 도메인 칸에 `도메인` 값을, Return URL 칸에 `Return URL` 값을 넣은 뒤 저장한다.
-5. 키를 만든다 — Certificates, Identifiers & Profiles → Keys 에서 새 키를 만들고 [[LABEL: Apple Developer — Keys 의 서비스 체크 상자(APNs · DeviceCheck · Sign in with Apple)와 Sign in with Apple 의 Configure]] 를 켠다. 위저드 할 일 줄 `APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나를 만들고 .p8 을 내려받기` 대로 만들면 같은 키를 APNs · App Check 에도 쓴다. `.p8` 파일은 한 번만 내려받을 수 있으므로 안전한 곳에 둔다. Key ID 는 키 화면에 보이고, 내려받은 파일 이름(`AuthKey_<Key ID>.p8`)에도 들어 있다.
-6. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 Services ID · `.p8` 파일 경로 · Key ID 를 입력한다 — 파일 경로는 Finder 에서 `.p8` 파일을 터미널 창으로 끌어다 놓으면 들어간다. Team ID 는 `ios/Flutter/<flavor>.xcconfig` 의 `DEVELOPMENT_TEAM` 이 형식에 맞으면 묻지 않고, 비었으면 `Apple Team ID` 를 물어 그 자리에 쓴다 — Team ID 는 [[LABEL: Apple Developer — 멤버십 세부 사항의 Team ID]] 에 있다. 위저드가 Firebase 의 Apple 로그인 설정에 기록한다.
+3. Apple Developer(<https://developer.apple.com/account>)의 Certificates, Identifiers & Profiles 에서 Services ID 를 만든다 — Identifiers 의 (+) 를 눌러 「Register a new identifier」 에서 「Services IDs」 를 고른 뒤 identifier 칸에 `Services ID (제안)` 값을 넣는다.
+4. 만든 Services ID 에서 Sign in with Apple 을 켜고 그 줄의 「Configure」 를 누른다. 열린 창 「Web Authentication Configuration」 의 「Primary App ID」 에서 `primary App ID (번들 ID)` 의 App ID 를 고르고, 「Website URLs」 의 (+) 를 눌러 「Domains and Subdomains」 칸에 `도메인` 값을, 「Return URLs」 칸에 `Return URL` 값을 넣는다. 「Next」 → 목록을 확인하고 「Done」 → 「Continue」 → 「Save」 순서로 저장한다. App ID 쪽의 「Sign In with Apple: App ID Configuration」 창은 이 창과 다른 창이다.
+5. 키를 만든다 — Certificates, Identifiers & Profiles → Keys 의 (+) 에서 새 키를 만들고 「Apple Push Notifications service (APNs)」 · 「DeviceCheck」 · 「Sign in with Apple」 체크 상자를 켠 뒤 Sign in with Apple 줄의 「Configure」 를 누른다 — 화면 안내대로 이 줄은 설정해야 켜진다. 위저드 할 일 줄 `APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나를 만들고 .p8 을 내려받기` 대로 만들면 같은 키를 APNs · App Check 에도 쓴다. `.p8` 파일은 한 번만 내려받을 수 있으므로 안전한 곳에 둔다. Key ID 는 키 화면에 보이고, 내려받은 파일 이름(`AuthKey_<Key ID>.p8`)에도 들어 있다.
+6. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 Services ID · `.p8` 파일 경로 · Key ID 를 입력한다 — 파일 경로는 Finder 에서 `.p8` 파일을 터미널 창으로 끌어다 놓으면 들어간다. Team ID 는 `ios/Flutter/<flavor>.xcconfig` 의 `DEVELOPMENT_TEAM` 이 형식에 맞으면 묻지 않고, 비었으면 `Apple Team ID` 를 물어 그 자리에 쓴다 — Team ID 는 Apple Developer 계정의 「멤버십 세부 사항」 의 「팀 ID」 에 있다. 위저드가 Firebase 의 Apple 로그인 설정에 기록한다.
 7. Android 쪽 콘솔 작업을 미루려면 `지금 안 함` 을 고른다. Android 에서 Apple 로그인만 막히고, 미룬 일은 위저드 끝의 「release 빌드 전에 끝내야 할 일」 목록에 보인다.
 
 #### 확인 방법
@@ -330,15 +330,15 @@ Facebook 로그인을 앱에 둘 때 이 절을 따른다. Facebook 을 켜지 �
    - `iOS 번들 ID` · `Android 패키지명` · `Android 클래스 이름` · `Android 키 해시` — Facebook 앱의 iOS · Android 플랫폼에 넣는 값이다. 키 해시를 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
    - `OAuth redirect URI` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
    - `앱 아이콘(1024 x 1024) · 앱 게시 때 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/facebook-1024x1024.png` 다.
-2. 앱을 만들고 Facebook 로그인 사용 사례를 더한다(할 일 줄 `앱 만들기 · Facebook 로그인 사용 사례 추가`) — [[LABEL: Meta — 앱 만들기의 사용 사례(Facebook 로그인) 고르기]].
+2. 앱을 만들고 Facebook 로그인 사용 사례를 더한다(할 일 줄 `앱 만들기 · Facebook 로그인 사용 사례 추가`) — 사용 사례 목록에서 「Facebook 로그인을 통한 인증 및 사용자의 데이터 요청」 을 고른다.
 3. 리디렉션 주소를 넣는다 — `Facebook 로그인 → 설정 → 클라이언트 OAuth 설정 → 유효한 OAuth 리디렉션 URI` 칸에 `OAuth redirect URI` 값을 넣고 저장한다.
-4. Android 플랫폼을 더한다 — 빠른 시작 Android 에서 [[LABEL: Meta — 빠른 시작 Android 의 패키지 이름 · 클래스 이름 칸]] 에 `Android 패키지명` · `Android 클래스 이름` 값을 넣는다. `키 해시` 칸에 `Android 키 해시` 값을 넣고 `Save` 를 누른 뒤 `계속` 을 누른다 — 키 해시를 넣기 전에는 `계속` 이 눌리지 않는다.
-5. iOS 플랫폼을 더한다 — [[LABEL: Meta — 빠른 시작 iOS 의 번들 ID 칸]] 에 `iOS 번들 ID` 값을 넣는다.
-6. 키 세 개를 모은다. App ID · App Secret 은 [[LABEL: Meta — App ID · App Secret 이 보이는 화면]] 에, Client Token 은 [[LABEL: Meta — Client Token 이 보이는 화면]] 에 있다.
+4. Android 플랫폼을 더한다 — 빠른 시작 Android 의 「3. Android 프로젝트에 대해 Facebook에 알리기」 에서 「패키지 이름」 · 「기본 액티비티 클래스 이름」 칸에 `Android 패키지명` · `Android 클래스 이름` 값을 넣는다. `키 해시` 칸에 `Android 키 해시` 값을 넣고 `Save` 를 누른 뒤 `계속` 을 누른다 — 키 해시를 넣기 전에는 `계속` 이 눌리지 않는다.
+5. iOS 플랫폼을 더한다 — 빠른 시작 iOS 의 「2. 번들 식별자 추가」 에서 「번들 ID」 칸에 `iOS 번들 ID` 값을 넣는다.
+6. 키 세 개를 모은다. App ID · App Secret 은 「앱 설정 → 기본 설정」 의 「앱 ID」 · 「앱 시크릿 코드」(「보기」 로 연다)에, Client Token 은 「앱 설정 → 고급 설정」 의 「클라이언트 토큰」 에 있다.
 7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Facebook App ID` · `Facebook Client Token` · `Facebook App Secret` 을 입력한다. 위저드가 App ID 와 App Secret 의 짝을 Facebook 서버로 확인한 뒤 config · xcconfig · Secret Manager 와 Firebase 의 Facebook 로그인 설정에 기록한다.
 8. 이메일은 Facebook 에서 필수로 받을 수 없다 — 할 일 줄의 이메일 권한은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
-9. 개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있다. 테스트할 Facebook 계정을 [[LABEL: Meta — 앱 역할(테스터 · 개발자) 더하기]] 에서 더한다.
-10. 출시 전에 앱을 게시한다. 게시 화면에 `Currently ineligible for submission` 이 보이면 그 아래 항목 — 앱 아이콘(1024 x 1024) · 개인정보처리방침 URL · 사용자 데이터 삭제 · 카테고리 — 을 채운다. 앱 아이콘은 `.setup/icons/facebook-1024x1024.png` 를 [[LABEL: Meta — 앱 아이콘 올리는 칸]] 에 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 앱 아이콘은 게시 때 필수이고 개발 모드 로그인에는 필요 없다.
+9. 개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있다. 테스트할 Facebook 계정을 「앱 역할」 화면의 「테스터」 · 「개발자」 탭에서 「사람 추가」 로 더한다. 같은 메뉴의 「테스트 사용자 계정」 은 시뮬레이션 계정을 만드는 다른 기능이다.
+10. 출시 전에 앱을 게시한다. 게시 화면에 `Currently ineligible for submission` 이 보이면 그 아래 항목 — 앱 아이콘(1024 x 1024) · 개인정보처리방침 URL · 사용자 데이터 삭제 · 카테고리 — 을 채운다. 앱 아이콘은 `.setup/icons/facebook-1024x1024.png` 를 「앱 설정 → 기본 설정」 의 「앱 아이콘」 칸에 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 앱 아이콘은 게시 때 필수이고 개발 모드 로그인에는 필요 없다.
 
 #### 확인 방법
 
@@ -371,13 +371,13 @@ Kakao 로그인을 앱에 둘 때 이 절을 따른다. Kakao 를 켜지 않으�
    - `앱 아이콘 올리기 · 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/kakao-128x128.png` 다.
 
    값 표 아래의 `이번에 만들 콘솔 앱: <flavor> 용 하나 — …` 줄은 이번 실행에서 만들 Kakao 앱이 그 flavor 용 하나라는 뜻이다.
-2. 애플리케이션을 만든다(할 일 줄 `애플리케이션 새로 만들기`) — [[LABEL: Kakao Developers — 애플리케이션 추가 화면(앱 이름 · 회사명 칸)]].
+2. 애플리케이션을 만든다(할 일 줄 `애플리케이션 새로 만들기`) — 창 「앱 생성」 에서 「앱 이름 (필수)」 · 「회사명 (필수)」 · 「카테고리 (필수)」 를 채운다.
 3. 플랫폼 값을 넣는다(할 일 줄 `네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록`) — `[앱] > [플랫폼 키] > [네이티브 앱 키]` 를 열고 패키지명 칸에 `Android 패키지명` 값을, 키 해시 칸에 `Android 키 해시` 값을, 번들 ID 칸에 `iOS 번들 ID` 값을 넣고 저장한다.
 4. 카카오 로그인과 OpenID Connect 를 켠다(할 일 줄 `카카오 로그인 · OpenID Connect 켜기`) — `카카오 로그인 → 일반` 에서 `사용 설정` 과 `OpenID Connect` 를 켠다. OpenID Connect 가 꺼져 있으면 Kakao 로그인이 끝나지 않는다(아래 문제 해결).
 5. 이메일을 받도록 동의 항목을 설정한다(할 일 줄 `동의 항목에서 이메일을 받도록 설정`) — 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 의 Kakao 행에 있다.
-6. 키 두 개를 모은다. 네이티브 앱 키는 `[앱] > [플랫폼 키] > [네이티브 앱 키]` 의 키 값이고, 어드민 키는 [[LABEL: Kakao Developers — 어드민 키가 보이는 화면]] 에 있다.
+6. 키 두 개를 모은다. 네이티브 앱 키는 `[앱] > [플랫폼 키] > [네이티브 앱 키]` 의 키 값이고, 어드민 키는 `[앱] > [어드민 키]` 에 있다.
 7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Kakao 네이티브 앱 키` · `Kakao 어드민 키` 를 차례로 입력한다 — 어드민 키는 화면에 보이지 않게 받는다. 위저드가 어드민 키를 Kakao 서버로 확인한 뒤 네이티브 앱 키는 config · xcconfig · Secret Manager 에, 어드민 키는 Secret Manager 에만 기록한다. 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
-8. 앱 아이콘은 선택이다. 올리려면 [[LABEL: Kakao Developers — 앱 아이콘 올리는 칸]] 에 `.setup/icons/kakao-128x128.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 콘솔은 JPG · GIF · PNG 를 받고, 128 px 를 권장하며 250 KB 까지 받는다.
+8. 앱 아이콘은 선택이다. 올리려면 `[앱] > [일반]` 의 「앱 기본 정보」 → 「수정」 에서 「앱 아이콘」 에 `.setup/icons/kakao-128x128.png` 를 올린다(「앱 생성」 창에서 만들 때 올려도 된다)(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 콘솔은 JPG · GIF · PNG 를 받고, 128 px 를 권장하며 250 KB 까지 받는다.
 
 #### 확인 방법
 
@@ -410,14 +410,14 @@ Naver 로그인을 앱에 둘 때 이 절을 따른다. Naver 를 켜지 않으�
    - `로고 이미지 · 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/naver-140x140.png` 다.
 
    NAVER 앱이 없는 기기의 웹 로그인은 값 표의 `iOS URL Scheme` 값으로 돌아온다(`<URL Scheme>://authorize`) — 콘솔에서 따로 할 일은 없다.
-2. 애플리케이션을 등록한다(할 일 줄 `애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)`) — [[LABEL: Naver Developers — 애플리케이션 등록 화면(애플리케이션 이름 · 사용 API 칸)]] 에서 사용 API 로 네이버 로그인을 고른다. 같은 화면의 `로고 이미지` 칸에서 `파일선택` 을 눌러 `.setup/icons/naver-140x140.png` 를 올린다(파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 로고 이미지는 필수다 — 없으면 애플리케이션이 저장되지 않는다. 콘솔은 jpg · png · gif 를 받고, 140x140 을 권장하며 500KB 까지 받는다. 로고는 사용자가 보는 로그인 동의 화면에 나온다.
-3. 서비스 환경을 넣는다(할 일 줄 `iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록`) — [[LABEL: Naver Developers — 서비스 환경(iOS · 안드로이드)을 더하는 위치]] 에서 두 환경을 더한다.
+2. 애플리케이션을 등록한다(할 일 줄 `애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)`) — 「애플리케이션 등록 (API 이용신청)」 화면의 「애플리케이션 이름」 을 채우고 「사용 API」 에서 네이버 로그인을 고른다. 같은 화면의 `로고 이미지` 칸에서 `파일선택` 을 눌러 `.setup/icons/naver-140x140.png` 를 올린다(파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). 로고 이미지는 필수다 — 없으면 애플리케이션이 저장되지 않는다. 콘솔은 jpg · png · gif 를 받고, 140x140 을 권장하며 500KB 까지 받는다. 로고는 사용자가 보는 로그인 동의 화면에 나온다.
+3. 서비스 환경을 넣는다(할 일 줄 `iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록`) — 「사용 API」 에 네이버 로그인을 고르면 펼쳐지는 「로그인 오픈 API 서비스 환경」 의 「환경 추가」 에서 「안드로이드」 · 「iOS」 두 환경을 더한다.
    - iOS 환경: `다운로드 URL` 과 `URL Scheme` 을 넣는다. `URL Scheme` 칸에는 값 표의 `iOS URL Scheme` 값을 글자 그대로 넣는다.
    - 안드로이드 환경: `다운로드 URL` 과 `안드로이드 앱 패키지 이름` 만 넣는다. `안드로이드 앱 패키지 이름` 칸에는 값 표의 `Android 패키지명` 값을 넣는다.
    - `다운로드 URL` 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 스토어 주소로 바꾼다.
 4. 이메일을 받도록 제공 정보를 설정한다(할 일 줄 `제공 정보에서 이메일 주소 받기`) — 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 의 Naver 행에 있다.
 5. 개발 중 로그인할 아이디를 등록한다. 위저드 할 일 줄 `개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다` 대로 `멤버관리` 에서 `관리자 ID 등록`(최대 3개) 또는 `테스터 ID 등록`(최대 20개)에 시험할 네이버 아이디를 넣는다.
-6. Client ID · Client Secret 을 모은다 — [[LABEL: Naver Developers — Client ID · Client Secret 이 보이는 화면]].
+6. Client ID · Client Secret 을 모은다 — 내 애플리케이션에서 그 앱을 열면 「개요」 탭의 「애플리케이션 정보」 에 「Client ID」 · 「Client Secret」(「보기」 로 연다)이 있다.
 7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Naver Client ID` · `Naver Client Secret` · `Naver URL Scheme` 을 차례로 입력한다. Client Secret 은 화면에 보이지 않게 받는다. `Naver URL Scheme` 은 Enter 만 누르면 제안값이 들어간다 — 콘솔 단계 3 의 `URL Scheme` 칸과 같은 값을 넣는다. 위저드가 Client ID · Client Secret 의 짝을 Naver 서버로 확인한 뒤 config · xcconfig · Secret Manager 에 기록한다(URL Scheme 은 config · xcconfig 에만). 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
 
 #### 확인 방법
@@ -458,13 +458,13 @@ LINE 로그인을 앱에 둘 때 이 절을 따른다. LINE 을 켜지 않으면
    - `Android 패키지명` — `LINE Login` 탭의 `Package names` 칸에 넣는다.
    - `Android 서명 SHA-1` — 디버그 서명 키의 SHA-1 을 LINE 이 받는 대문자 · 콜론 꼴로 보인다. `LINE Login` 탭의 `Package signatures` 칸에 넣는다. SHA-1 을 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
    - `Channel icon · 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/line-512x512.png` 다.
-2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다. 앱 종류는 [[LABEL: LINE Developers — 채널 만들기의 앱 종류 칸(Mobile app)]] 에서 모바일 앱을 고른다.
+2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다. 앱 종류는 「App types」 에서 「Mobile app」 을 고른다.
 3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다. `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다. 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다. `Android URL scheme` 칸에 넣을 값은 위저드 값 표에 없다.
 4. 이메일 주소 권한을 신청한다(할 일 줄 `OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다`) — `Basic settings` → `OpenID Connect` 의 `Email address permission` 이 `Unapplied` 면 `Apply` 로 신청한다. 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
-5. 개발 중 로그인할 계정에 역할을 준다. 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 [[LABEL: LINE Developers — 역할(Admin · Tester)을 주는 화면]] 에서 Admin 이나 Tester 역할을 준다.
+5. 개발 중 로그인할 계정에 역할을 준다. 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 채널의 「Roles」 탭 → 「Invite by email」 에서 Admin 이나 Tester 역할을 준다 — 프로바이더 화면에도 같은 이름의 「Roles」 탭이 있지만 그쪽 역할은 Admin · Member 뿐이고 Tester 가 없다.
 6. Channel ID · Channel Secret 을 모은다 — 채널의 `Basic settings` 탭에 있다.
 7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `LINE Channel ID` · `LINE Channel Secret` 을 차례로 입력한다 — Channel Secret 은 화면에 보이지 않게 받는다. 위저드가 두 값의 짝을 LINE 서버로 확인한 뒤 Channel ID 는 config · xcconfig · Secret Manager 에, Channel Secret 은 Secret Manager 에만 기록한다. 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
-8. 채널 아이콘은 선택이다. 올리려면 [[LABEL: LINE Developers — Channel icon 올리는 칸]] 에 `.setup/icons/line-512x512.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). `Channel icon` 은 PNG · JPG · JPEG · GIF · BMP 를 3MB 까지 받고 크기 규정은 없다.
+8. 채널 아이콘은 선택이다. 올리려면 단계 2 의 `Create a new channel` 화면에서 「Channel icon」 칸의 「Register」 로 `.setup/icons/line-512x512.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `.setup/icons` 를 붙여 넣는다). `Channel icon` 은 PNG · JPG · JPEG · GIF · BMP 를 3MB 까지 받고 크기 규정은 없다.
 
 #### 확인 방법
 
@@ -532,7 +532,7 @@ gcloud iam service-accounts add-iam-policy-binding <service-account-email> --mem
 | Naver | 있음 | 「연락처 이메일 주소」 를 필수 제공 항목으로 설정한다 |
 | LINE | 없음 | email 권한을 신청한다 — 권한을 받아도 사용자가 이메일 제공에 동의하지 않을 수 있다 |
 
-**Kakao.** 「카카오계정(이메일)」 동의항목의 동의 단계는 비즈 앱 또는 테스트 앱에서만 설정할 수 있다. 일반 앱이면 먼저 비즈 앱으로 전환한다 — 전환 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다. 그다음 Kakao Developers 앱 관리 페이지의 [카카오 로그인] > [동의항목] > [개인정보] 에서 「카카오계정(이메일)」 행의 [설정] 을 누르고, 동의 단계를 [필수 동의] 로 고른 뒤 동의 목적을 입력한다. 설정창에 「카카오계정으로 수집 후 제공」 이 있으면 함께 켠다 — 카카오계정에 등록되지 않은 정보를 사용자에게 동의와 입력을 요청해 받아 주는 기능이다. [필수 동의] 로 두어도 Kakao 가 갖고 있지 않은 정보는 오지 않을 수 있다. 프로필 사진도 받으려면 같은 [카카오 로그인] > [동의항목] 의 [[LABEL: Kakao Developers — 동의항목에서 「프로필 사진」 행이 있는 자리]] 에서 「프로필 사진」 동의항목을 [선택 동의] 로 켠다 — 사용자가 동의하면 ID 토큰에 사진 주소가 담긴다. 앱 등록 순서에서 이 설정의 자리는 [Kakao 로그인 켜기](#kakao-로그인-켜기) 의 콘솔 단계 5 다. 공식 문서: <https://developers.kakao.com/docs/ko/kakaologin/utilize> · <https://developers.kakao.com/docs/ko/kakaologin/prerequisite>
+**Kakao.** 「카카오계정(이메일)」 동의항목의 동의 단계는 비즈 앱 또는 테스트 앱에서만 설정할 수 있다. 일반 앱이면 먼저 비즈 앱으로 전환한다 — 전환 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다. 그다음 Kakao Developers 앱 관리 페이지의 [카카오 로그인] > [동의항목] > [개인정보] 에서 「카카오계정(이메일)」 행의 [설정] 을 누르고, 동의 단계를 [필수 동의] 로 고른 뒤 동의 목적을 입력한다. 설정창에 「카카오계정으로 수집 후 제공」 이 있으면 함께 켠다 — 카카오계정에 등록되지 않은 정보를 사용자에게 동의와 입력을 요청해 받아 주는 기능이다. [필수 동의] 로 두어도 Kakao 가 갖고 있지 않은 정보는 오지 않을 수 있다. 프로필 사진도 받으려면 같은 [카카오 로그인] > [동의항목] > [개인정보] 에서 「프로필 사진」 행의 [설정] 을 누르고 [선택 동의] 로 켠다 — 사용자가 동의하면 ID 토큰에 사진 주소가 담긴다. 앱 등록 순서에서 이 설정의 자리는 [Kakao 로그인 켜기](#kakao-로그인-켜기) 의 콘솔 단계 5 다. 공식 문서: <https://developers.kakao.com/docs/ko/kakaologin/utilize> · <https://developers.kakao.com/docs/ko/kakaologin/prerequisite>
 
 **Naver.** Naver Developers 의 애플리케이션 API 설정 메뉴에서 「연락처 이메일 주소」 를 필수 제공 항목으로 둔다. 추가 제공 항목으로 두면 사용자가 제공 여부를 고르므로 이메일이 오지 않을 수 있다. Naver 는 필수 제공 항목을 서비스 이용에 반드시 필요한 정보로만 설정하라고 안내한다. 앱 등록 순서에서 이 설정의 자리는 [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 4 다. 공식 문서: <https://developers.naver.com/docs/login/devguide/devguide.md>
 
@@ -579,7 +579,7 @@ iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 �
    - `.p8` — `Key ID <Key ID> 의 .p8` 꼴로, 올릴 키 파일을 가리킨다.
    - `Key ID` · `Team ID` — 키를 올릴 때 함께 넣는 값이다.
 2. Firebase 콘솔에서 그 프로젝트를 열고 `프로젝트 설정` → `클라우드 메시징` → `Apple 앱 구성` 에서 값 표의 번들 ID 앱을 찾는다.
-3. `APN 인증 키` 아래 `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸에 같은 `.p8` 을 올린다(할 일 줄 `Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키`). 올리는 창의 [[LABEL: Firebase — APNs 인증 키 올리는 창의 키 ID · 팀 ID 칸]] 에 값 표의 `Key ID` · `Team ID` 를 넣는다.
+3. `APN 인증 키` 아래 `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸에 같은 `.p8` 을 올린다(할 일 줄 `Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키`). 올리는 창의 「키 ID(필수 항목)」 · 「팀 ID(필수 항목)」 칸에 값 표의 `Key ID` · `Team ID` 를 넣는다 — 「팀 ID(필수 항목)」 은 이미 채워져 있을 수 있으니 값 표의 `Team ID` 와 같은지 본다.
 4. stg · prod 는 그 flavor 의 Firebase 프로젝트에서 같은 일을 한다. 키 파일은 저장소에 두지 않는다.
 
 #### 확인 방법
@@ -610,8 +610,8 @@ iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 �
 
 #### 확인 방법
 
-- Firebase 콘솔에서 그 프로젝트를 열고 [[LABEL: Firebase — App Check 의 앱 목록(Play Integrity · DeviceCheck 등록 상태)]] 에서 Android 앱에 Play Integrity, iOS 앱에 DeviceCheck 가 등록돼 있는지 본다.
-- [[LABEL: Firebase — App Check 앱의 디버그 토큰 관리 화면]] 에 표시 이름 `setup-wizard-<flavor>` 인 디버그 토큰이 iOS · Android 앱마다 있는지 본다.
+- Firebase 콘솔에서 그 프로젝트를 열고 App Check 의 「앱」 탭에서 Android 앱에 Play Integrity, iOS 앱에 DeviceCheck 가 등록돼 있는지(「상태」 가 「등록됨」) 본다.
+- App Check 「앱」 탭의 앱 행 「⋮」 메뉴 → 「디버그 토큰 관리」 에 표시 이름 `setup-wizard-<flavor>` 인 디버그 토큰이 iOS · Android 앱마다 있는지 본다.
 - debug 빌드에서 회원탈퇴 같은 보호된 기능이 동작한다. dev · stg 의 Play Integrity 는 설정 뒤 1~2분 지나 release 빌드로 확인한다.
 
 #### 문제 해결
@@ -655,7 +655,7 @@ Cloud Functions 리전은 dev 처음 설정의 「위치 · Firestore」 단계�
 
 1. `functions/src/shared/region.ts` · `lib/core/config/app_config.dart` 에 커밋하지 않은 변경이 없게 한다 — 있으면 위저드가 멈춘다.
 2. `config/dev.json` 의 `functionsRegion` 을 새 리전으로 고친 뒤 `./setup.sh` 를 다시 실행한다. 「위치 · Firestore」 단계가 세 곳의 값이 다르다고 알리고 `Functions 리전을 바꾸면 config/dev.json · functions/src/shared/region.ts · lib/core/config/app_config.dart 세 곳이 함께 바뀝니다.` 를 보인 뒤 리전을 고르게 한다. 고른 값이 세 곳에 쓰인다.
-3. 「Cloud Functions 배포」 단계가 새 리전에 함수를 배포한다. 옛 리전의 함수는 위저드가 지우지 않는다 — Firebase 콘솔 [[LABEL: Firebase — Functions 함수 목록]] 에서 옛 리전의 함수를 지운다.
+3. 「Cloud Functions 배포」 단계가 새 리전에 함수를 배포한다. 옛 리전의 함수는 위저드가 지우지 않는다 — Firebase 콘솔 Functions 의 「대시보드」 탭 함수 표에서 옛 리전의 함수(함수 이름 아래에 리전이 보인다)를 찾아 행 끝 「⋮」 의 「함수 삭제」 로 지운다.
 4. 위저드 끝에 보이는 바뀐 추적 파일(`region.ts` · `app_config.dart`)을 확인하고 커밋한다.
 5. stg · prod 는 다음 `./setup.sh --flavor stg` · `./setup.sh --flavor prod` 실행에서 그 flavor config 의 `functionsRegion` 이 새 값으로 맞춰지고, 함수가 새 리전에 배포된다.
 
@@ -705,7 +705,7 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 **켠 직후 끄는 개발 프로젝트** — 수단을 켜면 위저드의 「소셜 로그인 확인」 단계에서 그 수단으로 한 번 로그인하므로 테스트 계정이 생긴다. 그래서 켠 직후 끄면 위저드는 가입자가 있는 갈래로 가고, 안내 끝에 `테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요` 를 보인다. 가입자가 그 테스트 계정뿐이면 아래처럼 한다.
 
 1. 테스트 계정을 지운다.
-   - Google · Apple · Facebook — Firebase 콘솔에서 그 프로젝트를 열고 [[LABEL: Firebase — Authentication 사용자 목록 메뉴]] 에서 그 계정을 지운다.
+   - Google · Apple · Facebook — Firebase 콘솔에서 그 프로젝트를 열고 Authentication 의 「사용자」 탭에서 그 계정 행 끝 「⋮」 의 「계정 삭제」 로 지운다.
    - Kakao · Naver · LINE — 위저드는 이 셋의 가입자를 Firestore 의 가입 기록으로 센다. 콘솔의 Authentication 사용자 목록에서만 지우면 그 기록이 남아 다시 가입자로 세어진다. 앱에서 그 테스트 계정으로 로그인한 뒤 「설정」 의 「회원탈퇴」 로 지운다 — 확인 칸에 `탈퇴` 를 입력하면 계정과 가입 기록이 함께 지워진다.
 2. 체크 목록을 다시 연다.
 
@@ -772,7 +772,6 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 
 - 위저드 끝의 `release 빌드 전에 끝내야 할 일:` 목록을 처리한다 — 출시용 단계는 [알림(APNs) · App Check](#알림apns--app-check) 에서, release 빌드 준비는 [빌드 · 출시](guide.md#빌드--출시) 에서 한다.
 - 위저드 끝에 보인 바뀐 추적 파일 목록을 확인하고 직접 커밋한다([위저드 실행](#위저드-실행) 의 「중단 · 다시 실행 · 실행 기록」).
-- Firebase 콘솔에서 그 프로젝트의 Crashlytics 를 열어 [[LABEL: Firebase — Crashlytics 첫 화면(사용 설정 · 온보딩 화면이면 그 버튼)]] 을 확인한다 — 오류 보고가 들어오는지 보는 법은 [Crashlytics · Analytics](guide.md#crashlytics--analytics) 에 있다.
 - 출시 전에 검수 · 브랜드 자산 · 서명을 점검한다 — [출시 전 점검](guide.md#출시-전-점검).
 
 ### 필요할 때 할 일
@@ -785,6 +784,7 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 - 인증 · 재설정 메일을 킷이 보내게 할 때 — [인증 메일 발송 모드 켜고 끄기](guide.md#인증-메일-발송-모드-켜고-끄기)
 - 메일 링크를 연 뒤 보이는 결과 페이지를 바꿀 때 — [인증 결과 페이지 바꾸기](guide.md#인증-결과-페이지-바꾸기)
 - 알림 · Remote Config · Storage · Firestore 를 쓸 때 — [Firebase 서비스 쓰기](guide.md#firebase-서비스-쓰기)
+- Crashlytics 대시보드에서 오류 보고를 볼 때 — [Crashlytics · Analytics](guide.md#crashlytics--analytics)
 - release 서명 키를 만들 때 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore)
 - 출시 뒤 로그인 수단을 막거나 알림을 보낼 때 — [앱 운영하기](guide.md#앱-운영하기)
 - 킷의 새 판을 받을 때 — [킷 업데이트 반영](guide.md#킷-업데이트-반영)

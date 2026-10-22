@@ -165,7 +165,8 @@ const String _datePatternName = 'date';
 ///
 /// `.claude/rules/docs-user-manual.md` §4 표의 식별자 꼴(planning 경로 · phase 번호 ·
 /// 결정 · 리뷰 ID · quick · 세션 식별자 · 커밋 해시 · 판정 서술 · 내부 도구 이름 ·
-/// 날짜)에 작업 일지 참조 문구와 제목 줄의 이력 어휘를 더한다. 단일 정규식 원문과
+/// 날짜)에 작업 일지 참조 문구 · 제목 줄의 이력 어휘 · 콘솔 라벨 자리 표시를 더한다.
+/// 단일 정규식 원문과
 /// 달리 두 갈래를 좁혔다 — 커밋 해시는 숫자와 a-f 를 둘 다 담은 7~40자만 잡고(채움
 /// 값 `00000000` · SVG 좌표 숫자를 놓친다), memory 이름은 접두 뒤 밑줄로 이은 조각이
 /// 둘 이상인 꼴만 잡는다(설정 키 `project_id` 를 놓친다). 사용자 문서 시험
@@ -206,6 +207,7 @@ final List<NamedPattern> kUserDocForbiddenPatterns = <NamedPattern>[
       caseSensitive: false,
     ),
   ),
+  (name: 'label-slot', pattern: RegExp(r'\[\[LABEL:')),
 ];
 
 /// CHANGELOG 의 판 머리 줄(`## [<판>] - <연>-<월>-<일>`)이다 — 이 줄의 날짜만 금지

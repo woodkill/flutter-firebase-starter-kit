@@ -94,6 +94,7 @@ final Map<String, String> _positiveSamples = <String, String>{
   'date': <String>['20', '26-09-24 부터'].join(),
   'roadmap-reference': <String>['(see ROAD', 'MAP.md)'].join(),
   'history-heading': <String>['## 옛 절 (DEPRE', 'CATED)'].join(),
+  'label-slot': <String>['[[LA', 'BEL: 콘솔 — 칸]]'].join(),
 };
 
 /// 시험 ID 꼴 표본 — 조각을 이어 붙여야 시험 ID 가 된다.
