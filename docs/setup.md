@@ -361,6 +361,47 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 
 ## 문제가 생기면
 
+위저드가 멈추거나 단계가 실패하면 `.setup/logs/` 의 가장 최근 실행 기록부터 본다 — 실행한 명령 · 종료 코드 · 명령 출력 · 단계 검사 판정이 들어 있고, 비밀 값은 가려져 있다. 원인을 고친 뒤 같은 명령을 다시 실행하면 끝난 단계는 검사만 하고 건너뛰고, 멈춘 단계부터 이어 간다.
+
 ### 위저드를 끝내기 전에 앱을 실행하면
 
+**위저드를 끝까지 실행하면 해결된다.** 「앱 등록 · 설정 파일」 단계가 그 flavor 의 Firebase 설정 파일을 실제 값으로 만들고, 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄운다.
+
+위저드를 끝내기 전의 앱은 이렇게 동작한다.
+
+- Firebase 설정 파일(`lib/core/firebase/firebase_options_<flavor>.dart` · `ios/config/<flavor>/GoogleService-Info.plist` · stg · prod 의 `android/app/src/<flavor>/google-services.json`)은 자리표시 값으로 저장소에 들어 있다. 그래서 빌드와 analyze 는 통과하지만, 앱은 Firebase 를 초기화하지 못한 채 뜬다 — 인증 · Firestore · Crashlytics · Remote Config 같은 Firebase 기능이 모두 꺼진다. 빌드가 된다고 Firebase 가 연결되지는 않는다.
+- dev 의 Android 설정 파일 `android/app/src/dev/google-services.json` 은 저장소에 없고 「앱 등록 · 설정 파일」 단계가 만든다. 그 전에는 `--flavor dev` Android 빌드가 실패한다.
+- iOS 는 세 flavor 모두 자리표시 `GoogleService-Info.plist` 가 있어 빌드 단계를 통과한다.
+- 위저드가 만든 실제 설정 파일은 이 컴퓨터에만 있다 — 저장소에 든 자리표시 파일은 skip-worktree 로, 나머지는 `.gitignore` 로 커밋 대상에서 빠진다. 실제 값이 든 설정 파일을 `git add -f` 로 강제로 올리지 않는다.
+
 ### secret 값 확인하기
+
+켠 로그인 수단으로 로그인할 때 오류 배너가 뜨면 그 수단의 secret 이 자리표시 값 `unset` 으로 남아 있는지 확인한다. secret 을 쓰는 수단과 secret 이름은 아래와 같다.
+
+| 수단 | secret |
+|---|---|
+| Facebook | `FACEBOOK_APP_ID` · `FACEBOOK_APP_SECRET` |
+| Kakao | `KAKAO_NATIVE_APP_KEY` · `KAKAO_ADMIN_KEY` |
+| Naver | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` |
+| LINE | `LINE_CHANNEL_ID` · `LINE_CHANNEL_SECRET` |
+
+- secret 이름마다 아래 명령을 실행한다. `<your-project-id>` 는 `config/<flavor>.json` 의 `firebaseProjectId` 값이다. 명령은 값을 화면에 출력하지 않고 `unset` 인지만 알려 준다 — `functions:secrets:access` 를 그대로 실행하면 값이 출력되므로 그 출력은 공유하지 않는다.
+
+  ```bash
+  if v="$(firebase functions:secrets:access <secret 이름> --project <your-project-id> 2>&1)"; then
+    if [ "$v" = unset ]; then echo 'unset — 실제 값을 등록한다'; else echo 'unset 이 아니다'; fi
+  else
+    printf '%s\n' "$v"
+  fi
+  unset v
+  ```
+
+- `unset` 이면 `./setup.sh --providers` 를 다시 실행하고, 체크 목록에서 Enter 로 지금 그대로 둔다. 켠 수단의 단계가 다시 검사되어 `config/<flavor>.json` 의 값으로 secret 을 맞추고, 서버에만 두는 secret 이면 콘솔에서 받은 값을 다시 묻는다. 옛 secret 버전을 쓰는 함수는 「Cloud Functions 배포」 단계가 다시 배포한다.
+
+### 그 밖의 문제
+
+- **회원탈퇴 같은 보호된 기능이 debug 빌드에서 실패한다.** App Check 디버그 토큰이 등록돼 있지 않은 것이다 — Android 로그에 `Error getting App Check token; using placeholder token instead` 가 보이면 이 경우다. debug 빌드는 위저드가 만든 토큰(`config/<flavor>.json` 의 `appCheckDebugToken`)을 쓴다. `./setup.sh` 를 다시 실행하면 「App Check 디버그 토큰」 단계가 그 토큰이 iOS · Android 앱에 등록돼 있는지 보고 빠진 앱에 다시 등록한다 — config 에 토큰이 없으면 새로 만들어 등록한다. 그 뒤 앱을 다시 빌드해야 새 토큰이 들어간다. `appCheckDebugToken` 을 비워 두면 앱이 설치마다 토큰을 만들어 로그에 출력하고, 앱 데이터를 지우거나(`adb shell pm clear <applicationId>`) 다시 설치하면 그 토큰이 바뀐다 — 비우지 말고 위저드가 만든 값을 쓴다.
+- **로그인 수단의 키를 채우기 전에도 빌드 · 기동은 된다.** 로그인 수단 키가 비어 있어도 Android · iOS 빌드와 앱 기동은 성공한다. `enabledAuthProviders` 의 example 값이 빈 문자열이라 소셜 로그인 버튼은 보이지 않는다. 끈 수단은 다른 앱과 겹칠 수 있는 URL scheme 을 등록하지 않고, `unset` 이 들어간 자리표시 scheme(Android 예: `unset.kakao.oauth`)이 그 자리에 들어간다. `bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all]` 로 확인하고, 성공하면 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor> <case>` 다. 이 스크립트는 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 를 읽지도 바꾸지도 않는다.
+- **`config/<flavor>.json` 을 커밋하려 한다.** 이 파일에는 본인 키가 들어 있어 `.gitignore` 가 막는다. `git add -f` 로 강제로 올리지 않는다 — `git status --ignored config/` 로 ignored 상태인지 확인한다.
+- **example 파일에 본인 키를 넣었다.** `config/*.example.json` · `ios/Flutter/*.example.xcconfig` 는 자리표시 값 그대로 둔다. 본인 값은 위저드가 만든 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 에만 들어간다.
+- **빌드 명령에 다른 config 를 줬다.** 앱은 `--dart-define-from-file=config/<flavor>.json` 으로 빌드한다(예: `fvm flutter run --flavor dev --dart-define-from-file=config/dev.json`). example 파일로 빌드하면 Kakao · Facebook SDK 초기화가 실패하거나 Firebase 프로젝트가 맞지 않는다.
