@@ -49,11 +49,8 @@ const Set<String> kDocsAwaitingRewrite = <String>{
   'README.md',
   'assets/fonts/googlesans/README.md',
   'assets/fonts/roboto/README.md',
-  'assets/images/splash/README.md',
   'assets/test_fonts/README.md',
   'docs/manual.md',
-  'ios/Flutter/prod.example.xcconfig',
-  'ios/Flutter/stg.example.xcconfig',
 };
 
 /// 두 가이드로 나뉘어 지워질 원본 매뉴얼 경로다.

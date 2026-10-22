@@ -25,6 +25,5 @@
 
 ## 참고
 
-- AUTH-08, AUTH-09, AUTH-10 (`.planning/REQUIREMENTS.md`)
-- Phase 10 CONTEXT D-22, D-26 (`.planning/phases/10-app-entry-flow/10-CONTEXT.md`)
-- Phase 10 RESEARCH Pitfall 5 (flavor 구분)
+- 이 디렉토리의 `logo.png`(라이트 모드) · `logo_dark.png`(다크 모드)는 `flutter_native_splash.yaml` 의 `image` · `image_dark` 와 `android_12:` 블록이 가리키는 스플래시 로고다.
+- 스플래시를 바꾸는 전체 절차(로고 · 배경색 · 네이티브 파일 다시 만들기 · 확인)는 [스플래시 바꾸기](../../../docs/guide.md#스플래시-바꾸기) 에 있다.
