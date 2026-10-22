@@ -71,7 +71,7 @@
 |---|---|---|
 | 계정 충돌 오류(Firebase Auth `account-exists-with-different-credential` · Functions `already-exists`)가 이메일 없이 `AccountExistsWithDifferentCredential` 한 꼴로 바뀐다(`_mapAuthException` · `_mapFunctionsException`) | `test/features/auth/data/auth_repository_unknown_fallback_test.dart` | 없음 — 시험 `Test U1:` · `Test U2:` |
 | 가입 직후 인증 메일 자동 발송 — provider 별 건너뜀 · `isNewUser` 조건 · 실패해도 로그인 유지 · 호출 순서 | `test/features/auth/data/auth_repository_auto_verify_test.dart` | 없음 — 시험 `V1:` ~ `V15:` |
-| Facebook 프로필 사진(`_setFacebookPhotoUrl`) — 응답 모양이 달라도 멈추지 않고, 실패해도 로그인 유지 · 사진 덮어쓰기는 가입 경로 한정 | `test/features/auth/data/auth_repository_facebook_picture_test.dart` | 없음 — 시험 `F1:` ~ `F7:` · `F9` · `F10` · 가입 경로 group |
+| Facebook 프로필 사진(`_setFacebookPhotoUrl`) — 응답 모양이 달라도 멈추지 않고, 실패해도 로그인 유지 · 오류에 든 id · URL · 이메일이 사진으로 새지 않는다 · 사진 덮어쓰기는 가입 경로 한정 | `test/features/auth/data/auth_repository_facebook_picture_test.dart` | 없음 — 시험 `F1:` ~ `F8:` · `F9` · `F10` · 가입 경로 group |
 | 로그아웃이 각 SDK 와 Firebase Auth 를 차례로 끝낸다 | `test/features/auth/data/auth_repository_test.dart` | 없음 — group `signOut` · `signOut (GoogleSignIn + FacebookAuth 병행 호출)` |
 | 이미 가입된 이메일 안내에서 이메일 칸을 자동으로 채우지 않고 포커스도 주지 않는다 | `test/features/auth/presentation/login_screen_account_exists_test.dart` · `test/features/auth/presentation/login_screen_test.dart` | 없음 — 앞 파일 전체 · 뒤 파일의 `AUTH-03-17` |
 
