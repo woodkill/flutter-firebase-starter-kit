@@ -606,7 +606,137 @@ focus 요청이 실제 버튼에 닿는다.
 
 ## 앱 아이콘 바꾸기
 
+홈 화면 · 앱 목록에 보이는 앱 아이콘을 내 아이콘으로 바꾸는 절차다. 로그인 수단 콘솔(Google 동의 화면 · Facebook 앱 등)에 올리는 아이콘은 위저드의 앱 아이콘 단계가 `.setup/icons/` 에 따로 만든다 — 이 절의 앱 아이콘 파일과 다른 파일이고, 위저드는 이 절의 파일을 건드리지 않는다.
+
+**전제:**
+
+- 정사각 PNG 원본이 있다 — 1024x1024 픽셀 이상.
+- iOS 앱 아이콘에는 투명 배경 · 알파 채널을 쓰지 않는다 — App Store 업로드 검사가 투명하거나 알파 채널이 있는 큰 앱 아이콘을 거절한다. 원본은 배경을 채운 PNG 로 만든다.
+- 크기별 PNG 를 만드는 도구가 있다 — macOS 의 `sips`(아래 명령) 또는 Android Studio 의 Image Asset 도구 같은 아이콘 도구.
+
+바꿀 파일은 둘이다.
+
+| 플랫폼 | 파일 | 크기 |
+|---|---|---|
+| iOS | `ios/Runner/Assets.xcassets/AppIcon.appiconset/` 의 `Icon-App-<크기>@<배율>x.png` 15장 · `Contents.json` | `Contents.json` 의 크기 × 배율 픽셀 — 20 · 29 · 40 · 58 · 60 · 76 · 80 · 87 · 120 · 152 · 167 · 180 · 1024 |
+| Android | `android/app/src/main/res/mipmap-<밀도>/ic_launcher.png` 5장 | `mdpi` 48 · `hdpi` 72 · `xhdpi` 96 · `xxhdpi` 144 · `xxxhdpi` 192 픽셀 |
+
+### 단계
+
+예시의 `icon-1024.png` 는 내 원본 파일 경로다. 명령은 저장소 루트에서 실행한다.
+
+**① iOS 아이콘을 만든다.** 파일 이름과 `Contents.json` 은 그대로 두고, 같은 이름의 PNG 를 크기에 맞게 덮어쓴다. `sips -z <높이> <너비> <원본> --out <파일>` 꼴이다(`-z` 는 높이가 먼저다).
+
+```bash
+SRC=icon-1024.png
+DIR=ios/Runner/Assets.xcassets/AppIcon.appiconset
+for spec in 20x20@1x:20 20x20@2x:40 20x20@3x:60 29x29@1x:29 29x29@2x:58 29x29@3x:87 40x40@1x:40 40x40@2x:80 40x40@3x:120 60x60@2x:120 60x60@3x:180 76x76@1x:76 76x76@2x:152 83.5x83.5@2x:167 1024x1024@1x:1024; do
+  px=${spec##*:}
+  sips -z "$px" "$px" "$SRC" --out "$DIR/Icon-App-${spec%%:*}.png"
+done
+```
+
+**② Android 아이콘을 만든다.** `AndroidManifest.xml` 의 `android:icon="@mipmap/ic_launcher"` 가 이 파일을 쓴다.
+
+```bash
+SRC=icon-1024.png
+RES=android/app/src/main/res
+for spec in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
+  px=${spec##*:}
+  sips -z "$px" "$px" "$SRC" --out "$RES/mipmap-${spec%%:*}/ic_launcher.png"
+done
+```
+
+**③ (선택) Android adaptive 아이콘을 만든다.** 킷의 Android 아이콘은 위 PNG 5장뿐이고 `mipmap-anydpi-v26` 이 없어 adaptive 아이콘이 아니다. 기기마다 다른 모양(원 · 둥근 사각형 등)으로 잘리는 adaptive 아이콘을 쓰려면 Android Studio 에서 `android/` 를 열고 `res` 폴더의 New → Image Asset 으로 만든다. 결과는 `res/mipmap-anydpi-v26/ic_launcher.xml` 의 `<adaptive-icon>`(`<foreground>` · `<background>` · `<monochrome>`)과 그 레이어 그림이다. 레이어 크기와 안전 영역은 아래와 같다.
+
+- 레이어는 108x108 dp 다.
+- 안쪽 66x66 dp 가 안전 영역이다 — 기기의 마스크가 이 안은 자르지 않는다.
+- 로고는 48x48 dp 이상 66x66 dp 이하로 안전 영역 안에 둔다.
+- 바깥 18 dp 는 마스크 · 움직임 효과에 쓰인다 — 잘려도 되는 배경만 둔다.
+
+**Apple 로그인 화면의 아이콘.** Apple 로 로그인 동의 화면은 Services ID 의 primary App ID 로 정한 앱의 App Icon 을 보인다([Apple 로그인 켜기](setup.md#apple-로그인-켜기)).
+
+### 확인 방법
+
+- 파일 크기 · 알파 채널을 본다. iOS 1024 아이콘은 `hasAlpha: no` 여야 한다.
+
+  ```bash
+  sips -g pixelWidth -g pixelHeight -g hasAlpha ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png
+  ```
+
+- 앱을 다시 빌드해 기기에 설치하고 홈 화면 · 앱 목록의 아이콘을 본다.
+
+  ```bash
+  fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+  ```
+
+### 문제 해결
+
+- **홈 화면에 예전 아이콘이 남아 있다.** 기기가 아이콘을 캐시한다. 앱을 지우고 다시 설치한다.
+- **App Store 업로드가 큰 앱 아이콘 오류로 거절된다.** 1024 아이콘에 투명 영역이나 알파 채널이 있다. 배경을 채우고 알파 채널이 없는 원본으로 ① 을 다시 한다.
+
+### 되돌리기
+
+- 커밋하기 전이면 `git checkout -- ios/Runner/Assets.xcassets/AppIcon.appiconset/ android/app/src/main/res/mipmap-*/ic_launcher.png` 로 킷 아이콘으로 되돌린다. ③ 에서 새로 생긴 파일(`mipmap-anydpi-v26/` 과 레이어 그림)은 지운다.
+- 킷 새 판을 받을 때 앱 아이콘 파일은 내 파일이다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 16행대로 충돌이 나면 `git checkout --ours -- <파일>` 로 내 파일을 남긴다.
+
 ## 스플래시 바꾸기
+
+앱을 켤 때 처음 보이는 네이티브 스플래시(배경색 · 로고)를 내 것으로 바꾸는 절차다. 킷의 스플래시 로고 `assets/images/splash/logo.png` · `logo_dark.png` 는 128x128 투명 PNG 라 화면에 보이지 않는다 — 배경색(라이트 흰색 · 다크 검은색)만 보인다. 내 로고로 바꿔야 스플래시에 로고가 나온다.
+
+**전제:** 스플래시 파일은 dev 의존성 `flutter_native_splash`(`pubspec.yaml`)가 만든다. 설정은 저장소 루트의 `flutter_native_splash.yaml` 이다.
+
+### 단계
+
+**① 로고 그림을 바꾼다.** `assets/images/splash/logo.png`(라이트) · `logo_dark.png`(다크)를 같은 이름의 내 그림으로 덮어쓴다.
+
+- PNG 이고 128x128 이상이다(알파 채널 유지). 권장 크기는 512x512 다.
+- 128x128 보다 작게 두지 않는다 — iOS 는 `LaunchImage.imageset` 의 @1x · @2x · @3x 그림을 이 원본에서 만들고, 원본이 1x1 이면 파생 그림이 깨져 Xcode 빌드가 `Distill failed for unknown reasons` 로 실패한다. 로고를 넣기 전 자리 그림도 128x128 이상 투명 PNG 로 둔다.
+- Android 12 이상은 로고를 원 안에 잘라 보인다. 원 밖이 잘려도 되게 여백을 둔다 — `flutter_native_splash` README 는 아이콘 배경이 없을 때 1152x1152 픽셀 그림의 지름 768 픽셀 원 안에 로고를 두라고 안내한다.
+
+**② 색 · 그림 경로를 정한다.** `flutter_native_splash.yaml` 에서 고친다.
+
+- `color` · `color_dark` — 라이트 · 다크 배경색(킷 값 `"#FFFFFF"` · `"#000000"`).
+- `image` · `image_dark` — 로고 그림 경로(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
+- `android_12:` 블록 — Android 12 이상의 OS SplashScreen 설정이다. 같은 이름의 `image` · `image_dark` · `color` · `color_dark` 를 따로 둔다. 위의 값과 함께 고친다.
+- `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
+- 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.
+
+**③ 네이티브 스플래시 파일을 다시 만든다.**
+
+```bash
+fvm flutter pub get
+fvm dart run flutter_native_splash:create
+```
+
+**④ 다시 만든 파일을 모두 커밋한다.** 이 명령이 덮어쓰는 파일이다.
+
+- `android/app/src/main/res/drawable*/` 의 `launch_background.xml` · `background.png` · `splash.png` · `android12splash.png`
+- `android/app/src/main/res/values*/styles.xml`(`values` · `values-night` · `values-v31` · `values-night-v31`)
+- `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Assets.xcassets/LaunchBackground.imageset/`
+- `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+
+**iOS LaunchImage.** `flutter_native_splash:create` 가 `ios/Runner/Assets.xcassets/LaunchImage.imageset/` 의 `LaunchImage.png` · `LaunchImage@2x.png` · `LaunchImage@3x.png`(라이트)와 `LaunchImageDark.png` · `LaunchImageDark@2x.png` · `LaunchImageDark@3x.png`(다크) 6개를 만든다. 이 파일들을 Xcode 에서 직접 덮어쓰지 않는다 — 다음 `flutter_native_splash:create` 가 다시 덮어쓴다. `assets/images/splash/` 원본과 `flutter_native_splash.yaml` 을 고친 뒤 ③ 으로 반영한다. `ios/Runner/Base.lproj/LaunchScreen.storyboard` 도 `flutter_native_splash` 가 관리한다 — 배경색 · 로고 위치는 Storyboard 를 손으로 고치지 말고 `flutter_native_splash.yaml` 의 `color` · `color_dark` · `ios_content_mode` 로 정한다.
+
+### 확인 방법
+
+- `git status` 에 ④ 의 파일이 바뀐 것으로 보인다.
+- 앱을 완전히 종료한 뒤 다시 실행해 스플래시를 본다. 기기를 라이트 · 다크 모드로 바꿔 가며 두 그림을 모두 본다. Android 는 12 이상 기기와 그 아래 기기의 모양이 다르다.
+
+  ```bash
+  fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+  ```
+
+### 문제 해결
+
+- **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.** 로고 원본이 너무 작다. 128x128 이상 PNG 로 바꾸고 ③ 을 다시 한다.
+- **스플래시에 로고가 보이지 않는다.** 로고가 킷의 투명 그림 그대로다. ① 대로 내 그림으로 바꾸고 ③ 을 다시 한다.
+- **Android 12 이상에서 로고 가장자리가 잘린다.** 로고가 원 밖으로 나간다. ① 의 여백을 두고 ③ 을 다시 한다.
+
+### 되돌리기
+
+- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
+- 킷 새 판을 받을 때 스플래시 설정 · 로고는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행대로 처리한다.
 
 ## 인증 메일 발송 모드 켜고 끄기
 
