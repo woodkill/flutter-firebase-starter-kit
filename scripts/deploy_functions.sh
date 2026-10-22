@@ -18,8 +18,9 @@
 #   없으면 배포 중 값을 묻는다(비대화형이면 오류). 그래서 끈 provider 의 secret 도
 #   **존재**해야 한다 — 값은 자리표시(예: unset)여도 된다. 그 provider 의 함수가
 #   배포되지 않으므로 값이 읽히지 않고, 함수 단위로 거르는 유효 버전 검사 · secret
-#   접근 권한 부여도 그 secret 에는 걸리지 않는다. 일괄 생성 명령은 docs/manual.md
-#   「로그인 수단 켜고 끄기」 의 「켜기」 ④.
+#   접근 권한 부여도 그 secret 에는 걸리지 않는다. secret 은 위저드
+#   (`./setup.sh --providers`)가 만든다 — 없는 secret 은 「Cloud Functions 배포」
+#   단계가 자리표시 값으로 만든다.
 #
 # 사용법:
 #   bash scripts/deploy_functions.sh <dev|stg|prod>            # dry-run (기본 — 아무것도 배포하지 않는다)

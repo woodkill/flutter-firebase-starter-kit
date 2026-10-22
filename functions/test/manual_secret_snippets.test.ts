@@ -1,11 +1,9 @@
 /**
- * `docs/manual.md` 「로그인 수단 켜고 끄기」 의 secret 셸 스니펫 동작 검증
- * (Phase 17.3 SOCL-09 성공 4 · T-173-11 · review WR-03 / WR-04).
+ * `docs/setup.md` 「secret 값 확인하기」 의 secret 점검 셸 스니펫 동작 검증.
  *
- * 스니펫 두 개를 매뉴얼에서 글자 그대로 추출해(각각 정확히 1개여야 한다) 실행한다.
- *  - 「켜기」 ④ 반복문: `secrets:get` 이 `HTTP Error: 404` 일 때만 자리표시 secret 을
- *    만들고, 그 밖의 오류는 메시지를 stderr 로 내고 멈춘다.
- *  - 「문제 해결」 확인 스니펫: secret 값을 어떤 경우에도 출력하지 않는다.
+ * 스니펫을 setup.md 에서 글자 그대로 추출해(정확히 1개여야 한다) 실행한다 — secret
+ * 값을 어떤 경우에도 출력하지 않는다. secret 은 위저드(`./setup.sh --providers`)가
+ * 만들므로 문서에 secret 을 만드는 셸 명령은 없다.
  * `firebase` 는 PATH 의 가짜 실행 파일로 대체해 인자와 stdin 을 기록한다. 실제 CLI ·
  * 네트워크는 쓰지 않는다. bash 와 (있으면) `zsh -f` 양쪽에서 돌린다.
  */
@@ -25,50 +23,34 @@ import {join} from "node:path";
 /** 셸 실행 결과. */
 type RunResult = {status: number | null; stdout: string; stderr: string};
 
-const MANUAL_PATH = join(__dirname, "..", "..", "docs", "manual.md");
+const SETUP_PATH = join(__dirname, "..", "..", "docs", "setup.md");
 const PROJECT = "my-proj";
 const SECRET = "KAKAO_ADMIN_KEY";
 
-/** 가짜 `secrets:get` 응답 종류 → [종료 코드, 출력 스트림, 메시지]. */
+/** 가짜 `secrets:access` 응답 종류 → [종료 코드, 출력 스트림, 메시지]. */
 const GET_RESPONSES: Record<string, [number, "out" | "err", string]> = {
-  ok: [0, "out", "unset"],
-  nfErr: [
-    1,
-    "err",
-    "Error: Request to https://secretmanager.googleapis.com/v1/x had HTTP " +
-      "Error: 404, Secret [projects/my-proj/secrets/X] not found.",
-  ],
-  nfOut: [
-    1,
-    "out",
-    "Error: Request to https://secretmanager.googleapis.com/v1/x had HTTP " +
-      "Error: 404, Secret [projects/my-proj/secrets/X] not found.",
-  ],
   403: [
     1,
     "out",
     "Error: Request to https://secretmanager.googleapis.com/v1/x had HTTP " +
       "Error: 403, Permission 'secretmanager.versions.list' denied.",
   ],
-  auth: [
-    1,
-    "out",
-    "Error: Authentication Error: Your credentials are no longer valid. " +
-      "Please run firebase login --reauth",
-  ],
-  net: [2, "out", "Error: Failed to make request to https://x"],
 };
 
 /**
- * 매뉴얼의 「로그인 수단 켜고 끄기」 절 본문.
+ * setup.md 의 「secret 값 확인하기」 소절 본문(다음 `##` · `###` 머리 앞까지).
  *
- * @return {string} 절 본문.
+ * @return {string} 소절 본문(머리가 없으면 빈 문자열).
  */
 function readSection(): string {
-  const manual = readFileSync(MANUAL_PATH, "utf8");
-  const start = manual.indexOf("\n## 로그인 수단 켜고 끄기\n");
-  const next = manual.indexOf("\n## ", start + 1);
-  return manual.slice(start, next === -1 ? undefined : next);
+  const doc = readFileSync(SETUP_PATH, "utf8");
+  const start = doc.indexOf("\n### secret 값 확인하기\n");
+  if (start === -1) {
+    return "";
+  }
+  const body = doc.slice(start + 1);
+  const next = body.slice(1).search(/\n#{2,3} /);
+  return next === -1 ? body : body.slice(0, next + 1);
 }
 
 /**
@@ -97,21 +79,7 @@ function extractSnippet(first: string, last: string, indent: number): string {
 }
 
 /**
- * 「켜기」 ④ 반복문(치환 후).
- *
- * @return {string} 반복문 텍스트.
- */
-function loopSnippet(): string {
-  return extractSnippet(
-    "for s in KAKAO_NATIVE_APP_KEY KAKAO_ADMIN_KEY LINE_CHANNEL_ID " +
-      "LINE_CHANNEL_SECRET \\",
-    "done",
-    0,
-  ).replace(/<your-project-id>/g, PROJECT);
-}
-
-/**
- * 「문제 해결」 secret 확인 스니펫(치환 후).
+ * 「secret 값 확인하기」 점검 스니펫(치환 후).
  *
  * @return {string} 스니펫 텍스트.
  */
@@ -137,7 +105,7 @@ let sandbox = "";
 let logFile = "";
 
 beforeEach(() => {
-  sandbox = mkdtempSync(join(tmpdir(), "manual-snip-"));
+  sandbox = mkdtempSync(join(tmpdir(), "secret-snip-"));
   logFile = join(sandbox, "calls.log");
   writeFileSync(logFile, "");
   const bin = join(sandbox, "bin");
@@ -210,68 +178,15 @@ function run(
   return {status: r.status, stdout: r.stdout, stderr: r.stderr};
 }
 
-/**
- * 기록 파일에서 `get|` / `set|` 호출 줄을 돌려준다.
- *
- * @param {string} kind `get` 또는 `set`.
- * @return {string[]} 해당 호출 기록 줄.
- */
-function calls(kind: string): string[] {
-  return readFileSync(logFile, "utf8")
-    .split("\n")
-    .filter((l) => l.startsWith(`${kind}|`));
-}
-
-/** 반복문 케이스 표: [ID, 설명, spec, get 수, set 수]. */
-const LOOP_CASES: Array<[string, string, string, number, number]> = [
-  ["01", "전부 존재하면 건너뜀", "ok", 8, 0],
-  ["02", "전부 404(stderr)면 8개 생성", "nfErr", 8, 8],
-  ["03", "404 메시지가 stdout 이어도 8개 생성", "nfOut", 8, 8],
-  ["04", "혼합이면 없는 6개만 생성", "ok;ok;nfOut", 8, 6],
-  ["05", "403 이면 멈추고 생성 0", "403", 1, 0],
-  ["06", "인증 실패면 멈추고 생성 0", "auth", 1, 0],
-  ["07", "네트워크 오류면 멈추고 생성 0", "net", 1, 0],
-  ["08", "404 두 번 뒤 403 이면 생성 2 에서 멈춤", "nfOut;nfOut;403", 3, 2],
-];
-
 for (const [shellName, shell, available] of SHELLS) {
   const suite = available ? describe : describe.skip;
-  suite(`manual secret snippets under ${shellName}`, () => {
-    it("T-173-SNIPPET-00 두 스니펫이 -n 문법 검사를 통과한다", () => {
+  suite(`setup.md secret check snippet under ${shellName}`, () => {
+    it("T-173-SNIPPET-00 점검 스니펫이 -n 문법 검사를 통과한다", () => {
       const [cmd, ...args] = shell;
-      for (const s of [loopSnippet(), checkSnippet()]) {
-        const file = join(sandbox, "syn.sh");
-        writeFileSync(file, s);
-        const r = spawnSync(cmd as string, [...args, "-n", file]);
-        expect(r.status).toBe(0);
-      }
-    });
-
-    it.each(LOOP_CASES)(
-      "T-173-SNIPPET-%s %s",
-      (_id, _label, spec, gets, sets) => {
-        const r = run(shell, loopSnippet(), spec);
-        expect(calls("get")).toHaveLength(gets);
-        const setCalls = calls("set");
-        expect(setCalls).toHaveLength(sets);
-        for (const c of setCalls) {
-          expect(c).toContain(`--project ${PROJECT} --data-file -`);
-          expect(c.endsWith("stdin=[unset]")).toBe(true);
-        }
-        if (sets === 0 || /403|auth|net/.test(spec)) {
-          expect(r.status).toBe(0);
-        }
-        if (/403|auth|net/.test(spec)) {
-          const msg = GET_RESPONSES[spec.split(";").pop() as string]?.[2];
-          expect(r.stderr).toContain(msg);
-        }
-      },
-    );
-
-    it("T-173-SNIPPET-09 404 뒤 set 이 실패하면 멈춘다", () => {
-      run(shell, loopSnippet(), "nfOut", {FAKE_SET_EXIT: "2"});
-      expect(calls("get")).toHaveLength(1);
-      expect(calls("set")).toHaveLength(1);
+      const file = join(sandbox, "syn.sh");
+      writeFileSync(file, checkSnippet());
+      const r = spawnSync(cmd as string, [...args, "-n", file]);
+      expect(r.status).toBe(0);
     });
 
     it("T-173-SNIPPET-21 값이 unset 이면 등록 안내만 출력한다", () => {
@@ -307,15 +222,13 @@ for (const [shellName, shell, available] of SHELLS) {
 
 // 기본 zsh(대화형 · interactive_comments 꺼짐)에 붙여 넣으면 `#` 이하가 명령 인수가
 // 되어 스니펫이 깨진다. 셸 레인(bash · `zsh -f` 비대화형)은 주석을 허용해 동적으로는
-// 잡히지 않으므로, 셸과 무관한 정적 검사로 두 스니펫을 한 번만 확인한다.
+// 잡히지 않으므로, 셸과 무관한 정적 검사로 점검 스니펫을 한 번만 확인한다.
 // `#` 은 단어 첫 글자일 때 주석을 시작하므로 줄 머리 · 공백뿐 아니라 `;` `|` `&` `(` `)`
 // 바로 뒤도 잡는다. 단어 중간의 `#`(`${#a[@]}` · `$#`)은 주석이 아니라 제외된다.
-describe("manual secret snippets (static)", () => {
-  it("T-173-SNIPPET-10 반복문 · 점검 스니펫에 주석이 없다", () => {
-    for (const snippet of [loopSnippet(), checkSnippet()]) {
-      for (const line of snippet.split("\n")) {
-        expect(line).not.toMatch(/(^|[\s;|&()])#/);
-      }
+describe("setup.md secret check snippet (static)", () => {
+  it("T-173-SNIPPET-10 점검 스니펫에 주석이 없다", () => {
+    for (const line of checkSnippet().split("\n")) {
+      expect(line).not.toMatch(/(^|[\s;|&()])#/);
     }
   });
 });

@@ -3,16 +3,42 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../tool/setup/secret_names.dart';
+import '../../helpers/planning_docs.dart';
 
-/// 매뉴얼 「켜기」 ④ secret 반복문의 `for s in … ; do` 머리(이름은 줄 이음 `\` 을
-/// 넘어 이어진다) — 매뉴얼 계약 테스트와 같은 정규식이다.
-final RegExp manualSecretLoopPattern = RegExp(
-  r'^for s in ([\s\S]*?); do$',
-  multiLine: true,
+/// 위저드 provider 단계 소스 디렉터리(저장소 상대).
+const String providerStepsDirectory = 'tool/setup/steps';
+
+/// 단계 소스의 secretNames 목록 — group 1 = 대괄호 안 글자.
+final RegExp stepSecretNamesPattern = RegExp(
+  r'secretNames: <String>\[([^\]]*)\]',
 );
 
-/// 매뉴얼 경로(저장소 상대).
-const String manualPath = 'docs/manual.md';
+/// 대괄호 안의 작은따옴표 secret 이름 — group 1 = 이름.
+final RegExp quotedSecretNamePattern = RegExp("'([A-Z0-9_]+)'");
+
+/// [projectRoot] 의 위저드 provider 단계가 등록하는 secret 이름을 정렬 · 중복 제거해
+/// 돌려준다.
+///
+/// [providerStepsDirectory] 의 `*_step.dart` 파일에서 secretNames 목록의 이름을
+/// 모은다 — 위저드는 이 목록의 secret 에 값을 넣는다. 디렉터리가 없으면 빈 목록이다.
+List<String> readStepSecretNames(String projectRoot) {
+  final steps = Directory('$projectRoot/$providerStepsDirectory');
+  if (!steps.existsSync()) return <String>[];
+  final names = <String>{};
+  for (final FileSystemEntity entity in steps.listSync()) {
+    if (entity is! File || !entity.path.endsWith('_step.dart')) continue;
+    for (final RegExpMatch list in stepSecretNamesPattern.allMatches(
+      entity.readAsStringSync(),
+    )) {
+      for (final RegExpMatch name in quotedSecretNamePattern.allMatches(
+        list.group(1)!,
+      )) {
+        names.add(name.group(1)!);
+      }
+    }
+  }
+  return names.toList()..sort();
+}
 
 void main() {
   late Directory tempDir;
@@ -32,28 +58,39 @@ void main() {
       ..writeAsStringSync(content);
   }
 
-  test('T-19-SECRET-01: 저장소 functions/src 의 선언 집합 == 매뉴얼 ④ 반복문 집합', () {
+  test('T-19-SECRET-01: 위저드 provider 단계의 secretNames 가 모두 functions/src 에 '
+      '선언돼 있다', () {
     final String root = Directory.current.path;
 
+    final List<String> stepNames = readStepSecretNames(root);
+    // 양성 대조: 단계 소스에서 provider secret 을 실제로 읽었다.
+    expect(stepNames.length, greaterThanOrEqualTo(8));
+    expect(stepNames, contains('KAKAO_ADMIN_KEY'));
+
     final List<String> declared = extractDeclaredSecretNames(root);
-
-    final String manual = File('$root/$manualPath').readAsStringSync();
-    final List<RegExpMatch> loops = manualSecretLoopPattern
-        .allMatches(manual)
-        .toList();
-    expect(loops, hasLength(1), reason: '매뉴얼에 secret 반복문이 1개가 아니다');
-    final List<String> manualNames =
-        loops.single
-            .group(1)!
-            .split(RegExp(r'[\s\\]+'))
-            .where((String token) => token.isNotEmpty)
-            .toList()
-          ..sort();
-
     expect(declared, isNotEmpty);
-    expect(declared, manualNames);
     expect(declared.toSet(), hasLength(declared.length));
+    final List<String> missing = stepNames
+        .where((String name) => !declared.contains(name))
+        .toList();
+    expect(
+      missing,
+      isEmpty,
+      reason: '위저드가 값을 넣는 secret 이 functions/src 에 선언돼 있지 않다',
+    );
   });
+
+  test('T-19-SECRET-04: functions/src 의 선언 집합 == 위저드 provider 단계의 secretNames '
+      '합집합', () {
+    final String root = Directory.current.path;
+    final List<String> stepNames = readStepSecretNames(root);
+    expect(stepNames, isNotEmpty);
+    expect(
+      extractDeclaredSecretNames(root),
+      stepNames,
+      reason: 'functions/src 가 선언한 secret 과 위저드가 값을 넣는 secret 이 다르다',
+    );
+  }, skip: skipUnlessMaintainerTree());
 
   test('T-19-SECRET-02: 여러 줄 선언을 읽고 test 디렉터리 · .test.ts 선언은 뺀다', () {
     writeFixture(

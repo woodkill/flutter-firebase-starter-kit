@@ -1,6 +1,5 @@
 /**
- * 배포 함수 목록(scripts/functions_manifest.json) 대조 (Phase 17.3 D-08 — see
- * ROADMAP.md).
+ * 배포 함수 목록(scripts/functions_manifest.json) 대조.
  *
  * `scripts/deploy_functions.sh` 는 manifest 한 곳만 읽어 공통 함수 + 켠 provider
  * 함수를 배포한다. 그래서 manifest 가 `src/index.ts` 의 export 와 어긋나면
@@ -11,9 +10,10 @@
  * 배포가 필요 없고 secret 값은 자리표시여도 된다」 를 지킨다(T-173-11).
  * secret **존재** 확인은 binding 과 무관하다 — Firebase CLI 는 `--only` 필터와
  * 상관없이 선언된 `defineSecret` 전부를 확인하므로 끈 provider 의 secret 도
- * Secret Manager 에 있어야 한다(docs/manual.md 「켜기」 ④ 일괄 생성).
- * 그 반복문의 secret 이름 · 아래 소유 맵 · `src/` 의 `defineSecret` 선언은
- * T-173-DEPLOY-15 가 서로 대조한다.
+ * Secret Manager 에 있어야 한다. secret 은 위저드(`./setup.sh --providers`)가
+ * 만든다 — 위저드 provider 단계(`tool/setup/steps/*_step.dart`)의 `secretNames`
+ * 가 그 이름이다. 그 이름 · 단계 token · 아래 소유 맵 · `src/` 의
+ * `defineSecret` 선언은 T-173-DEPLOY-15 가 서로 대조한다.
  *
  * `firebase-functions/params` 는 mock 하지 않는다 — 실제 secret 이름이
  * `__endpoint.secretEnvironmentVariables` 에 남아야 binding 을 검사할 수 있다.
@@ -62,8 +62,9 @@ const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8")) as Manifest;
  * provider secret 이름 → 소유 provider.
  *
  * 선언 위치: `src/shared/oidc_providers.ts` · `kakao_admin_secret.ts` ·
- * `naver_secrets.ts` · `facebook_secrets.ts`. provider secret 을 더했다면 이 맵과
- * docs/manual.md 「켜기」 ④ 반복문을 함께 갱신한다(T-173-DEPLOY-15).
+ * `naver_secrets.ts` · `facebook_secrets.ts`. 키 집합은 위저드 provider 단계의
+ * `secretNames` 합집합과 같고, 값은 그 secret 을 등록하는 단계의 `token` 이다
+ * (T-173-DEPLOY-15).
  */
 const PROVIDER_SECRET_OWNER: Readonly<Record<string, string>> = {
   KAKAO_NATIVE_APP_KEY: "kakao",
@@ -77,7 +78,16 @@ const PROVIDER_SECRET_OWNER: Readonly<Record<string, string>> = {
 };
 
 const SRC_DIR = join(__dirname, "..", "src");
-const MANUAL_PATH = join(__dirname, "..", "..", "docs", "manual.md");
+const STEPS_DIR = join(__dirname, "..", "..", "tool", "setup", "steps");
+
+/** 단계 소스의 secretNames 목록 — 1번 그룹 = 대괄호 안 글자. */
+const STEP_SECRET_NAMES_PATTERN = /secretNames: <String>\[([^\]]*)\]/g;
+
+/** 대괄호 안의 작은따옴표 secret 이름 — 1번 그룹 = 이름. */
+const QUOTED_SECRET_NAME_PATTERN = /'([A-Z0-9_]+)'/g;
+
+/** 단계 클래스의 provider token 상수 — 1번 그룹 = token. */
+const STEP_TOKEN_PATTERN = /static const String token = '([a-z]+)';/;
 
 /** `defineSecret("<이름>")` 호출 — 따옴표 인자만 잡는다(주석의 `defineSecret()` 제외). */
 const DEFINE_SECRET_PATTERN = /defineSecret\("([A-Z0-9_]+)"\)/g;
@@ -121,26 +131,26 @@ function readDeclaredSecrets(): string[] {
 }
 
 /**
- * 매뉴얼 「로그인 수단 켜고 끄기」 절의 `for s in …; do` 반복문들에서 이름 목록을 뽑는다.
+ * 위저드 provider 단계 소스에서 [secret 이름, 그 단계 token] 쌍을 모은다.
  *
- * @return {Array<Array<string>>} 반복문마다의 secret 이름 목록.
+ * `secretNames` 가 있는 단계 파일마다 그 파일의 `token` 상수를 소유 provider 로
+ * 붙인다. token 상수가 없으면 빈 문자열이다(대조에서 위반으로 잡힌다).
+ *
+ * @return {Array<Array<string>>} [secret 이름, token] 쌍 목록.
  */
-function readManualSecretLoops(): string[][] {
-  const manual = readFileSync(MANUAL_PATH, "utf8");
-  const start = manual.indexOf("\n## 로그인 수단 켜고 끄기\n");
-  if (start === -1) {
-    return [];
+function readStepSecretOwners(): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  const files = readdirSync(STEPS_DIR).filter((n) => n.endsWith("_step.dart"));
+  for (const file of files.sort()) {
+    const text = readFileSync(join(STEPS_DIR, file), "utf8");
+    const token = STEP_TOKEN_PATTERN.exec(text)?.[1] ?? "";
+    for (const list of text.matchAll(STEP_SECRET_NAMES_PATTERN)) {
+      for (const name of list[1].matchAll(QUOTED_SECRET_NAME_PATTERN)) {
+        pairs.push([name[1], token]);
+      }
+    }
   }
-  const next = manual.indexOf("\n## ", start + 1);
-  const section = manual.slice(start, next === -1 ? undefined : next);
-  const loops: string[][] = [];
-  const loopPattern = /^for s in ([\s\S]*?); do$/gm;
-  let match = loopPattern.exec(section);
-  while (match !== null) {
-    loops.push(match[1].split(/[\s\\]+/).filter((t) => t.length > 0));
-    match = loopPattern.exec(section);
-  }
-  return loops;
+  return pairs;
 }
 
 /**
@@ -195,8 +205,8 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
     const violations: string[] = [];
 
     // 공통 함수: 맵에 있는 provider secret 이 하나도 없어야 한다. 맵 밖 secret 은
-    // 사용자가 더한 공통 함수의 자기 secret 이라 허용한다(매뉴얼 「Functions 추가
-    // 절차」 경로).
+    // 사용자가 더한 공통 함수의 자기 secret 이라 허용한다(docs/guide.md
+    // 「Cloud Functions 함수 더하기」 경로).
     for (const name of manifest.common) {
       for (const key of readSecretKeys(name)) {
         const owner = PROVIDER_SECRET_OWNER[key];
@@ -264,11 +274,16 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
   });
 
   // eslint-disable-next-line max-len
-  it("T-173-DEPLOY-15 src 의 defineSecret 선언 · 소유 맵 · 매뉴얼 ④ 반복문 이름이 서로 맞다", () => {
+  it("T-173-DEPLOY-15 src 의 defineSecret 선언 · 소유 맵 · 위저드 단계 secretNames · token 이 서로 맞다", () => {
     const declared = readDeclaredSecrets();
     const mapped = Object.keys(PROVIDER_SECRET_OWNER).sort();
-    // 양성 대조 — 선언을 하나도 못 읽으면 아래 검사가 공허하게 통과한다.
+    const stepOwners = readStepSecretOwners();
+    const stepNames = [...new Set(stepOwners.map(([name]) => name))].sort();
+    // 양성 대조 — 선언 · 단계 secret 을 하나도 못 읽으면 아래 검사가 공허하게
+    // 통과한다.
     expect(declared).toEqual(expect.arrayContaining(["KAKAO_ADMIN_KEY"]));
+    expect(stepNames.length).toBeGreaterThanOrEqual(8);
+    expect(stepOwners).toContainEqual(["KAKAO_ADMIN_KEY", "kakao"]);
 
     const violations: string[] = [];
 
@@ -279,9 +294,9 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
       }
     }
 
-    // 맵 밖 선언은 공통 함수만 묶는 사용자 secret 이어야 한다(매뉴얼 「Functions
-    // 추가 절차」 ③). provider 함수가 묶으면 T-173-DEPLOY-03 이, 아무 함수도 묶지
-    // 않으면 여기서 잡는다 — 새 provider secret 의 맵 · 반복문 누락.
+    // 맵 밖 선언은 공통 함수만 묶는 사용자 secret 이어야 한다(docs/guide.md
+    // 「Cloud Functions 함수 더하기」). provider 함수가 묶으면 T-173-DEPLOY-03 이,
+    // 아무 함수도 묶지 않으면 여기서 잡는다 — 새 provider secret 의 맵 · 단계 누락.
     const providerFunctions = Object.values(manifest.providers).flat();
     for (const key of declared) {
       if (PROVIDER_SECRET_OWNER[key] !== undefined) {
@@ -296,17 +311,22 @@ describe("배포 함수 manifest 대조 (Phase 17.3 D-08)", () => {
       if (!isBoundByCommon || isBoundByProvider) {
         violations.push(
           `src/ 의 ${key} 가 소유 맵에 없다 — provider secret 이면 ` +
-            "PROVIDER_SECRET_OWNER 와 docs/manual.md 「켜기」 ④ 반복문에 더한다",
+            "provider 단계의 secretNames 와 PROVIDER_SECRET_OWNER 에 더한다",
         );
       }
     }
 
-    // 매뉴얼 ④ 반복문은 절에 하나이고, 이름 집합이 소유 맵과 같다.
-    const loops = readManualSecretLoops();
-    expect(loops).toHaveLength(1);
-    const loopNames = loops[0] ?? [];
-    expect(new Set(loopNames).size).toBe(loopNames.length);
-    expect([...loopNames].sort()).toEqual(mapped);
+    // 소유 맵 키 = 위저드 단계 secretNames 합집합 · secret 마다 소유 provider =
+    // 그 secret 을 등록하는 단계의 token.
+    expect(mapped).toEqual(stepNames);
+    for (const [name, token] of stepOwners) {
+      const owner = PROVIDER_SECRET_OWNER[name];
+      if (owner !== token) {
+        violations.push(
+          `${name} 의 소유 provider ${owner} 가 위저드 단계 token ${token} 와 다르다`,
+        );
+      }
+    }
 
     expect(violations).toEqual([]);
   });
