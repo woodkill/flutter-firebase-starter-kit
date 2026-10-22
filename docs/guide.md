@@ -277,6 +277,953 @@
 
 ## 내 기능 추가하기
 
+킷 위에 첫 기능을 만드는 길을 한 예로 따라간다. 예는 사용자별 메모 목록이다 — 로그인한
+사용자마다 Firestore `users/{uid}/memos` 에 자기 메모를 두고, 홈에서 들어가는 목록 화면
+하나에서 메모를 추가(입력 시트)하고 지운다. 메모는 정식 사용자만 쓴다. 게스트가 「메모
+추가」 를 누르면 킷의 로그인 권유 시트(`LoginPromptSheet`)가 뜬다.
+
+**전제:**
+
+- 위저드로 dev 설정을 끝내 앱이 실행된다([설정 위저드로 앱 준비하기](setup.md)).
+- rules 시험을 돌리려면 `functions/` 에서 `pnpm install` 을 한 번 해 두고 JDK(Java 11
+  이상)가 있어야 한다.
+
+폴더 구조 · Freezed · Riverpod generator · import 순서 · 문서 주석 같은 코딩 규칙의 원문은
+[코딩 규칙](../.claude/rules/flutter.md) 에 있다. 이 절의 코드는 그 규칙을 따르고, 킷의
+알림 토큰 저장소(`lib/features/notifications/`)와 같은 꼴로 쓴다.
+
+### ① 기능 폴더 만들기
+
+기능 하나는 `lib/features/<기능>/` 아래에 층별 폴더로 둔다. 메모 기능이 만드는 파일은
+아래와 같다. 시험은 `test/` 아래 같은 경로에, rules 시험은 `functions/test/rules/` 에
+둔다.
+
+```text
+lib/features/memos/
+├── domain/memo.dart                   # Freezed 모델
+├── data/memo_repository.dart          # withConverter 저장소
+├── application/memo_providers.dart    # 목록 · 추가 · 삭제 provider
+└── presentation/
+    ├── memo_list_screen.dart          # 목록 화면
+    └── _widgets/memo_add_sheet.dart   # 입력 시트
+test/features/memos/
+├── data/memo_repository_test.dart
+└── presentation/memo_list_screen_test.dart
+functions/test/rules/memos.rules.test.ts
+```
+
+같은 기능 안의 파일끼리는 상대 경로로 import 한다. `_widgets/` 는 그 화면에서만 쓰는
+위젯을 둔다.
+
+### ② Freezed 모델
+
+`lib/features/memos/domain/memo.dart` 를 만든다. 시각 필드는 킷의 `TimestampConverter`
+로 Firestore Timestamp 와 `DateTime` 을 바꾼다. 문서 id 는 저장하지 않고 읽을 때만 채운다.
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+import '../../../core/firestore/timestamp_converter.dart';
+
+part 'memo.freezed.dart';
+part 'memo.g.dart';
+
+/// 메모 본문의 최대 글자 수 — `firestore.rules` 의 memos 규칙과 같다.
+const int kMemoMaxLength = 500;
+
+/// `users/{uid}/memos/{memoId}` 문서 모델.
+///
+/// 저장하는 키는 [text] · [createdAt] 둘이고 `firestore.rules` 의 memos
+/// `hasOnly` 목록과 같아야 한다 — 필드를 더하면 rules 도 함께 고친다.
+/// [id] 는 문서 id 를 담는 자리라 저장하지 않는다.
+@freezed
+abstract class Memo with _$Memo {
+  /// [Memo] 를 생성한다.
+  const factory Memo({
+    /// 메모 본문.
+    required String text,
+
+    /// 만든 시각 (Firestore Timestamp).
+    @TimestampConverter() required DateTime createdAt,
+
+    /// 문서 id — 읽을 때 저장소가 채운다.
+    @Default('')
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    String id,
+  }) = _Memo;
+
+  /// JSON(Firestore 문서 데이터)에서 [Memo] 를 만든다.
+  factory Memo.fromJson(Map<String, dynamic> json) => _$MemoFromJson(json);
+}
+```
+
+`kMemoMaxLength` 는 ⑧ 의 rules 와 같은 값이다 — 한쪽을 바꾸면 다른 쪽도 바꾼다.
+
+### ③ withConverter 저장소
+
+`lib/features/memos/data/memo_repository.dart` 를 만든다. 컬렉션 참조를
+`withConverter<Memo>` 로 고정하고, 쓰기는 킷의 `guardResult` 로 감싸 `Result<void>` 를
+돌려준다. `guardResult` 의 첫 인자는 `'<저장소>_<메서드>'` 꼴의 코드 경로 이름이다 —
+사용자 값 · 메모 본문은 넣지 않는다.
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../core/crashlytics/crashlytics_service.dart';
+import '../../../core/error/guard_result.dart';
+import '../../../core/error/result.dart';
+import '../../../core/providers/firebase_providers.dart';
+import '../domain/memo.dart';
+
+part 'memo_repository.g.dart';
+
+/// `users/{uid}/memos` 타입 안전 저장소.
+///
+/// 컬렉션 참조를 `withConverter` 로 [Memo] 에 고정해 raw map 을 다루지 않는다.
+/// 쓰기는 [guardResult] 를 거쳐 [Result] 를 돌려준다 — 예상치 못한 오류는
+/// Crashlytics 에 1회 기록하고 실패로 바꾼다.
+class MemoRepository {
+  /// [MemoRepository] 를 생성한다.
+  MemoRepository({
+    required FirebaseFirestore firestore,
+    required CrashlyticsService crashlytics,
+  }) : _firestore = firestore,
+       _crashlytics = crashlytics;
+
+  final FirebaseFirestore _firestore;
+  final CrashlyticsService _crashlytics;
+
+  /// [uid] 의 memos 서브컬렉션을 [Memo] typed 참조로 돌려준다.
+  CollectionReference<Memo> _memos(String uid) => _firestore
+      .collection('users')
+      .doc(uid)
+      .collection('memos')
+      .withConverter<Memo>(
+        fromFirestore: (snapshot, _) {
+          final data = snapshot.data();
+          if (data == null) {
+            throw StateError('memos 문서 데이터가 없다');
+          }
+          return Memo.fromJson(data).copyWith(id: snapshot.id);
+        },
+        toFirestore: (memo, _) => memo.toJson(),
+      );
+
+  /// [uid] 의 메모를 만든 시각 내림차순으로 지켜본다.
+  Stream<List<Memo>> watchAll(String uid) => _memos(uid)
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) => [for (final doc in snapshot.docs) doc.data()]);
+
+  /// [text] 로 [uid] 의 새 메모를 만든다.
+  Future<Result<void>> add({required String uid, required String text}) =>
+      guardResult('memo_repository_add', () async {
+        await _memos(uid).add(Memo(text: text, createdAt: DateTime.now()));
+      }, crashlytics: _crashlytics);
+
+  /// [uid] 의 [memoId] 메모를 지운다.
+  Future<Result<void>> delete({required String uid, required String memoId}) =>
+      guardResult(
+        'memo_repository_delete',
+        () => _memos(uid).doc(memoId).delete(),
+        crashlytics: _crashlytics,
+      );
+}
+
+/// [MemoRepository] Provider.
+@Riverpod(keepAlive: true)
+MemoRepository memoRepository(Ref ref) {
+  return MemoRepository(
+    firestore: ref.watch(firebaseFirestoreProvider),
+    crashlytics: ref.watch(crashlyticsServiceProvider),
+  );
+}
+```
+
+### ④ Riverpod provider
+
+`lib/features/memos/application/memo_providers.dart` 를 만든다. 목록은 킷의
+`authStateProvider` 로 지금 사용자를 보고, 게스트(익명) · 로그아웃이면 빈 목록이다. 추가 ·
+삭제는 정식 사용자가 아니면 저장소를 부르지 않는다.
+
+```dart
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../core/error/app_exception.dart';
+import '../../../core/error/result.dart';
+import '../../../core/providers/firebase_providers.dart';
+import '../data/memo_repository.dart';
+import '../domain/memo.dart';
+
+part 'memo_providers.g.dart';
+
+/// 로그인한 정식 사용자의 메모 목록 (만든 시각 내림차순).
+///
+/// 게스트(익명) · 로그아웃 상태는 빈 목록이다 — 메모는 정식 사용자만 쓴다.
+@riverpod
+Stream<List<Memo>> memoList(Ref ref) {
+  final user = ref.watch(authStateProvider).value;
+  if (user == null || user.isAnonymous) {
+    return Stream.value(const <Memo>[]);
+  }
+  return ref.watch(memoRepositoryProvider).watchAll(user.uid);
+}
+
+/// 메모 추가 · 삭제를 맡는다.
+///
+/// 정식 사용자가 아니면 저장소를 부르지 않고 [UnauthenticatedException] 실패를
+/// 돌려준다 — 화면의 `AuthRequired` 와 `firestore.rules` 도 같은 조건으로 막는다.
+@riverpod
+class MemoEditor extends _$MemoEditor {
+  @override
+  void build() {}
+
+  /// [text] 로 새 메모를 만든다.
+  Future<Result<void>> add(String text) {
+    final uid = _regularUid();
+    if (uid == null) {
+      return Future.value(const Result.failure(UnauthenticatedException()));
+    }
+    return ref.read(memoRepositoryProvider).add(uid: uid, text: text);
+  }
+
+  /// [memoId] 메모를 지운다.
+  Future<Result<void>> delete(String memoId) {
+    final uid = _regularUid();
+    if (uid == null) {
+      return Future.value(const Result.failure(UnauthenticatedException()));
+    }
+    return ref.read(memoRepositoryProvider).delete(uid: uid, memoId: memoId);
+  }
+
+  /// 정식 사용자의 uid 를 돌려준다 — 게스트 · 로그아웃이면 null 이다.
+  String? _regularUid() {
+    final user = ref.read(authStateProvider).value;
+    return user == null || user.isAnonymous ? null : user.uid;
+  }
+}
+```
+
+### ⑤ 목록 화면 · 추가 시트
+
+목록 화면 `lib/features/memos/presentation/memo_list_screen.dart` 를 만든다. 「메모 추가」
+버튼은 킷의 `AuthRequired` 로 감싼다 — 정식 사용자면 `onAuthenticated` 가 입력 시트를
+띄우고, 게스트 · 로그아웃이면 `showLoginPromptSheet` 가 로그인 권유 시트를 띄운다. 목록 ·
+불러오기 실패(「다시 시도」 버튼)는 킷의 `AsyncValueView` 가, 삭제 실패는
+`showErrorSnackBar` 가 그린다.
+
+```dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/error/result.dart';
+import '../../../core/l10n/l10n_extensions.dart';
+import '../../../shared/widgets/async_value_view.dart';
+import '../../../shared/widgets/error_snack_bar.dart';
+import '../../auth/presentation/_widgets/auth_required.dart';
+import '../application/memo_providers.dart';
+import '../domain/memo.dart';
+import '_widgets/memo_add_sheet.dart';
+
+/// 메모 목록 화면 — 메모를 추가(입력 시트)하고 지운다.
+///
+/// 「메모 추가」 는 [AuthRequired] 로 감싸 게스트가 누르면 로그인 권유 시트를
+/// 띄운다.
+class MemoListScreen extends ConsumerWidget {
+  /// [MemoListScreen] 을 생성한다.
+  const MemoListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = context.l10n;
+    return Scaffold(
+      appBar: AppBar(title: Text(l10n.memoListTitle)),
+      floatingActionButton: AuthRequired(
+        onAuthenticated: () => unawaited(showMemoAddSheet(context)),
+        child: FloatingActionButton.extended(
+          onPressed: null,
+          icon: const Icon(Icons.add),
+          label: Text(l10n.memoAddAction),
+        ),
+      ),
+      body: AsyncValueView<List<Memo>>(
+        value: ref.watch(memoListProvider),
+        onRetry: () => ref.invalidate(memoListProvider),
+        data: (memos) => memos.isEmpty
+            ? Center(child: Text(l10n.memoEmpty))
+            : ListView.builder(
+                itemCount: memos.length,
+                itemBuilder: (context, index) => _MemoTile(
+                  key: ValueKey(memos[index].id),
+                  memo: memos[index],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// 메모 한 줄 — 본문과 삭제 버튼.
+class _MemoTile extends ConsumerWidget {
+  const _MemoTile({required this.memo, super.key});
+
+  final Memo memo;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      title: Text(memo.text),
+      trailing: IconButton(
+        tooltip: context.l10n.memoDeleteAction,
+        icon: const Icon(Icons.delete_outline),
+        onPressed: () => unawaited(_delete(context, ref)),
+      ),
+    );
+  }
+
+  /// 메모를 지우고, 실패하면 SnackBar 로 알린다.
+  Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final result = await ref.read(memoEditorProvider.notifier).delete(memo.id);
+    if (!context.mounted) {
+      return;
+    }
+    if (result case Failure(:final exception)) {
+      showErrorSnackBar(context, exception);
+    }
+  }
+}
+```
+
+입력 시트 `lib/features/memos/presentation/_widgets/memo_add_sheet.dart` 를 만든다. 저장에
+실패하면 시트를 닫지 않고 입력란 아래에 킷의 오류 문구를 보인다.
+
+```dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gap/gap.dart';
+
+import '../../../../core/error/result.dart';
+import '../../../../core/l10n/exception_l10n.dart';
+import '../../../../core/l10n/l10n_extensions.dart';
+import '../../../../core/theme/theme_extensions.dart';
+import '../../application/memo_providers.dart';
+import '../../domain/memo.dart';
+
+/// 메모 입력 시트를 띄운다.
+Future<void> showMemoAddSheet(BuildContext context) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (_) => const MemoAddSheet(),
+  );
+}
+
+/// 메모 한 줄을 입력해 저장하는 시트.
+class MemoAddSheet extends ConsumerStatefulWidget {
+  /// [MemoAddSheet] 를 생성한다.
+  const MemoAddSheet({super.key});
+
+  @override
+  ConsumerState<MemoAddSheet> createState() => _MemoAddSheetState();
+}
+
+class _MemoAddSheetState extends ConsumerState<MemoAddSheet> {
+  final _controller = TextEditingController();
+  bool _isSaving = false;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// 입력을 저장한다 — 성공하면 시트를 닫고, 실패하면 입력란 아래에 알린다.
+  Future<void> _save() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _isSaving) {
+      return;
+    }
+    setState(() => _isSaving = true);
+    final result = await ref.read(memoEditorProvider.notifier).add(text);
+    if (!mounted) {
+      return;
+    }
+    switch (result) {
+      case Success():
+        Navigator.of(context).pop();
+      case Failure(:final exception):
+        setState(() {
+          _isSaving = false;
+          _errorText = resolveExceptionMessage(context, exception);
+        });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    final spacing = context.appSpacing;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        spacing.lg,
+        0,
+        spacing.lg,
+        spacing.lg + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: kMemoMaxLength,
+            decoration: InputDecoration(
+              hintText: l10n.memoInputHint,
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => unawaited(_save()),
+          ),
+          Gap(spacing.md),
+          FilledButton(
+            onPressed: _isSaving ? null : _save,
+            child: Text(l10n.memoAddAction),
+          ),
+        ],
+      ),
+    );
+  }
+}
+```
+
+### ⑥ 홈 하위 라우트와 진입 버튼
+
+1. `lib/core/router/app_routes.dart` 의 `AppRoutes` 에 경로 상수 셋(GoRoute 용 조각 · 전체
+   경로 · name)을 더한다. `developerDemoName` 상수 다음에 빈 줄 하나를 두고 넣는다.
+
+```dart
+  /// 메모 목록 화면의 홈 하위 상대 경로 조각 — GoRoute.path 전용.
+  static const String memosSegment = 'memos';
+
+  /// 메모 목록 화면 path.
+  static const String memos = '/$memosSegment';
+
+  /// 메모 목록 화면 name.
+  static const String memosName = 'memos';
+```
+
+2. `lib/core/router/app_router.dart` 에서 import 목록의 `home_screen.dart` 줄 다음에 아래
+   줄을 넣는다.
+
+```dart
+import '../../features/memos/presentation/memo_list_screen.dart';
+```
+
+3. 같은 파일의 홈 `GoRoute`(`path: AppRoutes.home`) 의 `routes:` 목록 맨 끝 — 약관
+   (`AppRoutes.termsPrivacySegment`) `GoRoute` 다음 — 에 아래를 넣는다. 홈 하위에 두면
+   목록 화면에서 「뒤로」 가 홈으로 돌아온다.
+
+```dart
+          GoRoute(
+            path: AppRoutes.memosSegment,
+            name: AppRoutes.memosName,
+            builder: (context, state) => const MemoListScreen(),
+          ),
+```
+
+4. 라우트 개수를 세는 킷 시험을 고친다. `test/core/router/app_router_observers_test.dart`
+   는 라우트 전체(하위 포함) 개수와 name 개수를 14 로 센다. 라우트 하나를 더했으므로 두
+   곳을 15 로 바꾼다(최상위 개수 8 은 그대로).
+
+```dart
+        expect(
+          collectGoRoutes(router.configuration.routes).length,
+          15,
+          reason: '재귀 15',
+        );
+```
+
+```dart
+      expect(names.length, 15);
+```
+
+   킷 업데이트를 받을 때 이 시험 파일이 충돌할 수 있다 — 합치는 법은
+   [킷 업데이트 반영](#킷-업데이트-반영) 에 있다.
+
+5. 홈 본문 `lib/features/home/presentation/home_body.dart` 에 진입 버튼을 둔다. 개발자 안내
+   카드의 「데모 화면 열기」 버튼(`FilledButton.tonal`) 다음에 아래를 넣는다. release
+   빌드의 홈 본문은 비어 있으므로, 내 홈 화면을 만들 때([홈 화면 바꾸기](#홈-화면-바꾸기))
+   이 버튼을 그 본문으로 옮긴다.
+
+```dart
+              Gap(spacing.sm),
+              FilledButton.tonal(
+                onPressed: () => context.push(AppRoutes.memos),
+                child: Text(l10n.memoListTitle),
+              ),
+```
+
+   홈 본문이 바뀌므로 홈 golden 은 ⑩ 에서 다시 만든다.
+
+### ⑦ ARB 세 언어
+
+`lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` 에 같은 키 다섯을 더한다. 각 파일 맨
+끝 항목의 닫는 괄호 뒤에 쉼표를 붙이고, 파일의 마지막 `}` 앞에 넣는다. 설명(`@` 키)은
+템플릿 파일인 `app_en.arb` 에만 둔다.
+
+`lib/l10n/app_en.arb`:
+
+```json
+  "memoListTitle": "Memos",
+  "@memoListTitle": {
+    "description": "Memo list screen title and the home entry button label"
+  },
+
+  "memoAddAction": "Add memo",
+  "@memoAddAction": {
+    "description": "Memo list add button and memo input sheet save button label"
+  },
+
+  "memoEmpty": "No memos yet.",
+  "@memoEmpty": {
+    "description": "Memo list empty state message"
+  },
+
+  "memoInputHint": "Write a memo",
+  "@memoInputHint": {
+    "description": "Memo input sheet text field hint"
+  },
+
+  "memoDeleteAction": "Delete memo",
+  "@memoDeleteAction": {
+    "description": "Memo list delete button tooltip"
+  }
+```
+
+`lib/l10n/app_ko.arb`:
+
+```json
+  "memoListTitle": "메모",
+  "memoAddAction": "메모 추가",
+  "memoEmpty": "아직 메모가 없어요.",
+  "memoInputHint": "메모를 입력하세요",
+  "memoDeleteAction": "메모 삭제"
+```
+
+`lib/l10n/app_ja.arb`:
+
+```json
+  "memoListTitle": "メモ",
+  "memoAddAction": "メモを追加",
+  "memoEmpty": "メモはまだありません。",
+  "memoInputHint": "メモを入力",
+  "memoDeleteAction": "メモを削除"
+```
+
+### ⑧ Firestore rules 와 rules 시험
+
+`firestore.rules` 의 `match /users/{userId}` 안, 알림 토큰 블록(`match /fcmTokens/{token}`)
+의 닫는 `}` 다음에 아래를 넣는다. 알림 토큰과 같은 꼴이다 — 본인(`isOwner`)이면서 정식
+사용자(`isRegular`)만 읽고 쓰고, 저장 키는 `hasOnly` 로 모델의 두 키만 받는다. 본문 길이
+상한은 ② 의 `kMemoMaxLength` 와 같다. 메모 고치기는 화면에 없으므로 `update` 는 열지
+않는다.
+
+```text
+      // memos 서브컬렉션 — 정식 사용자 본인의 메모.
+      match /memos/{memoId} {
+        allow read, delete: if isOwner(userId) && isRegular();
+        allow create: if isOwner(userId) && isRegular()
+          && request.resource.data.keys().hasOnly(['text', 'createdAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.createdAt is timestamp;
+      }
+```
+
+rules 시험 `functions/test/rules/memos.rules.test.ts` 를 만든다. 본인 허용 · 키 · 길이
+위반 거부 · 게스트 거부 · 다른 사용자 거부를 에뮬레이터에서 확인한다.
+
+```ts
+// `pnpm test:rules` 전용 — users/{uid}/memos 규칙을 에뮬레이터에서 확인한다.
+import {readFileSync} from "fs";
+import * as path from "path";
+import {
+  assertFails,
+  assertSucceeds,
+  initializeTestEnvironment,
+} from "@firebase/rules-unit-testing";
+import type {
+  RulesTestContext,
+  RulesTestEnvironment,
+} from "@firebase/rules-unit-testing";
+import {
+  deleteDoc,
+  doc,
+  getDoc,
+  setDoc,
+  setLogLevel,
+  Timestamp,
+} from "firebase/firestore";
+
+const RULES_PATH = path.resolve(__dirname, "../../../firestore.rules");
+
+let testEnv: RulesTestEnvironment;
+
+/**
+ * 정식(비익명) 사용자 context 를 만든다.
+ * @param {string} uid 인증 uid.
+ * @return {RulesTestContext} context.
+ */
+function regularUser(uid: string): RulesTestContext {
+  return testEnv.authenticatedContext(uid, {
+    firebase: {sign_in_provider: "google.com"},
+  });
+}
+
+/**
+ * 게스트(익명) 사용자 context 를 만든다.
+ * @param {string} uid 익명 uid.
+ * @return {RulesTestContext} context.
+ */
+function anonymousUser(uid: string): RulesTestContext {
+  return testEnv.authenticatedContext(uid, {
+    firebase: {sign_in_provider: "anonymous"},
+  });
+}
+
+/**
+ * 앱이 쓰는 꼴의 메모 문서를 만든다.
+ * @param {string} text 본문.
+ * @return {Record<string, unknown>} 메모 문서.
+ */
+function memo(text: string): Record<string, unknown> {
+  return {text, createdAt: Timestamp.now()};
+}
+
+beforeAll(async () => {
+  setLogLevel("error");
+  testEnv = await initializeTestEnvironment({
+    projectId: "demo-starter-kit",
+    firestore: {rules: readFileSync(RULES_PATH, "utf8")},
+  });
+});
+
+afterEach(async () => {
+  await testEnv.clearFirestore();
+});
+
+afterAll(async () => {
+  await testEnv.cleanup();
+});
+
+describe("users/{uid}/memos rules", () => {
+  it("정식 사용자 본인은 메모를 쓰고 읽고 지운다", async () => {
+    const alice = regularUser("alice").firestore();
+    const memoPath = "users/alice/memos/m1";
+    await assertSucceeds(setDoc(doc(alice, memoPath), memo("hello")));
+    await assertSucceeds(getDoc(doc(alice, memoPath)));
+    await assertSucceeds(deleteDoc(doc(alice, memoPath)));
+  });
+
+  it("정한 키 밖 · 빈 본문 · 너무 긴 본문은 거부한다", async () => {
+    const alice = regularUser("alice").firestore();
+    await assertFails(
+      setDoc(doc(alice, "users/alice/memos/m2"), {...memo("hi"), extra: 1}),
+    );
+    await assertFails(setDoc(doc(alice, "users/alice/memos/m3"), memo("")));
+    await assertFails(
+      setDoc(doc(alice, "users/alice/memos/m4"), memo("a".repeat(501))),
+    );
+  });
+
+  it("게스트 · 다른 사용자는 거부한다", async () => {
+    const ghost = anonymousUser("ghost").firestore();
+    await assertFails(setDoc(doc(ghost, "users/ghost/memos/m5"), memo("hi")));
+    const bob = regularUser("bob").firestore();
+    await assertFails(setDoc(doc(bob, "users/alice/memos/m6"), memo("hi")));
+    await assertFails(getDoc(doc(bob, "users/alice/memos/m6")));
+  });
+});
+```
+
+저장소 루트에서 rules 시험을 돌린다. Firestore · Storage 에뮬레이터가 `demo-` 프로젝트로
+떠서 실제 Firebase 프로젝트에 접속하지 않는다.
+
+```bash
+cd functions && pnpm test:rules
+```
+
+### ⑨ unit · widget 시험
+
+저장소 시험 `test/features/memos/data/memo_repository_test.dart` 를 만든다. Firestore 는
+mocktail 로 대신하고(킷의 `fcm_token_repository_test.dart` 와 같은 꼴), 추가 성공 · 저장
+키 · 오류 처리를 본다. 저장 키 시험은 모델의 키가 ⑧ 의 `hasOnly` 목록과 어긋나면 실패한다.
+
+```dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_starter_kit/core/crashlytics/crashlytics_service.dart';
+import 'package:flutter_starter_kit/core/error/app_exception.dart';
+import 'package:flutter_starter_kit/core/error/result.dart';
+import 'package:flutter_starter_kit/features/memos/data/memo_repository.dart';
+import 'package:flutter_starter_kit/features/memos/domain/memo.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
+
+class _MockFirestore extends Mock implements FirebaseFirestore {}
+
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
+// ignore: subtype_of_sealed_class
+class _MockRawCollection extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
+// ignore: subtype_of_sealed_class
+class _MockRawDoc extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
+// ignore: subtype_of_sealed_class
+class _MockMemoCollection extends Mock implements CollectionReference<Memo> {}
+
+// cloud_firestore 의 sealed 타입을 mocktail mock 으로 대신하는 시험 전용 우회다.
+// ignore: subtype_of_sealed_class
+class _MockMemoDoc extends Mock implements DocumentReference<Memo> {}
+
+class _FakeStackTrace extends Fake implements StackTrace {}
+
+void main() {
+  late _MockCrashlyticsService crashlytics;
+  late _MockMemoCollection memos;
+  late MemoRepository repository;
+  ToFirestore<Memo>? capturedToFirestore;
+
+  setUpAll(() {
+    registerFallbackValue(_FakeStackTrace());
+    registerFallbackValue(
+      Memo(text: 'fallback', createdAt: DateTime.utc(2026)),
+    );
+    // mocktail 은 `element is T` 로 fallback 을 찾는다 — 파라미터 타입을
+    // 명시한 함수 선언이라야 런타임 타입이 typedef 와 같아진다.
+    Memo fromFallback(
+      DocumentSnapshot<Map<String, dynamic>> _,
+      SnapshotOptions? _,
+    ) => throw UnimplementedError();
+    Map<String, Object?> toFallback(Memo _, SetOptions? _) =>
+        <String, Object?>{};
+    registerFallbackValue(fromFallback);
+    registerFallbackValue(toFallback);
+  });
+
+  setUp(() {
+    crashlytics = _MockCrashlyticsService();
+    memos = _MockMemoCollection();
+    capturedToFirestore = null;
+    final firestore = _MockFirestore();
+    final users = _MockRawCollection();
+    final userDoc = _MockRawDoc();
+    final rawMemos = _MockRawCollection();
+
+    when(
+      () => crashlytics.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: any(named: 'reason'),
+        fatal: any(named: 'fatal'),
+      ),
+    ).thenAnswer((_) async {});
+    when(() => firestore.collection('users')).thenReturn(users);
+    when(() => users.doc(any())).thenReturn(userDoc);
+    when(() => userDoc.collection('memos')).thenReturn(rawMemos);
+    when(
+      () => rawMemos.withConverter<Memo>(
+        fromFirestore: any(named: 'fromFirestore'),
+        toFirestore: any(named: 'toFirestore'),
+      ),
+    ).thenAnswer((invocation) {
+      final to = invocation.namedArguments[#toFirestore];
+      if (to is ToFirestore<Memo>) capturedToFirestore = to;
+      return memos;
+    });
+
+    repository = MemoRepository(firestore: firestore, crashlytics: crashlytics);
+  });
+
+  test('add 는 typed 컬렉션에 메모를 더하고 성공을 돌려준다', () async {
+    when(() => memos.add(any())).thenAnswer((_) async => _MockMemoDoc());
+
+    final result = await repository.add(uid: 'alice', text: 'hello');
+
+    expect(result, isA<Success<void>>());
+    final added = verify(() => memos.add(captureAny())).captured.single;
+    expect(added, isA<Memo>().having((memo) => memo.text, 'text', 'hello'));
+  });
+
+  test('저장하는 키는 rules 의 hasOnly 목록과 같다', () async {
+    when(() => memos.add(any())).thenAnswer((_) async => _MockMemoDoc());
+    await repository.add(uid: 'alice', text: 'hello');
+
+    final toFirestore = capturedToFirestore;
+    if (toFirestore == null) {
+      fail('withConverter 의 toFirestore 를 받지 못했다');
+    }
+    final json = toFirestore(
+      Memo(text: 'hello', createdAt: DateTime.utc(2026)),
+      null,
+    );
+    expect(json.keys.toSet(), {'text', 'createdAt'});
+  });
+
+  test('Firestore 오류는 실패로 바꾸고 Crashlytics 에 기록한다', () async {
+    when(() => memos.add(any())).thenThrow(
+      FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+    );
+
+    final result = await repository.add(uid: 'alice', text: 'hello');
+
+    expect(
+      result,
+      isA<Failure<void>>().having(
+        (failure) => failure.exception,
+        'exception',
+        isA<UnknownException>(),
+      ),
+    );
+    verify(
+      () => crashlytics.recordError(
+        any<Object>(),
+        any<StackTrace?>(),
+        reason: 'memo_repository_add',
+        fatal: any(named: 'fatal'),
+      ),
+    ).called(1);
+  });
+}
+```
+
+목록 화면 시험 `test/features/memos/presentation/memo_list_screen_test.dart` 를 만든다.
+목록 provider 를 override 해 빈 상태와 메모 줄을 본다.
+
+```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_starter_kit/features/memos/application/memo_providers.dart';
+import 'package:flutter_starter_kit/features/memos/domain/memo.dart';
+import 'package:flutter_starter_kit/features/memos/presentation/memo_list_screen.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// [memos] 를 목록 provider 값으로 주고 [MemoListScreen] 을 띄운다.
+Future<void> _pumpScreen(WidgetTester tester, List<Memo> memos) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [memoListProvider.overrideWith((ref) => Stream.value(memos))],
+      child: const MaterialApp(
+        locale: Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: MemoListScreen(),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+void main() {
+  final en = lookupAppLocalizations(const Locale('en'));
+
+  testWidgets('메모가 없으면 빈 상태 문구와 추가 버튼을 보인다', (tester) async {
+    await _pumpScreen(tester, const <Memo>[]);
+
+    expect(find.text(en.memoEmpty), findsOneWidget);
+    expect(find.text(en.memoAddAction), findsOneWidget);
+  });
+
+  testWidgets('메모마다 본문과 삭제 버튼을 보인다', (tester) async {
+    await _pumpScreen(tester, [
+      Memo(id: 'm2', text: 'second', createdAt: DateTime.utc(2026, 2, 3)),
+      Memo(id: 'm1', text: 'first', createdAt: DateTime.utc(2026, 2, 2)),
+    ]);
+
+    expect(find.text('second'), findsOneWidget);
+    expect(find.text('first'), findsOneWidget);
+    expect(find.byTooltip(en.memoDeleteAction), findsNWidgets(2));
+  });
+}
+```
+
+### ⑩ 코드 생성 · 분석 · 시험
+
+저장소 루트에서 차례로 돌린다. Freezed · Riverpod 코드를 만들고, ARB 문구를 생성한다.
+
+```bash
+fvm dart run build_runner build --delete-conflicting-outputs
+fvm flutter gen-l10n
+```
+
+⑥ 에서 홈 본문에 버튼을 더했으므로 홈 golden 두 장을 이 파일 하나로 다시 만든다.
+
+```bash
+fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
+```
+
+분석 두 가지와 전체 시험, rules 시험을 돌린다. 분석은 둘 다 `No issues found!` 여야 한다
+— Riverpod 규칙 진단은 `fvm dart analyze` 에만 나온다.
+
+```bash
+fvm flutter analyze
+fvm dart analyze
+fvm flutter test
+cd functions && pnpm test:rules
+```
+
+### 확인 방법
+
+1. 바꾼 rules 를 dev 프로젝트에 올린다. `<your-project-id>` 는 `config/dev.json` 의
+   `firebaseProjectId` 값이다.
+
+```bash
+firebase deploy --only firestore:rules --project <your-project-id>
+```
+
+2. 앱을 실행한다.
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+3. 정식 사용자로 로그인한 뒤 홈의 「Memos」(한국어 화면은 「메모」) 버튼을 누른다. 「메모
+   추가」 → 입력 → 「메모 추가」 를 누르면 시트가 닫히고 메모가 목록 맨 위에 생긴다.
+   Firebase 콘솔 Firestore 의 `users/<uid>/memos` 에 문서가 하나 생긴다. 휴지통 아이콘을
+   누르면 목록과 콘솔에서 사라진다.
+4. 로그아웃한 뒤 게스트로 들어가 홈의 같은 버튼으로 목록을 연다. 목록은 비어 있고,
+   「메모 추가」 를 누르면 로그인 권유 시트가 뜬다.
+
+- **정식 사용자인데 저장하면 입력란 아래에 오류 문구가 나오거나, 목록이 「다시 시도」 와
+  함께 오류를 보인다:** 프로젝트의 rules 에 memos 블록이 없다 — 1번의 배포를 하지 않았거나
+  다른 프로젝트에 올렸다. `--project` 값을 확인하고 다시 배포한 뒤 「다시 시도」 를 누른다.
+
+### 되돌리기
+
+1. 만든 파일을 지운다 — `lib/features/memos/` · `test/features/memos/` ·
+   `functions/test/rules/memos.rules.test.ts`.
+2. ⑥ 에서 더한 경로 상수 셋 · import 줄 · `GoRoute` · 홈 진입 버튼을 지우고,
+   `app_router_observers_test.dart` 의 두 개수를 14 로 돌린다.
+3. ⑦ 의 ARB 키 다섯을 세 파일에서 지우고 `fvm flutter gen-l10n` 을 돌린다.
+4. ⑧ 의 `match /memos/{memoId}` 블록을 지우고 확인 방법 1번의 명령으로 rules 를 다시
+   배포한다. 이미 쓴 메모 문서는 Firebase 콘솔에서 지운다.
+5. ⑩ 의 순서(코드 생성 → 홈 golden 다시 만들기 → 분석 · 시험)를 다시 돌린다.
+
 ## 디자인 토큰 바꾸기
 
 앱의 색 · 글자 스타일 · 간격 · 아이콘 크기 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다. 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
