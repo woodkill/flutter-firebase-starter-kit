@@ -27,3 +27,10 @@ Object skipUnlessPlanningDocsExist(List<String> paths) {
   }
   return false;
 }
+
+/// 유지보수자 트리(비공개 작업 일지가 있는 트리)에서만 도는 검사의 `skip:` 값을 돌려준다.
+///
+/// 작업 일지의 대표 파일 하나로 [skipUnlessPlanningDocsExist] 를 부른 결과와 같다 — 시험
+/// 본문에 작업 일지 경로를 적지 않고 유지보수자 전용 검사를 표시할 때 쓴다.
+Object skipUnlessMaintainerTree() =>
+    skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']);
