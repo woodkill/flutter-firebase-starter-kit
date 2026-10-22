@@ -1,9 +1,12 @@
-// 매뉴얼 「킷 업데이트 반영」 · README 판 절 계약 (Phase 17.4 D-36 · D-37 · D-38 — see ROADMAP.md).
+// 가이드 「킷 업데이트 반영」 · README 판 절 계약 (Phase 17.4 D-36 · D-37 · D-38 — see ROADMAP.md).
 // 헤딩 · 목차 · 사용자 문서 금지 패턴 · 명령 · 사용자 소유 표면 표 · 진입점 ·
 // 예시 일치 대조.
 //
-// T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 목차 번호 0부터 연속 · 새 항목이
-//   작업 순서상 바로 앞 절(이메일 절의 마지막) 항목 바로 다음 줄이다.
+// 대상은 사용 가이드 docs/guide.md 의 「킷 업데이트 반영」 절과 목차, 설정 안내
+// docs/setup.md 의 「위저드 실행」 머리다.
+//
+// T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 목차 번호 1부터 연속 · 새 항목이
+//   작업 순서상 바로 앞 절(앱 운영하기) 항목 바로 다음 줄이다.
 // T-174-DOCS-02: 절에 사용자 문서 금지 패턴이 0 건이고, template 시작 소절의 bash
 //   블록이 기준점 명령 4줄 하나다.
 // T-174-DOCS-03: 절의 `###` 소절 9개가 이 순서 그대로다.
@@ -15,12 +18,12 @@
 // T-174-DOCS-06: README 판 · 업데이트 · Issues 절에 Use this template · 킷 업데이트
 //   반영 절 링크 · Issues 안내가 있고 금지 패턴이 0 건이며, 빠른 시작이 template →
 //   clone → `./setup.sh` 순이고(단독 줄 1개 · 단계 문장 1회 · dev config 복사 단계 0 ·
-//   금지 패턴 0), 매뉴얼 Initial Setup 머리가 template 기준이며 설정 위저드 안내
-//   줄이 1개다.
+//   금지 패턴 0), 설정 안내 「위저드 실행」 머리가 template 기준이며 설정 위저드
+//   안내 줄이 1개다.
 //   README 단언은 유지보수자 트리에서만 돈다 — 사용자 소유 표면 표가 README 를
 //   「내 앱 소개로 교체」 로 사용자에게 넘기므로 사용자 저장소의 불변식이 아니다.
-//   매뉴얼 Initial Setup 머리 단언은 어디서나 돈다.
-// T-174-DOCS-07: 절 끝 배경 링크 1줄이 유지보수자 발행 문서를 가리키고, 그 문서에
+//   설정 안내 「위저드 실행」 머리 단언은 어디서나 돈다.
+// T-174-DOCS-07: 절 끝 배경 링크 1줄(절의 마지막 줄)이 유지보수자 발행 문서를 가리키고, 그 문서에
 //   발행 단계 · 릴리스 컷 · 첫 공개 절차 절이 있다.
 // T-174-DOCS-08: 절의 rename 예시 옵션 · xcconfig 파일 이름이 `bin/rename.dart` 에,
 //   표의 `DEVELOPMENT_TEAM` 이 dev example xcconfig 에, 상수 3개 이름이
@@ -32,8 +35,11 @@ import 'package:flutter_test/flutter_test.dart';
 import '../helpers/planning_docs.dart';
 import '../helpers/source_text.dart';
 
-/// 매뉴얼 경로.
-const String _manualPath = 'docs/manual.md';
+/// 사용 가이드 경로.
+const String _guidePath = 'docs/guide.md';
+
+/// 설정 안내 경로 — 「위저드 실행」 머리가 처음 설정 안내다.
+const String _setupPath = 'docs/setup.md';
 
 /// README 경로.
 const String _readmePath = 'README.md';
@@ -62,9 +68,9 @@ final RegExp _tocEntryPattern = RegExp(
   multiLine: true,
 );
 
-/// 새 항목 바로 앞에 있어야 하는 목차 항목(작업 순서상 이메일 절의 마지막).
+/// 새 항목 바로 앞에 있어야 하는 목차 항목(작업 순서상 앱 운영하기).
 final RegExp _previousTocEntryPattern = RegExp(
-  r'^\d+\. \[인증 결과 페이지 바꾸기\]\(#인증-결과-페이지-바꾸기\)$',
+  r'^\d+\. \[앱 운영하기\]\(#앱-운영하기\)$',
 );
 
 /// 「시작하기 — template」 의 기준점 명령 4줄 (정확한 줄).
@@ -181,17 +187,15 @@ const String _readmeCloneLine = 'git clone <your-repo-url>';
 /// 위저드가 대신하는 수동 단계의 dev config 복사 명령 — 남아 있으면 안 된다.
 const String _legacyConfigCopyCommand = 'cp config/dev.example.json';
 
-/// 매뉴얼 Initial Setup 헤딩 바로 아래의 설정 위저드 안내 줄 (정확한 줄).
+/// 설정 안내 「위저드 실행」 헤딩 바로 아래의 설정 위저드 안내 줄 (정확한 줄).
 const String _initialSetupWizardLine =
-    '> **처음 설정은 저장소 루트에서 `./setup.sh` 를 실행하면 설정 위저드가 '
-    '이 절의 단계를 대신한다.** 아래는 위저드가 채우는 키의 뜻과 손으로 고칠 때의 '
-    '참고다.';
+    '> **처음 설정은 저장소 루트에서 `./setup.sh` 하나로 한다 — 설정 위저드가 '
+    '단계를 차례로 진행하고, 사람만 할 수 있는 일은 그 자리에서 안내한다.**';
 
-/// 매뉴얼 Initial Setup 머리의 새 문장(조각).
-const String _initialSetupHead =
-    'template 로 만든 앱 저장소(또는 킷 clone)를 받은 직후 1회만 수행하는 사전 작업입니다.';
+/// 설정 안내 「위저드 실행」 머리의 template 기준 문장(조각).
+const String _initialSetupHead = 'template 로 만든 앱 저장소';
 
-/// 매뉴얼 Initial Setup 머리의 옛 문장(조각) — 남아 있으면 안 된다.
+/// 처음 설정 안내의 옛 문장(조각) — 남아 있으면 안 된다.
 const String _initialSetupLegacyHead = 'starter kit 을 fork / clone 한 직후';
 
 /// 절 끝 배경 링크 줄 (정확한 줄).
@@ -285,22 +289,22 @@ String _readLikelihoodGrade(String row) {
 }
 
 void main() {
-  final String manual = readTrackedFile(_manualPath);
+  final String guide = readTrackedFile(_guidePath);
   final String section = sliceMarkdownSection(
-    manual,
+    guide,
     _sectionHeading,
     maxLevel: 2,
   );
 
-  group('매뉴얼 「킷 업데이트 반영」 계약 (T-174-DOCS)', () {
-    test('T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 번호 0부터 연속 · 이메일 절 항목 다음이다', () {
+  group('가이드 「킷 업데이트 반영」 계약 (T-174-DOCS)', () {
+    test('T-174-DOCS-01: 절 헤딩 1개 · 목차 항목 1개 · 번호 1부터 연속 · 앱 운영 절 항목 다음이다', () {
       expect(
-        countExactLines(manual, _sectionHeading),
+        countExactLines(guide, _sectionHeading),
         1,
         reason: '절 헤딩이 없거나 중복이다',
       );
 
-      final String toc = sliceTocBlock(manual);
+      final String toc = sliceTocBlock(guide);
       expect(toc.trim(), isNotEmpty, reason: '목차 블록을 찾지 못했다');
       expect(
         _tocEntryPattern.allMatches(toc).length,
@@ -315,8 +319,8 @@ void main() {
       expect(numbers, isNotEmpty, reason: '목차 번호 줄이 없다');
       expect(
         numbers,
-        List<int>.generate(numbers.length, (int i) => i),
-        reason: '목차 번호가 0부터 빠짐없이 이어지지 않는다',
+        List<int>.generate(numbers.length, (int i) => i + 1),
+        reason: '목차 번호가 1부터 빠짐없이 이어지지 않는다',
       );
 
       final List<String> tocLines = toc.split('\n');
@@ -325,7 +329,7 @@ void main() {
       expect(
         _previousTocEntryPattern.hasMatch(tocLines[entryIndex - 1]),
         isTrue,
-        reason: '「킷 업데이트 반영」 항목이 「인증 결과 페이지 바꾸기」 바로 다음이 아니다',
+        reason: '「킷 업데이트 반영」 항목이 「앱 운영하기」 바로 다음이 아니다',
       );
     });
 
@@ -447,17 +451,17 @@ void main() {
       expect(
         countOccurrences(lead, _majorCriterion),
         1,
-        reason: 'CHANGELOG 판 번호 규칙과 매뉴얼 표 앞 문장은 같은 문자열이어야 한다',
+        reason: 'CHANGELOG 판 번호 규칙과 가이드 표 앞 문장은 같은 문자열이어야 한다',
       );
       expect(
         countOccurrences(section, _majorCriterion),
         1,
-        reason: 'CHANGELOG 판 번호 규칙과 매뉴얼 표 앞 문장은 같은 문자열이어야 한다',
+        reason: 'CHANGELOG 판 번호 규칙과 가이드 표 앞 문장은 같은 문자열이어야 한다',
       );
       expect(
         countOccurrences(readTrackedFile(_changelogPath), _majorCriterion),
         1,
-        reason: 'CHANGELOG 판 번호 규칙과 매뉴얼 표 앞 문장은 같은 문자열이어야 한다',
+        reason: 'CHANGELOG 판 번호 규칙과 가이드 표 앞 문장은 같은 문자열이어야 한다',
       );
     });
 
@@ -468,9 +472,9 @@ void main() {
           .where((String line) => line.trim().isNotEmpty)
           .toList();
       expect(tail.length, greaterThan(2));
-      expect(tail.last, '---', reason: '절이 `---` 로 끝나지 않는다');
+      // 가이드는 절 구분선을 쓰지 않는다 — 배경 링크가 절의 마지막 줄이다.
       expect(
-        tail[tail.length - 2],
+        tail.last,
         _backgroundLinkLine,
         reason: '배경 링크가 절 끝(되돌리기 뒤)에 있지 않다',
       );
@@ -614,13 +618,14 @@ void main() {
       skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
     );
 
-    test('T-174-DOCS-06: 매뉴얼 Initial Setup 머리가 template 기준이다', () {
-      expect(countOccurrences(manual, _initialSetupHead), 1);
-      expect(countOccurrences(manual, _initialSetupLegacyHead), 0);
+    test('T-174-DOCS-06: 설정 안내 「위저드 실행」 머리가 template 기준이다', () {
+      final String setup = readTrackedFile(_setupPath);
+      expect(countOccurrences(setup, _initialSetupHead), 1);
+      expect(countOccurrences(setup, _initialSetupLegacyHead), 0);
       expect(
-        countExactLines(manual, _initialSetupWizardLine),
+        countExactLines(setup, _initialSetupWizardLine),
         1,
-        reason: 'Initial Setup 머리에 설정 위저드 안내 줄이 없거나 중복이다',
+        reason: '「위저드 실행」 머리에 설정 위저드 안내 줄이 없거나 중복이다',
       );
     });
   });

@@ -16,6 +16,18 @@ const String _patterns13Path = '.planning/phases/13-naver-login/13-PATTERNS.md';
 const String _patterns131Path =
     '.planning/phases/13.1-social-brand-asset-compliance/13.1-PATTERNS.md';
 
+/// 브랜드 자산 유지보수자 문서 — R15 가 읽는다.
+const String _brandAssetsDocPath = 'docs/maintainer/brand-assets.md';
+
+/// 브랜드 자산 유지보수자 문서의 제목 줄 (정확한 줄).
+const String _brandAssetsDocTitle = '# 브랜드 자산 갱신 (유지보수자 문서)';
+
+/// Facebook 자산 README — R13 이 Meta 공식 URL · 라이선스 원문을 찾는다.
+const String _facebookReadmePath = 'assets/brand/facebook/README.md';
+
+/// Facebook 자산 라이선스 원문 — R13 이 README 와 함께 읽는다.
+const String _facebookLicensePath = 'assets/brand/facebook/LICENSE.txt';
+
 /// Phase 13.1 manual-review 4건의 docs/asset/ARB 회귀 가드를 자동화한다 —
 /// Nyquist auditor 가 R7/R12/R14/R15 를 manual review 에서 자동 검증으로
 /// 승격하여 미래 회귀 시 즉시 RED 노출.
@@ -30,15 +42,15 @@ const String _patterns131Path =
 ///   community package retain 명시 ≥ 1 hit.
 /// - Test 3 (R14): `.planning/phases/13-naver-login/13-UI-SPEC.md` +
 ///   `13-PATTERNS.md` 의 Phase 13.1 retroactive 마커 ≥ 1 each.
-/// - Test 4 (R15): `docs/manual.md` `## Brand Asset Management` heading
-///   존재 + 4 키워드 (provider 출처 / 라이선스 / 다운 절차 / 사전 검수)
-///   substring 모두 존재.
+/// - Test 4 (R15): `docs/maintainer/brand-assets.md` 제목 줄
+///   `# 브랜드 자산 갱신 (유지보수자 문서)` 존재 + 4 키워드 (provider 출처 /
+///   라이선스 / 다운 절차 / 사전 검수) substring 모두 존재.
 /// - 작업 일지 문서를 읽는 3개는 그 문서가 없는 트리(공개 mirror)에서
 ///   건너뛴다 — Phase 17.4 D-08 — see ROADMAP.md
 ///
 /// **RED→GREEN tracking:** 본 test 는 commit 시점 GREEN — 미래 회귀 (예:
 /// app_ja.arb 의 fallback 값 변경, README 의 sign_in_button 키워드 삭제,
-/// retro 마커 제거, manual.md heading rename) 시 RED 즉시 노출.
+/// retro 마커 제거, brand-assets.md heading rename) 시 RED 즉시 노출.
 void main() {
   group('docs_compliance_lint', () {
     test('R7: app_ja.arb 의 authNaverSignIn/authKakaoSignIn BI verbatim 보존', () {
@@ -171,25 +183,25 @@ void main() {
       ]),
     );
 
-    test('R15: docs/manual.md 의 Brand Asset Management heading + 4 키워드', () {
+    test('R15: docs/maintainer/brand-assets.md 의 제목 줄 + 4 키워드', () {
       // Arrange.
-      final manual = File('docs/manual.md');
-      expect(manual.existsSync(), isTrue, reason: 'docs/manual.md 부재');
-      final content = manual.readAsStringSync();
+      final brandDoc = File(_brandAssetsDocPath);
+      expect(brandDoc.existsSync(), isTrue, reason: '$_brandAssetsDocPath 부재');
+      final content = brandDoc.readAsStringSync();
 
-      // Assert — heading 존재.
+      // Assert — 제목 줄이 정확히 한 줄.
       expect(
-        content,
-        contains('## Brand Asset Management'),
+        content.split('\n').where((l) => l == _brandAssetsDocTitle).length,
+        1,
         reason:
-            'docs/manual.md 의 ## Brand Asset Management heading 누락 — '
-            'R15 acceptance 위반',
+            '$_brandAssetsDocPath 의 제목 줄 「$_brandAssetsDocTitle」 이 없거나 '
+            '중복이다 — R15 acceptance 위반',
       );
 
-      // Assert — 4 핵심 키워드 substring (manual 단락 내용 정합성).
-      // - 출처: 공식 BI URL 표 (`공식 BI URL`)
-      // - 라이선스: 표 컬럼 + LICENSE.txt 절차 (`라이선스`)
-      // - 다운 절차: `자산 다운로드` 단어 (1단계 — 자산 다운로드)
+      // Assert — 4 핵심 키워드 substring (브랜드 자산 문서 내용 정합성).
+      // - 출처: 공식 BI URL (`공식 BI URL`)
+      // - 라이선스: 자산 README 의 라이선스 · LICENSE.txt 절차 (`라이선스`)
+      // - 다운 절차: `자산 다운로드` 단어
       // - 사전 검수: `사전 검수` 단어 (사용자 책임 사전 검수 정책)
       const requiredKeywords = <String>[
         '공식 BI URL',
@@ -202,8 +214,8 @@ void main() {
           content,
           contains(keyword),
           reason:
-              'docs/manual.md Brand Asset Management 단락의 핵심 키워드 '
-              '"$keyword" 누락 — R15 단락 적정성 회귀',
+              '$_brandAssetsDocPath 의 핵심 키워드 "$keyword" 누락 — R15 '
+              '문서 적정성 회귀',
         );
       }
     });
@@ -486,26 +498,17 @@ void main() {
       );
     }, skip: skipUnlessPlanningDocsExist(<String>[_uiSpec13Path]));
 
-    test('Phase 13.2 R13: docs/manual.md 의 retro 마커 ≥ 1 + Meta 공식 URL + '
-        '라이선스 verbatim + Facebook entry "Phase 18" 폐기', () {
+    test('Phase 13.2 R13: assets/brand/facebook README · LICENSE.txt 의 Meta 공식 '
+        'URL + 라이선스 verbatim', () {
       // Arrange.
-      final manual = File('docs/manual.md');
-      expect(manual.existsSync(), isTrue, reason: 'docs/manual.md 부재');
-      final content = manual.readAsStringSync();
+      final readme = File(_facebookReadmePath);
+      final license = File(_facebookLicensePath);
+      expect(readme.existsSync(), isTrue, reason: '$_facebookReadmePath 부재');
+      expect(license.existsSync(), isTrue, reason: '$_facebookLicensePath 부재');
+      final content =
+          '${readme.readAsStringSync()}\n${license.readAsStringSync()}';
 
-      // Act — Phase 13.2 retro 마커 (Wave 3 retro 후 ≥ 1).
-      final retroHits = 'Updated by Phase 13.2 retroactive'
-          .allMatches(content)
-          .length;
-
-      // Assert — Wave 3 retro 후 ≥ 1 (현재 0 → RED).
-      expect(
-        retroHits,
-        greaterThanOrEqualTo(1),
-        reason:
-            'Phase 13.2 R13 acceptance 위반 — docs/manual.md Phase 13.2 '
-            'retro 마커 hit = $retroHits (target ≥ 1, Wave 3 후 GREEN).',
-      );
+      // 문서의 이력 표지 · 폐기 phase 표기는 검사하지 않는다 — 문서는 현재 사실만 쓴다.
 
       // Act — Meta 공식 URL substring (둘 중 하나 hit ≥ 1).
       final metaUrlHits =
@@ -514,55 +517,28 @@ void main() {
               .allMatches(content)
               .length;
 
-      // Assert — Wave 3 retro 후 Meta 공식 URL ≥ 1 hit.
+      // Assert — Meta 공식 URL ≥ 1 hit.
       expect(
         metaUrlHits,
         greaterThanOrEqualTo(1),
         reason:
-            'Phase 13.2 R13 acceptance 위반 — docs/manual.md Meta 공식 URL '
-            'hit = $metaUrlHits (target ≥ 1, Wave 3 후 GREEN). '
-            'Provider 표 Facebook entry 의 공식 BI URL 갱신 의무.',
+            'R13 — Facebook 자산 README · LICENSE.txt 에 Meta 공식 URL 이 '
+            '없다 (hit = $metaUrlHits, 기대 ≥ 1). 공식 BI URL 을 적는다.',
       );
 
-      // Act — Meta 라이선스 verbatim substring (Wave 0 lock 결과 의존).
-      // Wave 0 LOCK 인용: `Meta's trademarks are owned by Meta and may only
-      // be used as provided in these guidelines or with Meta's permission.`
+      // Act — Meta 라이선스 verbatim substring.
+      // 원문: `Meta's trademarks are owned by Meta and may only be used as
+      // provided in these guidelines or with Meta's permission.`
       final licenseHits = "Meta's trademarks".allMatches(content).length;
 
-      // Assert — Wave 3 retro 후 라이선스 verbatim ≥ 1 hit.
+      // Assert — 라이선스 verbatim ≥ 1 hit.
       expect(
         licenseHits,
         greaterThanOrEqualTo(1),
         reason:
-            'Phase 13.2 R13 acceptance 위반 — docs/manual.md Meta 라이선스 '
-            "verbatim (\"Meta's trademarks\") hit = $licenseHits "
-            '(target ≥ 1, Wave 3 후 GREEN).',
-      );
-
-      // Act — Facebook entry 의 "Phase 18" 단어 0 hit 검증 (substring
-      // anchoring — line 번호 shift 회피).
-      // Wave 3 retro 가 line 1168 / 1181 의 Facebook entry 의 "Phase 18"
-      // 문자열을 폐기 의무 (manual baseline grep: 4 hit 잔존, 1168/1181 은
-      // Facebook entry, 278/369/547 은 unrelated phase reference 잔존 가능).
-      // 본 test 는 Facebook entry 의 핵심 표 column (`Facebook |`) 행을
-      // line filter 후 "Phase 18" hit 0 검증으로 anchor.
-      final lines = content.split('\n');
-      final facebookEntryHits = lines
-          .where(
-            (l) => l.contains('| Facebook') || l.contains('facebook/README'),
-          )
-          .where((l) => l.contains('Phase 18'))
-          .length;
-
-      // Assert — Facebook entry 본문 "Phase 18" 단어 0 (현재 ≥ 2 → RED).
-      expect(
-        facebookEntryHits,
-        0,
-        reason:
-            'Phase 13.2 R13 acceptance 위반 — docs/manual.md Facebook '
-            'entry 의 "Phase 18" 단어 hit = $facebookEntryHits (target = 0, '
-            'Wave 3 후 GREEN). Facebook entry 만 정정, 다른 unrelated phase '
-            'reference 는 변경 0 보존.',
+            'R13 — Facebook 자산 README · LICENSE.txt 에 Meta 라이선스 '
+            "verbatim (\"Meta's trademarks\") 이 없다 (hit = $licenseHits, "
+            '기대 ≥ 1).',
       );
     });
 
