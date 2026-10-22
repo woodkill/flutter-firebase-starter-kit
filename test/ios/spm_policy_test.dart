@@ -196,7 +196,7 @@ void main() {
             '호출에 -clonedSourcePackagesDirPath <project>/build/ios/SourcePackages '
             '를 붙이므로 SPM checkout 은 DerivedData 밑에 없다. 수동 '
             'fff configure 가 이 build phase 를 재생성했다면 diff 를 읽고 '
-            '복원하세요 — docs/manual.md 「iOS 의존성 관리 (SPM)」 ⑥ 참고.',
+            '복원하세요 — docs/guide.md 「iOS 의존성 관리 (SPM)」 ⑥ 참고.',
       );
 
       // 루프가 그 후보를 실제로 소비하는지 — 선언만 남고 본문이 비면 무의미하다.
@@ -282,7 +282,7 @@ void main() {
             'Runner.xcworkspace 를 열면 workspace 쪽). 갈라진 채 두면 「빌드가 '
             '존중하는 쪽」 과 「Flutter prefetch 가 쓰는 쪽」 의 핀이 달라져 LINE '
             '5.17.0 고정이 조용히 풀린다. 의도한 쪽을 다른 쪽으로 복사해 같은 '
-            '커밋에 담으세요 — docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 참고.',
+            '커밋에 담으세요 — docs/guide.md 「iOS 의존성 관리 (SPM)」 ② 참고.',
       );
     });
   });
@@ -317,7 +317,7 @@ void main() {
         isFalse,
         reason:
             'Phase 16.3 D-02: $_podfileLockPath 이 되살아났다면 CocoaPods 가 '
-            '다시 실행된 것이다 — docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 '
+            '다시 실행된 것이다 — docs/guide.md 「iOS 의존성 관리 (SPM)」 ③ 을 '
             '보라.',
       );
       // 양성 대조 — 같은 File API 가 실제로 매칭한다는 사실을 고정한다.
@@ -349,7 +349,7 @@ void main() {
         reason:
             'Phase 16.3 D-02: pbxproj 에 CocoaPods build phase 접두 '
             '"[CP]" 가 남아 있다 — CocoaPods 가 다시 통합됐다. '
-            'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+            'docs/guide.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
       );
       expect(
         countOccurrences(pbx, 'Pods'),
@@ -357,7 +357,7 @@ void main() {
         reason:
             'Phase 16.3 D-02: pbxproj 에 "Pods" 문자열이 남아 있다 — '
             'CocoaPods target/참조가 재유입됐다. '
-            'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+            'docs/guide.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
       );
     });
 
@@ -426,7 +426,7 @@ void main() {
                 'Phase 16.3 D-02: $path 에 CocoaPods 가 심는 '
                 '"Target Support Files" #include 가 남아 있다 — '
                 'CocoaPods 가 다시 통합됐다. '
-                'docs/manual.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
+                'docs/guide.md 「iOS 의존성 관리 (SPM)」 ③ 을 보라.',
           );
         }
       },
@@ -498,7 +498,7 @@ void main() {
         reason:
             '$_workspaceResolvedPath 의 pins 가 비었다 — Xcode "Update to '
             'Latest Package Versions" 또는 파일 재생성으로 고정이 통째로 '
-            '풀렸을 수 있다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+            '풀렸을 수 있다. docs/guide.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
       );
 
       for (final MapEntry<String, ({String version, String revision})> entry
@@ -513,7 +513,7 @@ void main() {
               'Phase 16.3 D-05: identity "${entry.key}" 의 version 핀이 '
               '기준선(${entry.value.version})에서 벗어났다 — Xcode '
               '"Update to Latest Package Versions" 를 실행했거나 누군가 '
-              '수동으로 값을 바꿨다. docs/manual.md 「iOS 의존성 관리 '
+              '수동으로 값을 바꿨다. docs/guide.md 「iOS 의존성 관리 '
               '(SPM)」 ② 를 보라.',
         );
         expect(
@@ -523,7 +523,7 @@ void main() {
               'Phase 16.3 D-05: identity "${entry.key}" 의 revision 핀이 '
               '기준선(${entry.value.revision})에서 벗어났다 — version '
               '문자열은 같아도 실제로 받아오는 코드가 달라졌을 수 있다. '
-              'docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+              'docs/guide.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
         );
       }
     });
@@ -546,7 +546,7 @@ void main() {
         reason:
             'Phase 16.3 D-07: line-sdk-ios-swift 의 version 핀이 '
             '$_linePinDecisionPath 의 LINE_PIN_VERSION(${decision.version})과 '
-            '어긋났다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+            '어긋났다. docs/guide.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
       );
       expect(
         state['revision'],
@@ -555,7 +555,7 @@ void main() {
             'Phase 16.3 D-07: line-sdk-ios-swift 의 revision 핀이 '
             '$_linePinDecisionPath 의 LINE_PIN_REVISION(${decision.revision})과 '
             '어긋났다 — version 문자열은 같아도 실제 checkout 이 달라졌을 '
-            '수 있다. docs/manual.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
+            '수 있다. docs/guide.md 「iOS 의존성 관리 (SPM)」 ② 를 보라.',
       );
     }, skip: skipUnlessPlanningDocsExist(const <String>[_linePinDecisionPath]));
   });

@@ -41,7 +41,7 @@ const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
 ///
 /// Flutter 3.47 이 지원하는 iOS 최소 버전(15.0)이자, 킷이 고정한 LineSDK 5.17.0 의
 /// `platforms` 하한과 같은 값이다. 이보다 낮추면 SPM 이 타깃 그래프 구성 단계에서
-/// 빌드를 막는다 (`docs/manual.md` 「iOS 의존성 관리 (SPM)」 ③ (나) · ⑤).
+/// 빌드를 막는다 (`docs/guide.md` 「iOS 의존성 관리 (SPM)」 ③ (나) · ⑤).
 const String _minSupportedIosTarget = '15.0';
 
 /// 점 구분 버전 [version] 을 정수 성분 목록으로 바꾼다.
@@ -145,7 +145,7 @@ void main() {
             'Phase 16.3 D-15: $_podfilePathForAbsence 이 되살아났다면 SPM 을 '
             '지원하지 않는 iOS 플러그인이 들어와 Flutter 가 CocoaPods 로 '
             'fallback 한 것이다(경고만 내고 빌드는 성공한다). '
-            'docs/manual.md "## iOS 의존성 관리 (SPM)" 의 ③ 사전 확인 절차와 '
+            'docs/guide.md 「iOS 의존성 관리 (SPM)」 의 ③ 사전 확인 절차와 '
             '④ 증상을 보라.',
       );
       // 양성 대조 — 같은 파일시스템 API 가 실제로 매칭한다는 사실을 고정한다.

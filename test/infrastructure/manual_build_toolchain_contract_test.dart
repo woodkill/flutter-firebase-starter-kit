@@ -1,27 +1,29 @@
 // 매뉴얼 빌드 설비 안내 계약 (Phase 17.6 — see ROADMAP.md).
 //
-// 매뉴얼의 두 안내를 실제 설정 파일과 반복 실행 가능한 test 로 맞춰 본다.
+// 사용 가이드(docs/guide.md)의 두 안내를 실제 설정 파일과 반복 실행 가능한 test 로
+// 맞춰 본다.
 // 「Flutter SDK 상향 (FVM)」 ⑤ (Android 빌드 도구 — 지금 값과 정상 출력)와
 // 「iOS 의존성 관리 (SPM)」 ② (네이티브 SDK 버전 · LINE 경고 박스)다. 이전에는
 // 플랜 verify 의 shell grep 한 번과 리뷰 수정 세션의 일회성 확인뿐이라, 표의 값이
 // 파일과 어긋나거나 단언 포인터가 끊겨도 아무 test 도 red 가 되지 않았다. 각 슬라이스는
 // 양성 대조(비어 있지 않고 자기 헤딩을 담는다 · 파싱한 행 수)를 함께 세워 빈 슬라이스나
-// 파싱 실패가 공허하게 통과하지 못하게 한다. 값은 설정 파일에서 읽어 매뉴얼과
+// 파싱 실패가 공허하게 통과하지 못하게 한다. 값은 설정 파일에서 읽어 가이드와
 // 견준다 — 도구 버전 숫자는 이 파일에 적지 않는다.
 //
 // T-176-DOCS-01: ⑤ 슬라이스가 비어 있지 않고 금지 패턴 0.
 // T-176-DOCS-02: ⑤ 「지금 값」 표의 각 행이 그 행이 가리키는 파일의 값과 같다.
 // T-176-DOCS-03: ⑤ 「지우지 말 것」 표의 각 줄이 그 행의 파일에 정확히 1줄 있다.
-// T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · test ID 가 실재하고(포인터 무결성 ·
-//   T-172-DOCS-06 과 같은 방식), ⑤ 가 그 test 로 가리키는 세 단언의 키가 그 test
+// T-176-DOCS-04: 회귀 가드 지도(docs/maintainer/regression-guards.md)의 「Android
+//   빌드 도구」 절이 인용한 계약 test 경로 · test ID 가 실재하고(포인터 무결성 ·
+//   T-172-DOCS-06 과 같은 방식), 지도가 그 test 로 가리키는 세 단언의 키가 그 test
 //   본문에 있다 — `id("kotlin-android")` 부재는 T-176-ANDROID-02,
 //   `android.builtInKotlin=` · `android.newDsl=` 는 T-176-ANDROID-03. 키는 이
-//   파일에 적은 상수이고 매뉴얼의 백틱 글자와는 견주지 않는다.
+//   파일에 적은 상수이고 지도의 백틱 글자와는 견주지 않는다.
 // T-176-DOCS-05: SPM ② LINE 경고 박스가 위 표와 내부적으로 맞다(SDK 개수 · 이름).
 // T-176-DOCS-06: LINE 값(`flutter_line_sdk` 버전 · 핀 버전)이 pubspec ·
 //   Package.resolved 와 같다.
 //
-// 어디서 도는가: 매뉴얼은 킷의 문서라 킷의 값을 적는다. 킷 사용자가 매뉴얼 자신의
+// 어디서 도는가: 가이드는 킷의 문서라 킷의 값을 적는다. 킷 사용자가 가이드 자신의
 // 절차(Flutter 상향 뒤 Gradle · AGP · KGP 올리기, ⑤ 의 「새 DSL 켜기」, SPM ② 의
 // 「상향 절차」 핀 올리기, `flutter_line_sdk` 올리기)를
 // 따르면 자기 저장소에서 그 값이 바뀐다. 그래서 값 동일성을 보는 T-176-DOCS-02 ·
@@ -29,11 +31,11 @@
 // (공개 mirror 에서는 건너뜀). 04(포인터 무결성 · 키 확인)와 문서 내부 일관성
 // (01 · 05)은 사용자 저장소에서도 참이므로 어디서나 돈다.
 //
-// 킷 사용자 안전 규칙(매뉴얼 절차가 이 파일과 계약 test 를 깨뜨리지 않게):
+// 킷 사용자 안전 규칙(가이드 절차가 이 파일과 계약 test 를 깨뜨리지 않게):
 // - 도구 버전 · LINE 버전 숫자를 리터럴로 두지 않는다. 값은 파일에서 읽는다.
 // - 04 는 세 키가 계약 test 본문에 있는지만 본다. `android.builtInKotlin=` ·
 //   `android.newDsl=` 뒤의 값과 `id("kotlin-android")` 를 세는 단언의 기대값은
-//   보지 않는다 — 사용자가 매뉴얼 안내대로 `android.newDsl` 을 `true` 로 고쳐도
+//   보지 않는다 — 사용자가 지도 안내대로 `android.newDsl` 을 `true` 로 고쳐도
 //   red 가 되지 않는다.
 
 import 'dart:convert';
@@ -44,10 +46,16 @@ import 'package:flutter_test/flutter_test.dart';
 import '../helpers/planning_docs.dart';
 import '../helpers/source_text.dart';
 
-/// 매뉴얼 경로.
-const String _manualPath = 'docs/manual.md';
+/// 사용 가이드 경로.
+const String _guidePath = 'docs/guide.md';
 
-/// ⑤ 가 인용하는 Android 빌드 설비 계약 test 경로.
+/// 회귀 가드 지도(유지보수자 문서) 경로 — Android 빌드 설비 계약 test 를 인용한다.
+const String _guardsPath = 'docs/maintainer/regression-guards.md';
+
+/// 회귀 가드 지도의 Android 빌드 도구 절 헤딩.
+const String _guardsAndroidHeading = '## Android 빌드 도구';
+
+/// 지도가 인용하는 Android 빌드 설비 계약 test 경로.
 const String _contractTestPath =
     'test/infrastructure/android_build_toolchain_contract_test.dart';
 
@@ -78,9 +86,6 @@ const String _warningBoxStart = '> ⚠ **`Package.resolved` 를 지우지 말고
 
 /// LINE SDK 핀의 Swift package identity.
 const String _lineIdentity = 'line-sdk-ios-swift';
-
-/// 매뉴얼 변경 이력 헤딩 — 이 앞이 본문이다.
-const String _changelogHeading = '## 변경 이력';
 
 /// 마크다운 표 행 [row] 의 칸을 앞뒤 공백을 걷어 돌려준다.
 List<String> _splitCells(String row) {
@@ -159,25 +164,31 @@ List<String> _collectForbiddenHits(String text) => RegExp(
 ).allMatches(text).map((RegExpMatch m) => m.group(0)!).toList();
 
 void main() {
-  final String manual = readTrackedFile(_manualPath);
+  final String guide = readTrackedFile(_guidePath);
+  final String guards = readTrackedFile(_guardsPath);
+  final String guardsAndroidSection = sliceMarkdownSection(
+    guards,
+    _guardsAndroidHeading,
+    maxLevel: 2,
+  );
   final String androidSection = sliceMarkdownSection(
-    manual,
+    guide,
     _androidHeading,
     maxLevel: 3,
   );
   final String spmSection = sliceMarkdownSection(
-    manual,
+    guide,
     _spmHeading,
     maxLevel: 3,
   );
 
-  group('매뉴얼 빌드 설비 안내 계약 (T-176-DOCS)', () {
+  group('가이드 빌드 설비 안내 계약 (T-176-DOCS)', () {
     test('T-176-DOCS-01: ⑤ 슬라이스가 비어 있지 않고 금지 패턴이 0 이다', () {
       expect(
-        countExactLines(manual, _androidHeading),
+        countExactLines(guide, _androidHeading),
         1,
         reason:
-            '매뉴얼에 「$_androidHeading」 헤딩이 정확히 1개여야 한다 — 이름을 '
+            '가이드에 「$_androidHeading」 헤딩이 정확히 1개여야 한다 — 이름을 '
             '바꿨다면 이 파일의 _androidHeading 도 함께 고친다',
       );
       expect(
@@ -196,8 +207,8 @@ void main() {
         hits,
         isEmpty,
         reason:
-            '매뉴얼 ⑤ 에 사용자 문서 금지 패턴이 있다 — 작업 이력 · 내부 식별자를 '
-            '현재형 설명으로 바꾼다(.claude/rules/docs-user-manual.md): $hits',
+            '가이드 ⑤ 에 사용자 문서 금지 패턴이 있다 — 작업 이력 · 내부 식별자를 '
+            '현재형 설명으로 바꾼다(.claude/rules/docs-user-guide.md): $hits',
       );
     });
 
@@ -351,64 +362,82 @@ void main() {
       skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
     );
 
-    test('T-176-DOCS-04: ⑤ 가 인용한 계약 test 경로 · ID 가 실재하고 세 키가 그 본문에 있다', () {
-      expect(
-        androidSection,
-        contains(_contractTestPath),
-        reason: '⑤ 「남은 두 단계」 가 계약 test 경로 $_contractTestPath 를 인용해야 한다',
-      );
-      expect(
-        File(_contractTestPath).existsSync(),
-        isTrue,
-        reason: '⑤ 가 인용한 계약 test 파일이 없다: $_contractTestPath',
-      );
-
-      // 주석 처리한 test 는 선언이 아니다 — 행 주석을 걷어낸 뒤 찾는다.
-      final String source = stripSlashComments(
-        readTrackedFile(_contractTestPath),
-      );
-      final Set<String> cited = _collectAndroidTestIds(androidSection);
-      expect(
-        cited,
-        containsAll(<String>['T-176-ANDROID-02', 'T-176-ANDROID-03']),
-        reason: '⑤ 에서 계약 test ID 추출이 실패했다: $cited',
-      );
-
-      for (final id in cited) {
+    test(
+      'T-176-DOCS-04: 회귀 가드 지도가 인용한 계약 test 경로 · ID 가 실재하고 세 키가 그 본문에 있다',
+      () {
+        // 양성 대조: 지도의 Android 빌드 도구 절이 실제 절이다.
         expect(
-          _findTestDeclaration(source, id),
-          isNot(-1),
-          reason:
-              '⑤ 가 인용한 `$id` 가 $_contractTestPath 의 test 이름으로 선언돼 '
-              '있지 않다 — ID 를 고치거나 test 를 되살린다',
+          countExactLines(guards, _guardsAndroidHeading),
+          1,
+          reason: '$_guardsPath 에 「$_guardsAndroidHeading」 헤딩이 정확히 1개여야 한다',
         );
-      }
-
-      final String body02 = _sliceTestBody(source, 'T-176-ANDROID-02');
-      expect(
-        body02,
-        contains('id("kotlin-android")'),
-        reason:
-            '⑤ 가 T-176-ANDROID-02 로 가리키는 `id("kotlin-android")` 부재 '
-            '단언이 그 test 본문에 없다',
-      );
-      final String body03 = _sliceTestBody(source, 'T-176-ANDROID-03');
-      for (final key in <String>['android.builtInKotlin=', 'android.newDsl=']) {
         expect(
-          body03,
-          contains(key),
-          reason:
-              '⑤ 가 T-176-ANDROID-03 에서 고치라고 안내하는 `$key` 단언이 그 test '
-              '본문에 없다',
+          guardsAndroidSection.startsWith(_guardsAndroidHeading),
+          isTrue,
+          reason: '지도의 Android 빌드 도구 절이 비었거나 헤딩으로 시작하지 않는다',
         );
-      }
-    });
+        expect(
+          guardsAndroidSection,
+          contains(_contractTestPath),
+          reason:
+              '지도의 「Android 빌드 도구」 절이 계약 test 경로 $_contractTestPath 를 인용해야 한다',
+        );
+        expect(
+          File(_contractTestPath).existsSync(),
+          isTrue,
+          reason: '지도가 인용한 계약 test 파일이 없다: $_contractTestPath',
+        );
+
+        // 주석 처리한 test 는 선언이 아니다 — 행 주석을 걷어낸 뒤 찾는다.
+        final String source = stripSlashComments(
+          readTrackedFile(_contractTestPath),
+        );
+        final Set<String> cited = _collectAndroidTestIds(guardsAndroidSection);
+        expect(
+          cited,
+          containsAll(<String>['T-176-ANDROID-02', 'T-176-ANDROID-03']),
+          reason: '지도에서 계약 test ID 추출이 실패했다: $cited',
+        );
+
+        for (final id in cited) {
+          expect(
+            _findTestDeclaration(source, id),
+            isNot(-1),
+            reason:
+                '지도가 인용한 `$id` 가 $_contractTestPath 의 test 이름으로 선언돼 '
+                '있지 않다 — ID 를 고치거나 test 를 되살린다',
+          );
+        }
+
+        final String body02 = _sliceTestBody(source, 'T-176-ANDROID-02');
+        expect(
+          body02,
+          contains('id("kotlin-android")'),
+          reason:
+              '지도가 T-176-ANDROID-02 로 가리키는 `id("kotlin-android")` 부재 '
+              '단언이 그 test 본문에 없다',
+        );
+        final String body03 = _sliceTestBody(source, 'T-176-ANDROID-03');
+        for (final key in <String>[
+          'android.builtInKotlin=',
+          'android.newDsl=',
+        ]) {
+          expect(
+            body03,
+            contains(key),
+            reason:
+                '지도가 T-176-ANDROID-03 에서 고치라고 안내하는 `$key` 단언이 그 test '
+                '본문에 없다',
+          );
+        }
+      },
+    );
 
     test('T-176-DOCS-05: SPM ② LINE 경고 박스가 핀 표와 내부적으로 맞다', () {
       expect(
-        countExactLines(manual, _spmHeading),
+        countExactLines(guide, _spmHeading),
         1,
-        reason: '매뉴얼에 「$_spmHeading」 헤딩이 정확히 1개여야 한다',
+        reason: '가이드에 「$_spmHeading」 헤딩이 정확히 1개여야 한다',
       );
       expect(
         spmSection.startsWith(_spmHeading),
@@ -424,7 +453,7 @@ void main() {
         isEmpty,
         reason:
             'SPM ② 경고 박스에 사용자 문서 금지 패턴이 있다 — 현재형 설명으로 '
-            '바꾼다(.claude/rules/docs-user-manual.md): $hits',
+            '바꾼다(.claude/rules/docs-user-guide.md): $hits',
       );
 
       final List<List<String>> rows = _collectDataRows(
@@ -468,13 +497,8 @@ void main() {
     test(
       'T-176-DOCS-06: LINE 버전이 pubspec · Package.resolved 와 같다',
       () {
-        final int changelogIndex = manual.indexOf('\n$_changelogHeading\n');
-        expect(
-          changelogIndex,
-          isNot(-1),
-          reason: '매뉴얼에 「$_changelogHeading」 헤딩이 없어 본문 범위를 정하지 못했다',
-        );
-        final String body = manual.substring(0, changelogIndex);
+        // 가이드는 이력 절이 없다 — 버전 인용은 가이드 전체에서 찾는다.
+        final body = guide;
         final String pubspec = stripHashComments(readTrackedFile(_pubspecPath));
         final String? pubspecVersion = RegExp(
           r'^  flutter_line_sdk: (\S+)\s*$',
@@ -490,7 +514,7 @@ void main() {
           isNot(contains('^')),
           reason:
               '$_pubspecPath 의 flutter_line_sdk 는 정확 고정(캐럿 없음)이어야 '
-              '한다 — 매뉴얼 SPM ② 의 핀 설명이 이 전제를 쓴다',
+              '한다 — 가이드 SPM ② 의 핀 설명이 이 전제를 쓴다',
         );
 
         final List<RegExpMatch> pluginMentions = RegExp(
@@ -500,7 +524,7 @@ void main() {
           pluginMentions.length,
           greaterThanOrEqualTo(3),
           reason:
-              '매뉴얼 본문에서 「`flutter_line_sdk` X.Y.Z」 인용을 3곳 이상 찾지 '
+              '가이드에서 「`flutter_line_sdk` X.Y.Z」 인용을 3곳 이상 찾지 '
               '못했다',
         );
         for (final mention in pluginMentions) {
@@ -508,7 +532,7 @@ void main() {
             mention.group(1),
             pubspecVersion,
             reason:
-                '매뉴얼의 「${mention.group(0)}」 가 $_pubspecPath 의 '
+                '가이드의 「${mention.group(0)}」 가 $_pubspecPath 의 '
                 'flutter_line_sdk 버전($pubspecVersion)과 다르다',
           );
         }
