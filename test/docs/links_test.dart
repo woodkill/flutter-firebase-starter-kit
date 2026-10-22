@@ -15,6 +15,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/markdown_anchor.dart';
@@ -128,6 +129,8 @@ void main() {
             broken.add('$path:${link.line} → ${link.target}');
           }
         }
+        // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
+        debugPrintSynchronously('링크 · 앵커 $path: 풀리지 않음 ${broken.length}건');
         expect(broken, isEmpty, reason: '풀리지 않는 링크 · 앵커가 있다');
       });
     }

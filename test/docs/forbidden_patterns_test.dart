@@ -18,6 +18,7 @@
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/planning_docs.dart';
@@ -151,6 +152,8 @@ void main() {
           path,
           readTrackedFile(path),
         );
+        // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
+        debugPrintSynchronously('금지 패턴 $path: 위반 ${hits.length}건');
         expect(hits, isEmpty, reason: '금지 패턴이 남았다(파일:줄 — 패턴 이름)');
       }, skip: _skipMaintainer);
     }
