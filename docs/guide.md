@@ -285,7 +285,233 @@
 
 ## 인증 메일 발송 모드 켜고 끄기
 
+이메일 인증 메일과 비밀번호 재설정 메일을 누가 보내는지 고르는 절차다. 기본값 `firebase` 는 Firebase 가 기본 템플릿으로 보낸다 — 설정할 것이 없고, 메일 언어는 앱 언어를 따른다. `kit` 은 앱 이름 · `brandColor` · 로고를 넣은 킷의 메일을 내 발송 서비스로 보낸다. Firebase Console 에서는 인증 메일 본문을 바꿀 수 없으므로, 인증 메일 본문까지 앱 브랜드로 보내려면 `kit` 을 켠다. 기본값 그대로 쓰면 이 절을 건너뛴다. `kit` 메일의 링크는 앱 이름 · 색 · 로고를 넣은 킷의 결과 페이지(인증 · 비밀번호 재설정)로 열리고, `firebase` 메일의 링크는 Firebase 기본 페이지로 열린다.
+
+| 모드 | 보내는 쪽 | 메일 모양 | 링크가 여는 페이지 | 필요한 설정 |
+|---|---|---|---|---|
+| `firebase` (기본 · 빈 값) | Firebase Authentication | Firebase 기본 템플릿 — Console 에서 발신자 이름 · 제목 · 재설정 메일 본문을 고칠 수 있다 | Firebase 기본 페이지 | 없음 |
+| `kit` | 킷의 메일 함수 + Trigger Email 확장 + 내 발송 서비스 | 앱 이름 · 색 · 로고 · 앱 언어 | 킷의 결과 페이지(`https://<your-project-id>.web.app/`) | 아래 「켜기」 |
+
+**전제 (`kit`):**
+
+- Firebase 프로젝트가 Blaze 요금제다. Trigger Email 확장이 Blaze 를 요구한다.
+- 메일을 보낼 도메인(또는 하위 도메인)이 있고 그 DNS 레코드를 고칠 수 있다.
+- SMTP URI 를 주는 발송 서비스면 무엇이든 쓸 수 있다 — 그 서비스의 계정이 있다. 아래 「켜기」 에는 Resend 예시가 있다.
+- 위저드로 처음 설정을 끝내 함수가 한 번 배포돼 있다([위저드 실행](setup.md#위저드-실행)).
+- Firebase Hosting 기본 사이트(`<your-project-id>.web.app`)가 있다 — `kit` 메일의 링크가 여는 결과 페이지가 여기에 올라간다. 기본 사이트가 없는 프로젝트는 Firebase Console → Hosting 에서 「시작하기」 로 먼저 만든다 — 공식 안내: <https://firebase.google.com/docs/hosting/default-site>.
+- `<your-project-id>.web.app` 은 Firebase Authentication 의 승인된 도메인에 기본으로 들어 있어 따로 더하지 않는다.
+- Firebase Console → App Check 에서 Authentication 의 시행(enforcement)을 켜면 결과 페이지의 요청이 거부된다. `kit` 을 쓰는 동안에는 Authentication 시행을 켜지 않는다.
+- PATH 에 Firebase CLI(`firebase`) · `node` · `jq` · `gcloud` 가 있고 `firebase login` · `gcloud auth login` 이 되어 있다.
+- 메일 · 결과 페이지의 앱 이름 · 색은 config 의 `appName` · `brandColor` 다([위저드가 채우는 설정 키](setup.md#위저드가-채우는-설정-키) 표). 로고를 넣으려면 ④ 전에 [결과 페이지 절](#인증-결과-페이지-바꾸기) ② 대로 `hosting/public/logo.png` 를 둔다.
+
+### 켜기
+
+예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+
+**① 보내는 도메인을 인증한다.** 발송 서비스는 받는 사람의 메일 서버까지 메일을 실제로 배달하는 SMTP 서버이고, 도메인 인증은 받는 쪽 메일 서버가 보낸 사람을 믿게 하는 단계다. 발송 서비스에 메일을 보낼 도메인을 추가하고, 서비스가 알려 주는 SPF · DKIM 레코드를 그 도메인의 DNS 에 등록한다. DMARC 는 최소 아래 값을 `_dmarc.<내 도메인>` 의 TXT 레코드로 둔다. 하위 도메인으로 보내도 DMARC 레코드는 루트 도메인의 `_dmarc` 하나면 된다 — 하위 도메인은 루트 도메인의 정책을 따른다. `rua` 는 DMARC 보고를 받을 주소이고, 보고를 받을 때만 넣는다.
+
+```
+v=DMARC1; p=none; rua=mailto:<보고 받을 주소>
+```
+
+받는 쪽의 발신자 요건은 공식 안내에 있다 — Gmail: <https://support.google.com/a/answer/81126> · Yahoo: <https://senders.yahooinc.com/best-practices/>. 두 곳 모두 보낸 사람 주소의 도메인이 SPF 나 DKIM 도메인과 맞기를 요구하므로, ③ 의 `DEFAULT_FROM` 은 인증한 도메인의 주소로 쓴다.
+
+**예시 — Resend.**
+
+1. Resend 대시보드의 Domains 에서 도메인을 추가한다.
+2. 화면에 나온 DNS 레코드를 도메인의 DNS 에 등록한다. DNS 화면마다 열 이름이 다르다 — Resend 의 Name 은 DNS 화면의 호스트 칸에, Content 는 값(위치) 칸에 넣는다. 등록한 뒤 Resend 의 그 도메인 화면에서 인증을 시작하는 버튼을 눌러야 확인이 시작된다 — 누르기 전에는 Domains 목록의 Status 가 `Not Started` 에 머문다. Status 가 `Verified` 가 될 때까지 기다린다. 화면은 몇 시간 걸릴 수 있다고 안내하지만, DNS 레코드가 이미 퍼져 있으면 더 빨리 끝난다.
+3. API Keys 에서 API key 를 만든다. 이 key 가 SMTP 비밀번호다(④ 에서 넣는다).
+4. SMTP URI 는 `smtps://resend@smtp.resend.com:465` 다 — 사용자 이름 `resend` · 포트 465.
+
+Resend 는 도메인을 인증하기 전에는 Resend 계정의 이메일 주소로만 보낸다.
+
+**② config 에서 모드를 켠다.** `config/dev.json` 의 `emailDelivery` 를 `kit` 으로 바꾼다.
+
+```json
+"emailDelivery": "kit"
+```
+
+같은 파일의 `firebaseWebApiKey` 에 **웹 API 키**(`AIza` 로 시작)를 넣는다. 키는 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에 있는 `Browser key (auto created by Firebase)` 다 — Firebase 가 프로젝트를 만들 때 함께 만든다. 「키 표시」 로 연 창에서 값을 복사하고, 키 이름을 눌러 연 화면에서 애플리케이션 제한사항이 「없음」 인지 확인한다. 「없음」 이 아니면 [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 의 「문제가 발생했습니다」 항목대로 고친다. 결과 페이지는 이 키로만 Firebase Authentication 을 부르고, 메일 링크에 실린 키는 쓰지 않는다. 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
+
+**③ 확장 값 파일을 만든다.** 프로젝트마다 한 번, example 파일을 복사한다. 복사한 파일은 git 이 무시한다.
+
+```bash
+cp extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<your-project-id>
+```
+
+복사한 파일의 네 줄을 내 값으로 바꾼다. 아래는 example 파일의 값이다.
+
+```
+DATABASE_REGION=asia-northeast3
+DEFAULT_FROM="StarterKit Dev <no-reply@mail.example.com>"
+SMTP_CONNECTION_URI=smtps://resend@smtp.resend.com:465
+SMTP_PASSWORD=projects/<your-project-number>/secrets/firestore-send-email-SMTP_PASSWORD/versions/latest
+```
+
+- `DATABASE_REGION` — Firestore 데이터베이스 위치. `gcloud firestore databases describe --project <your-project-id>` 출력의 `locationId` 값이다.
+- `DEFAULT_FROM` — 보낸 사람. `앱 이름 <no-reply@인증한 도메인>` 꼴로 쓴다.
+- `SMTP_CONNECTION_URI` — 발송 서비스가 주는 SMTP URI. 비밀번호는 넣지 않는다.
+- `SMTP_PASSWORD` — SMTP 비밀번호 자체가 아니라 그 비밀번호를 담을 Secret Manager secret 의 이름이다. `<your-project-number>` 만 프로젝트 번호(Firebase Console → 프로젝트 설정 → 일반)로 바꾼다.
+
+같은 디렉터리의 `extensions/firestore-send-email.env` 는 킷이 관리하는 공통 값이라 고치지 않는다.
+
+**④ 메일 브랜드 값 · 결과 페이지 · 확장을 배포한다.** 먼저 옵션 없이 실행한다. 이 명령은 `config/dev.json` 으로 결과 페이지를 빌드하고 계획을 출력할 뿐 Firebase 와 함수 env 파일에는 아무것도 바꾸지 않는다.
+
+```bash
+bash scripts/deploy_email.sh dev kit
+```
+
+`BUILD OK` 줄의 `logo=` 가 로고 파일 유무(`1` = 있음 · `0` = 없음)와 맞는지, `env:` 네 줄이 메일에 들어갈 앱 이름 · 색 · 로고 주소(로고 파일이 없으면 빈 값) · 결과 페이지 주소 `https://<your-project-id>.web.app/` 인지, `command:` 두 줄이 결과 페이지(`--only hosting`) → 확장(`--only extensions`) 순인지, 마지막 줄이 `DRY-RUN OK dev target=kit mode=kit` 인지 본다. 맞으면 `--apply` 를 붙여 실행한다. 이 명령은 결과 페이지를 Firebase Hosting 에 먼저 배포하고, 성공하면 `functions/.env.<your-project-id>` 의 `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` · `EMAIL_RESULT_PAGE_URL` 네 줄을 쓰고(다른 줄은 그대로 둔다) Trigger Email 확장을 설치한다. 결과 페이지 배포가 실패하면 네 줄과 확장은 바꾸지 않고 `FAIL:` 로 멈춘다. SMTP 비밀번호 secret 이 아직 없으면 Firebase CLI 가 값을 묻는다 — 발송 서비스의 SMTP 비밀번호(Resend 는 API key)를 넣는다. 터미널 입력을 받을 수 있는 터미널에서 실행한다.
+
+```bash
+bash scripts/deploy_email.sh dev kit --apply
+```
+
+마지막 줄이 `DEPLOY OK dev target=kit mode=kit` 이면 끝난 것이다 — `https://<your-project-id>.web.app/` 에 결과 페이지가 올라가 있고, `kit` 메일의 링크가 이 페이지를 연다. `functions/.env.<your-project-id>` 의 네 줄은 이 명령이 config 로 다시 쓰므로 직접 고치지 않는다. `appName` 은 비어 있으면 안 되고 `"` · `\` · `$` · 백틱 · 줄바꿈을 쓸 수 없다. `appName` · `brandColor` · 로고를 바꾸면 ④ 와 ⑥ 을 다시 한다. 출력의 `next:` 세 줄은 ⑤ · ⑥ · ⑦ 에서 그 순서로 실행할 명령이다.
+
+**⑤ 메일 문서를 지우는 TTL 정책을 켠다.** 프로젝트마다 한 번 실행한다. 확장은 보낸 메일마다 `mail` 컬렉션에 문서(받는 주소 · 링크가 들어 있다)를 남기는데, 이 정책을 켜면 하루 뒤 지워진다. 실제 삭제는 만료 뒤 보통 24시간 안에 일어난다. 이 명령은 끝날 때까지 몇 분 걸릴 수 있다.
+
+```bash
+gcloud firestore fields ttls update delivery.expireAt --collection-group=mail --enable-ttl --project <your-project-id>
+```
+
+**⑥ 메일 함수를 배포한다.** 아래 배포 스크립트로 배포한다. 옵션 없이 실행한 출력에 `mode: kit` 이 있고 `functions` 목록에 `sendVerificationMail` · `sendPasswordResetMail` 이 있는지 본 뒤 `--apply` 를 붙인다. ④ 의 `--apply` 를 하지 않았으면 `--apply` 가 `FAIL:` 로 멈춘다. 위저드 함수 단계는 이 두 함수의 공개 호출을 확인하지 않는다 — 인증 없이 보낸 POST(`curl -X POST <함수 URL> -H 'Content-Type: application/json' -d '{"data":{}}'`)가 `401` 이면 정상이고, `403` 이면 첫 배포가 도중에 끊겨 공개 호출이 빠진 것이다 — Google Cloud 콘솔 → Cloud Run 의 그 서비스(`sendverificationmail` · `sendpasswordresetmail`)에서 [[LABEL: Google Cloud 콘솔 — Cloud Run 서비스의 공개 호출 허용 칸]] 을 켠다.
+
+```bash
+bash scripts/deploy_functions.sh dev
+bash scripts/deploy_functions.sh dev --apply
+```
+
+배포는 배포 스크립트로만 한다 — 인자 없는 `firebase deploy` 는 `firebase.json` 의 모든 대상(확장 포함)을 배포하므로 쓰지 않는다.
+
+**⑦ 확장 함수에 호출 권한을 준다.** 프로젝트마다 한 번 실행한다. Trigger Email 확장이 메일 문서를 받아 처리하는 함수(`ext-firestore-send-email-processqueue`)는 기본 Compute 서비스 계정으로 호출된다. 조직 정책 등으로 이 계정에 권한이 자동으로 붙지 않은 프로젝트에서는 호출이 거부돼 메일이 나가지 않으므로, 이 단계는 모든 프로젝트에서 실행한다 — 이미 권한이 있어도 다시 실행한 결과는 같다. 아래 명령은 ④ 출력의 `next:` 셋째 줄과 같고, 프로젝트 번호는 명령 안의 `gcloud projects describe` 가 채운다.
+
+```bash
+gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue --region=us-central1 --member=serviceAccount:$(gcloud projects describe <your-project-id> --format='value(projectNumber)')-compute@developer.gserviceaccount.com --role=roles/run.invoker --project <your-project-id>
+```
+
+성공하면 `Updated IAM policy for service [ext-firestore-send-email-processqueue].` 가 나온다.
+
+**⑧ 앱을 다시 빌드해 실행한다.** `emailDelivery` 는 빌드 때 들어간다.
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+**메일 문구 · 모양 바꾸기.** 문구는 `functions/src/email/copy.json` 의 `mail.` 로 시작하는 키(ko · en · ja), 모양은 `functions/src/email/templates/` 의 `verify_email.hbs` · `reset_password.hbs` 다. 바꾼 뒤 ⑥ 으로 함수를 다시 배포한다.
+
+### 확인 방법
+
+- Resend 를 쓰면 Resend 대시보드의 Domains 목록에서 그 도메인의 Status 가 `Verified` 다.
+- 앱에서 이메일로 가입하거나 인증 대기 화면에서 「인증 메일 재전송」 을 누른다. 받은 메일의 보낸 사람이 `DEFAULT_FROM` 이고, 머리에 앱 이름(로고를 올렸으면 로고) · 버튼 색이 `brandColor` · 문구가 앱 언어다. 메일의 링크를 열면 결과 페이지(`https://<your-project-id>.web.app/`)에 앱 언어로 「이메일 인증 완료」 가 보이고, 앱으로 돌아가면 인증이 반영된다(바로 반영되지 않으면 「인증 확인」 을 누른다).
+- 이메일 로그인 화면의 「비밀번호를 잊으셨나요?」 로 받은 재설정 메일도 같은 모양이고, 링크를 열면 「새 비밀번호 설정」 폼이 보인다. 8자 이상으로 바꾸면 「비밀번호 변경 완료」 가 보이고, 앱에서 새 비밀번호로 로그인된다.
+- Firebase Console → Firestore Database 의 `mail` 컬렉션에 보낸 메일마다 문서가 생기고, 문서의 `delivery.state` 가 `SUCCESS` 가 된다.
+
+### 문제 해결
+
+- **메일이 오지 않는다.** Firebase Console → Firestore Database 의 `mail` 컬렉션에서 최근 문서를 연다.
+  - 문서가 없으면 메일 함수가 메일을 만들지 못한 것이다. Firebase Console → Functions 의 로그에서 `sendVerificationMail` · `sendPasswordResetMail` 의 오류를 본다. `email_brand_unset` 이나 `email_result_page_unset` 이 있으면 ④ 의 `--apply` 뒤 ⑥ 으로 함수를 다시 배포한다.
+  - 문서는 있는데 `delivery` 필드가 없으면 아래 「메일 문서에 `delivery` 가 생기지 않는다」 를 본다.
+  - `delivery.state` 가 `ERROR` 면 `delivery.error` 에 발송 서비스가 거부한 사유가 있다. Resend 는 도메인을 인증하기 전 Resend 계정 주소가 아닌 받는 사람을 `You can only send testing emails to your own email address` 로 거부한다 — ① 의 도메인 인증을 끝내고 `DEFAULT_FROM` 을 그 도메인 주소로 바꾼 뒤 ④ 를 다시 한다. `DEFAULT_FROM` 의 도메인 인증이 끝나지 않았으면 Resend 는 `550 The <내 도메인> domain is not verified` 로 거부한다 — Domains 목록의 Status 가 `Verified` 가 된 뒤 앱에서 다시 보낸다.
+  - `delivery.state` 가 `SUCCESS` 인데 받은 편지함에 없으면 스팸함을 보고 ① 의 SPF · DKIM · DMARC 레코드를 확인한다.
+- **메일 문서에 `delivery` 가 생기지 않는다.** 확장 함수가 문서를 처리하지 못한 것이다. Google Cloud Console → Cloud Run 에서 `ext-firestore-send-email-processqueue` 서비스의 로그에 HTTP 403 이 있으면 확장 함수를 부르는 서비스 계정에 호출 권한이 없다. 아래 명령(「켜기」 ⑦ 과 같다)을 실행한다. 권한이 생기면 기다리던 메일은 하루 안에 다시 전달된다.
+
+```bash
+gcloud run services add-iam-policy-binding ext-firestore-send-email-processqueue --region=us-central1 --member=serviceAccount:$(gcloud projects describe <your-project-id> --format='value(projectNumber)')-compute@developer.gserviceaccount.com --role=roles/run.invoker --project <your-project-id>
+```
+
+- **메일 링크를 열면 「문제가 발생했습니다」 가 뜬다.** [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 을 본다.
+- **앱에 「요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.」 가 뜬다.** 같은 계정이나 같은 주소로 짧은 시간에 여러 번 보냈다. 잠시 뒤 다시 보낸다. 한도는 `functions/src/email/send_verification_mail.ts` · `functions/src/email/send_password_reset_mail.ts` 위쪽 상수다.
+- **`deploy_email.sh` 가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다 — `emailDelivery` 가 `kit` 이 아니다(②) · `firebaseWebApiKey` 가 비었거나 자리표시 값이다(②) · 확장 값 파일이 없거나 값이 빈 키 · 예시 자리표시(`<your-…>`)가 남은 키(③) · `appName` 이 비었거나 쓸 수 없는 문자 · 결과 페이지 빌드 · 배포 실패(④). 고친 뒤 다시 실행한다.
+- **④ 의 `--apply` 가 `Could not determine the default site for the project.` 를 출력하고 `FAIL:` 로 멈춘다.** Hosting 기본 사이트가 없다. 「전제」 의 안내대로 만든 뒤 ④ 를 다시 한다.
+- **④ 의 `--apply` 가 secret 값을 묻지 못하고 끝난다.** 터미널 입력을 받을 수 없는 환경에서 실행했다. 일반 터미널에서 다시 실행한다.
+- **④ 의 `--apply` 가 확장 단계에서 `Permission denied while using the Eventarc Service Agent` 를 출력하고 `FAIL:` 로 멈춘다.** 프로젝트에서 Eventarc 를 처음 쓰면 권한이 퍼질 때까지 몇 분 걸린다. 몇 분 뒤 ④ 의 `--apply` 를 다시 실행한다. SMTP 비밀번호 secret 이 이미 만들어졌으면 값을 다시 묻지 않는다.
+- **`firebase` 모드에서 재설정 메일이 앱 언어와 다른 언어로 온다.** Console 에서 재설정 메일 본문을 직접 고치면 그 본문 하나가 쓰인다. 앱 언어마다 다른 본문이 필요하면 `kit` 을 쓴다.
+
+### 끄기
+
+`config/dev.json` 의 `emailDelivery` 를 빈 값(`""`) 또는 `firebase` 로 바꾸고 앱을 다시 빌드한다. 그 뒤 메일은 Firebase 가 보내고, 메일 링크는 Firebase 기본 페이지로 열린다. `kit` 으로 이미 보낸 메일의 링크는 결과 페이지로 계속 열린다 — 결과 페이지는 지우지 않고 둔다. `firebase` 모드에서는 `bash scripts/deploy_functions.sh dev` 가 메일 함수를 배포하지 않고 `deploy_email.sh` 의 `kit` · `hosting` 대상은 `FAIL:` 로 멈춘다.
+
+이미 설치한 확장과 메일 함수는 남겨 둬도 된다 — 앱이 부르지 않는다. 지우려면 아래 명령을 쓴다. 함수는 이름으로 지운다.
+
+```bash
+firebase functions:delete sendVerificationMail sendPasswordResetMail --region asia-northeast3 --project <your-project-id>
+```
+
+확장은 저장소 밖의 빈 디렉터리에서 지운다. 저장소 안에서 실행하면 Firebase CLI 가 `firebase.json` 의 확장 항목과 `extensions/firestore-send-email.env` 까지 지운다. 아래 명령은 임시 디렉터리에서 실행하고 삭제 여부를 한 번 묻는다.
+
+```bash
+( cd "$(mktemp -d)" && firebase ext:uninstall firestore-send-email --immediate --project <your-project-id> )
+```
+
+`mail` 컬렉션의 TTL 정책은 남겨 둬도 된다.
+
 ## 인증 결과 페이지 바꾸기
+
+`kit` 발송 모드 메일의 링크를 눌렀을 때 열리는 웹 페이지(결과 페이지)의 앱 이름 · 색 · 로고 · 문구 · 모양을 바꾸는 절차다. 결과 페이지는 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ 가 함께 배포하고, 인증 · 비밀번호 재설정 링크를 메일 링크의 언어(한국어 · 영어 · 일본어)로 표시한다 — 앱이 보내는 메일의 언어는 앱 언어다. `firebase` 모드에서는 메일 링크가 Firebase 기본 페이지로 열리고 이 페이지를 쓰지 않으므로 이 절을 건너뛴다. `kit` 모드에서 이 절을 하지 않아도 페이지는 config 의 `appName` · `brandColor` 와 로고 파일대로 나온다.
+
+**전제:**
+
+- [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 를 끝내 `config/dev.json` 의 `emailDelivery` 가 `kit` 이다.
+- PATH 에 Firebase CLI(`firebase`) · `node` · `jq` 가 있고 `firebase login` 이 되어 있다.
+
+### 바꾸고 배포하기
+
+예시는 dev flavor 기준이고, stg · prod 는 `dev` 자리에 flavor 이름을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+
+**① 앱 이름 · 색을 정한다.** `config/dev.json` 의 `appName` 이 페이지 머리에 나오는 이름이고, `brandColor` 가 버튼 · 강조 색이다. `brandColor` 는 `#RRGGBB` 형식이고, 비우거나 형식이 틀리면 `#673AB7` 로 칠한다. 같은 `brandColor` 가 앱 테마 색에도 쓰인다([위저드가 채우는 설정 키](setup.md#위저드가-채우는-설정-키) 표). 아래는 example 파일의 값이다.
+
+```json
+"appName": "StarterKit Dev",
+"brandColor": "#673AB7"
+```
+
+**② (선택) 로고 파일을 넣는다.** 로고를 PNG 로 `hosting/public/logo.png` 에 둔다. 높이 120px(화면에는 높이 40px 로 줄여 보인다) · 폭 480px 이하를 권장한다. 결과 페이지에서 로고는 흰 바탕 위에 놓이므로(다크 모드에서도 같다) 흰 바탕에서 잘 보이는 그림을 쓴다. SVG 는 쓸 수 없다 — 메일 앱이 SVG 를 표시하지 않는다. 파일이 없으면 페이지 머리에 `appName` 이 글자로 나온다. 같은 로고 파일이 `kit` 발송 모드 메일의 머리에도 쓰인다. 메일 앱은 다크 모드에서 메일 바탕을 어둡게 바꿀 수 있으므로 투명 바탕 대신 바탕을 채운 PNG 를 쓴다.
+
+**③ 페이지를 다시 배포한다.** 문구 · 모양만 바꿨을 때 쓴다. 먼저 옵션 없이 실행한다. 이 명령은 `config/dev.json` 으로 페이지를 빌드하고 프로젝트 ID 와 배포 명령을 출력할 뿐 Firebase 에는 아무것도 바꾸지 않는다.
+
+```bash
+bash scripts/deploy_email.sh dev hosting
+```
+
+출력의 `project:` 가 내 프로젝트 ID 인지, `BUILD OK` 줄의 `logo=` 가 로고 파일 유무(`1` = 있음 · `0` = 없음)와 맞는지, 마지막 줄이 `DRY-RUN OK dev target=hosting` 으로 시작하는지 본다. 맞으면 `--apply` 를 붙여 배포한다. 마지막 줄이 `DEPLOY OK dev target=hosting` 으로 시작하면 `https://<your-project-id>.web.app/` 에 페이지가 올라간 것이다.
+
+```bash
+bash scripts/deploy_email.sh dev hosting --apply
+```
+
+`config/dev.json` 의 `emailDelivery` 가 `kit` 이 아니면 이 명령은 `FAIL:` 로 멈춘다. 앱 이름 · 색 · 로고는 `kit` 메일에도 들어가므로, 바꿨다면 ③ 대신 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다 — ④ 가 결과 페이지도 다시 배포한다.
+
+배포는 배포 스크립트로만 한다 — 인자 없는 `firebase deploy` 는 `firebase.json` 의 모든 대상(확장 포함)을 배포하므로 쓰지 않는다.
+
+페이지만 바꿀 때는 앱을 다시 빌드하지 않아도 된다. `brandColor` 를 바꿨다면 앱 테마 색도 바뀌므로 앱을 다시 빌드한다.
+
+### 문구 · 모양 바꾸기
+
+- **문구.** `functions/src/email/copy.json` 의 `page.` 로 시작하는 키다(ko · en · ja). 세 언어의 키는 같아야 한다 — `functions/` 에서 `pnpm test` 가 확인한다. 같은 파일의 `mail.` 로 시작하는 키는 `kit` 발송 모드 메일 문구다.
+- **앱 버튼 이름과 함께 바꾼다.** 페이지 문구는 앱 버튼 이름 「인증 확인」 · 「인증 메일 재전송」 · 「비밀번호를 잊으셨나요?」 를 그대로 인용한다. `lib/l10n/app_*.arb` 에서 그 버튼 이름을 바꾸면 `copy.json` 의 같은 문구도 고친다.
+- **모양.** `hosting/public/` 의 `index.html` · `page.css` · `page.js` 다.
+- 바꾼 뒤에는 「바꾸고 배포하기」 ③ 으로 다시 배포한다. `mail.` 키를 바꿨다면 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ⑥ 으로 함수도 다시 배포한다.
+
+### 커스텀 도메인
+
+메일 링크가 여는 결과 페이지 주소는 `https://<your-project-id>.web.app/` 다 — 배포 스크립트가 이 주소를 메일 함수 값으로 쓴다. Hosting 에 내 도메인을 연결해도(공식 안내: <https://firebase.google.com/docs/hosting/custom-domain>) 메일 링크 주소는 바뀌지 않는다. 내 도메인에서 페이지를 열려면 같은 도메인을 Firebase Console → Authentication → 설정 → 승인된 도메인에도 추가한다 — 페이지의 Authentication 요청이 그 도메인에서 나간다.
+
+### 확인 방법
+
+- 브라우저로 `https://<your-project-id>.web.app/?lang=ko` 를 열면 앱 이름(로고를 넣었으면 로고) 머리 아래 「이 링크는 사용할 수 없습니다」 화면이 보인다 — 메일 링크 없이 열었기 때문이다.
+- 메일 링크로 여는 확인은 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「확인 방법」 이다.
+
+### 문제 해결
+
+- **링크를 열면 「문제가 발생했습니다」 가 뜬다.** 페이지의 Firebase Authentication 요청이 거부된 것이다. `config/dev.json` 의 `firebaseWebApiKey` 가 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 에서 `Browser key (auto created by Firebase)` 의 「키 표시」 로 본 값과 같은지 확인하고, 고쳤으면 「바꾸고 배포하기」 ③ 으로 다시 배포한다. Firebase Console → App Check 에서 Authentication 시행이 켜져 있으면 끈다. 결과 페이지는 요청에 Referer 를 싣지 않으므로, 웹사이트(HTTP 리퍼러) 제한이 걸린 키는 허용 목록에 무엇을 적어도 이 페이지에서 거부된다. Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 에서 그 키의 애플리케이션 제한사항이 「없음」 이 아니면, 그 제한을 「없음」 으로 되돌리거나 애플리케이션 제한사항이 「없음」 인 키(Firebase 가 만든 Browser key 기본값)를 따로 골라 `firebaseWebApiKey` 에 넣고 「바꾸고 배포하기」 ③ 으로 다시 배포한다. 그래도 같으면 브라우저 개발자 도구의 네트워크 탭에서 `identitytoolkit.googleapis.com` 요청의 응답 코드와 메시지를 본다.
+- **배포 스크립트가 `FAIL:` 줄을 출력하고 멈춘다.** 그 줄이 고칠 것을 알려 준다(예: `config/dev.json` 이 없다 · `emailDelivery` 가 `kit` 이 아니다 · `appName` 이 비어 있다 · `firebaseWebApiKey` 가 비었거나 자리표시 값이다). 고친 뒤 다시 실행한다.
+- **`warn:` 줄이 `brandColor` 형식을 알린다.** 값을 `#RRGGBB` 로 고친다. 고치기 전에는 `#673AB7` 로 칠한다.
+- **로고가 보이지 않는다.** `BUILD OK` 줄이 `logo=0` 이면 파일 위치 · 이름(`hosting/public/logo.png`)을 확인한다. 로고를 바꾼 뒤에는 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다.
+
+### 되돌리기
+
+로고를 빼려면 `hosting/public/logo.png` 를 지우고 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다 — 페이지와 메일 머리가 `appName` 글자로 돌아간다. 문구 · 모양은 바꾼 파일을 킷 판으로 되돌린 뒤 「바꾸고 배포하기」 ③ 으로 다시 배포한다. 결과 페이지를 쓰지 않으려면 발송 모드를 `firebase` 로 끈다([발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「끄기」) — 그 뒤 메일 링크는 Firebase 기본 페이지로 열린다.
 
 ## Firebase 서비스 쓰기
 
