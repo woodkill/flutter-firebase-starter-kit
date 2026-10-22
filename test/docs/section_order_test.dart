@@ -11,6 +11,8 @@
 //
 // T-21-ORDER-01: 순서 검사 함수의 양성 · 음성 표본.
 // T-21-ORDER-02: 대상 md 마다 하나 — 순서 위반 0.
+// T-21-ORDER-03: 두 가이드에서 바로 아래 표지 소절이 둘 이상인 절이 10개 이상이다 —
+//   순서 검사가 공허하지 않다(유지보수자 트리 전용).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +36,12 @@ const List<String> _templateLabels = <String>[
   '되돌리기',
 ];
 
+/// 표지 소절이 둘 이상인 절을 세는 문서 — 두 가이드다.
+const List<String> _guidePaths = <String>['docs/setup.md', 'docs/guide.md'];
+
+/// 두 가이드에서 표지 소절이 둘 이상인 절의 최소 개수다.
+const int _minLabeledSections = 10;
+
 /// 마크다운 제목 줄(`#` 1 ~ 6개 뒤 공백)과 그 텍스트다.
 final RegExp _headingLine = RegExp(r'^(#{1,6}) (.*)$');
 
@@ -46,17 +54,28 @@ class _OpenHeading {
 
   /// 바로 아래 소절에서 본 가장 뒤 표지의 순번이다(없으면 -1).
   int lastLabelIndex = -1;
+
+  /// 바로 아래 소절 가운데 이름이 표지인 것의 개수다.
+  int labelCount = 0;
 }
 
-/// 마크다운 [markdown] 에서 절 템플릿 순서를 거스르는 소절을 `'<줄>: <표지>'`
-/// 목록으로 돌려준다.
-///
-/// 제목마다 바로 아래 단계 소절(그 제목을 가장 가까운 상위 제목으로 둔 소절) 가운데
-/// 이름이 표지인 것만 보고, 앞에서 본 표지보다 앞 순번의 표지가 나오면 위반이다. 같은
-/// 표지가 이어지는 것과 표지가 아닌 소절이 끼는 것은 허용한다. 코드 펜스 안의 `#`
-/// 줄은 제목이 아니다.
-List<String> findTemplateOrderViolations(String markdown) {
-  final violations = <String>[];
+/// 제목 하나를 만난 자리 — 줄 순번 · 제목 텍스트 · 가장 가까운 상위 제목이다.
+class _HeadingVisit {
+  _HeadingVisit(this.lineIndex, this.title, this.parent);
+
+  /// 제목 줄의 순번(0부터)이다.
+  final int lineIndex;
+
+  /// 제목 텍스트다.
+  final String title;
+
+  /// 가장 가까운 상위 제목이다(없으면 문서 머리).
+  final _OpenHeading parent;
+}
+
+/// 마크다운 [markdown] 의 제목을 차례로 돌려준다 — 코드 펜스 안의 `#` 줄은 제목이
+/// 아니다.
+Iterable<_HeadingVisit> _visitHeadings(String markdown) sync* {
   final open = <_OpenHeading>[_OpenHeading(0)];
   final List<String> lines = markdown.split('\n');
   var inFence = false;
@@ -71,22 +90,54 @@ List<String> findTemplateOrderViolations(String markdown) {
       continue;
     }
     final int level = match.group(1)!.length;
-    final String title = match.group(2)!.trim();
     while (open.last.level >= level) {
       open.removeLast();
     }
-    final _OpenHeading parent = open.last;
-    final int labelIndex = _templateLabels.indexOf(title);
-    if (labelIndex != -1) {
-      if (labelIndex < parent.lastLabelIndex) {
-        violations.add('${i + 1}: $title');
-      } else {
-        parent.lastLabelIndex = labelIndex;
-      }
-    }
+    yield _HeadingVisit(i, match.group(2)!.trim(), open.last);
     open.add(_OpenHeading(level));
   }
+}
+
+/// 마크다운 [markdown] 에서 절 템플릿 순서를 거스르는 소절을 `'<줄>: <표지>'`
+/// 목록으로 돌려준다.
+///
+/// 제목마다 바로 아래 단계 소절(그 제목을 가장 가까운 상위 제목으로 둔 소절) 가운데
+/// 이름이 표지인 것만 보고, 앞에서 본 표지보다 앞 순번의 표지가 나오면 위반이다. 같은
+/// 표지가 이어지는 것과 표지가 아닌 소절이 끼는 것은 허용한다. 코드 펜스 안의 `#`
+/// 줄은 제목이 아니다.
+List<String> findTemplateOrderViolations(String markdown) {
+  final violations = <String>[];
+  for (final _HeadingVisit visit in _visitHeadings(markdown)) {
+    final int labelIndex = _templateLabels.indexOf(visit.title);
+    if (labelIndex == -1) {
+      continue;
+    }
+    if (labelIndex < visit.parent.lastLabelIndex) {
+      violations.add('${visit.lineIndex + 1}: ${visit.title}');
+    } else {
+      visit.parent.lastLabelIndex = labelIndex;
+    }
+  }
   return violations;
+}
+
+/// 마크다운 [markdown] 에서 바로 아래 소절 가운데 이름이 표지인 것이 둘 이상인 제목의
+/// 개수를 센다.
+///
+/// 제목 트리는 [findTemplateOrderViolations] 와 같다(가장 가까운 상위 제목이 부모 ·
+/// 코드 펜스 안의 `#` 줄 제외). 문서 머리 바로 아래 표지도 문서 머리 하나로 센다.
+int countSectionsWithTemplateLabels(String markdown) {
+  var count = 0;
+  for (final _HeadingVisit visit in _visitHeadings(markdown)) {
+    if (!_templateLabels.contains(visit.title)) {
+      continue;
+    }
+    visit.parent.labelCount++;
+    if (visit.parent.labelCount == 2) {
+      count++;
+    }
+  }
+  return count;
 }
 
 void main() {
@@ -161,4 +212,39 @@ void main() {
       }, skip: _skipMaintainer);
     }
   });
+
+  test('T-21-ORDER-03: 두 가이드에 표지 소절 둘 이상인 절이 10개 이상', () {
+    // 표본: 표지 둘 이상인 절만 세고, 손자 단계 표지 · 펜스 안 줄은 부모에 들지 않는다.
+    expect(
+      countSectionsWithTemplateLabels(
+        <String>[
+          '## 알림 켜기',
+          '### 언제 필요한가',
+          '### 단계',
+          '#### 확인 방법',
+          '#### 되돌리기',
+          '## 빌드',
+          '### 단계',
+          '```bash',
+          '### 되돌리기',
+          '```',
+          '### 참고',
+        ].join('\n'),
+      ),
+      2,
+    );
+
+    final counts = <String, int>{
+      for (final path in _guidePaths)
+        path: countSectionsWithTemplateLabels(readTrackedFile(path)),
+    };
+    final int total = counts.values.fold(0, (int sum, int n) => sum + n);
+    // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
+    debugPrintSynchronously('표지 소절 둘 이상인 절: $counts · 합 $total');
+    expect(
+      total,
+      greaterThanOrEqualTo(_minLabeledSections),
+      reason: '표지 소절이 둘 이상인 절이 적다 — 순서 검사가 공허하다',
+    );
+  }, skip: _skipMaintainer);
 }
