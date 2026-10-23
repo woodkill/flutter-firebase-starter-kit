@@ -1369,6 +1369,16 @@ theme: AppTheme.light(seedColor: seed).copyWith(
 ),
 ```
 
+`lib/app.dart` 는 extension 파일을 import 하지 않는다. 위 코드와 3번의 코드를 넣을 때
+파일 맨 위 `import 'core/theme/app_theme.dart';` 옆에 아래 네 줄을 더한다.
+
+```dart
+import 'core/theme/app_colors.dart';
+import 'core/theme/app_icon_sizes.dart';
+import 'core/theme/app_spacing.dart';
+import 'core/theme/app_typography.dart';
+```
+
 > ⚠ **`ThemeData.copyWith(extensions:)` 는 기존 extension map 을 통째로
 > 교체한다** (병합하지 않는다). 위 리스트에서 `AppTypography` 만 넘기면
 > `AppColors` · `AppSpacing` · `AppIconSizes` 가 **등록에서 사라진다**.
@@ -1459,6 +1469,8 @@ LayoutBuilder(
 );
 ```
 
+이 코드를 쓰는 파일은 `lib/core/theme/app_breakpoint.dart` 를 import 한다.
+
 `context.breakpoint` 는 `MediaQuery.sizeOf(context).width`, 즉 **화면 전체 폭**
 기준이다. 그래서 bottom sheet, 분할 레이아웃, 패딩된 칼럼 안에서는 실제 가용 폭과
 어긋난다 — 640dp 화면 안의 300dp 컨테이너에서 `context.breakpoint` 는 `expanded`
@@ -1470,7 +1482,8 @@ LayoutBuilder(
 `BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 는 브랜드 규격이
 고정된 버튼을 감싸 **키보드 focus 도착 시에만** outline 을 그린다
 (WCAG 2.1 SC 2.4.7 Focus Visible, Level AA). 소셜 로그인 버튼은 이 wrapper 로
-감싸져 있고, 내 버튼에도 같은 wrapper 를 쓸 수 있다.
+감싸져 있고, 내 버튼에도 같은 wrapper 를 쓸 수 있다(쓰는 파일에서
+`lib/core/theme/brand_focus_wrapper.dart` 를 import 한다).
 
 - 생성자는 다음과 같고, `borderRadius` 는 음수를 `assert` 로 거부한다.
 
