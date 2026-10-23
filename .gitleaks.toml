@@ -1,6 +1,12 @@
 # 킷 기본 gitleaks 설정 — gitleaks 기본 규칙(useDefault)을 그대로 쓴다.
-# 허용 목록은 CocoaPods ios/Podfile.lock 의 SPEC CHECKSUMS 줄(공개 podspec SHA-1)만 — 실 값은 허용하지 않는다.
+# 허용 목록은 둘이고 둘 다 generic-api-key 규칙만 푼다 — 실 값은 허용하지 않는다.
+#   1. CocoaPods ios/Podfile.lock 의 SPEC CHECKSUMS 줄(공개 podspec SHA-1) — 경로 + 줄 모양.
+#   2. 설정 위저드 시험 test/tool/setup/*_test.dart 의 가짜 값 — 경로 + 값 그대로
+#      (키 해시 1개 · UUID 꼴 App Check 디버그 토큰 3개).
 # 스캔 결과가 나오면 허용 목록을 넓히지 말고 멈춰 값을 확인한다.
+# 위저드 시험에 고엔트로피 픽스처 값을 새로 넣을 때는 generic-api-key 에 걸리지 않는 모양(예: 반복
+# 문자로 조립)을 쓰거나, 가짜 값임을 확인한 뒤 2번에 값 그대로 하나씩 더하고
+# test/release/release_hygiene_contract_test.dart 의 T-174-HYG-06 기대값을 함께 고친다.
 title = "flutter-firebase-starter-kit"
 [extend]
 useDefault = true
@@ -11,3 +17,15 @@ condition = "AND"
 paths = ['''^ios/Podfile\.lock$''']
 regexTarget = "line"
 regexes = ['''^[+ -]?\s*[A-Za-z0-9_+./-]+: [0-9a-f]{40}\s*$''']
+[[allowlists]]
+description = "설정 위저드 시험 픽스처 가짜 값 (키 해시 · App Check 디버그 토큰)"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''^test/tool/setup/[^/]+_test\.dart$''']
+regexTarget = "secret"
+regexes = [
+  '''^q1AFhLJe1jbJyRsDcFRsODGFDxY=$''',
+  '''^7a2b3c4d-5e6f-4a70-8b9c-0d1e2f3a4b5c$''',
+  '''^6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b$''',
+  '''^0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0$''',
+]

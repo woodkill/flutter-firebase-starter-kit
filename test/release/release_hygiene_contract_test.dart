@@ -66,6 +66,51 @@ List<String> _includes(Map<String, dynamic> ruleset) =>
             as List<dynamic>)
         .cast<String>();
 
+/// gitleaks 설정 파일 경로다(저장소 루트 기준).
+const String _gitleaksPath = '.gitleaks.toml';
+
+/// gitleaks 허용 목록 블록의 머리 줄이다.
+const String _allowlistsHeader = '[[allowlists]]';
+
+/// gitleaks 설정에서 `#` 행 주석을 뺀 줄 목록을 돌려준다.
+List<String> _readGitleaksLines() => readTrackedFile(
+  _gitleaksPath,
+).split('\n').where((String l) => !l.trimLeft().startsWith('#')).toList();
+
+/// [lines] 를 [_allowlistsHeader] 머리 줄로 나눠 허용 목록 블록 본문을 차례로 돌려준다.
+///
+/// 첫 머리 줄 앞(제목 · `[extend]`)은 버린다.
+List<String> _splitAllowlists(List<String> lines) => lines
+    .join('\n')
+    .split(RegExp(r'^[ \t]*\[\[allowlists\]\][ \t]*$', multiLine: true))
+    .skip(1)
+    .toList();
+
+/// [block] 의 한 줄 `key = 값` 에서 값(앞뒤 공백 제외)을 돌려준다 — 키가 없으면 null.
+String? _tomlValue(String block, String key) => RegExp(
+  '^$key\\s*=\\s*(.*?)\\s*\$',
+  multiLine: true,
+).firstMatch(block)?.group(1);
+
+/// [block] 의 `key = [ … ]` 배열(여러 줄 가능)에 든 `'''…'''` 리터럴을 차례로 돌려준다.
+///
+/// 키가 없거나 배열에 리터럴이 아닌 원소가 있으면 null 을 돌려준다. 리터럴 안의 `]`
+/// (예: `[^/]`)에서 배열이 끝난 것으로 보지 않도록 원소를 리터럴 단위로 맞춘다.
+List<String>? _tomlLiterals(String block, String key) {
+  final RegExpMatch? array = RegExp(
+    "^$key\\s*=\\s*\\[((?:\\s*'''.*?'''\\s*,?)*)\\s*\\]",
+    multiLine: true,
+    dotAll: true,
+  ).firstMatch(block);
+  if (array == null) {
+    return null;
+  }
+  return RegExp(
+    "'''(.*?)'''",
+    dotAll: true,
+  ).allMatches(array.group(1)!).map((RegExpMatch m) => m.group(1)!).toList();
+}
+
 void main() {
   group('공개 문서 위생 (D-03 ~ D-06)', () {
     test('T-174-HYG-02: 공개 대상 *.md 에 .planning/ 링크 대상이 0건 (양성 대조 포함)', () {
@@ -168,12 +213,9 @@ void main() {
     );
 
     test(
-      'T-174-HYG-06: gitleaks — 기본 규칙 확장 · 허용 목록 1개 · Podfile.lock 의 generic-api-key 만',
+      'T-174-HYG-06: gitleaks — 기본 규칙 확장 · 허용 목록 2개(Podfile.lock 체크섬 줄 · 설정 위저드 시험 가짜 값 4개) · 둘 다 generic-api-key 만',
       () {
-        final List<String> lines = readTrackedFile('.gitleaks.toml')
-            .split('\n')
-            .where((String l) => !l.trimLeft().startsWith('#'))
-            .toList();
+        final List<String> lines = _readGitleaksLines();
         final int extend = lines.indexOf('[extend]');
         expect(extend, greaterThanOrEqualTo(0));
         expect(
@@ -182,27 +224,36 @@ void main() {
           reason: '[extend] 바로 아래에서 기본 규칙을 확장해야 한다',
         );
         expect(
-          lines.where((String l) => l.trim() == '[[allowlists]]'),
-          hasLength(1),
+          lines.where((String l) => l.trim() == _allowlistsHeader),
+          hasLength(2),
         );
         expect(lines.where((String l) => l.trim() == '[allowlist]'), isEmpty);
 
-        final String text = lines.join('\n');
-        final RegExpMatch paths = RegExp(
-          r'^paths = \[(.*)\]$',
-          multiLine: true,
-        ).firstMatch(text)!;
-        expect(
-          RegExp(
-            "'''(.*?)'''",
-          ).allMatches(paths.group(1)!).map((m) => m.group(1)),
-          <String>[r'^ios/Podfile\.lock$'],
-        );
-        final RegExpMatch targets = RegExp(
-          r'^targetRules = \[(.*)\]$',
-          multiLine: true,
-        ).firstMatch(text)!;
-        expect(targets.group(1)!.trim(), '"generic-api-key"');
+        final List<String> blocks = _splitAllowlists(lines);
+        expect(blocks, hasLength(2));
+        for (final block in blocks) {
+          expect(_tomlValue(block, 'targetRules'), '["generic-api-key"]');
+          expect(_tomlValue(block, 'condition'), '"AND"');
+        }
+
+        // 1 — 옛 ios/Podfile.lock 의 CocoaPods 체크섬 줄(줄 모양 하나).
+        expect(_tomlLiterals(blocks[0], 'paths'), <String>[
+          r'^ios/Podfile\.lock$',
+        ]);
+        expect(_tomlValue(blocks[0], 'regexTarget'), '"line"');
+        expect(_tomlLiterals(blocks[0], 'regexes'), hasLength(1));
+
+        // 2 — 설정 위저드 시험의 가짜 값(값 그대로 · 이 순서 · 더도 덜도 없이).
+        expect(_tomlLiterals(blocks[1], 'paths'), <String>[
+          r'^test/tool/setup/[^/]+_test\.dart$',
+        ]);
+        expect(_tomlValue(blocks[1], 'regexTarget'), '"secret"');
+        expect(_tomlLiterals(blocks[1], 'regexes'), <String>[
+          r'^q1AFhLJe1jbJyRsDcFRsODGFDxY=$',
+          r'^7a2b3c4d-5e6f-4a70-8b9c-0d1e2f3a4b5c$',
+          r'^6f1c2b3a-4d5e-4f60-8a7b-9c0d1e2f3a4b$',
+          r'^0f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0$',
+        ]);
       },
       skip: _skipPublic,
     );
