@@ -56,6 +56,13 @@
    바뀐다. 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를
    쓴다. 값이 비어 있으면 로케일별 ARB `appTitle` 이다. 게스트 홈은 AppBar
    오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
+6. 본문을 바꾸면 홈을 그리는 시험 두 곳도 맞춘다. 앱 기동 시험 `test/widget_test.dart`
+   는 홈에 개발자 안내 카드 제목이 보이는지 본다 — 카드를 지웠으면 그 단언을 새 본문
+   내용으로 바꾼다. 홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png` 는
+   본문까지 찍으므로 그 시험 파일 하나로 다시 만든다.
+   ```bash
+   fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
+   ```
 
 ### ② 화면을 통째로 바꿀 때 — 옮길 배선 체크리스트
 
@@ -85,10 +92,16 @@
   `SessionEnding.signOut()` 을 부르고 그 파일을 기대 집합에 더한다. 홈 화면 테스트(`test/features/home/home_screen_test.dart`)와
   홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png`
   (`home_announcement_golden_test.dart`)도 새 화면 기준으로 다시 만든다.
+  새 화면이 본문으로 `HomeBody` 를 쓰지 않으면 홈 본문을 보는 시험 두 곳도 새 화면
+  기준으로 고친다 — 앱 기동 시험 `test/widget_test.dart` 의 안내 카드 제목 단언과
+  `test/features/home/announcement_bar_test.dart` 가로 모드 시험의 본문(`HomeBody`)
+  높이 단언이다.
   홈 파일 · 클래스 이름을 바꾸면(예: `my_home_screen.dart` · `MyHomeScreen`) lib ·
   test 에서 옛 이름을 쓰는 곳을 모두 새 이름으로 바꾼다 — `grep -rlw HomeScreen lib test`
-  · `grep -rlF home_screen.dart lib test` 로 찾는다(import · `find.byType` · doc 참조 ·
-  source guard `_homeScreenPath`). 이 절의 문구를 지키는
+  · `grep -rlwF home_screen.dart lib test` 로 찾는다(import · `find.byType` · doc 참조 ·
+  source guard `_homeScreenPath`). 두 명령은 단어 단위로 찾으므로 옛 이름을 품은 새
+  이름(`MyHomeScreen` · `my_home_screen.dart`)은 잡지 않는다 — 다 바꾸면 아래 계약
+  시험 파일 하나만 남는다. 이 절의 문구를 지키는
   `test/features/home/manual_home_replacement_contract_test.dart` 의 토큰 목록은
   이 절을 함께 고칠 때만 바꾼다.
 
@@ -204,7 +217,12 @@
        `home_body.dart` doc)만 남는다.
   5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다. 서버 함수 `sendTestPush` 까지
      빼려면 `functions/src/index.ts` 의 `export {sendTestPush} …` 줄과
-     `functions/src/messaging/` 를 지우고, 클라이언트
+     `functions/src/messaging/` · 그 시험 `functions/test/messaging/` 를 지우고,
+     배포 목록 `scripts/functions_manifest.json` 의 `common` 에서 `"sendTestPush"`
+     항목을 뺀다 — 배포 목록과 export 가 다르면 `cd functions && pnpm test` 의 배포
+     목록 시험이 실패한다. 공통 함수가 하나 줄었으므로 설정 위저드 시험
+     `test/tool/setup/functions_step_test.dart` T-19-FN-02 의 기대
+     `DEPLOY OK dev functions=7 batches=1` 의 `7` 을 `6` 으로 고친다. 클라이언트
      `lib/features/notifications/data/test_push_client.dart` 와 그 시험도 함께 지운
      뒤 배포된 함수를
      `firebase functions:delete sendTestPush --region <functionsRegion> --project <your-project-id>`
