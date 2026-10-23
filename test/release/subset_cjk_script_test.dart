@@ -152,7 +152,7 @@ void main() {
   setUp(() => box = _Sandbox.create());
   tearDown(() => box.dispose());
 
-  test('T-21-SUBSET-01 fontTools 가 없으면 traceback 없이 설치 안내로 끝난다', () {
+  test('T-21-SUBSET-01: fontTools 가 없으면 traceback 없이 설치 안내로 끝난다', () {
     box.makeRepoLayout();
     final ProcessResult r = _run(box, _Stub.missing, <String>[
       box.makeFakeSource(),
@@ -166,7 +166,7 @@ void main() {
     expect(box.writtenCount, 0);
   }, skip: skip);
 
-  test('T-21-SUBSET-02 인자가 없으면 사용법 한 줄로 끝난다', () {
+  test('T-21-SUBSET-02: 인자가 없으면 사용법 한 줄로 끝난다', () {
     box.makeRepoLayout();
     final String err = _expectCleanFailure(
       _run(box, _Stub.present, <String>[]),
@@ -176,7 +176,7 @@ void main() {
     expect(box.writtenCount, 0);
   }, skip: skip);
 
-  test('T-21-SUBSET-03 인자가 둘이면 사용법 한 줄로 끝난다', () {
+  test('T-21-SUBSET-03: 인자가 둘이면 사용법 한 줄로 끝난다', () {
     box.makeRepoLayout();
     final String err = _expectCleanFailure(
       _run(box, _Stub.present, <String>['a.ttc', 'b.ttc']),
@@ -186,7 +186,7 @@ void main() {
     expect(box.writtenCount, 0);
   }, skip: skip);
 
-  test('T-21-SUBSET-04 없는 원본 경로는 원본 파일이 없다 안내로 끝난다', () {
+  test('T-21-SUBSET-04: 없는 원본 경로는 원본 파일이 없다 안내로 끝난다', () {
     box.makeRepoLayout();
     final missing = '${box.dir}/nope.ttc';
     final String err = _expectCleanFailure(
@@ -196,7 +196,7 @@ void main() {
     expect(box.writtenCount, 0);
   }, skip: skip);
 
-  test('T-21-SUBSET-05 저장소 루트가 아니면 작업 위치 안내로 끝나고 쓰지 않는다', () {
+  test('T-21-SUBSET-05: 저장소 루트가 아니면 작업 위치 안내로 끝나고 쓰지 않는다', () {
     final String src = box.makeFakeSource();
     final String err = _expectCleanFailure(
       _run(box, _Stub.present, <String>[src]),
@@ -205,7 +205,7 @@ void main() {
     expect(Directory('${box.cwd}/assets').existsSync(), isFalse);
   }, skip: skip);
 
-  test('T-21-SUBSET-06 올바른 입력은 가드를 지나 sha256 불일치까지 가고 쓰지 않는다', () {
+  test('T-21-SUBSET-06: 올바른 입력은 가드를 지나 sha256 불일치까지 가고 쓰지 않는다', () {
     box.makeRepoLayout();
     final String err = _expectCleanFailure(
       _run(box, _Stub.present, <String>[box.makeFakeSource()]),
@@ -214,7 +214,7 @@ void main() {
     expect(box.writtenCount, 0);
   }, skip: skip);
 
-  test('T-21-SUBSET-07 app_ja.arb 가 없으면 sha256 · build 전에 그 파일 안내로 끝난다', () {
+  test('T-21-SUBSET-07: app_ja.arb 가 없으면 sha256 · build 전에 그 파일 안내로 끝난다', () {
     box.makeRepoLayout();
     File('${box.cwd}/lib/l10n/app_ja.arb').deleteSync();
     final String err = _expectCleanFailure(
