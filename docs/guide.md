@@ -1730,7 +1730,7 @@ fvm dart run flutter_native_splash:create
 - 메일을 보낼 도메인(또는 하위 도메인)이 있고 그 DNS 레코드를 고칠 수 있다.
 - SMTP URI 를 주는 발송 서비스면 무엇이든 쓸 수 있다 — 그 서비스의 계정이 있다. 아래 「켜기」 에는 Resend 예시가 있다.
 - 위저드로 처음 설정을 끝내 함수가 한 번 배포돼 있다([위저드 실행](setup.md#위저드-실행)).
-- Firebase Hosting 기본 사이트(`<your-project-id>.web.app`)가 있다 — `kit` 메일의 링크가 여는 결과 페이지가 여기에 올라간다. 기본 사이트가 없는 프로젝트는 Firebase Console → Hosting 에서 「시작하기」 로 먼저 만든다 — 공식 안내: <https://firebase.google.com/docs/hosting/default-site>.
+- Firebase Hosting 기본 사이트(`<your-project-id>.web.app`)가 있다 — `kit` 메일의 링크가 여는 결과 페이지가 여기에 올라간다. 기본 사이트가 없는 프로젝트는 `firebase hosting:sites:create <your-project-id> --project <your-project-id>` 로 먼저 만든다 — 프로젝트에서 처음 만든 사이트가 기본 사이트가 되고, 사이트 ID 를 프로젝트 ID 로 정해야 주소가 `<your-project-id>.web.app` 이 된다. 공식 안내: <https://firebase.google.com/docs/hosting/default-site>.
 - `<your-project-id>.web.app` 은 Firebase Authentication 의 승인된 도메인에 기본으로 들어 있어 따로 더하지 않는다.
 - Firebase Console → App Check 에서 Authentication 의 시행(enforcement)을 켜면 결과 페이지의 요청이 거부된다. `kit` 을 쓰는 동안에는 Authentication 시행을 켜지 않는다.
 - PATH 에 Firebase CLI(`firebase`) · `node` · `jq` · `gcloud` 가 있고 `firebase login` · `gcloud auth login` 이 되어 있다.
