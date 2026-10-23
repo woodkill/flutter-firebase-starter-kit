@@ -19,8 +19,12 @@ import json
 import os
 import sys
 
-from fontTools import subset
-from fontTools.ttLib import TTFont
+try:
+    from fontTools import subset
+    from fontTools.ttLib import TTFont
+except ModuleNotFoundError:
+    # venv 밖(시스템 python3 · `./scripts/subset_cjk.py` 직접 실행)이면 traceback 대신 안내로 끝낸다
+    sys.exit("fonttools 가 없다 — 머리 주석의 venv 명령으로 설치한 뒤 그 python 으로 돌린다.")
 
 SRC_SHA256 = "3e7e5afaac2c6d872592d76abedac03a51c6f0fc42d11e311ff2816a6c368afe"
 L10N = "lib/l10n"
@@ -60,7 +64,17 @@ def build(src, index, out, unicodes):
 
 
 def main():
+    """인자 · 원본 · 작업 위치를 확인하고 ko(KR) · ja(JP) subset 두 개를 만든다.
+
+    검사는 모두 첫 쓰기(build) 전이다 — 하나라도 어긋나면 아무것도 쓰지 않고 멈춘다.
+    """
+    if len(sys.argv) != 2:
+        sys.exit(f"사용법: python -X utf8 {sys.argv[0]} <NotoSansCJK-Regular.ttc 경로>")
     src = sys.argv[1]
+    if not os.path.isfile(src):
+        sys.exit(f"원본 파일이 없다: {src}")
+    if not (os.path.isdir(L10N) and os.path.isdir(OUT)):
+        sys.exit(f"{L10N} · {OUT} 가 없다 — 저장소 루트에서 돌린다.")
     actual = hashlib.sha256(open(src, "rb").read()).hexdigest()
     if actual != SRC_SHA256:
         sys.exit(f"원본 sha256 불일치: {actual}")
