@@ -17,6 +17,8 @@
 // 를 빈 디렉터리로 덮어써(키를 빼면 부모 환경 값이 상속된다) 진짜
 // ModuleNotFoundError 를 낸다. 나머지 경우는 PYTHONPATH 앞의 가짜 fontTools
 // 패키지가 설치본을 가린다(`-I` 는 PYTHONPATH 를 무시하므로 쓰지 않는다).
+// 표준 스트림 인코딩은 부모 PYTHONIOENCODING 이 `-X utf8` 보다 우선하므로
+// PYTHONIOENCODING 도 `utf-8` 로 덮어써 고정한다.
 // 스크립트는 저장소 루트를 cwd 로 돌리지 않는다 — 항상 임시 sandbox 에서 돌려
 // 추적 중인 assets/test_fonts 를 건드리지 않는다. 임시 디렉터리는 테스트가 끝나면
 // 지운다.
@@ -130,6 +132,8 @@ ProcessResult _run(_Sandbox box, _Stub stub, List<String> args) {
     stdoutEncoding: utf8,
     stderrEncoding: utf8,
     environment: <String, String>{
+      // -X utf8 보다 PYTHONIOENCODING 이 우선하므로 부모 값을 덮어쓴다
+      'PYTHONIOENCODING': 'utf-8',
       'PYTHONPATH': isMissing
           ? '${box.dir}/no-fonttools'
           : '${box.dir}/stub-present',
