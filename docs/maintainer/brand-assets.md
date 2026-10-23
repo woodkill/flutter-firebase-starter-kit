@@ -156,13 +156,13 @@ AOSP 시스템 폰트 `NotoSansCJK-Regular.ttc`(Android Studio `plugins/design-t
 더해지면 ja golden 에 tofu 가 보인다 — 그때 JP 파일을 다시 만든다. 한글은 완성형 전 음절을 담아
 다시 만들지 않는다.
 
-스크립트는 `.planning/phases/16.7-sign-in-method-and-linked-accounts-split/mockups/subset_cjk.py.txt`
-(비공개 작업 일지 — mirror 에 없음)에 있다. 저장소 루트에서 돌린다.
+스크립트는 `scripts/subset_cjk.py` 다. `lib/l10n/app_{ko,ja}.arb` 를 읽고 `assets/test_fonts/` 에
+쓰므로 저장소 루트에서 돌린다. 원본 파일의 sha256 이 스크립트에 고정한 값과 다르면 아무것도 쓰지 않고
+멈춘다.
 
 ```bash
 uv venv /tmp/ftenv && uv pip install --python /tmp/ftenv/bin/python fonttools==4.66.0
-cp .planning/phases/16.7-sign-in-method-and-linked-accounts-split/mockups/subset_cjk.py.txt /tmp/subset_cjk.py
-/tmp/ftenv/bin/python -X utf8 /tmp/subset_cjk.py "<NotoSansCJK-Regular.ttc 경로>"
+/tmp/ftenv/bin/python -X utf8 scripts/subset_cjk.py "<NotoSansCJK-Regular.ttc 경로>"
 ```
 
 - 도구: fonttools 4.66.0. `recalcTimestamp=False` 라 같은 입력으로 두 번 만들면 결과가 byte 단위로 같다(`cmp`).
