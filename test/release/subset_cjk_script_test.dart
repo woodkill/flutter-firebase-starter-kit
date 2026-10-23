@@ -1,14 +1,22 @@
 // CJK 시험 글꼴 subset 스크립트(scripts/subset_cjk.py)의 잘못된 호출 처리를
 // 실행해 고정한다 (Phase 21 TOOL-02 · D-34 — 리뷰 WR-03 · IN-05 · WR-04).
 //
-// 잘못 부르면 traceback 대신 한 줄 안내 + 종료 코드 1 로 끝나야 하고, 첫 쓰기
-// (build) 전에 멈춰 아무것도 쓰지 않아야 한다. 가드 6종(fontTools 없음 · 인자
-// 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님 · ARB 파일 없음)과, 가드가 올바른
-// 입력에 과하게 반응하지 않음을 보이는 양성 대조(sha256 불일치까지 도달)를
-// 고정한다.
+// 잘못 부르면 traceback 대신 한 줄 안내 + 종료 코드 1 로 끝나야 한다. 가드
+// 6종(fontTools 없음 · 인자 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님 · ARB
+// 파일 없음)과, 가드가 올바른 입력에 과하게 반응하지 않음을 보이는 양성
+// 대조(sha256 불일치까지 도달)를 고정한다.
 //
-// 결정성: 호스트의 fontTools 설치 여부와 무관하도록 PYTHONPATH 앞에 가짜
-// fontTools 패키지를 둔다(`-I` 는 PYTHONPATH 를 무시하므로 쓰지 않는다).
+// 고정력: 가짜 fontTools(빈 subset · 껍데기 TTFont)로는 build 가 첫 줄에서
+// traceback 으로 죽어, 어떤 가드를 빼도 파일이 써지지 않는다. 그래서 「첫
+// 쓰기 전에 멈춘다」 는 안내 원문 · traceback 부재 단언이 지키고(가드를 빼면
+// 다음 가드의 안내나 traceback 이 나온다) `writtenCount == 0` 은 보조 단언이다.
+// 실제 쓰기 순서(두 ARB 를 읽은 뒤 build)는 실제 원본이 있어야 해 시험 밖이다.
+//
+// 결정성: 호스트의 fontTools 설치 여부와 무관해야 한다. fontTools 없음 경우는
+// `-S`(site-packages · user site 를 sys.path 에 넣지 않음)로 돌리고 PYTHONPATH
+// 를 빈 디렉터리로 덮어써(키를 빼면 부모 환경 값이 상속된다) 진짜
+// ModuleNotFoundError 를 낸다. 나머지 경우는 PYTHONPATH 앞의 가짜 fontTools
+// 패키지가 설치본을 가린다(`-I` 는 PYTHONPATH 를 무시하므로 쓰지 않는다).
 // 스크립트는 저장소 루트를 cwd 로 돌리지 않는다 — 항상 임시 sandbox 에서 돌려
 // 추적 중인 assets/test_fonts 를 건드리지 않는다. 임시 디렉터리는 테스트가 끝나면
 // 지운다.
@@ -38,9 +46,9 @@ Object _skipUnlessPython() {
   }
 }
 
-/// 가짜 fontTools 패키지의 종류.
+/// 스크립트에 fontTools 를 보이는 방식.
 enum _Stub {
-  /// import 하면 ModuleNotFoundError.
+  /// fontTools 를 찾을 수 없다(`-S` + 빈 PYTHONPATH — 진짜 ModuleNotFoundError).
   missing,
 
   /// import 되는 빈 패키지(subset · ttLib.TTFont 노출).
@@ -56,12 +64,7 @@ class _Sandbox {
     final Directory root = Directory.systemTemp.createTempSync(
       'test-subset-cjk-',
     );
-    Directory(
-      '${root.path}/stub-missing/fontTools',
-    ).createSync(recursive: true);
-    File(
-      '${root.path}/stub-missing/fontTools/__init__.py',
-    ).writeAsStringSync('raise ModuleNotFoundError("fontTools")\n');
+    Directory('${root.path}/no-fonttools').createSync();
     Directory(
       '${root.path}/stub-present/fontTools/ttLib',
     ).createSync(recursive: true);
@@ -113,15 +116,19 @@ class _Sandbox {
 String _scriptPath() => '${Directory.current.path}/$_scriptRel';
 
 /// 문서화된 방식(`python3 -X utf8 <스크립트> <인자>`)으로 sandbox 에서 돌린다.
+///
+/// [_Stub.missing] 이면 `-S` 를 앞에 붙이고 PYTHONPATH 를 빈 디렉터리로 둔다.
 ProcessResult _run(_Sandbox box, _Stub stub, List<String> args) {
-  final stubDir = stub == _Stub.missing
-      ? '${box.dir}/stub-missing'
-      : '${box.dir}/stub-present';
+  final isMissing = stub == _Stub.missing;
   return Process.runSync(
     'python3',
-    <String>['-X', 'utf8', _scriptPath(), ...args],
+    <String>[if (isMissing) '-S', '-X', 'utf8', _scriptPath(), ...args],
     workingDirectory: box.cwd,
-    environment: <String, String>{'PYTHONPATH': stubDir},
+    environment: <String, String>{
+      'PYTHONPATH': isMissing
+          ? '${box.dir}/no-fonttools'
+          : '${box.dir}/stub-present',
+    },
   );
 }
 
