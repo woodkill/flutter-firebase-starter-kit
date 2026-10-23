@@ -25,6 +25,7 @@
 //
 // **값 모양 리터럴을 두지 않는다** — digest 는 정규식으로만 대조한다.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -118,12 +119,16 @@ String _scriptPath() => '${Directory.current.path}/$_scriptRel';
 /// 문서화된 방식(`python3 -X utf8 <스크립트> <인자>`)으로 sandbox 에서 돌린다.
 ///
 /// [_Stub.missing] 이면 `-S` 를 앞에 붙이고 PYTHONPATH 를 빈 디렉터리로 둔다.
+/// 스크립트는 `-X utf8` 로 쓰므로 stdout · stderr 를 UTF-8 로 읽는다 — 기본값
+/// systemEncoding 은 Windows 에서 활성 code page 라 한국어 안내가 깨진다.
 ProcessResult _run(_Sandbox box, _Stub stub, List<String> args) {
   final isMissing = stub == _Stub.missing;
   return Process.runSync(
     'python3',
     <String>[if (isMissing) '-S', '-X', 'utf8', _scriptPath(), ...args],
     workingDirectory: box.cwd,
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
     environment: <String, String>{
       'PYTHONPATH': isMissing
           ? '${box.dir}/no-fonttools'
