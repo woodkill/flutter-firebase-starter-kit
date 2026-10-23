@@ -6,8 +6,11 @@
 // 있는 유지보수자 트리에서만 돈다.
 //
 // T-21-SYNC-01: 두 가이드 · README 의 백틱 저장소 경로가 tracked 파일이거나 tracked
-//   파일을 담은 디렉터리다. 자리표시 · 튜토리얼이 만드는 경로 · 이름 붙인 예외 ·
-//   git 이 무시하는 경로는 뺀다. 두 가이드는 확인한 경로가 5개 이상이다.
+//   파일을 담은 디렉터리다. 저장소 경로는 디렉터리 머리(`lib/` · `.github/` 등)로
+//   시작하는 span 과 루트 파일 꼴(`pubspec.yaml` · `firestore.rules` · `KIT_VERSION`
+//   등) span 이다. 자리표시 · 튜토리얼이 만드는 경로 · 이름 붙인 예외 · git 이 무시하는
+//   경로 · 다른 디렉터리 tracked 파일의 이름만 적은 span 은 뺀다. 두 가이드는 확인한
+//   경로가 5개 이상이다.
 // T-21-SYNC-02: 위저드 단계의 `stepTitle` 값(28개 이상)이 setup.md 「위저드 실행」 절에
 //   모두 있다.
 // T-21-SYNC-03: 이름 붙인 예외 경로는 저장소에 없고, 세 문서 가운데 어딘가에 나온다.
@@ -62,7 +65,22 @@ const List<String> _repoPathHeads = <String>[
   'bin/',
   'hosting/',
   'extensions/',
+  '.github/',
 ];
+
+/// 저장소 루트 파일로 치는 백틱 span 이다 — `/` 없는 파일 이름에 루트 설정 파일
+/// 확장자다. 루트에 없고 다른 디렉터리에 같은 이름의 tracked 파일이 있으면 그 파일의
+/// 이름만 적은 것으로 본다([_PathKind.bareName]).
+final RegExp _rootFileSpan = RegExp(
+  r'^[A-Za-z_.][A-Za-z0-9_.-]*\.(rules|yaml|json|sh|md)$',
+);
+
+/// 확장자로 고를 수 없는 저장소 루트 파일이다.
+const Set<String> _rootNamedFiles = <String>{
+  'KIT_VERSION',
+  '.fvmrc',
+  '.firebaserc',
+};
 
 /// 자리표시로 치는 글자다 — 이 글자가 든 경로는 독자가 바꿔 쓰는 꼴이다.
 const List<String> _placeholderMarks = <String>['<', '*', '{', r'$'];
@@ -140,13 +158,18 @@ enum _PathKind {
   /// git 이 무시하는 경로다(사용자 파일 · 생성물).
   ignored,
 
+  /// 루트에 없고 다른 디렉터리 tracked 파일의 이름만 적은 span 이다.
+  bareName,
+
   /// 어디에도 없는 경로다.
   missing,
 }
 
-/// [markdown] 의 인라인 백틱 span 가운데 저장소 경로 머리로 시작하는 것을 모은다.
+/// [markdown] 의 인라인 백틱 span 가운데 저장소 경로를 모은다.
 ///
-/// 코드 펜스 안의 줄은 보지 않는다. 경로는 [_normalizePathSpan] 으로 정규화한다.
+/// 저장소 경로는 [_repoPathHeads] 머리로 시작하는 span 과, 정규화한 꼴이 루트 파일
+/// 꼴([_isRootFileSpan])인 span 이다. 코드 펜스 안의 줄은 보지 않는다. 경로는
+/// [_normalizePathSpan] 으로 정규화한다.
 List<_PathMention> _collectRepoPathMentions(String markdown) {
   final mentions = <_PathMention>[];
   final List<String> lines = markdown.split('\n');
@@ -162,13 +185,18 @@ List<_PathMention> _collectRepoPathMentions(String markdown) {
     }
     for (final RegExpMatch match in _backtickSpan.allMatches(line)) {
       final String span = match.group(1)!.trim();
-      if (_repoPathHeads.any(span.startsWith)) {
-        mentions.add(_PathMention(i + 1, _normalizePathSpan(span)));
+      final String path = _normalizePathSpan(span);
+      if (_repoPathHeads.any(span.startsWith) || _isRootFileSpan(path)) {
+        mentions.add(_PathMention(i + 1, path));
       }
     }
   }
   return mentions;
 }
+
+/// 정규화한 span [path] 가 저장소 루트 파일 꼴인지 본다.
+bool _isRootFileSpan(String path) =>
+    _rootNamedFiles.contains(path) || _rootFileSpan.hasMatch(path);
 
 /// 백틱 span [span] 에서 끝 구두점과 `:줄` 꼬리를 뗀다.
 String _normalizePathSpan(String span) => span
@@ -191,11 +219,18 @@ Set<String> _collectTrackedDirs(Set<String> tracked) {
   return dirs;
 }
 
+/// tracked 파일 [tracked] 가운데 디렉터리 안 파일의 이름(마지막 `/` 뒤)을 모은다.
+Set<String> _collectNestedBaseNames(Set<String> tracked) => <String>{
+  for (final file in tracked)
+    if (file.contains('/')) file.substring(file.lastIndexOf('/') + 1),
+};
+
 /// git 없이 정할 수 있는 갈래를 돌려준다 — 정하지 못하면 `null` 이다.
 _PathKind? _classifyKnownPath(
   String path,
   Set<String> tracked,
   Set<String> trackedDirs,
+  Set<String> nestedBaseNames,
 ) {
   if (_placeholderMarks.any(path.contains)) {
     return _PathKind.placeholder;
@@ -214,13 +249,16 @@ _PathKind? _classifyKnownPath(
   if (tracked.contains(bare) || trackedDirs.contains(bare)) {
     return _PathKind.tracked;
   }
+  if (!bare.contains('/') && nestedBaseNames.contains(bare)) {
+    return _PathKind.bareName;
+  }
   return null;
 }
 
 /// 경로 [paths] 를 판정 갈래로 나눈다(경로마다 하나).
 ///
 /// 자리표시 → 튜토리얼 경로 → 이름 붙인 예외 → tracked 파일 · tracked 파일을 담은
-/// 디렉터리 순으로 보고, 남은 경로는 [findIgnored] 가 돌려준 무시 경로면 무시,
+/// 디렉터리 → 다른 디렉터리 tracked 파일의 이름만 적은 `/` 없는 span 순으로 보고, 남은 경로는 [findIgnored] 가 돌려준 무시 경로면 무시,
 /// 아니면 없음이다. 무시 판정은 문서에 쓴 그대로의 경로로 한다 — 끝 `/` 가 있어야
 /// 디렉터리 규칙에 걸리는 경로가 있다.
 Map<String, _PathKind> _classifyPaths(
@@ -229,10 +267,16 @@ Map<String, _PathKind> _classifyPaths(
   required Set<String> Function(List<String> paths) findIgnored,
 }) {
   final Set<String> trackedDirs = _collectTrackedDirs(tracked);
+  final Set<String> nestedBaseNames = _collectNestedBaseNames(tracked);
   final kinds = <String, _PathKind>{};
   final unresolved = <String>[];
   for (final String path in paths.toSet()) {
-    final _PathKind? kind = _classifyKnownPath(path, tracked, trackedDirs);
+    final _PathKind? kind = _classifyKnownPath(
+      path,
+      tracked,
+      trackedDirs,
+      nestedBaseNames,
+    );
     if (kind == null) {
       unresolved.add(path);
     } else {
@@ -299,6 +343,8 @@ void main() {
         'cat `lib/fence.dart`',
         '```',
         '`config/dev.json,`',
+        '`pubspec.yaml` · `firestore.rules:3` · `KIT_VERSION` · `.github/x.yml`.',
+        '`Contents.json` · `fvm dart format` · `app_ko.arb` · `.gitignore`.',
       ].join('\n'),
     );
     expect(
@@ -311,6 +357,11 @@ void main() {
         '2:ios/',
         '3:lib/features/<기능>/',
         '7:config/dev.json',
+        '8:pubspec.yaml',
+        '8:firestore.rules',
+        '8:KIT_VERSION',
+        '8:.github/x.yml',
+        '9:Contents.json',
       ],
     );
 
@@ -318,6 +369,9 @@ void main() {
       'lib/a.dart',
       'test/b/c_test.dart',
       'docs/guide.md',
+      'pubspec.yaml',
+      '.github/x.yml',
+      'ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json',
     };
     final Map<String, _PathKind> kinds = _classifyPaths(
       <String>[
@@ -330,6 +384,10 @@ void main() {
         'config/dev.json',
         'lib/gone.dart',
         'lib/a',
+        'pubspec.yaml',
+        '.github/x.yml',
+        'Contents.json',
+        'firestor.rules',
       ],
       tracked: tracked,
       findIgnored: (List<String> paths) =>
@@ -346,6 +404,12 @@ void main() {
       // 없는 경로를 잡는다 — 파일 이름의 앞부분은 디렉터리가 아니다.
       'lib/gone.dart': _PathKind.missing,
       'lib/a': _PathKind.missing,
+      // 루트 파일 · `.github/` 경로를 확인한다.
+      'pubspec.yaml': _PathKind.tracked,
+      '.github/x.yml': _PathKind.tracked,
+      // 다른 디렉터리 파일의 이름만 적은 span 은 빼고, 오타 난 루트 파일은 잡는다.
+      'Contents.json': _PathKind.bareName,
+      'firestor.rules': _PathKind.missing,
     });
   });
 
@@ -373,6 +437,7 @@ void main() {
           '튜토리얼 ${_countMentions(mentions, kinds, _PathKind.tutorial)} · '
           '예외 ${_countMentions(mentions, kinds, _PathKind.namedAbsent)} · '
           '무시 ${_countMentions(mentions, kinds, _PathKind.ignored)} · '
+          '이름만 ${_countMentions(mentions, kinds, _PathKind.bareName)} · '
           '없음 ${missing.length}',
         );
         expect(missing, isEmpty, reason: '문서가 가리키는 저장소 경로가 없다(파일:줄 → 경로)');

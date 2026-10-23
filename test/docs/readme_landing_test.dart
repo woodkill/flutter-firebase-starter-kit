@@ -58,9 +58,12 @@ const Map<String, String> _languageNames = <String, String>{
 };
 
 /// 「전제」 절이 담아야 하는 글자 — FVM · dev Firebase · flavor · 켜고 끄기 · 패키지명.
+///
+/// dev Firebase 는 낱말 `dev` 가 아니라 문장 조각으로 본다 — 낱말 하나는 `developer`
+/// 같은 다른 낱말에도 맞는다.
 const List<String> _prerequisiteTokens = <String>[
   'fvm',
-  'dev',
+  'dev flavor 만 실제 Firebase 프로젝트',
   '--flavor',
   '켜고 끄기',
   'flutter_starter_kit',
