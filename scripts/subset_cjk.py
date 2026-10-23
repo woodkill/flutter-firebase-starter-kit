@@ -58,7 +58,8 @@ def build(src, index, out, unicodes):
     sub.populate(unicodes=sorted(unicodes))
     sub.subset(font)
     font.save(out)
-    digest = hashlib.sha256(open(out, "rb").read()).hexdigest()
+    with open(out, "rb") as fp:
+        digest = hashlib.sha256(fp.read()).hexdigest()
     glyphs = len(font.getBestCmap())
     print(f"{out} {os.path.getsize(out)} bytes cmap={glyphs} sha256={digest}")
 
@@ -75,7 +76,8 @@ def main():
         sys.exit(f"원본 파일이 없다: {src}")
     if not (os.path.isdir(L10N) and os.path.isdir(OUT)):
         sys.exit(f"{L10N} · {OUT} 가 없다 — 저장소 루트에서 돌린다.")
-    actual = hashlib.sha256(open(src, "rb").read()).hexdigest()
+    with open(src, "rb") as fp:
+        actual = hashlib.sha256(fp.read()).hexdigest()
     if actual != SRC_SHA256:
         sys.exit(f"원본 sha256 불일치: {actual}")
     extra = {ord(c) for c in FIXTURE_EXTRA}
