@@ -433,6 +433,7 @@ Naver 로그인을 앱에 둘 때 이 절을 따른다. Naver 를 켜지 않으�
 - **위저드가 `Client ID · Client Secret 짝이 맞지 않습니다` 를 보인다.** 위저드가 두 값을 함께 다시 묻는다 — 같은 애플리케이션의 Client ID 와 Client Secret 을 다시 복사해 넣는다.
 - **위저드가 `Client ID · Client Secret 을 서버에서 확인하지 못했습니다` 를 보인다.** Naver 서버에 닿지 못한 것이다 — 네트워크 연결을 확인하고 `./setup.sh --providers` 를 다시 실행한다.
 - **iOS 에서 Naver 로그인 뒤 앱으로 돌아오지 않는다.** 콘솔 iOS 환경의 `URL Scheme` 과 위저드에 넣은 `Naver URL Scheme` 이 다르다 — 두 값을 값 표의 `iOS URL Scheme` 값으로 맞춘다. 위저드 값을 고치려면 `config/<flavor>.json` 의 `naverUrlScheme` 을 고친 뒤 `./setup.sh --providers` 를 다시 실행하고 앱을 다시 빌드한다.
+- **Android 에서 Naver 버튼을 눌렀는데 오류 배너 없이 로그인 화면으로 돌아온다.** Android 의 Naver 로그인 플러그인은 사용자가 취소한 경우뿐 아니라 오류 설명에 `cancel` 이 든 오류(네트워크 오류 등)도 취소로 앱에 넘긴다. 앱은 취소를 배너 없이 처리하므로 이런 실패는 화면에 드러나지 않는다. debug 빌드의 로그에 `Naver logIn cancel: status=loggedOut` 줄이 있으면 취소로 끝난 것이다 — 네트워크 연결을 확인한 뒤 다시 로그인한다.
 - **NAVER 앱이 없는 기기의 웹 로그인이 로그인 화면 대신 Naver 오류 페이지로 끝난다.** 웹 로그인이 돌아올 주소(`<URL Scheme>://authorize`)를 Naver 가 받아들이는지 PC 브라우저로 확인한다. 아래 주소의 `<clientId>` 에 Client ID 를, `<naverUrlScheme>` 에 값 표의 `iOS URL Scheme` 값을 넣어 연다 — `client_secret` 은 넣지 않는다.
 
   ```text
