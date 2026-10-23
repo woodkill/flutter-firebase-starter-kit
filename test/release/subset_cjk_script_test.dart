@@ -1,10 +1,12 @@
 // CJK 시험 글꼴 subset 스크립트(scripts/subset_cjk.py)의 잘못된 호출 처리를
-// 실행해 고정한다 (Phase 21 TOOL-02 · D-34 — 리뷰 WR-03 · IN-05 · WR-04).
+// 실행해 고정한다 (Phase 21 TOOL-02 · D-34 — 리뷰 WR-03 · IN-05 · WR-04 ·
+// IN-12).
 //
 // 잘못 부르면 traceback 대신 한 줄 안내 + 종료 코드 1 로 끝나야 한다. 가드
-// 6종(fontTools 없음 · 인자 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님 · ARB
-// 파일 없음)과, 가드가 올바른 입력에 과하게 반응하지 않음을 보이는 양성
-// 대조(sha256 불일치까지 도달)를 고정한다.
+// 7종(fontTools 없음 · 인자 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님 · ARB
+// 파일 없음 · ARB 를 읽을 수 없음)과, 가드가 올바른 입력에 과하게 반응하지
+// 않음을 보이는 양성 대조(sha256 불일치까지 도달)를 고정한다. 스크립트는 두
+// ARB 를 sha256 보다 먼저 읽으므로 가짜 원본으로도 읽기 가드에 닿는다.
 //
 // 고정력: 가짜 fontTools(빈 subset · 껍데기 TTFont)로는 build 가 첫 줄에서
 // traceback 으로 죽어, 어떤 가드를 빼도 파일이 써지지 않는다. 그래서 「첫
@@ -226,5 +228,30 @@ void main() {
     );
     expect(err.trim(), 'ARB 파일이 없다: lib/l10n/app_ja.arb');
     expect(box.writtenCount, 0);
+  }, skip: skip);
+
+  test('T-21-SUBSET-08: 깨졌거나 객체가 아닌 app_ja.arb 는 sha256 전에 그 파일 안내로 끝난다', () {
+    // 깨진 JSON(ValueError 경로)과 최상위 배열(dict 검사 경로)을 차례로 본다
+    final cases = <(String, Matcher)>[
+      (
+        '{\n',
+        matches(RegExp(r'^ARB 를 읽을 수 없다: lib/l10n/app_ja\.arb — [^\n]+$')),
+      ),
+      (
+        '[]\n',
+        equals('ARB 를 읽을 수 없다: lib/l10n/app_ja.arb — 최상위가 JSON 객체가 아니다'),
+      ),
+    ];
+    final String src = box.makeFakeSource();
+    box.makeRepoLayout();
+    final arb = File('${box.cwd}/lib/l10n/app_ja.arb');
+    for (final (body, expected) in cases) {
+      arb.writeAsStringSync(body);
+      final String err = _expectCleanFailure(
+        _run(box, _Stub.present, <String>[src]),
+      );
+      expect(err.trim(), expected, reason: 'ARB 내용: $body');
+      expect(box.writtenCount, 0);
+    }
   }, skip: skip);
 }

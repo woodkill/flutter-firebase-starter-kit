@@ -45,9 +45,20 @@ def arb_path(locale):
 
 
 def arb_codepoints(locale):
-    """ARB 값 문자열(메타 `@` 키 제외)에 쓰인 code point 집합."""
-    with open(arb_path(locale), encoding="utf-8") as fp:
-        data = json.load(fp)
+    """ARB 값 문자열(메타 `@` 키 제외)에 쓰인 code point 집합.
+
+    읽지 못하거나(권한 · 인코딩 · JSON) 최상위가 객체가 아니면 그 ARB 상대 경로를 담은 한 줄 안내로 멈춘다.
+    """
+    path = arb_path(locale)
+    try:
+        with open(path, encoding="utf-8") as fp:
+            data = json.load(fp)
+    except (OSError, ValueError) as exc:
+        # JSONDecodeError · UnicodeDecodeError 는 ValueError, PermissionError 는 OSError 다.
+        # JSONDecodeError 메시지에는 파일 이름이 없어 상대 경로를 앞에 붙인다
+        sys.exit(f"ARB 를 읽을 수 없다: {path} — {exc}")
+    if not isinstance(data, dict):
+        sys.exit(f"ARB 를 읽을 수 없다: {path} — 최상위가 JSON 객체가 아니다")
     return {ord(c) for k, v in data.items() if not k.startswith("@") and isinstance(v, str) for c in v}
 
 
@@ -84,14 +95,15 @@ def main():
     missing = [p for p in (arb_path("ko"), arb_path("ja")) if not os.path.isfile(p)]
     if missing:
         sys.exit("ARB 파일이 없다: " + " · ".join(missing))
+    # 두 ARB 를 다 읽은 뒤에 첫 build — ja 를 읽다 실패해도 KR 만 남는 부분 쓰기가 없다.
+    # 작은 ARB 를 원본(32 MB) sha256 보다 먼저 읽는다 — 가짜 원본으로도 읽기 가드를 시험할 수 있다
+    ko = arb_codepoints("ko")
+    ja = arb_codepoints("ja")
     with open(src, "rb") as fp:
         actual = hashlib.sha256(fp.read()).hexdigest()
     if actual != SRC_SHA256:
         sys.exit(f"원본 sha256 불일치: {actual}")
     extra = {ord(c) for c in FIXTURE_EXTRA}
-    # 두 ARB 를 다 읽은 뒤에 첫 build — ja 를 읽다 실패해도 KR 만 남는 부분 쓰기가 없다
-    ko = arb_codepoints("ko")
-    ja = arb_codepoints("ja")
     build(src, 1, f"{OUT}/NotoSansCJKKR-Regular-Subset.otf", ASCII | HANGUL | ko | extra)
     build(src, 0, f"{OUT}/NotoSansCJKJP-Regular-Subset.otf", ASCII | KANA | ja | extra)
 

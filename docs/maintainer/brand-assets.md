@@ -157,8 +157,8 @@ AOSP 시스템 폰트 `NotoSansCJK-Regular.ttc`(Android Studio `plugins/design-t
 다시 만들지 않는다.
 
 스크립트는 `scripts/subset_cjk.py` 다. `lib/l10n/app_{ko,ja}.arb` 를 읽고 `assets/test_fonts/` 에
-쓰므로 저장소 루트에서 돌린다. 두 ARB 중 하나라도 없거나 원본 파일의 sha256 이 스크립트에 고정한 값과
-다르면 아무것도 쓰지 않고 멈춘다.
+쓰므로 저장소 루트에서 돌린다. 두 ARB 중 하나라도 없거나 읽을 수 없거나 원본 파일의 sha256 이 스크립트에
+고정한 값과 다르면 아무것도 쓰지 않고 멈춘다.
 
 ```bash
 uv venv /tmp/ftenv && uv pip install --python /tmp/ftenv/bin/python fonttools==4.66.0
