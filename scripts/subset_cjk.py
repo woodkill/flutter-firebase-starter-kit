@@ -39,9 +39,14 @@ HANGUL = set(range(0xAC00, 0xD7A4)) | set(range(0x3130, 0x3190))  # 완성형 �
 KANA = set(range(0x3000, 0x3100)) | set(range(0xFF00, 0xFFF0))  # CJK 기호 · 히라가나 · 가타카나 · 전각
 
 
+def arb_path(locale):
+    """[locale] 의 ARB 파일 경로."""
+    return f"{L10N}/app_{locale}.arb"
+
+
 def arb_codepoints(locale):
     """ARB 값 문자열(메타 `@` 키 제외)에 쓰인 code point 집합."""
-    with open(f"{L10N}/app_{locale}.arb", encoding="utf-8") as fp:
+    with open(arb_path(locale), encoding="utf-8") as fp:
         data = json.load(fp)
     return {ord(c) for k, v in data.items() if not k.startswith("@") and isinstance(v, str) for c in v}
 
@@ -65,9 +70,9 @@ def build(src, index, out, unicodes):
 
 
 def main():
-    """인자 · 원본 · 작업 위치를 확인하고 ko(KR) · ja(JP) subset 두 개를 만든다.
+    """인자 · 원본 · 작업 위치 · ARB 를 확인하고 ko(KR) · ja(JP) subset 두 개를 만든다.
 
-    검사는 모두 첫 쓰기(build) 전이다 — 하나라도 어긋나면 아무것도 쓰지 않고 멈춘다.
+    검사와 두 ARB 읽기는 모두 첫 쓰기(build) 전이다 — 하나라도 어긋나면 아무것도 쓰지 않고 멈춘다.
     """
     if len(sys.argv) != 2:
         sys.exit(f"사용법: python -X utf8 {sys.argv[0]} <NotoSansCJK-Regular.ttc 경로>")
@@ -76,13 +81,19 @@ def main():
         sys.exit(f"원본 파일이 없다: {src}")
     if not (os.path.isdir(L10N) and os.path.isdir(OUT)):
         sys.exit(f"{L10N} · {OUT} 가 없다 — 저장소 루트에서 돌린다.")
+    missing = [p for p in (arb_path("ko"), arb_path("ja")) if not os.path.isfile(p)]
+    if missing:
+        sys.exit("ARB 파일이 없다: " + " · ".join(missing))
     with open(src, "rb") as fp:
         actual = hashlib.sha256(fp.read()).hexdigest()
     if actual != SRC_SHA256:
         sys.exit(f"원본 sha256 불일치: {actual}")
     extra = {ord(c) for c in FIXTURE_EXTRA}
-    build(src, 1, f"{OUT}/NotoSansCJKKR-Regular-Subset.otf", ASCII | HANGUL | arb_codepoints("ko") | extra)
-    build(src, 0, f"{OUT}/NotoSansCJKJP-Regular-Subset.otf", ASCII | KANA | arb_codepoints("ja") | extra)
+    # 두 ARB 를 다 읽은 뒤에 첫 build — ja 를 읽다 실패해도 KR 만 남는 부분 쓰기가 없다
+    ko = arb_codepoints("ko")
+    ja = arb_codepoints("ja")
+    build(src, 1, f"{OUT}/NotoSansCJKKR-Regular-Subset.otf", ASCII | HANGUL | ko | extra)
+    build(src, 0, f"{OUT}/NotoSansCJKJP-Regular-Subset.otf", ASCII | KANA | ja | extra)
 
 
 if __name__ == "__main__":

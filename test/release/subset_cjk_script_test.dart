@@ -1,10 +1,11 @@
 // CJK 시험 글꼴 subset 스크립트(scripts/subset_cjk.py)의 잘못된 호출 처리를
-// 실행해 고정한다 (Phase 21 TOOL-02 · D-34 — 리뷰 WR-03 · IN-05).
+// 실행해 고정한다 (Phase 21 TOOL-02 · D-34 — 리뷰 WR-03 · IN-05 · WR-04).
 //
 // 잘못 부르면 traceback 대신 한 줄 안내 + 종료 코드 1 로 끝나야 하고, 첫 쓰기
-// (build) 전에 멈춰 아무것도 쓰지 않아야 한다. 가드 5종(fontTools 없음 · 인자
-// 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님)과, 가드가 올바른 입력에 과하게
-// 반응하지 않음을 보이는 양성 대조(sha256 불일치까지 도달)를 고정한다.
+// (build) 전에 멈춰 아무것도 쓰지 않아야 한다. 가드 6종(fontTools 없음 · 인자
+// 0개 · 인자 2개 · 원본 없음 · 작업 위치 아님 · ARB 파일 없음)과, 가드가 올바른
+// 입력에 과하게 반응하지 않음을 보이는 양성 대조(sha256 불일치까지 도달)를
+// 고정한다.
 //
 // 결정성: 호스트의 fontTools 설치 여부와 무관하도록 PYTHONPATH 앞에 가짜
 // fontTools 패키지를 둔다(`-I` 는 PYTHONPATH 를 무시하므로 쓰지 않는다).
@@ -81,9 +82,12 @@ class _Sandbox {
   /// 스크립트를 돌릴 cwd.
   String get cwd => '$dir/cwd';
 
-  /// cwd 아래에 lib/l10n · assets/test_fonts 를 빈 채로 만든다.
+  /// cwd 아래에 lib/l10n(최소 ARB `{}` 두 개) · 빈 assets/test_fonts 를 만든다.
   void makeRepoLayout() {
     Directory('$cwd/lib/l10n').createSync(recursive: true);
+    for (final locale in <String>['ko', 'ja']) {
+      File('$cwd/lib/l10n/app_$locale.arb').writeAsStringSync('{}\n');
+    }
     Directory('$cwd/assets/test_fonts').createSync(recursive: true);
   }
 
@@ -195,6 +199,16 @@ void main() {
       _run(box, _Stub.present, <String>[box.makeFakeSource()]),
     );
     expect(err.trim(), matches(RegExp(r'^원본 sha256 불일치: [0-9a-f]{64}$')));
+    expect(box.writtenCount, 0);
+  }, skip: skip);
+
+  test('T-21-SUBSET-07 app_ja.arb 가 없으면 sha256 · build 전에 그 파일 안내로 끝난다', () {
+    box.makeRepoLayout();
+    File('${box.cwd}/lib/l10n/app_ja.arb').deleteSync();
+    final String err = _expectCleanFailure(
+      _run(box, _Stub.present, <String>[box.makeFakeSource()]),
+    );
+    expect(err.trim(), 'ARB 파일이 없다: lib/l10n/app_ja.arb');
     expect(box.writtenCount, 0);
   }, skip: skip);
 }
