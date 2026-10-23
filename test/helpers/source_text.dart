@@ -1,13 +1,11 @@
-// 소스 텍스트 감사용 공용 헬퍼 (코드 리뷰 WR-04(R2)).
+// 소스 텍스트 감사용 공용 헬퍼 — 사본을 두지 않는다.
 //
 // `test/` 의 여러 계약 test 가 tracked 소스 파일을 **문자열로 읽어** 규칙 위반을
-// 센다. 그때 필요한 헬퍼(파일 읽기 · 행 주석 제거 · 등장 횟수 세기)가 3개 test
-// 파일에 본문까지 똑같이 복제돼 있었다. DRY 위반일 뿐 아니라 실제 위험은
-// divergence 다 — 사본 하나만 「주석 제거 규칙」 이 바뀌면(예: 인라인 `#` 주석까지
-// 제거) 같은 이름의 함수가 파일마다 다르게 동작하면서 감사용 카운트가 갈린다.
-// 여기 한 번만 정의하고 모든 호출자가 import 한다. 사용자 문서(`docs/setup.md` · `docs/guide.md`)
-// 계약 test 들의 절 자르기 · 줄 모으기 헬퍼도 같은 이유로 여기 있다(Phase 17.2
-// 코드 리뷰 IN-10).
+// 센다. 그때 필요한 헬퍼(파일 읽기 · 행 주석 제거 · 등장 횟수 세기)와 사용자
+// 문서(`docs/setup.md` · `docs/guide.md` · README) 계약 test 들의 절 자르기 · 줄
+// 모으기 헬퍼를 여기 한 번만 정의하고 모든 호출자가 import 한다. 사본이 생기면
+// 하나만 「주석 제거 규칙」 이 바뀌어(예: 인라인 `#` 주석까지 제거) 같은 이름의
+// 함수가 파일마다 다르게 동작하면서 감사용 카운트가 갈린다.
 //
 // **주석을 걷어낸 뒤 세는 이유:** 설명 주석이 감사용 카운트를 오염시킨다.
 // 「금지 문자열 0건」 을 세는 단언은 그 문자열을 언급한 설명 주석 한 줄에도 red 가
@@ -80,7 +78,7 @@ int countOccurrences(String haystack, String needle) {
 /// 3 이면 `## ` · `### ` 이다. [heading] 은 정확히 한 줄이어야 하며, 없으면 빈
 /// 문자열을 돌려준다(호출자가 「비어 있지 않음 · 헤딩 1회」 양성 대조를 세운다).
 ///
-/// 매뉴얼 계약 test 들이 같은 자르기 규칙을 쓰게 여기 한 번만 둔다 — 사본마다
+/// 문서 계약 test 들이 같은 자르기 규칙을 쓰게 여기 한 번만 둔다 — 사본마다
 /// 경계 규칙이 갈리면 같은 헤딩의 슬라이스가 파일마다 다른 범위가 된다.
 String sliceMarkdownSection(
   String text,
@@ -105,12 +103,13 @@ String sliceMarkdownSection(
 List<String> linesStartingWith(String text, String prefix) =>
     text.split('\n').where((String line) => line.startsWith(prefix)).toList();
 
-/// 매뉴얼에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를 돌려준다.
+/// 마크다운 [markdown] 에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를
+/// 돌려준다.
 ///
 /// 목차 링크 문자열은 본문에도 다시 나오므로(다른 절의 안내 링크) 목차 블록
 /// 안에서만 센다. 블록이 없으면 빈 문자열이다.
-String sliceTocBlock(String manual) {
-  final List<String> lines = manual.split('\n');
+String sliceTocBlock(String markdown) {
+  final List<String> lines = markdown.split('\n');
   final int start = lines.indexOf('## 목차');
   if (start == -1) {
     return '';
@@ -148,7 +147,7 @@ int countExactLines(String text, String line) =>
 ///
 /// `.claude/rules/docs-user-manual.md` §4 표 전체(planning 경로 · phase 번호 ·
 /// 결정 · 리뷰 ID · quick · 세션 식별자 · 커밋 해시 · 판정 서술 · 내부 도구 이름 ·
-/// 날짜)를 한 정규식으로 적는다. 매뉴얼 · README · 공개 문서(CHANGELOG ·
+/// 날짜)를 한 정규식으로 적는다. 두 가이드 · README · 공개 문서(CHANGELOG ·
 /// CONTRIBUTING · 이슈 · PR 템플릿) 계약 테스트가 모두 이 상수를 import 한다 —
 /// 사본을 두면 규칙이 바뀔 때 파일마다 다른 패턴으로 세게 된다. 플랜 verify 의
 /// `FP` 와 글자 그대로 같다.
