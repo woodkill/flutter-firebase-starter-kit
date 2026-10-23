@@ -258,9 +258,10 @@ _PathKind? _classifyKnownPath(
 /// 경로 [paths] 를 판정 갈래로 나눈다(경로마다 하나).
 ///
 /// 자리표시 → 튜토리얼 경로 → 이름 붙인 예외 → tracked 파일 · tracked 파일을 담은
-/// 디렉터리 → 다른 디렉터리 tracked 파일의 이름만 적은 `/` 없는 span 순으로 보고, 남은 경로는 [findIgnored] 가 돌려준 무시 경로면 무시,
-/// 아니면 없음이다. 무시 판정은 문서에 쓴 그대로의 경로로 한다 — 끝 `/` 가 있어야
-/// 디렉터리 규칙에 걸리는 경로가 있다.
+/// 디렉터리 → 다른 디렉터리 tracked 파일의 이름만 적은 `/` 없는 span 순으로 보고,
+/// 남은 경로는 [findIgnored] 가 돌려준 무시 경로면 무시, 아니면 없음이다. 무시
+/// 판정은 문서에 쓴 그대로의 경로로 한다 — 끝 `/` 가 있어야 디렉터리 규칙에 걸리는
+/// 경로가 있다.
 Map<String, _PathKind> _classifyPaths(
   Iterable<String> paths, {
   required Set<String> tracked,
@@ -343,7 +344,8 @@ void main() {
         'cat `lib/fence.dart`',
         '```',
         '`config/dev.json,`',
-        '`pubspec.yaml` · `firestore.rules:3` · `KIT_VERSION` · `.github/x.yml`.',
+        '`pubspec.yaml` · `firestore.rules:3` · `KIT_VERSION`.',
+        '`.github/x.yml` 도 본다.',
         '`Contents.json` · `fvm dart format` · `app_ko.arb` · `.gitignore`.',
       ].join('\n'),
     );
@@ -360,8 +362,8 @@ void main() {
         '8:pubspec.yaml',
         '8:firestore.rules',
         '8:KIT_VERSION',
-        '8:.github/x.yml',
-        '9:Contents.json',
+        '9:.github/x.yml',
+        '10:Contents.json',
       ],
     );
 
