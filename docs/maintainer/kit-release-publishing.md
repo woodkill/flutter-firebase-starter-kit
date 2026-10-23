@@ -38,9 +38,11 @@
 - 도구:
   - `git-filter-repo` — `brew install git-filter-repo`
   - `gitleaks` — `brew install gitleaks`(Homebrew core 공식 formula). 설정은 공개 루트
-    `.gitleaks.toml` 하나다 — 기본 규칙(`useDefault = true`) + 최소 허용 목록(옛
-    `ios/Podfile.lock` 의 CocoaPods 체크섬 줄만). `scan` 은 `--config` 없이 mirror 루트의 이
-    파일을 읽는다. `.gitleaksignore` · `gitleaks:allow` 주석은 쓰지 않는다.
+    `.gitleaks.toml` 하나다 — 기본 규칙(`useDefault = true`) + 최소 허용 목록 2개. 둘 다
+    `generic-api-key` 규칙만 풀고, 옛 `ios/Podfile.lock` 의 CocoaPods 체크섬 줄(줄 모양)과
+    설정 위저드 시험 `test/tool/setup/*_test.dart` 의 가짜 값(키 해시 1개 · UUID 꼴 App Check
+    디버그 토큰 3개 · 값 그대로)만 허용한다. `scan` 은 `--config` 없이 mirror 루트의 이 파일을
+    읽는다. `.gitleaksignore` · `gitleaks:allow` 주석은 쓰지 않는다.
   - `gh` — `gh auth login` 으로 로그인해 둔다(`push` 뒤 단계 · Release · 저장소 설정).
   - `fvm` · `pnpm` · `jq` — `verify` 가 fresh clone 에서 Flutter · functions 를 돌린다.
 - 비공개 저장소의 커밋을 모두 마친 뒤 `git push origin master` 를 한다. `mirror` 는 origin
@@ -234,7 +236,8 @@ D-28 순서다 — 새 저장소를 비공개로 만들고 검수를 마친 뒤 
 - `scan` 이 `FAIL: gitleaks 가 <N>건을 찾았다` 로 끝나면 허용 목록을 넓히지 않는다 —
   `build/publish/gitleaks.json`(값은 가려져 있다)에서 규칙 · 파일 · 건수만 보고 판정한다.
   실 값으로 보이면 허용 목록에 넣지 않고 값을 폐기한다. 실 값이 아님이 확인된 묶음만 경로 +
-  줄 모양으로 좁게 `.gitleaks.toml` 에 허용한다.
+  줄 모양 또는 값 그대로 좁게 `.gitleaks.toml` 에 허용하고, 그 허용 목록을 고정하는
+  T-174-HYG-06(`test/release/release_hygiene_contract_test.dart`)의 기대값을 함께 고친다.
 
 ## 함정
 
