@@ -208,7 +208,7 @@ void main() {
         isEmpty,
         reason:
             '가이드 ⑤ 에 사용자 문서 금지 패턴이 있다 — 작업 이력 · 내부 식별자를 '
-            '현재형 설명으로 바꾼다(.claude/rules/docs-user-guide.md): $hits',
+            '현재형 설명으로 바꾼다(.claude/rules/docs-user-manual.md): $hits',
       );
     });
 
@@ -453,7 +453,7 @@ void main() {
         isEmpty,
         reason:
             'SPM ② 경고 박스에 사용자 문서 금지 패턴이 있다 — 현재형 설명으로 '
-            '바꾼다(.claude/rules/docs-user-guide.md): $hits',
+            '바꾼다(.claude/rules/docs-user-manual.md): $hits',
       );
 
       final List<List<String>> rows = _collectDataRows(
