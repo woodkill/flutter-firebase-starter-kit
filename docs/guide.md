@@ -1,6 +1,7 @@
 # 직접 하는 일 — 내 앱 만들고 출시하기
 
-이 문서는 위저드로 준비한 앱을 내 앱으로 바꾸고 출시 · 운영하는 일 — 화면 · 기능 · 디자인 바꾸기, Firebase 서비스 쓰기, 빌드 · 출시, 운영, 킷 업데이트 반영 — 을 다룬다. 먼저 [설정 위저드로 앱 준비하기](setup.md) 로 처음 설정을 끝낸다.
+이 문서는 위저드로 준비한 앱을 내 앱으로 바꾸고 출시 · 운영하는 일 — 화면 · 기능 · 디자인 바꾸기, Firebase 서비스 쓰기, 빌드 · 출시, 운영, 킷 업데이트 반영 — 을 다룬다.
+- 먼저 [설정 위저드로 앱 준비하기](setup.md) 로 처음 설정을 끝낸다.
 
 ## 목차
 
@@ -3233,16 +3234,13 @@ riverpod_lint plugin · 코드 생성(freezed · json_serializable) 설정이 �
 include: package:woody_lints/recommended.yaml
 ```
 
-- 킷 옵션 파일의 `analyzer: exclude:` 목록(생성 파일 `**/*.g.dart` ·
-  `**/*.freezed.dart`, `functions/**`, 플랫폼 폴더)은 지우지 않는다. 프리셋에도
-  생성 파일 제외가 있지만 riverpod_lint 진단에는 닿지 않아, 프로젝트의 옵션
-  파일에 직접 적어야 막힌다.
-- riverpod_lint 는 프리셋의 `plugins:` 가 `^3.1.9` 범위로 선언하고, 분석할 때
-  pub.dev 에서 받는다. 그래서 분석에는 네트워크가 필요하고, `pubspec.yaml` ·
-  `pubspec.lock` 에는 riverpod_lint 를 따로 적지 않는다. woody_lints 를 tag 로
-  고정해도 plugin 은 그 범위 안의 최신 판으로 풀린다.
-- woody_lints 2.0.0 은 Dart 3.13 이상이 필요하다. 킷의 `.fvmrc` 가 고정한
-  Flutter 가 이를 충족한다.
+- 킷 옵션 파일의 `analyzer: exclude:` 목록(생성 파일 `**/*.g.dart` · `**/*.freezed.dart`, `functions/**`, 플랫폼 폴더)은 지우지 않는다.
+  - 프리셋에도 생성 파일 제외가 있지만 riverpod_lint 진단에는 닿지 않아, 프로젝트의 옵션 파일에 직접 적어야 막힌다.
+- riverpod_lint 는 프리셋의 `plugins:` 가 `^3.1.9` 범위로 선언하고, 분석할 때 pub.dev 에서 받는다.
+  - 그래서 분석에는 네트워크가 필요하고, `pubspec.yaml` · `pubspec.lock` 에는 riverpod_lint 를 따로 적지 않는다.
+  - woody_lints 를 tag 로 고정해도 plugin 은 그 범위 안의 최신 판으로 풀린다.
+- woody_lints 2.0.0 은 Dart 3.13 이상이 필요하다.
+  - 킷의 `.fvmrc` 가 고정한 Flutter 가 이를 충족한다.
 
 ### 확인 방법
 
@@ -3267,18 +3265,18 @@ fvm dart fix --dry-run
 fvm dart fix --apply
 ```
 
-`--dry-run` 으로 자동으로 고칠 것을 보고 `--apply` 로 고친다. 한 규칙만 고치려면
-`--code=<규칙>` 을 붙인다. riverpod_lint 진단은 `dart fix` 가 고치지 않으므로,
-자동으로 고쳐지지 않은 진단과 함께 손으로 고친다.
+`--dry-run` 으로 자동으로 고칠 것을 보고 `--apply` 로 고친다.
+- 한 규칙만 고치려면 `--code=<규칙>` 을 붙인다.
+- riverpod_lint 진단은 `dart fix` 가 고치지 않으므로, 자동으로 고쳐지지 않은 진단과 함께 손으로 고친다.
 
 ### 한 줄 · 파일 단위로 끄기
 
 - 한 줄: 진단이 시작하는 줄 바로 위에 `// ignore: <규칙>` 을 적는다.
 - 파일: 파일 맨 위에 `// ignore_for_file: <규칙>` 을 적는다.
-- riverpod_lint 진단은 `riverpod_lint/<규칙>` 처럼 접두사를 붙인다. 접두사가
-  없으면 꺼지지 않는다.
-- 무시 주석 바로 윗줄에는 끄는 까닭을 적은 주석을 둔다. 없으면 그 무시 주석에
-  `document_ignores` info 가 붙는다.
+- riverpod_lint 진단은 `riverpod_lint/<규칙>` 처럼 접두사를 붙인다.
+  - 접두사가 없으면 꺼지지 않는다.
+- 무시 주석 바로 윗줄에는 끄는 까닭을 적은 주석을 둔다.
+  - 없으면 그 무시 주석에 `document_ignores` info 가 붙는다.
 - `///` 문서 주석이 있는 멤버는 진단이 `///` 첫 줄에서 시작하므로, 이유 주석 →
   무시 주석 → `///` 블록 순서로 적는다.
 
@@ -3294,9 +3292,8 @@ final items = ref.watch(itemsProvider);
 
 ### 프로젝트 전체에서 끄기
 
-- 규칙: 킷 `analysis_options.yaml` 에 이미 있는 `linter:` → `rules:` 아래에
-  `<규칙>: false` 를 맵 꼴로 더한다. 같은 `rules:` 에 목록 꼴(`- 이름`)을 섞으면
-  YAML 이 깨져 `fvm dart analyze` 가 진단 없이 종료 코드 3 으로 끝난다.
+- 규칙: 킷 `analysis_options.yaml` 에 이미 있는 `linter:` → `rules:` 아래에 `<규칙>: false` 를 맵 꼴로 더한다.
+  - 같은 `rules:` 에 목록 꼴(`- 이름`)을 섞으면 YAML 이 깨져 `fvm dart analyze` 가 진단 없이 종료 코드 3 으로 끝난다.
 - riverpod_lint 진단: 파일 끝에 최상위 `plugins:` → `riverpod_lint:` 를 두고, 그
   아래에 `version: ^3.1.9` 와 `diagnostics:` → `<규칙>: false` 를 적는다.
   - `version` 없이 `diagnostics:` 만 적으면 경고 없이 무시된다.
@@ -3333,29 +3330,20 @@ plugins:
 
 ### 테스트 작성 규칙
 
-- generator provider 를 override 하는 `ProviderScope` 는
-  `await tester.pumpWidget(ProviderScope(...))` 처럼 **pumpWidget 의 직접
-  인자**로 넘긴다. helper 가 `ProviderScope` 위젯을 반환하거나 다른 위젯으로
-  감싸면 규칙이 root scope 로 보지 않아 `scoped_providers_should_specify_dependencies`
-  가 난다 → helper 는 `WidgetTester` 를 받아 직접 pump 한다
-  (예: `Future<void> _pumpApp(WidgetTester tester, {...})`).
-- fake Notifier 에 public 카운터 · 기록 필드 · getter 를 두지 않는다
-  (`avoid_public_notifier_properties`). 호출 기록은 생성자로 받은 **외부
-  recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
+- generator provider 를 override 하는 `ProviderScope` 는 `await tester.pumpWidget(ProviderScope(...))` 처럼 **pumpWidget 의 직접 인자**로 넘긴다.
+  - helper 가 `ProviderScope` 위젯을 반환하거나 다른 위젯으로 감싸면 규칙이 root scope 로 보지 않아 `scoped_providers_should_specify_dependencies` 가 난다 → helper 는 `WidgetTester` 를 받아 직접 pump 한다 (예: `Future<void> _pumpApp(WidgetTester tester, {...})`).
+- fake Notifier 에 public 카운터 · 기록 필드 · getter 를 두지 않는다 (`avoid_public_notifier_properties`).
+  - 호출 기록은 생성자로 받은 **외부 recorder** 객체에 남기고, 테스트는 recorder 를 단언한다.
 
 ### 새 코드를 쓸 때의 규칙
 
-1. **Notifier 는 불변 state 만 노출한다.** public 필드 · getter 를 두지 말고
-   값을 `state` 에 담는다. 값이 여러 개면 record 나 freezed 값 객체로 묶고,
-   파생값은 notifier 밖 순수 함수 · extension 으로 뺀다. 킷의 `TermsState` 가
-   그 예다 — 약관 동의 스냅샷 JSON 은 `buildAcceptanceSnapshotJson()` 이 만들고,
-   `lastReloadedUid` 는 `ref.read(termsProvider).lastReloadedUid` 로 읽는다.
+1. **Notifier 는 불변 state 만 노출한다.**
+   - public 필드 · getter 를 두지 말고 값을 `state` 에 담는다.
+   - 값이 여러 개면 record 나 freezed 값 객체로 묶고, 파생값은 notifier 밖 순수 함수 · extension 으로 뺀다.
+   - 킷의 `TermsState` 가 그 예다 — 약관 동의 스냅샷 JSON 은 `buildAcceptanceSnapshotJson()` 이 만들고, `lastReloadedUid` 는 `ref.read(termsProvider).lastReloadedUid` 로 읽는다.
 2. **provider 는 `Listenable` 같은 가변 객체를 값으로 반환하지 않는다.**
-   필요하면 **소비하는 쪽**이 만들어 소유하고 `ref.listen` 으로 값을 받아
-   올린다 — 그 객체는 소비자의 구현 세부이고, 정리(`ref.onDispose`)도
-   소비자 책임이다. `AuthRefresh` notifier 는 인증 상태를 불변 state 로만
-   내고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 의
-   `RouterRefreshListenable` 이 만들어 소유한다.
+   - 필요하면 **소비하는 쪽**이 만들어 소유하고 `ref.listen` 으로 값을 받아 올린다 — 그 객체는 소비자의 구현 세부이고, 정리(`ref.onDispose`)도 소비자 책임이다.
+   - `AuthRefresh` notifier 는 인증 상태를 불변 state 로만 내고, GoRouter 가 요구하는 `Listenable` 은 `appRouter` 의 `RouterRefreshListenable` 이 만들어 소유한다.
 
 킷 코드(lib · test · tool · bin)에는 riverpod_lint 무시 주석이 없다.
 
@@ -3372,9 +3360,8 @@ plugins:
 
 ### 되돌리기
 
-- 끈 줄(`linter: rules:` 의 `<규칙>: false` · `diagnostics:` 아래 줄 · 무시
-  주석)을 지우면 다시 켜진다. `plugins:` 블록을 통째로 지우면 프리셋의 plugin
-  선언으로 돌아간다.
+- 끈 줄(`linter: rules:` 의 `<규칙>: false` · `diagnostics:` 아래 줄 · 무시 주석)을 지우면 다시 켜진다.
+  - `plugins:` 블록을 통째로 지우면 프리셋의 plugin 선언으로 돌아간다.
 - 판을 되돌리려면 `pubspec.yaml` 의 `ref:` 를 전 tag 로 고치고
   `fvm flutter pub get` 을 한 뒤 `pubspec.yaml` 과 `pubspec.lock` 을 함께
   커밋한다.
@@ -3385,11 +3372,8 @@ plugins:
 않아도 빌드 · 시험에는 영향이 없다.
 
 hook(`scripts/git-hooks/pre-commit`)은 커밋할 때 stage 된 파일에 가드 넷을 돌린다.
-1 ~ 3 은 **실제 Firebase 키가 저장소에 커밋되는 것을 막는다** — 아래 설정 파일은
-자리표시 값으로 tracked 되어 있어, 실제 키로 다시 만든 파일이 그대로 커밋 대상이 되기
-때문이다. 4 는 코드 주석의 phase 참조 · `TODO` 주석 검사로, 킷 유지보수자 저장소에서만
-돈다 — 킷 사용자 저장소에서는 `[SKIP]` 을 출력하고 커밋을 막지 않는다(규칙과 예시:
-[유지보수자 문서](maintainer/code-comment-refs.md)).
+- 1 ~ 3 은 **실제 Firebase 키가 저장소에 커밋되는 것을 막는다** — 아래 설정 파일은 자리표시 값으로 tracked 되어 있어, 실제 키로 다시 만든 파일이 그대로 커밋 대상이 되기 때문이다.
+- 4 는 코드 주석의 phase 참조 · `TODO` 주석 검사로, 킷 유지보수자 저장소에서만 돈다 — 킷 사용자 저장소에서는 `[SKIP]` 을 출력하고 커밋을 막지 않는다(규칙과 예시: [유지보수자 문서](maintainer/code-comment-refs.md)).
 
 | 가드 | 대상 | 막는 조건 |
 |------|------|-----------|
@@ -3408,15 +3392,13 @@ ln -s ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
-이후 커밋할 때마다 hook 이 돈다. 가드 1 ~ 3 에 걸리면 커밋이 막히고, 걸린 파일과 해제
-절차(`git restore --staged` → `git update-index --skip-worktree`)가 함께 출력된다.
-자리표시 파일 자체를 일부러 고치려면 자리표시 값을 남긴 채 실제 키만 지우고 커밋한다.
+이후 커밋할 때마다 hook 이 돈다.
+- 가드 1 ~ 3 에 걸리면 커밋이 막히고, 걸린 파일과 해제 절차(`git restore --staged` → `git update-index --skip-worktree`)가 함께 출력된다.
+- 자리표시 파일 자체를 일부러 고치려면 자리표시 값을 남긴 채 실제 키만 지우고 커밋한다.
 
 **끄기:** `rm .git/hooks/pre-commit`.
 
-> ⚠ hook 은 **dart format · analyze · test 를 돌리지 않는다** — 커밋 전
-> `fvm dart format --output=none --set-exit-if-changed lib test bin tool` 를 따로
-> 돌린다(나머지 검사는 [테스트 돌리기](#테스트-돌리기)).
+> ⚠ hook 은 **dart format · analyze · test 를 돌리지 않는다** — 커밋 전 `fvm dart format --output=none --set-exit-if-changed lib test bin tool` 를 따로 돌린다(나머지 검사는 [테스트 돌리기](#테스트-돌리기)).
 
 ## Flutter SDK 상향 (FVM)
 
@@ -3889,27 +3871,79 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 
 앱 사용자가 로그인 · 계정 화면에서 보게 되는 동작을 짧게 모은다. 항목 끝의 「바꾸려면」 이 고칠 파일이다.
 
-**로그인 화면.** 켠 소셜 로그인 수단의 버튼이 위에서부터 놓이고(수단이 적어도 위 정렬 그대로다), 그 아래 「또는」 구분선 · 「이메일로 계속」 · 가입 링크가 있다. 로그인 화면에는 이메일 입력 칸이 없다 — 「이메일로 계속」 이 이메일 로그인 화면(`/login/email`)을 열고, 가입 링크가 이메일 가입 화면(`/signup`)을 연다. 게스트가 로그인이 필요한 동작을 누르면 같은 버튼과 「이메일로 계속」 이 든 로그인 권유 시트가 뜬다. Kill Switch 로 숨긴 수단은 두 곳 모두에 없다([Kill Switch 로 로그인 수단 막기](#kill-switch-로-로그인-수단-막기)). 바꾸려면: `lib/features/auth/presentation/login_screen.dart` · `lib/features/auth/presentation/email_login_screen.dart` · `lib/features/auth/presentation/_widgets/login_prompt_sheet.dart` · 「이메일로 계속」 버튼 `lib/features/auth/presentation/_widgets/email_auth_cta.dart`(로그인 화면과 시트가 함께 쓴다).
+**로그인 화면.**
+- 켠 소셜 로그인 수단의 버튼이 위에서부터 놓이고(수단이 적어도 위 정렬 그대로다), 그 아래 「또는」 구분선 · 「이메일로 계속」 · 가입 링크가 있다.
+- 로그인 화면에는 이메일 입력 칸이 없다 — 「이메일로 계속」 이 이메일 로그인 화면(`/login/email`)을 열고, 가입 링크가 이메일 가입 화면(`/signup`)을 연다.
+- 게스트가 로그인이 필요한 동작을 누르면 같은 버튼과 「이메일로 계속」 이 든 로그인 권유 시트가 뜬다.
+- Kill Switch 로 숨긴 수단은 두 곳 모두에 없다([Kill Switch 로 로그인 수단 막기](#kill-switch-로-로그인-수단-막기)).
+- 바꾸려면: `lib/features/auth/presentation/login_screen.dart` · `lib/features/auth/presentation/email_login_screen.dart` · `lib/features/auth/presentation/_widgets/login_prompt_sheet.dart` · 「이메일로 계속」 버튼 `lib/features/auth/presentation/_widgets/email_auth_cta.dart`(로그인 화면과 시트가 함께 쓴다).
 
-**같은 이메일로 다른 수단 로그인.** 이미 가입한 이메일로 다른 소셜 수단 로그인을 하면 새 계정이 생기지 않고 안내 시트가 뜬다. 시트는 그 이메일이 가입한 수단의 이름과 그 수단의 버튼 하나를 보인다. 버튼을 누르면 기존 수단으로 로그인하고(1단계), 홈에 「{수단} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.」 가 잠깐 뜬다. 다른 수단을 붙이려면 그 뒤 계정 정보 화면의 「계정 연결」 에서 연결한다(2단계) — 시트 버튼 한 번으로 두 수단이 연결되지는 않는다. 시트를 닫거나 로그인이 실패하면 계정 상태는 바뀌지 않는다. 바꾸려면: `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` · 문구 ARB `errorAccountExistsWithProvider` · `accountLinkingSignInThenLinkHint`.
+**같은 이메일로 다른 수단 로그인.**
+- 이미 가입한 이메일로 다른 소셜 수단 로그인을 하면 새 계정이 생기지 않고 안내 시트가 뜬다.
+- 시트는 그 이메일이 가입한 수단의 이름과 그 수단의 버튼 하나를 보인다.
+- 버튼을 누르면 기존 수단으로 로그인하고(1단계), 홈에 「{수단} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.」 가 잠깐 뜬다.
+- 다른 수단을 붙이려면 그 뒤 계정 정보 화면의 「계정 연결」 에서 연결한다(2단계) — 시트 버튼 한 번으로 두 수단이 연결되지는 않는다.
+- 시트를 닫거나 로그인이 실패하면 계정 상태는 바뀌지 않는다.
+- 바꾸려면: `lib/features/auth/presentation/_widgets/account_linking_sheet.dart` · 문구 ARB `errorAccountExistsWithProvider` · `accountLinkingSignInThenLinkHint`.
 
-**계정 연결.** 설정 → 계정 정보 화면의 「계정 연결」 에 아직 붙이지 않은 수단의 버튼이 있다. 누르면 그 수단으로 로그인해 지금 계정에 붙인다. 그 수단 계정이 이미 다른 앱 계정에 묶여 있으면 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」 가 뜬다. 바꾸려면: `lib/features/settings/presentation/_widgets/account_linking_section.dart` · 화면 `lib/features/settings/presentation/account_screen.dart`.
+**계정 연결.**
+- 설정 → 계정 정보 화면의 「계정 연결」 에 아직 붙이지 않은 수단의 버튼이 있다.
+- 누르면 그 수단으로 로그인해 지금 계정에 붙인다.
+- 그 수단 계정이 이미 다른 앱 계정에 묶여 있으면 「이 로그인 정보는 이미 다른 계정에 연결되어 있습니다. 기존 연결을 해제한 뒤 다시 시도해 주세요.」 가 뜬다.
+- 바꾸려면: `lib/features/settings/presentation/_widgets/account_linking_section.dart` · 화면 `lib/features/settings/presentation/account_screen.dart`.
 
-**연결 해제.** 계정 정보 화면 「연결된 계정」 의 수단 이름 가운데 밑줄이 있는 이름이 해제 버튼이다. 가입한 수단과 하나 남은 로그인 수단은 해제할 수 없다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다. 이름을 누르면 확인 창이 뜨고, 「해제」 를 누르면 그 수단 쪽 앱 연결을 먼저 끊은 뒤(아래 「로그인 수단 쪽 연결 끊기」) 계정에서 뗀다. 이메일/비밀번호는 해제하면 앱에서 다시 붙이는 버튼이 없다.
+**연결 해제.**
+- 계정 정보 화면 「연결된 계정」 의 수단 이름 가운데 밑줄이 있는 이름이 해제 버튼이다.
+- 가입한 수단과 하나 남은 로그인 수단은 해제할 수 없다 — 가입 수단을 없애는 방법은 회원탈퇴뿐이다.
+- 이름을 누르면 확인 창이 뜨고, 「해제」 를 누르면 그 수단 쪽 앱 연결을 먼저 끊은 뒤(아래 「로그인 수단 쪽 연결 끊기」) 계정에서 뗀다.
+- 이메일/비밀번호는 해제하면 앱에서 다시 붙이는 버튼이 없다.
 
-- **해제한 뒤 같은 수단으로 다시 로그인하면:** 결과는 그 수단이 알려 주는 이메일로 갈린다. 해제해도 계정의 이메일은 남기 때문이다. 이메일이 남은 계정의 이메일과 같으면 새 계정 없이 위 「같은 이메일로 다른 수단 로그인」 의 안내 시트가 뜬다 — 해제했던 수단은 저절로 다시 붙지 않으므로 「계정 연결」 에서 다시 연결한다. 이메일이 다르거나 없으면 그 수단으로 가입한 새 계정이 생기고, 그 수단은 새 계정에 묶여 원래 계정에서 다시 연결할 수 없다 — 다시 연결하려면 새 계정으로 로그인해 회원탈퇴한 뒤 원래 계정에서 연결한다. 해제한 수단과 계정을 완전히 떼는 방법은 회원탈퇴뿐이다.
+- **해제한 뒤 같은 수단으로 다시 로그인하면:** 결과는 그 수단이 알려 주는 이메일로 갈린다.
+  - 해제해도 계정의 이메일은 남기 때문이다.
+  - 이메일이 남은 계정의 이메일과 같으면 새 계정 없이 위 「같은 이메일로 다른 수단 로그인」 의 안내 시트가 뜬다 — 해제했던 수단은 저절로 다시 붙지 않으므로 「계정 연결」 에서 다시 연결한다.
+  - 이메일이 다르거나 없으면 그 수단으로 가입한 새 계정이 생기고, 그 수단은 새 계정에 묶여 원래 계정에서 다시 연결할 수 없다 — 다시 연결하려면 새 계정으로 로그인해 회원탈퇴한 뒤 원래 계정에서 연결한다.
+  - 해제한 수단과 계정을 완전히 떼는 방법은 회원탈퇴뿐이다.
 - 바꾸려면: 해제할 수 있는지 정하는 규칙은 `lib/features/settings/application/unlink_eligibility.dart` 한 곳이다.
 
-**로그인 수단 쪽 연결 끊기.** 연결 해제와 회원탈퇴는 앱 계정뿐 아니라 로그인 수단 쪽 앱 연결(사용자가 이 앱에 준 권한)도 끊는다. 카카오 · Facebook 은 서버가 로그인 없이 끊고, Google · Apple · 네이버 · 라인은 그 수단으로 한 번 로그인해 끊는다. 카카오는 끊을 때 앱 계정과 카카오 계정의 묶음도 지우므로, 같은 카카오 계정을 다른 앱 계정에 다시 연결할 수 있다. 사용자가 로그인 수단 쪽에서 먼저 연결을 끊었다는 알림은 받지 않는다 — 그때 앱의 데이터는 그대로 남는다. iOS 에서 Facebook 제한된 로그인(Limited Login)으로 들어온 사용자는 Facebook 끊기가 실패할 수 있다 — 그 행을 건너뛰고 Facebook 설정에서 이 앱을 직접 해제하라는 안내가 뜬다. 바꾸려면: 끊을 수단 목록은 `lib/features/settings/data/disconnect/disconnect_steps.dart`(수단마다 한 줄)다.
+**로그인 수단 쪽 연결 끊기.**
+- 연결 해제와 회원탈퇴는 앱 계정뿐 아니라 로그인 수단 쪽 앱 연결(사용자가 이 앱에 준 권한)도 끊는다.
+- 카카오 · Facebook 은 서버가 로그인 없이 끊고, Google · Apple · 네이버 · 라인은 그 수단으로 한 번 로그인해 끊는다.
+- 카카오는 끊을 때 앱 계정과 카카오 계정의 묶음도 지우므로, 같은 카카오 계정을 다른 앱 계정에 다시 연결할 수 있다.
+- 사용자가 로그인 수단 쪽에서 먼저 연결을 끊었다는 알림은 받지 않는다 — 그때 앱의 데이터는 그대로 남는다.
+- iOS 에서 Facebook 제한된 로그인(Limited Login)으로 들어온 사용자는 Facebook 끊기가 실패할 수 있다 — 그 행을 건너뛰고 Facebook 설정에서 이 앱을 직접 해제하라는 안내가 뜬다.
+- 바꾸려면: 끊을 수단 목록은 `lib/features/settings/data/disconnect/disconnect_steps.dart`(수단마다 한 줄)다.
 
-**회원탈퇴.** 계정 정보 화면의 「회원탈퇴」 → 경고 세 줄(영구 삭제 · 복구 불가 · 다시 가입하려면 새로 등록) → 확인 칸에 「탈퇴」 를 그대로 입력해야 확인 버튼이 켜진다. 끊을 로그인 수단 연결이 있으면 탈퇴 진행 화면에서 수단마다 연결을 끊는다 — 서버가 끊는 행은 저절로 끊기고, 로그인이 필요한 행은 한 번에 하나씩 로그인을 기다린다. 어떤 행이든 건너뛸 수 있고(건너뛴 수단은 그 수단의 계정 설정에서 직접 해제하라는 안내가 붙는다), 모든 행이 끝나야 「탈퇴」 가 켜진다. 서버는 마지막 로그인 뒤 5분 안에만 계정을 지운다 — 지났으면 다시 로그인하라고 한다.
+**회원탈퇴.**
+- 계정 정보 화면의 「회원탈퇴」 → 경고 세 줄(영구 삭제 · 복구 불가 · 다시 가입하려면 새로 등록) → 확인 칸에 「탈퇴」 를 그대로 입력해야 확인 버튼이 켜진다.
+- 끊을 로그인 수단 연결이 있으면 탈퇴 진행 화면에서 수단마다 연결을 끊는다 — 서버가 끊는 행은 저절로 끊기고, 로그인이 필요한 행은 한 번에 하나씩 로그인을 기다린다.
+- 어떤 행이든 건너뛸 수 있고(건너뛴 수단은 그 수단의 계정 설정에서 직접 해제하라는 안내가 붙는다), 모든 행이 끝나야 「탈퇴」 가 켜진다.
+- 서버는 마지막 로그인 뒤 5분 안에만 계정을 지운다 — 지났으면 다시 로그인하라고 한다.
 
-- **지워지는 것:** Firebase Auth 계정 · `users/{uid}` 문서 · 기기 알림 토큰(`users/{uid}/fcmTokens`) · Storage 의 `users/{uid}/` 아래 파일 · 앱 계정과 카카오 · 네이버 · 라인 계정의 묶음 기록. 지운 계정은 되살릴 수 없다.
+- **지워지는 것:** Firebase Auth 계정 · `users/{uid}` 문서 · 기기 알림 토큰(`users/{uid}/fcmTokens`) · Storage 의 `users/{uid}/` 아래 파일 · 앱 계정과 카카오 · 네이버 · 라인 계정의 묶음 기록.
+  - 지운 계정은 되살릴 수 없다.
 - **남는 것:** 호출 횟수 제한 기록(`rate_limits` 컬렉션 — 호출 수 · 시각만 있고 앱은 읽을 수 없다) · 건너뛴 수단 쪽 앱 연결.
-- 바꾸려면: 진행 화면 `lib/features/settings/presentation/withdrawal_disconnect_screen.dart` · 확인 단어 ARB `withdrawalConfirmFieldHint` · 경고 문구 ARB `withdrawalDialogBodyLine1` ~ `withdrawalDialogBodyLine3` · 서버의 삭제 범위 `functions/src/auth/delete_user_account.ts` — 사용자마다 데이터를 남기는 컬렉션을 더하면 여기에 그 삭제를 더한다. 경고 문구는 앱이 서비스되는 곳의 법 요구에 맞는지 직접 확인한다.
+- 바꾸려면: 진행 화면 `lib/features/settings/presentation/withdrawal_disconnect_screen.dart` · 확인 단어 ARB `withdrawalConfirmFieldHint` · 경고 문구 ARB `withdrawalDialogBodyLine1` ~ `withdrawalDialogBodyLine3` · 서버의 삭제 범위 `functions/src/auth/delete_user_account.ts` — 사용자마다 데이터를 남기는 컬렉션을 더하면 여기에 그 삭제를 더한다.
+  - 경고 문구는 앱이 서비스되는 곳의 법 요구에 맞는지 직접 확인한다.
 
-**로그아웃.** 계정 정보 화면의 「로그아웃」 을 확인하면 「로그아웃 처리 중…」 오버레이가 화면을 덮고 입력을 막은 뒤 온보딩 화면으로 간다. 회원탈퇴도 서버 삭제가 끝나면 「탈퇴 처리 중…」 오버레이 뒤 온보딩으로 간다. 오버레이는 온보딩 화면이 뜨면 걷히고, 로그아웃이 오류로 끝나면 바로, 30초가 지나면 저절로 걷힌다. 로그아웃은 Google · Facebook · 카카오 · 네이버 · 라인 로그인 SDK 를 모두 해제한 뒤 Firebase 에서 로그아웃한다 — 하나가 실패해도 나머지는 계속한다. 이 기기의 알림 토큰 정리는 [FCM 알림](#fcm-알림) 의 「로그아웃 · 탈퇴」 다. 바꾸려면: 로그아웃 뒤 목적지는 `lib/core/router/app_router.dart` 의 온보딩 route 이고, 그 route 의 `builder` 가 `SessionEndingArrival`(`lib/features/auth/presentation/_widgets/session_ending_arrival.dart`)로 감싸여 있다. 목적지를 다른 화면으로 바꾸면 그 화면 route 의 `builder` 를 `SessionEndingArrival` 로 감싼다 — 감싸지 않으면 오버레이가 30초 동안 남고, 회원탈퇴 뒤에는 앱을 다시 시작할 때까지 「탈퇴」 버튼이 눌리지 않는다.
+**로그아웃.**
+- 계정 정보 화면의 「로그아웃」 을 확인하면 「로그아웃 처리 중…」 오버레이가 화면을 덮고 입력을 막은 뒤 온보딩 화면으로 간다.
+- 회원탈퇴도 서버 삭제가 끝나면 「탈퇴 처리 중…」 오버레이 뒤 온보딩으로 간다.
+- 오버레이는 온보딩 화면이 뜨면 걷히고, 로그아웃이 오류로 끝나면 바로, 30초가 지나면 저절로 걷힌다.
+- 로그아웃은 Google · Facebook · 카카오 · 네이버 · 라인 로그인 SDK 를 모두 해제한 뒤 Firebase 에서 로그아웃한다 — 하나가 실패해도 나머지는 계속한다.
+- 이 기기의 알림 토큰 정리는 [FCM 알림](#fcm-알림) 의 「로그아웃 · 탈퇴」 다.
+- 바꾸려면: 로그아웃 뒤 목적지는 `lib/core/router/app_router.dart` 의 온보딩 route 이고, 그 route 의 `builder` 가 `SessionEndingArrival`(`lib/features/auth/presentation/_widgets/session_ending_arrival.dart`)로 감싸여 있다.
+- 목적지를 다른 화면으로 바꾸면 그 화면 route 의 `builder` 를 `SessionEndingArrival` 로 감싼다 — 감싸지 않으면 오버레이가 30초 동안 남고, 회원탈퇴 뒤에는 앱을 다시 시작할 때까지 「탈퇴」 버튼이 눌리지 않는다.
 
-**가입 수단으로 로그인할 때 프로필 갱신.** 카카오 · 네이버 · 라인으로 가입한 계정이 같은 수단으로 다시 로그인하면 계정의 이름 · 사진을 그 수단의 지금 값으로 바꾼다 — 사용자가 그 수단 쪽에서 이름 · 사진을 지웠으면 앱에서도 비운다. 이메일은 그 수단이 주면 그 값으로 바꾸고, 주지 않으면 비우지 않는다. 연결한 다른 수단으로 로그인하면 아무것도 바꾸지 않는다. Apple 은 처음 가입할 때만 이름을 주므로, 앱이 가입할 때 그 이름을 계정 이름에 한 번 옮겨 둔다. 바꾸려면: `functions/src/auth/identity_index.ts` 의 `PROFILE_REFRESH_POLICY` 한 줄 — `"truth-of-source"`(기본 · 수단이 주지 않은 값은 비운다) 또는 `"preserve"`(수단이 주지 않은 값은 남긴다). 바꾼 뒤 [Cloud Functions 함수 더하기](#cloud-functions-함수-더하기) ⑥ 의 배포 스크립트로 함수를 다시 배포한다.
+**가입 수단으로 로그인할 때 프로필 갱신.**
+- 카카오 · 네이버 · 라인으로 가입한 계정이 같은 수단으로 다시 로그인하면 계정의 이름 · 사진을 그 수단의 지금 값으로 바꾼다 — 사용자가 그 수단 쪽에서 이름 · 사진을 지웠으면 앱에서도 비운다.
+- 이메일은 그 수단이 주면 그 값으로 바꾸고, 주지 않으면 비우지 않는다.
+- 연결한 다른 수단으로 로그인하면 아무것도 바꾸지 않는다.
+- Apple 은 처음 가입할 때만 이름을 주므로, 앱이 가입할 때 그 이름을 계정 이름에 한 번 옮겨 둔다.
+- 바꾸려면: `functions/src/auth/identity_index.ts` 의 `PROFILE_REFRESH_POLICY` 한 줄 — `"truth-of-source"`(기본 · 수단이 주지 않은 값은 비운다) 또는 `"preserve"`(수단이 주지 않은 값은 남긴다).
+- 바꾼 뒤 [Cloud Functions 함수 더하기](#cloud-functions-함수-더하기) ⑥ 의 배포 스크립트로 함수를 다시 배포한다.
 
-**네이버 프로필 조회.** 네이버 로그인 플러그인은 로그인이 끝나면 기기에서 곧바로 네이버 프로필 API 를 부른다 — 이 호출은 끌 수 없다. 앱은 그 결과에서 access token 만 쓰고 나머지 프로필은 버린다. 프로필 값은 서버가 그 토큰으로 네이버에 직접 확인한 값만 쓴다. 기기에 오는 항목은 네이버 개발자 센터의 동의 항목 설정이 정한다 — 쓰지 않는 항목은 동의 항목에서 켜지 않는다.
+**네이버 프로필 조회.**
+- 네이버 로그인 플러그인은 로그인이 끝나면 기기에서 곧바로 네이버 프로필 API 를 부른다 — 이 호출은 끌 수 없다.
+- 앱은 그 결과에서 access token 만 쓰고 나머지 프로필은 버린다.
+- 프로필 값은 서버가 그 토큰으로 네이버에 직접 확인한 값만 쓴다.
+- 기기에 오는 항목은 네이버 개발자 센터의 동의 항목 설정이 정한다 — 쓰지 않는 항목은 동의 항목에서 켜지 않는다.
