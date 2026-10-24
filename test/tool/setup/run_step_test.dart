@@ -2572,6 +2572,37 @@ void main() {
       expect(harness.runner.countMode(RunMode.interactive), 1);
     });
 
+    test('T-21-RUN-10: 표지를 읽지 못하면(잘못된 UTF-8) 다시 빌드 1회 · 표지를 '
+        '지금 해시로 새로 쓴다', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      // readAsStringSync 는 디코딩 실패를 FileSystemException 으로 던진다 —
+      // 권한(root 여부)과 상관없이 「읽지 못함」 갈래를 재현한다.
+      final lastLaunch = File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(const <int>[0xff, 0xfe]);
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      final int code = await harness.runEntry(harness.buildRunList());
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}'
+          '${RunStep.changedSinceLastLaunchReason}\n',
+        ),
+      );
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      final String after = lastLaunch.readAsStringSync();
+      expect(RegExp(r'^[0-9a-f]{64}\n$').hasMatch(after), isTrue);
+      expect(
+        after,
+        '${computeBuildInputsHash(readBuildInputDigests(harness.context))}\n',
+      );
+    });
+
     test('T-21-RUN-10: 이번 실행의 바뀐 경로가 보이면 앞 실행 사유를 겹쳐 보이지 '
         '않는다', () async {
       final harness = _Harness(root, const <String?>['y', 'y', '']);

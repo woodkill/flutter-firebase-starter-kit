@@ -68,8 +68,7 @@ bool hasBuildInputsChangedSinceLastLaunch(
   try {
     saved = file.readAsStringSync().trim();
   } on FileSystemException {
-    return true;
-  } on FormatException {
+    // 권한 실패 · UTF-8 디코딩 실패 모두 readAsStringSync 가 이 예외로 던진다.
     return true;
   }
   return saved != computeBuildInputsHash(current);
