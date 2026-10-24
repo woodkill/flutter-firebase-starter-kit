@@ -3624,11 +3624,9 @@ Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · �
 
 ### ① SPM 이 무엇이고 이 킷이 왜 SPM 인가
 
-**Swift Package Manager(SPM)** 는 Apple 이 Swift 도구체인과 Xcode 에 내장한 의존성
-관리자다. CocoaPods 가 하던 일(네이티브 SDK 선언 · 버전 해석 · 내려받기 · Xcode
-프로젝트 연결)을 **별도 도구 설치 없이** Xcode 와 Flutter 도구가 직접 수행한다.
-Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile` 을
-만들지 않는다 — 이 킷도 그 표준 모양(별도 스위치 없이 기본값)을 따른다.
+**Swift Package Manager(SPM)** 는 Apple 이 Swift 도구체인과 Xcode 에 내장한 의존성 관리자다.
+- CocoaPods 가 하던 일(네이티브 SDK 선언 · 버전 해석 · 내려받기 · Xcode 프로젝트 연결)을 **별도 도구 설치 없이** Xcode 와 Flutter 도구가 직접 수행한다.
+- Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile` 을 만들지 않는다 — 이 킷도 그 표준 모양(별도 스위치 없이 기본값)을 따른다.
 
 | 항목 | CocoaPods | SPM (이 킷) |
 |---|---|---|
@@ -3646,16 +3644,16 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile
   전용이 된 뒤에는 CocoaPods 로 새 SDK 판을 받을 수 없다
   (https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers).
 
-**Flutter 가 「SPM 비활성화」 와 CocoaPods fallback 을 막는 시점은 미공개다.** 도구는
-예고만 한다 — 아래 두 문장이 Flutter 3.47.5 소스의 원문이다.
+**Flutter 가 「SPM 비활성화」 와 CocoaPods fallback 을 막는 시점은 미공개다.**
+- 도구는 예고만 한다 — 아래 두 문장이 Flutter 3.47.5 소스의 원문이다.
 
 - `Disabling Swift Package Manager will not be allowed in a future version of Flutter.`
 - `This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.`
 
-- 특정 Flutter 버전 · 날짜를 추정해 계획을 세우지 않는다. 위 두 예고에는 버전도
-  날짜도 없다.
+- 특정 Flutter 버전 · 날짜를 추정해 계획을 세우지 않는다.
+  - 위 두 예고에는 버전도 날짜도 없다.
 - **범위:** SPM 은 `ios/` 에만 해당한다.
-  이 킷은 모바일 전용이라 `macos/` 디렉터리가 없다.
+  - 이 킷은 모바일 전용이라 `macos/` 디렉터리가 없다.
 
 ### ② 네이티브 SDK 버전은 어디에 고정돼 있나
 
@@ -3755,13 +3753,10 @@ jq -r '.plugins.ios[] | select(.native_build) | "\(.name)\t\(.path)"' .flutter-p
 
 **(나) 플러그인과 그 의존 SDK 의 `platforms` 하한을 대조한다.**
 
-- 플러그인 `Package.swift` 의 `platforms: [.iOS(...)]` 와, 그 플러그인이
-  `.package(url:)` 로 끌어오는 SDK 의 같은 값을 비교한다. **의존 SDK 의 하한이 더 높으면
-  SPM 이 타깃 그래프 구성 단계에서 빌드를 막는다.**
-- 예: LineSDK 5.17.0 의 하한은 iOS 15.0 이고 `flutter_line_sdk` 3.0.0 의 `Package.swift`
-  도 15.0 이라 맞는다. 플러그인 하한이 의존 SDK 하한보다 낮으면 이 불일치는 **앱의 배포
-  타겟을 올려도 해소되지 않는다** — Flutter 는 자기가 생성하는
-  패키지의 하한만 끌어올리고 플러그인 자신의 `Package.swift` 는 건드리지 않기 때문이다.
+- 플러그인 `Package.swift` 의 `platforms: [.iOS(...)]` 와, 그 플러그인이 `.package(url:)` 로 끌어오는 SDK 의 같은 값을 비교한다.
+  - **의존 SDK 의 하한이 더 높으면 SPM 이 타깃 그래프 구성 단계에서 빌드를 막는다.**
+- 예: LineSDK 5.17.0 의 하한은 iOS 15.0 이고 `flutter_line_sdk` 3.0.0 의 `Package.swift` 도 15.0 이라 맞는다.
+  - 플러그인 하한이 의존 SDK 하한보다 낮으면 이 불일치는 **앱의 배포 타겟을 올려도 해소되지 않는다** — Flutter 는 자기가 생성하는 패키지의 하한만 끌어올리고 플러그인 자신의 `Package.swift` 는 건드리지 않기 때문이다.
 
 **(다) FlutterFire 계열은 `firebaseSdkVersion` 이 기존 플러그인들과 같은지 본다.**
 
@@ -3781,37 +3776,30 @@ echo "기대 FlutterFire 플러그인 수: $EXPECTED"
 ```
 
 - **합격 기준: 선언 줄이 정확히 1줄이고, 그 줄의 맨 앞 개수가 `$EXPECTED` 와 같다.**
-  현재 킷의 실제 출력은 아래 2줄이다.
+  - 현재 킷의 실제 출력은 아래 2줄이다.
   ```
      8 let firebaseSdkVersion: Version = "12.19.0"
   기대 FlutterFire 플러그인 수: 8
   ```
-- **개수가 `$EXPECTED` 보다 작으면 합격이 아니다.** 이 명령은 플러그인마다
-  `<path>ios/<name>/Package.swift` 와 `<path>darwin/<name>/Package.swift` **두 경로만**
-  본다. 어느 쪽에도 없는 플러그인은 **조용히 건너뛴다** — 8개 중 3개만 읽혀도 출력은
-  여전히 1줄이라, 「1줄」 조건만으로는 **읽히지 않은 플러그인이 다른 값을 선언하고
-  있어도 통과한다.** 이 명령의 존재 이유가 바로 그 값 불일치 검출이므로, 표본이
-  빠지면 검출력이 그만큼 조용히 줄어든다. 그래서 「1줄」 과 「개수 = `$EXPECTED`」 를
-  **함께** 본다.
-- **0줄이면 합격이 아니라 공허한 통과다** — 플러그인을 하나도 읽지 못한 것이다
-  (`pub get` 미실행, 또는 `.flutter-plugins-dependencies` 의 구조가 바뀌었다).
-  그래서 `sort -u` 가 아니라 `sort | uniq -c` 로 **개수까지 함께** 본다. 0줄은 위
-  개수 대조에도 걸리지만 원인이 다르므로 따로 적는다.
-- `$EXPECTED` 는 `firebase_` · `cloud_` **접두사**로 센다. 이 접두사를 쓰지 않는
-  FlutterFire 플러그인을 넣거나, `firebaseSdkVersion` 을 선언하지 않는 `firebase_*`
-  플러그인이 생기면 개수가 어긋난다 — 둘 다 **시끄럽게 실패하는 방향**이므로
-  그때 필터를 함께 고친다.
-- **2줄 이상이면 충돌이다.** 킷이 쓰는 `firebase_core` 4.15.0 은 firebase-ios-sdk 를
-  `exact: firebaseSdkVersion` 으로 고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로
-  **해석 단계에서 즉시 실패**한다.
+- **개수가 `$EXPECTED` 보다 작으면 합격이 아니다.**
+  - 이 명령은 플러그인마다 `<path>ios/<name>/Package.swift` 와 `<path>darwin/<name>/Package.swift` **두 경로만** 본다.
+  - 어느 쪽에도 없는 플러그인은 **조용히 건너뛴다** — 8개 중 3개만 읽혀도 출력은 여전히 1줄이라, 「1줄」 조건만으로는 **읽히지 않은 플러그인이 다른 값을 선언하고 있어도 통과한다.**
+  - 이 명령의 존재 이유가 바로 그 값 불일치 검출이므로, 표본이 빠지면 검출력이 그만큼 조용히 줄어든다.
+  - 그래서 「1줄」 과 「개수 = `$EXPECTED`」 를 **함께** 본다.
+- **0줄이면 합격이 아니라 공허한 통과다** — 플러그인을 하나도 읽지 못한 것이다 (`pub get` 미실행, 또는 `.flutter-plugins-dependencies` 의 구조가 바뀌었다).
+  - 그래서 `sort -u` 가 아니라 `sort | uniq -c` 로 **개수까지 함께** 본다.
+  - 0줄은 위 개수 대조에도 걸리지만 원인이 다르므로 따로 적는다.
+- `$EXPECTED` 는 `firebase_` · `cloud_` **접두사**로 센다.
+  - 이 접두사를 쓰지 않는 FlutterFire 플러그인을 넣거나, `firebaseSdkVersion` 을 선언하지 않는 `firebase_*` 플러그인이 생기면 개수가 어긋난다 — 둘 다 **시끄럽게 실패하는 방향**이므로 그때 필터를 함께 고친다.
+- **2줄 이상이면 충돌이다.**
+  - 킷이 쓰는 `firebase_core` 4.15.0 은 firebase-ios-sdk 를 `exact: firebaseSdkVersion` 으로 고정하므로, 값이 갈리면 `exact` ↔ `exact` 충돌로 **해석 단계에서 즉시 실패**한다.
   - **버전 조건:** 이 `exact` 서술은 현재 세대 기준이다. 옛 FlutterFire
     (`firebase_core` **4.7.0 이하**)는 식별자부터 다르고(`firebase_sdk_version`)
     `from:` 으로 건다 — 위 명령의 `^let firebaseSdkVersion` 패턴이 잡지 못한다.
-    - **「충돌하지도 않는다」 는 조건부로만 참이다.** `from: X` 와 `exact: Y` 는
-      **`Y >= X` 일 때만** 함께 해석된다. 옛 세대가 새 세대보다 **높은 하한**을
-      걸고 있으면(예: `from: 13.0.0` vs `exact: 12.19.0`) 해석이 실패한다 —
-      즉 **이 명령이 잡지 못하는 충돌이 존재한다.** 두 세대를 섞게 되면 옛 쪽
-      선언을 직접 읽어 값을 비교할 것.
+    - **「충돌하지도 않는다」 는 조건부로만 참이다.**
+      - `from: X` 와 `exact: Y` 는 **`Y >= X` 일 때만** 함께 해석된다.
+      - 옛 세대가 새 세대보다 **높은 하한**을 걸고 있으면(예: `from: 13.0.0` vs `exact: 12.19.0`) 해석이 실패한다 — 즉 **이 명령이 잡지 못하는 충돌이 존재한다.**
+      - 두 세대를 섞게 되면 옛 쪽 선언을 직접 읽어 값을 비교할 것.
       ```bash
       grep -n -e '^let firebase_sdk_version' -e '^let firebaseSdkVersion' \
         "$(jq -r '.plugins.ios[] | select(.name=="firebase_core") | .path' .flutter-plugins-dependencies)ios/firebase_core/Package.swift"
@@ -3819,13 +3807,11 @@ echo "기대 FlutterFire 플러그인 수: $EXPECTED"
       `.pub-cache` 원문으로 보면 `firebase_core` **4.7.0** 은
       `let firebase_sdk_version: Version = "12.12.0"` + `from:`,
       **4.15.0** 은 `let firebaseSdkVersion: Version = "12.19.0"` + `exact:` 다.
-- ⚠ `grep -h 'firebaseSdkVersion' ~/.pub-cache/…/Package.swift | sort -u` 형태로
-  pub-cache 를 직접 훑지 말 것. 패턴이 **선언 줄과 사용 줄 양쪽**에 매칭돼 정상
-  트리에서도 2줄이 나오고(정상 상태를 충돌로 오판한다), 해석되지 않은 옛 버전까지
-  함께 읽는다.
+- ⚠ `grep -h 'firebaseSdkVersion' ~/.pub-cache/…/Package.swift | sort -u` 형태로 pub-cache 를 직접 훑지 말 것.
+  - 패턴이 **선언 줄과 사용 줄 양쪽**에 매칭돼 정상 트리에서도 2줄이 나오고(정상 상태를 충돌로 오판한다), 해석되지 않은 옛 버전까지 함께 읽는다.
 
-**최종 판정은 iOS 빌드다.** 위 세 검사는 사전 선별일 뿐이고, 전이 의존성의 하한 문제는
-실제 빌드에서만 드러난다.
+**최종 판정은 iOS 빌드다.**
+- 위 세 검사는 사전 선별일 뿐이고, 전이 의존성의 하한 문제는 실제 빌드에서만 드러난다.
 
 ### ④ SPM 을 지원하지 않는 플러그인을 넣으면 생기는 일
 
@@ -3838,16 +3824,15 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 
 이어서 일어나는 일:
 
-1. **`ios/Podfile` 이 조용히 재생성된다** — 그리고 **빌드는 성공할 수도 있다.** 이것이
-   이 절이 존재하는 이유다(조용한 실패).
-2. 도구가 되돌리는 xcconfig 는 **`ios/Flutter/Debug.xcconfig` · `ios/Flutter/Release.xcconfig`
-   두 개뿐**이다. 나머지 flavor xcconfig 9개는 복구되지 않아 **flavor 빌드만 링크 에러**가
-   날 수 있다.
+1. **`ios/Podfile` 이 조용히 재생성된다** — 그리고 **빌드는 성공할 수도 있다.**
+   - 이것이 이 절이 존재하는 이유다(조용한 실패).
+2. 도구가 되돌리는 xcconfig 는 **`ios/Flutter/Debug.xcconfig` · `ios/Flutter/Release.xcconfig` 두 개뿐**이다.
+   - 나머지 flavor xcconfig 9개는 복구되지 않아 **flavor 빌드만 링크 에러**가 날 수 있다.
 3. **`ios/Podfile` 이 없어야 한다는 시험이 실패한다** — `fvm flutter test` 가 이
    이유로 red 면 위 1·2 가 이미 벌어진 것이다.
 
-**대응:** 그 플러그인의 SPM 지원 버전을 찾거나, 넣지 않는다. 재생성된 `ios/Podfile` 을
-지우는 것만으로는 원인이 사라지지 않는다 — 다음 해석에서 다시 생긴다.
+**대응:** 그 플러그인의 SPM 지원 버전을 찾거나, 넣지 않는다.
+- 재생성된 `ios/Podfile` 을 지우는 것만으로는 원인이 사라지지 않는다 — 다음 해석에서 다시 생긴다.
 
 ### ⑤ iOS 최소 배포 타겟을 바꾸려면
 
@@ -3855,20 +3840,19 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 |---|---|---|
 | `ios/Runner.xcodeproj/project.pbxproj` 의 `IPHONEOS_DEPLOYMENT_TARGET` | **12개** (현재 전부 15.6) | **유일한 진실원.** 12 build configuration 각각에 하나씩 있다 |
 
-- Xcode 의 **PROJECT > Runner > Build Settings > iOS Deployment Target** 을 한 번 바꾸면
-  12개가 함께 바뀐다. 손으로 고칠 때는 12개를 **전부 같은 값**으로 맞춘다 —
-  `fvm flutter test` 가 「12개가 전부 같은 값」 을 강제한다.
-- ⚠ **하한은 15.0 이다 — 그 아래로는 내릴 수 없다.** 같은 test 가 「12개 일치」와
-  함께 **15.0 미만을 금지**한다(`_minSupportedIosTarget`). 14.0 으로 내리려 하면
-  빌드가 아니라 `fvm flutter test` 가 먼저 red 가 된다.
+- Xcode 의 **PROJECT > Runner > Build Settings > iOS Deployment Target** 을 한 번 바꾸면 12개가 함께 바뀐다.
+  - 손으로 고칠 때는 12개를 **전부 같은 값**으로 맞춘다 — `fvm flutter test` 가 「12개가 전부 같은 값」 을 강제한다.
+- ⚠ **하한은 15.0 이다 — 그 아래로는 내릴 수 없다.**
+  - 같은 test 가 「12개 일치」와 함께 **15.0 미만을 금지**한다(`_minSupportedIosTarget`).
+  - 14.0 으로 내리려 하면 빌드가 아니라 `fvm flutter test` 가 먼저 red 가 된다.
   - 근거는 진실원의 복제가 아니라 **외부 의존이 부과하는 독립 제약**이다 —
     Flutter 3.47 이 지원하는 iOS 최소 버전이자 킷이 고정한 LineSDK 5.17.0 의
     `platforms` 하한이 둘 다 15.0 이다. 그래서 15.6 → 15.7 같은 정상 상향은
     그대로 통과한다.
   - 하한 자체를 올리거나 내리려면 test 의 `_minSupportedIosTarget` 과 이 bullet 을
     **함께** 고친다.
-- Flutter 는 **빌드 때마다 이 값을 읽어** 자기가 생성하는 패키지의 `platforms` 를
-  끌어올린다. CocoaPods 시절의 `post_install` 하한 보정 루프 같은 장치는 필요 없다.
+- Flutter 는 **빌드 때마다 이 값을 읽어** 자기가 생성하는 패키지의 `platforms` 를 끌어올린다.
+  - CocoaPods 시절의 `post_install` 하한 보정 루프 같은 장치는 필요 없다.
 - 의존 SDK 의 하한보다 **낮게** 내리면 SPM 이 빌드를 막는다(③ (나)).
 
 ### ⑥ 흔한 실수
@@ -3876,66 +3860,43 @@ The following plugins do not support Swift Package Manager for ios: <플러그�
 SPM 빌드에서 **자주 겪는** 증상과, 킷이 **손으로 넣은 패치**의 취급을 적는다.
 
 - **`project.pbxproj` 의 Crashlytics 업로드 단계는 upstream 템플릿에 없는 킷의 패치다.**
-  `flutterfire_cli` 1.3.2 가 생성하는 원본은 DerivedData 경로 한 줄을 무조건
-  대입하는데, Flutter 는 모든 iOS `xcodebuild` 호출에
-  `-clonedSourcePackagesDirPath <project>/build/ios/SourcePackages` 를 붙이므로
-  SPM checkout 은 **DerivedData 밑에 없다.** 그래서 킷은 이 단계에 Flutter 경로를
-  먼저 보는 **probe 루프**와, 두 후보가 모두 없을 때 probe 한 경로를 찍으며
-  `exit 1` 하는 분기가 들어 있다.
-  - ⚠ **알려진 제약 — Xcode 를 직접 열어 빌드하면 stale `build/ios/SourcePackages`
-    가 우선한다.** probe 순서(Flutter 경로 먼저)는 `fvm flutter build` ·
-    `fvm flutter run` 경로에서만 옳다. **Xcode IDE 빌드에는
-    `-clonedSourcePackagesDirPath` 가 붙지 않아** 권위 있는 checkout 은 DerivedData
-    쪽인데, 직전 `flutter build` 가 남긴 **오래된** `build/ios/SourcePackages` 가
-    있으면 후보 1이 먼저 히트해 **실제로 링크된 SDK 와 다른 버전의 업로드
-    스크립트**가 쓰인다. 두 경로 모두 gitignored 빌드 산출물이라 버전이 갈라지는 것은
-    흔한 상태다. `exit 1` 분기는 「둘 다 없음」만 막고 이 경우는 막지 못한다.
-    - **순서를 자동으로 뒤집지 않는 이유:** 두 호출을 구분하는 build setting 이
-      없다. `BUILD_DIR` 은 archive 가 아닐 때만 Flutter 가 덮어쓰고
-      (`flutter_tools/lib/src/ios/mac.dart:426-427`), `-clonedSourcePackagesDirPath`
-      는 archive 를 포함한 **모든** 호출에 붙는다(`:333-338` →
-      `xcodeproj.dart:214-228`). 「DerivedData 쪽 checkout 이 존재하면 그쪽 우선」
-      같은 조건은 Xcode 를 한 번이라도 연 머신에서 **`flutter build` 를 거꾸로
-      망가뜨린다** — 같은 결함을 방향만 바꿔 옮기는 셈이다.
-    - **대신 어느 후보를 골랐는지 빌드 로그에 남긴다.** 이 단계는
-      `note: Crashlytics upload script = <경로>` 를 출력한다. Xcode 에서 직접 빌드한
-      뒤 심볼이 엉뚱해 보이면 이 줄의 경로를 확인하고, `build/ios/SourcePackages` 를
-      가리키고 있다면 그 디렉터리를 지운 뒤 다시 빌드한다(다음 `flutter build` 가
-      다시 받는다).
-  - **수동으로 `fff configure` 를 돌리면 이 build phase 가 upstream 모양으로
-    재생성되어 패치가 조용히 사라진다.** 돌린 뒤에는 이 build phase 의 diff 를
-    반드시 확인하고 복원할 것. `scripts/firebase-configure.sh` 경로는 이 파일을
-    스냅샷·복원하므로 안전하다.
+  - `flutterfire_cli` 1.3.2 가 생성하는 원본은 DerivedData 경로 한 줄을 무조건 대입하는데, Flutter 는 모든 iOS `xcodebuild` 호출에 `-clonedSourcePackagesDirPath <project>/build/ios/SourcePackages` 를 붙이므로 SPM checkout 은 **DerivedData 밑에 없다.**
+  - 그래서 킷은 이 단계에 Flutter 경로를 먼저 보는 **probe 루프**와, 두 후보가 모두 없을 때 probe 한 경로를 찍으며 `exit 1` 하는 분기가 들어 있다.
+  - ⚠ **알려진 제약 — Xcode 를 직접 열어 빌드하면 stale `build/ios/SourcePackages` 가 우선한다.**
+    - probe 순서(Flutter 경로 먼저)는 `fvm flutter build` · `fvm flutter run` 경로에서만 옳다.
+    - **Xcode IDE 빌드에는 `-clonedSourcePackagesDirPath` 가 붙지 않아** 권위 있는 checkout 은 DerivedData 쪽인데, 직전 `flutter build` 가 남긴 **오래된** `build/ios/SourcePackages` 가 있으면 후보 1이 먼저 히트해 **실제로 링크된 SDK 와 다른 버전의 업로드 스크립트**가 쓰인다.
+    - 두 경로 모두 gitignored 빌드 산출물이라 버전이 갈라지는 것은 흔한 상태다.
+    - `exit 1` 분기는 「둘 다 없음」만 막고 이 경우는 막지 못한다.
+    - **순서를 자동으로 뒤집지 않는 이유:** 두 호출을 구분하는 build setting 이 없다.
+      - `BUILD_DIR` 은 archive 가 아닐 때만 Flutter 가 덮어쓰고 (`flutter_tools/lib/src/ios/mac.dart:426-427`), `-clonedSourcePackagesDirPath` 는 archive 를 포함한 **모든** 호출에 붙는다(`:333-338` → `xcodeproj.dart:214-228`).
+      - 「DerivedData 쪽 checkout 이 존재하면 그쪽 우선」 같은 조건은 Xcode 를 한 번이라도 연 머신에서 **`flutter build` 를 거꾸로 망가뜨린다** — 같은 결함을 방향만 바꿔 옮기는 셈이다.
+    - **대신 어느 후보를 골랐는지 빌드 로그에 남긴다.**
+      - 이 단계는 `note: Crashlytics upload script = <경로>` 를 출력한다.
+      - Xcode 에서 직접 빌드한 뒤 심볼이 엉뚱해 보이면 이 줄의 경로를 확인하고, `build/ios/SourcePackages` 를 가리키고 있다면 그 디렉터리를 지운 뒤 다시 빌드한다(다음 `flutter build` 가 다시 받는다).
+  - **수동으로 `fff configure` 를 돌리면 이 build phase 가 upstream 모양으로 재생성되어 패치가 조용히 사라진다.**
+    - 돌린 뒤에는 이 build phase 의 diff 를 반드시 확인하고 복원할 것.
+    - `scripts/firebase-configure.sh` 경로는 이 파일을 스냅샷·복원하므로 안전하다.
   - `fvm flutter test` 가 이 패치를 지킨다 — 패치가 사라지면 시험이 red 가 된다.
-  - 빌드 로그에 `error: firebase-ios-sdk Crashlytics/run not found. Probed: …` 이
-    찍히면 두 후보 경로가 모두 없다는 뜻이다. Xcode 의 build location 을
-    custom/relative 로 바꿔 `BUILD_ROOT` 에 `DerivedData` 문자열이 없는 머신에서
-    일어난다 — 한 번 `fvm flutter build ios` 를 돌려 `build/ios/SourcePackages` 를
-    채우거나, build location 을 기본값으로 되돌린다.
-- **SDK 버전을 고친 뒤 첫 빌드가 헤더 불일치로 실패한다** — 에러는
-  `A precompiled file has been changed since last built. Please run "flutter clean"` 이고
-  직전 줄이 `File '…/FBSDKCoreKit.framework/Headers/….h' has been modified since the module
-  file '…/SwiftExplicitPrecompiledModules/….pcm' was built` 다. Xcode 의 explicit module
-  캐시(`.pcm`)가 **옛 버전 헤더로** 만들어져 있어서 그렇다.
-  - 도구가 권하는 `flutter clean` 을 그대로 따르지 말고 **에러가 지목한 그 프로젝트의
-    DerivedData 디렉터리 하나만** 지운다. `flutter clean` 은 `build/ios/SourcePackages`
-    (수백 MB)까지 함께 날린다. checkout 은 DerivedData 밑에 없다 — Flutter 가
-    `-clonedSourcePackagesDirPath build/ios/SourcePackages` 를 붙이기 때문이다.
-- **`Xcode build done` 은 성공 마커가 아니다** — `** BUILD FAILED **` 로 끝난 로그에도
-  `Xcode build done. 84.1s` 가 찍힌다(Flutter 가 경과 시간 status 를 성패와 무관하게
-  닫는다). 빌드 성패는 **`✓ Built` 와 종료 코드**로 판정한다.
+  - 빌드 로그에 `error: firebase-ios-sdk Crashlytics/run not found. Probed: …` 이 찍히면 두 후보 경로가 모두 없다는 뜻이다.
+    - Xcode 의 build location 을 custom/relative 로 바꿔 `BUILD_ROOT` 에 `DerivedData` 문자열이 없는 머신에서 일어난다 — 한 번 `fvm flutter build ios` 를 돌려 `build/ios/SourcePackages` 를 채우거나, build location 을 기본값으로 되돌린다.
+- **SDK 버전을 고친 뒤 첫 빌드가 헤더 불일치로 실패한다** — 에러는 `A precompiled file has been changed since last built. Please run "flutter clean"` 이고 직전 줄이 `File '…/FBSDKCoreKit.framework/Headers/….h' has been modified since the module file '…/SwiftExplicitPrecompiledModules/….pcm' was built` 다.
+  - Xcode 의 explicit module 캐시(`.pcm`)가 **옛 버전 헤더로** 만들어져 있어서 그렇다.
+  - 도구가 권하는 `flutter clean` 을 그대로 따르지 말고 **에러가 지목한 그 프로젝트의 DerivedData 디렉터리 하나만** 지운다.
+    - `flutter clean` 은 `build/ios/SourcePackages` (수백 MB)까지 함께 날린다.
+    - checkout 은 DerivedData 밑에 없다 — Flutter 가 `-clonedSourcePackagesDirPath build/ios/SourcePackages` 를 붙이기 때문이다.
+- **`Xcode build done` 은 성공 마커가 아니다** — `** BUILD FAILED **` 로 끝난 로그에도 `Xcode build done. 84.1s` 가 찍힌다(Flutter 가 경과 시간 status 를 성패와 무관하게 닫는다).
+  - 빌드 성패는 **`✓ Built` 와 종료 코드**로 판정한다.
 
 ## 테스트 돌리기
 
-코드를 바꾼 뒤 · 커밋 전 · 킷 새 판을 받은 뒤에 돌린다. 명령은 저장소 루트에서 실행한다.
+코드를 바꾼 뒤 · 커밋 전 · 킷 새 판을 받은 뒤에 돌린다.
+- 명령은 저장소 루트에서 실행한다.
 
-- **앱 전체 시험:** `fvm flutter test`. 생성 코드(`*.g.dart` · `*.freezed.dart`)가
-  없으면(clone 직후 등) 먼저
-  `fvm dart run build_runner build --delete-conflicting-outputs` 를 돌린다.
+- **앱 전체 시험:** `fvm flutter test`.
+  - 생성 코드(`*.g.dart` · `*.freezed.dart`)가 없으면(clone 직후 등) 먼저 `fvm dart run build_runner build --delete-conflicting-outputs` 를 돌린다.
 - **Cloud Functions 시험:** `cd functions && pnpm test`.
-- **golden 이 실패하면:** `failures/` 의 비교 이미지를 보고, 의도한 변화일 때만 실패한
-  golden 시험 파일 하나를 대상으로 `fvm flutter test --update-goldens <파일>` 로 기준
-  이미지를 다시 만든다. 모든 시험에 한꺼번에 `--update-goldens` 를 쓰지 않는다.
+- **golden 이 실패하면:** `failures/` 의 비교 이미지를 보고, 의도한 변화일 때만 실패한 golden 시험 파일 하나를 대상으로 `fvm flutter test --update-goldens <파일>` 로 기준 이미지를 다시 만든다.
+  - 모든 시험에 한꺼번에 `--update-goldens` 를 쓰지 않는다.
 - **커밋 전 검사:** format 검사 · `fvm flutter analyze` · `fvm dart analyze` ·
   `fvm flutter test` 넷이 오류 없이 끝나야 한다.
 
