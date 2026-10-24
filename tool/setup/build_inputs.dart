@@ -2,8 +2,7 @@
 ///
 /// 위저드 실행 단계가 앱을 다시 빌드해야 하는지 판정하는 데 쓴다 — 파일별 지문은
 /// 메모리(`WizardSession`)에만 두고 화면 · 기록에 쓰지 않는다. 실행 경계를 넘는
-/// 판정은 `rebuild_markers.dart` 가 합성 해시 한 값을 표지로 남긴다. 위저드
-/// 진입점은 [runSetupWizard] 로 시작 지문을 남긴 뒤 위저드를 실행한다.
+/// 판정은 `rebuild_markers.dart` 가 합성 해시 한 값을 표지로 남긴다.
 library;
 
 import 'dart:io';
@@ -11,7 +10,6 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 
 import 'flavor.dart';
-import 'step.dart';
 import 'wizard.dart';
 
 /// [flavor] 앱 빌드에 들어가는 사용자 파일 · 설정 파일의 저장소 상대 경로를
@@ -117,24 +115,3 @@ bool _isHandWrittenDartFile(String path) =>
     path.endsWith('.dart') &&
     !path.endsWith('.g.dart') &&
     !path.endsWith('.freezed.dart');
-
-/// 위저드 진입점이 부르는 실행 — 시작 빌드 입력 지문을 남긴 뒤 같은 인자로
-/// [runWizard] 를 불러 그 종료 코드를 돌려준다.
-///
-/// 위저드 진입점(`bin/setup.dart`)이 부른다 — [runWizard] 를 직접 부르는 시험
-/// 문맥은 시작 지문이 없어 빌드 입력 변경을 판정하지 않는다. 지문은 첫 검사
-/// 전에 남긴다.
-Future<int> runSetupWizard(
-  WizardContext context,
-  List<Step> steps, {
-  WizardCompletion? onCompleted,
-  StepListBuilder? rebuildSteps,
-}) {
-  recordBuildInputsAtStart(context);
-  return runWizard(
-    context,
-    steps,
-    onCompleted: onCompleted,
-    rebuildSteps: rebuildSteps,
-  );
-}

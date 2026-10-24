@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
-import '../tool/setup/build_inputs.dart';
 import '../tool/setup/command_runner.dart';
 import '../tool/setup/completion.dart';
 import '../tool/setup/flavor.dart';
@@ -10,6 +9,7 @@ import '../tool/setup/log_sink.dart';
 import '../tool/setup/providers/provider_catalog.dart';
 import '../tool/setup/redactor.dart';
 import '../tool/setup/rest_client.dart';
+import '../tool/setup/setup_entry.dart';
 import '../tool/setup/step.dart';
 import '../tool/setup/steps/flavor_steps.dart';
 import '../tool/setup/terminal.dart';

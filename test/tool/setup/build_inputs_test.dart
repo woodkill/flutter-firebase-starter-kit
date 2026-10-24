@@ -4,6 +4,7 @@ import 'package:test/test.dart';
 
 import '../../../tool/setup/build_inputs.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/setup_entry.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fakes.dart';
@@ -205,6 +206,22 @@ void main() {
 
     expect(RegExp(r'\brunSetupWizard\s*\(').allMatches(source), hasLength(1));
     expect(RegExp(r'(^|[^A-Za-z_])runWizard\s*\(').hasMatch(source), isFalse);
+    // 진입 함수는 진입 파일에서 가져온다 — 빌드 입력 지문 파일은 진입점이 쓰지 않는다.
+    expect(source, contains("import '../tool/setup/setup_entry.dart';"));
+    expect(source, isNot(contains('build_inputs.dart')));
+
+    // 진입 파일의 실행 함수는 위저드 실행 전에 시작 지문을 남긴다.
+    final String entry = File('tool/setup/setup_entry.dart').readAsStringSync();
+    expect(
+      RegExp(
+        r'recordBuildInputsAtStart\(context\);\s*return\s+runWizard\(',
+      ).allMatches(entry),
+      hasLength(1),
+    );
+    expect(
+      File('tool/setup/build_inputs.dart').readAsStringSync(),
+      isNot(contains('runSetupWizard')),
+    );
   });
 
   group('T-21-BUILD-06: 진입 실행 함수', () {

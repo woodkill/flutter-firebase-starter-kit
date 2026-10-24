@@ -12,6 +12,7 @@ import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/rebuild_markers.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
+import '../../../tool/setup/setup_entry.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
