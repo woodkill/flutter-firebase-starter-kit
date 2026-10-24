@@ -1765,7 +1765,12 @@ Resend 는 도메인을 인증하기 전에는 Resend 계정의 이메일 주소
 "emailDelivery": "kit"
 ```
 
-같은 파일의 `firebaseWebApiKey` 에 **웹 API 키**(`AIza` 로 시작)를 넣는다. 키는 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에 있는 `Browser key (auto created by Firebase)` 다 — Firebase 가 프로젝트를 만들 때 함께 만든다. 「키 표시」 로 연 창에서 값을 복사하고, 키 이름을 눌러 연 화면에서 애플리케이션 제한사항이 「없음」 인지 확인한다. 「없음」 이 아니면 [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 의 「문제가 발생했습니다」 항목대로 고친다. 결과 페이지는 이 키로만 Firebase Authentication 을 부르고, 메일 링크에 실린 키는 쓰지 않는다. 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
+같은 파일의 `firebaseWebApiKey` 에 **웹 API 키**(`AIza` 로 시작)를 넣는다.
+- 키는 Google Cloud Console → API 및 서비스(APIs & Services) → 사용자 인증 정보(Credentials) 의 「API 키」 표에 있는 `Browser key (auto created by Firebase)` 다(Firebase 가 프로젝트를 만들 때 함께 만든다).
+- 「키 표시」 로 연 창에서 값을 복사한다.
+- 키 이름을 눌러 연 화면에서 애플리케이션 제한사항이 「없음」 인지 확인한다. 「없음」 이 아니면 [결과 페이지 절](#인증-결과-페이지-바꾸기) 「문제 해결」 의 「문제가 발생했습니다」 항목대로 고친다.
+- 결과 페이지는 이 키로만 Firebase Authentication 을 부른다. 메일 링크에 실린 키는 쓰지 않는다.
+- 비어 있거나 example 파일의 자리표시 값 그대로면 ④ 의 결과 페이지 빌드가 `FAIL:` 로 멈춘다.
 
 **③ 확장 값 파일을 만든다.** 프로젝트마다 한 번, example 파일을 복사한다. 복사한 파일은 git 이 무시한다.
 

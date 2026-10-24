@@ -989,7 +989,7 @@ void main() {
             ],
           ),
           'guide.md 켜기 ②': (
-            _readLineStartingWith(delivery, _webApiKeyStepPrefix),
+            collectItemBlocks(delivery, _webApiKeyStepPrefix).take(1).join(),
             <String>[
               _webApiKeyConsolePath,
               _webApiKeyBrowserKeyName,

@@ -103,6 +103,71 @@ String sliceMarkdownSection(
 List<String> linesStartingWith(String text, String prefix) =>
     text.split('\n').where((String line) => line.startsWith(prefix)).toList();
 
+/// 마크다운 목록 표지(`숫자. ` · `- ` · `* ` · `+ `)로 시작하는 줄 머리다.
+final RegExp _listMarkerHead = RegExp(r'^(\d+\. |[-*+] )');
+
+/// 번호 목록 표지(`숫자. `)로 시작하는 줄 머리다.
+final RegExp _numberMarkerHead = RegExp(r'^\d+\. ');
+
+/// 들여쓰기 0 의 마크다운 제목 줄(`#` 1 ~ 6개 + 공백)이다.
+final RegExp _zeroIndentHeadingLine = RegExp('^#{1,6} ');
+
+/// [line] 앞의 공백 수를 센다.
+int _leadingSpaceCount(String line) => line.length - line.trimLeft().length;
+
+/// [text] 에서 [prefix] 로 시작하는 줄마다 그 줄과 바로 아래 하위 항목 덩어리를
+/// 모은다.
+///
+/// 문서가 「할 일 한 줄 + 하위 항목」 꼴이면 한 줄만 읽는 시험은 하위 항목으로
+/// 내려간 토큰을 놓친다. 이 헬퍼는 읽는 범위만 넓히고 찾는 토큰은 호출자가 그대로
+/// 둔다. 덩어리 개수 · 순서는 [linesStartingWith] 와 같다 — 덩어리가 겹쳐도 머리
+/// 줄마다 따로 만들고, 머리 줄이 없으면 빈 목록이다.
+///
+/// 덩어리는 머리 줄과 뒤따르는 줄을 차례로 `\n` 으로 이은 원문이다. 머리 줄의
+/// 들여쓰기 k(앞 공백 수)와 머리가 목록 항목인지로 뒤 줄을 판정한다.
+/// - 빈 줄(공백뿐) · 들여쓰기 0 의 제목 줄 · 글 끝에서 멈춘다.
+/// - 들여쓰기가 k 보다 큰 줄(하위 항목 · 이어 쓴 줄 · 들여 쓴 펜스)은 붙인다.
+/// - 들여쓰기가 k 이하인 줄은 머리가 목록 항목이면 목록 표지 줄 · 표 줄(`|`) ·
+///   펜스 줄에서 멈추고, 머리가 문단 줄이면 번호 표지 줄 · 표 줄 · 펜스 줄에서
+///   멈춘다(문단 바로 아래 같은 들여쓰기의 `- ` 하위 항목은 붙는다). 그 밖의 줄
+///   (이어 쓴 줄)은 붙인다.
+///
+/// 첫 덩어리만 읽는 호출자는 `.take(1).join()` 으로 받는다 — 머리 줄이 없으면 빈
+/// 문자열이다.
+List<String> collectItemBlocks(String text, String prefix) {
+  final List<String> lines = text.split('\n');
+  final blocks = <String>[];
+  for (var start = 0; start < lines.length; start++) {
+    final String head = lines[start];
+    if (!head.startsWith(prefix)) {
+      continue;
+    }
+    final int headIndent = _leadingSpaceCount(head);
+    final bool isListHead = _listMarkerHead.hasMatch(head.trimLeft());
+    final block = <String>[head];
+    for (var i = start + 1; i < lines.length; i++) {
+      final String line = lines[i];
+      final String body = line.trimLeft();
+      if (body.isEmpty || _zeroIndentHeadingLine.hasMatch(line)) {
+        break;
+      }
+      if (_leadingSpaceCount(line) <= headIndent) {
+        final bool isStructural =
+            body.startsWith('|') || body.startsWith('```');
+        final bool stopsHere = isListHead
+            ? isStructural || _listMarkerHead.hasMatch(body)
+            : isStructural || _numberMarkerHead.hasMatch(body);
+        if (stopsHere) {
+          break;
+        }
+      }
+      block.add(line);
+    }
+    blocks.add(block.join('\n'));
+  }
+  return blocks;
+}
+
 /// 마크다운 [markdown] 에서 `## 목차` 다음 줄부터 그 뒤 첫 `---` 줄 앞까지를
 /// 돌려준다.
 ///
