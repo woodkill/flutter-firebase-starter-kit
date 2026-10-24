@@ -955,7 +955,9 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 
 ## 로그인 수단 끄기
 
-켠 소셜 로그인 수단을 로그인 화면에서 빼려면 이 절을 따른다. 끄는 일도 위저드가 한다 — `config/<flavor>.json` 을 손으로 고치거나 배포된 함수를 손으로 지우지 않는다. 출시 뒤 이미 가입자가 있는 수단은 목록에서 빼지 않고 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 로 버튼만 숨긴다 — 목록에서 빼면 그 수단으로 가입한 사용자가 로그인 · 재인증 · 회원탈퇴를 할 수 없다.
+켠 소셜 로그인 수단을 로그인 화면에서 빼려면 이 절을 따른다.
+- 끄는 일도 위저드가 한다 — `config/<flavor>.json` 을 손으로 고치거나 배포된 함수를 손으로 지우지 않는다.
+- 출시 뒤 이미 가입자가 있는 수단은 목록에서 빼지 않고 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 로 버튼만 숨긴다 — 목록에서 빼면 그 수단으로 가입한 사용자가 로그인 · 재인증 · 회원탈퇴를 할 수 없다.
 
 **전제**
 
@@ -964,14 +966,19 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 
 **단계**
 
-1. 저장소 루트에서 체크 목록을 연다. stg · prod 는 `--flavor stg` · `--flavor prod` 를 함께 준다.
+1. 저장소 루트에서 체크 목록을 연다.
+   - stg · prod 는 `--flavor stg` · `--flavor prod` 를 함께 준다.
 
    ```bash
    ./setup.sh --providers
    ```
 
-2. 위저드가 `로그인 수단 — 이메일 로그인은 늘 켜져 있습니다` 아래에 번호 목록을 보인다 — 켜진 수단은 `1) [x] Google` 처럼 `[x]` 가 붙는다. 번호를 묻는 질문에 **남길 수단의 번호만** 띄어 써서 입력한다. 끌 수단의 번호를 빼면 그 수단이 꺼진다. 소셜 로그인을 모두 끄려면 `0`(이메일만)을 입력한다.
-3. 위저드가 뺀 수단의 가입자 수를 센다 — 화면에는 수단 이름과 개수만 보인다. 여기서 아래 두 갈래로 나뉜다.
+2. 위저드가 `로그인 수단 — 이메일 로그인은 늘 켜져 있습니다` 아래에 번호 목록을 보인다 — 켜진 수단은 `1) [x] Google` 처럼 `[x]` 가 붙는다.
+   - 번호를 묻는 질문에 **남길 수단의 번호만** 띄어 써서 입력한다.
+   - 끌 수단의 번호를 빼면 그 수단이 꺼진다.
+   - 소셜 로그인을 모두 끄려면 `0`(이메일만)을 입력한다.
+3. 위저드가 뺀 수단의 가입자 수를 센다 — 화면에는 수단 이름과 개수만 보인다.
+   - 여기서 아래 두 갈래로 나뉜다.
 
 **가입자가 있으면** — 위저드는 로그인 수단 목록을 바꾸지 않고 아래 안내를 보인 뒤 끝난다. `<n>` · `<수단>` · `<토큰>` 에는 실제 값이 들어간다.
 
@@ -983,20 +990,29 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 끝나면 ./setup.sh 를 다시 실행하세요 — 끝난 단계는 건너뜁니다.
 ```
 
-`…` 자리에는 버튼을 숨기는 절차의 위치가 나온다. 그 절차는 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다 — 위저드는 Remote Config 를 바꾸지 않으므로 키 게시는 그 절차대로 직접 한다.
+`…` 자리에는 버튼을 숨기는 절차의 위치가 나온다.
+- 그 절차는 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다 — 위저드는 Remote Config 를 바꾸지 않으므로 키 게시는 그 절차대로 직접 한다.
 
-**켠 직후 끄는 개발 프로젝트** — 수단을 켜면 위저드의 「소셜 로그인 확인」 단계에서 그 수단으로 한 번 로그인하므로 테스트 계정이 생긴다. 그래서 켠 직후 끄면 위저드는 가입자가 있는 갈래로 가고, 안내 끝에 `테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요` 를 보인다. 가입자가 그 테스트 계정뿐이면 아래처럼 한다.
+**켠 직후 끄는 개발 프로젝트** — 수단을 켜면 위저드의 「소셜 로그인 확인」 단계에서 그 수단으로 한 번 로그인하므로 테스트 계정이 생긴다.
+- 그래서 켠 직후 끄면 위저드는 가입자가 있는 갈래로 가고, 안내 끝에 `테스트 계정만 있는 개발 프로젝트라면 그 계정을 먼저 지운 뒤 다시 실행하세요` 를 보인다.
+- 가입자가 그 테스트 계정뿐이면 아래처럼 한다.
 
 1. 테스트 계정을 지운다.
    - Google · Apple · Facebook — Firebase 콘솔에서 그 프로젝트를 열고 Authentication 의 「사용자」 탭에서 그 계정 행 끝 「⋮」 의 「계정 삭제」 로 지운다.
-   - Kakao · Naver · LINE — 위저드는 이 셋의 가입자를 Firestore 의 가입 기록으로 센다. 콘솔의 Authentication 사용자 목록에서만 지우면 그 기록이 남아 다시 가입자로 세어진다. 앱에서 그 테스트 계정으로 로그인한 뒤 설정 → 「내 계정」 아래의 「회원탈퇴」 로 지운다 — 확인 칸(「계속하려면 "탈퇴"를 입력하세요.」)에 `탈퇴` 를 입력하고 「탈퇴」 를 누른다. 연결된 서비스의 앱 연결을 해제하는 화면이 나오면 서비스마다 해제하거나 「건너뛰기」 를 누른 뒤(「모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.」) 「탈퇴」 를 누른다. 그러면 계정과 가입 기록이 함께 지워진다. 앱이 떠 있지 않으면 이 절의 「확인 방법」 의 명령으로 띄운다.
+   - Kakao · Naver · LINE — 위저드는 이 셋의 가입자를 Firestore 의 가입 기록으로 센다.
+     - 콘솔의 Authentication 사용자 목록에서만 지우면 그 기록이 남아 다시 가입자로 세어진다.
+     - 앱에서 그 테스트 계정으로 로그인한 뒤 설정 → 「내 계정」 아래의 「회원탈퇴」 로 지운다 — 확인 칸(「계속하려면 "탈퇴"를 입력하세요.」)에 `탈퇴` 를 입력하고 「탈퇴」 를 누른다.
+     - 연결된 서비스의 앱 연결을 해제하는 화면이 나오면 서비스마다 해제하거나 「건너뛰기」 를 누른 뒤(「모든 서비스를 해제하거나 건너뛰면 탈퇴할 수 있습니다.」) 「탈퇴」 를 누른다.
+     - 그러면 계정과 가입 기록이 함께 지워진다.
+     - 앱이 떠 있지 않으면 이 절의 「확인 방법」 의 명령으로 띄운다.
 2. 체크 목록을 다시 연다.
 
    ```bash
    ./setup.sh --providers
    ```
 
-3. 같은 번호를 다시 입력한다. 이번에는 가입자가 0명이라 아래 「가입자가 없으면」 갈래로 간다.
+3. 같은 번호를 다시 입력한다.
+   - 이번에는 가입자가 0명이라 아래 「가입자가 없으면」 갈래로 간다.
 
 **가입자가 없으면** — 위저드는 「지금 · 새 값 · 뺀 것 · 기록」 값 표를 보이고, `y` 를 받은 뒤 `config/<flavor>.json` 의 `enabledAuthProviders` 에서 그 수단을 뺀다. 그 수단의 키 · secret 값은 남긴다. 이어서 그 수단의 함수가 배포돼 있으면 이름을 보이고 지울지 따로 묻는다.
 
@@ -1006,15 +1022,20 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 지울까요? [y/N]
 ```
 
-- 기본은 아니요다. 아니요면 위저드가 `함수를 남겼습니다.` 를 보이고 함수는 그대로 남는다. 남은 함수는 「Cloud Functions 배포」 단계가 끝남 줄에 `꺼진 로그인 수단의 함수 <n>개가 남아 있습니다` 로 개수와 지우는 명령을 알린다.
-- `y` 면 위저드가 그 함수를 지우고 `함수 <n>개를 지웠습니다.` 를 보인다. 이미 지워져 있으면 `지울 함수가 이미 지워져 있습니다 — 그대로 진행합니다.` 를 보이고 이어 간다.
+- 기본은 아니요다.
+  - 아니요면 위저드가 `함수를 남겼습니다.` 를 보이고 함수는 그대로 남는다.
+  - 남은 함수는 「Cloud Functions 배포」 단계가 끝남 줄에 `꺼진 로그인 수단의 함수 <n>개가 남아 있습니다` 로 개수와 지우는 명령을 알린다.
+- `y` 면 위저드가 그 함수를 지우고 `함수 <n>개를 지웠습니다.` 를 보인다.
+  - 이미 지워져 있으면 `지울 함수가 이미 지워져 있습니다 — 그대로 진행합니다.` 를 보이고 이어 간다.
 
 그 뒤 위저드는 바뀐 목록으로 단계 목록을 다시 짜고 남은 단계를 이어 간다.
 
 ### 확인 방법
 
 - `./setup.sh` 를 다시 실행하면 점검표의 「로그인 수단」 줄이 남은 수단만 보인다(예: `이메일 + Google · 바꾸기: ./setup.sh --providers`).
-- 앱을 다시 빌드해 실행하면 로그인 화면에서 뺀 수단의 버튼이 사라진다. `enabledAuthProviders` 는 빌드 때 앱에 들어가므로 실행 중인 앱에는 다시 빌드해야 반영된다. 새로 받은 저장소에서 처음 빌드하면 코드 생성 파일이 없으므로 먼저 코드를 생성한다.
+- 앱을 다시 빌드해 실행하면 로그인 화면에서 뺀 수단의 버튼이 사라진다.
+  - `enabledAuthProviders` 는 빌드 때 앱에 들어가므로 실행 중인 앱에는 다시 빌드해야 반영된다.
+  - 새로 받은 저장소에서 처음 빌드하면 코드 생성 파일이 없으므로 먼저 코드를 생성한다.
 
   ```bash
   fvm dart run build_runner build --delete-conflicting-outputs
@@ -1025,22 +1046,30 @@ Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg �
 
 ### 되돌리기
 
-`./setup.sh --providers` 를 다시 실행해 끈 수단의 번호를 다시 넣는다. 키 · secret 값은 남아 있으므로 다시 입력하지 않아도 되고, 지운 함수는 「Cloud Functions 배포」 단계가 다시 배포한다. Kill Switch 로 숨긴 버튼을 되살리는 법은 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다.
+`./setup.sh --providers` 를 다시 실행해 끈 수단의 번호를 다시 넣는다.
+- 키 · secret 값은 남아 있으므로 다시 입력하지 않아도 되고, 지운 함수는 「Cloud Functions 배포」 단계가 다시 배포한다.
+- Kill Switch 로 숨긴 버튼을 되살리는 법은 [Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기) 에 있다.
 
 ### iOS 서명 — Apple 을 꺼도 필요한 capability
 
-Apple 을 꺼도 iOS 실기기 서명에는 App ID 의 Sign in with Apple capability 가 필요하다. 자동 서명이면 Xcode 가 켠다. 수동 서명이면 Apple Developer → Certificates, Identifiers & Profiles → Identifiers 에서 앱의 App ID 를 열고 Sign in with Apple 을 켠다.
+Apple 을 꺼도 iOS 실기기 서명에는 App ID 의 Sign in with Apple capability 가 필요하다.
+- 자동 서명이면 Xcode 가 켠다.
+- 수동 서명이면 Apple Developer → Certificates, Identifiers & Profiles → Identifiers 에서 앱의 App ID 를 열고 Sign in with Apple 을 켠다.
 
 Apple 을 끈 앱도 이 capability 를 그대로 두는 이유는 다음과 같다.
 
 - capability 는 추가 비용 없이 체크 한 번으로 켜진다.
-- `ios/Runner/Runner.entitlements` 의 `com.apple.developer.applesignin` 은 provider 마다 나누지 않는다. 빌드 설정 9곳이 같은 파일을 쓰고, 그 파일에 푸시 알림용 `aps-environment` 도 들어 있다.
+- `ios/Runner/Runner.entitlements` 의 `com.apple.developer.applesignin` 은 provider 마다 나누지 않는다.
+  - 빌드 설정 9곳이 같은 파일을 쓰고, 그 파일에 푸시 알림용 `aps-environment` 도 들어 있다.
 - 파일을 나누면 `enabledAuthProviders` 와 xcconfig 두 곳을 서로 맞춰야 한다.
 - 시뮬레이터 빌드에는 영향이 없다.
 
 ### App Store 심사 4.8 (Login Services) 주의
 
-Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4.8 의 「동등한 다른 로그인 수단」 요건을 검토해야 한다. 이메일/비밀번호 로그인이 그 요건을 채우는지는 Apple 이 심사에서 판단한다. 제출 전에 심사 시점의 원문을 확인한다 — <https://developer.apple.com/app-store/review/guidelines/#login-services>. 아래 인용은 4.8 원문 첫 문단과 세 조건이다.
+Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4.8 의 「동등한 다른 로그인 수단」 요건을 검토해야 한다.
+- 이메일/비밀번호 로그인이 그 요건을 채우는지는 Apple 이 심사에서 판단한다.
+- 제출 전에 심사 시점의 원문을 확인한다 — <https://developer.apple.com/app-store/review/guidelines/#login-services>.
+- 아래 인용은 4.8 원문 첫 문단과 세 조건이다.
 
 > Apps that use a third-party or social login service (such as Facebook Login, Google Sign-In, Log in with X, Sign In with LinkedIn, Login with Amazon, or WeChat Login) to set up or authenticate the user’s primary account with the app must also offer as an equivalent option another login service with the following features:
 >
@@ -1050,7 +1079,8 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 
 ## 위저드를 끝낸 뒤
 
-위저드를 끝냈으면 아래 목록에서 할 일을 고른다. 절차는 각 링크의 절에 있다.
+위저드를 끝냈으면 아래 목록에서 할 일을 고른다.
+- 절차는 각 링크의 절에 있다.
 
 ### 꼭 할 일
 
@@ -1075,22 +1105,29 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 
 ## 문제가 생기면
 
-위저드가 멈추거나 단계가 실패하면 `.setup/logs/` 의 가장 최근 실행 기록부터 본다 — 실행한 명령 · 종료 코드 · 명령 출력 · 단계 검사 판정이 들어 있고, 비밀 값은 가려져 있다. 원인을 고친 뒤 같은 명령을 다시 실행하면 끝난 단계는 검사만 하고 건너뛰고, 멈춘 단계부터 이어 간다.
+위저드가 멈추거나 단계가 실패하면 `.setup/logs/` 의 가장 최근 실행 기록부터 본다 — 실행한 명령 · 종료 코드 · 명령 출력 · 단계 검사 판정이 들어 있고, 비밀 값은 가려져 있다.
+- 원인을 고친 뒤 같은 명령을 다시 실행하면 끝난 단계는 검사만 하고 건너뛰고, 멈춘 단계부터 이어 간다.
 
 ### 위저드를 끝내기 전에 앱을 실행하면
 
-**위저드를 끝까지 실행하면 해결된다.** 「앱 등록 · 설정 파일」 단계가 그 flavor 의 Firebase 설정 파일을 실제 값으로 만들고, 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄운다.
+**위저드를 끝까지 실행하면 해결된다.**
+- 「앱 등록 · 설정 파일」 단계가 그 flavor 의 Firebase 설정 파일을 실제 값으로 만들고, 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄운다.
 
 위저드를 끝내기 전의 앱은 이렇게 동작한다.
 
-- Firebase 설정 파일(`lib/core/firebase/firebase_options_<flavor>.dart` · `ios/config/<flavor>/GoogleService-Info.plist` · stg · prod 의 `android/app/src/<flavor>/google-services.json`)은 자리표시 값으로 저장소에 들어 있다. 그래서 빌드와 analyze 는 통과하지만, 앱은 Firebase 를 초기화하지 못한 채 뜬다 — 인증 · Firestore · Crashlytics · Remote Config 같은 Firebase 기능이 모두 꺼진다. 빌드가 된다고 Firebase 가 연결되지는 않는다.
-- dev 의 Android 설정 파일 `android/app/src/dev/google-services.json` 은 저장소에 없고 「앱 등록 · 설정 파일」 단계가 만든다. 그 전에는 `--flavor dev` Android 빌드가 실패한다.
+- Firebase 설정 파일(`lib/core/firebase/firebase_options_<flavor>.dart` · `ios/config/<flavor>/GoogleService-Info.plist` · stg · prod 의 `android/app/src/<flavor>/google-services.json`)은 자리표시 값으로 저장소에 들어 있다.
+  - 그래서 빌드와 analyze 는 통과하지만, 앱은 Firebase 를 초기화하지 못한 채 뜬다 — 인증 · Firestore · Crashlytics · Remote Config 같은 Firebase 기능이 모두 꺼진다.
+  - 빌드가 된다고 Firebase 가 연결되지는 않는다.
+- dev 의 Android 설정 파일 `android/app/src/dev/google-services.json` 은 저장소에 없고 「앱 등록 · 설정 파일」 단계가 만든다.
+  - 그 전에는 `--flavor dev` Android 빌드가 실패한다.
 - iOS 는 세 flavor 모두 자리표시 `GoogleService-Info.plist` 가 있어 빌드 단계를 통과한다.
-- 위저드가 만든 실제 설정 파일은 이 컴퓨터에만 있다 — 저장소에 든 자리표시 파일은 skip-worktree 로, 나머지는 `.gitignore` 로 커밋 대상에서 빠진다. 실제 값이 든 설정 파일을 `git add -f` 로 강제로 올리지 않는다.
+- 위저드가 만든 실제 설정 파일은 이 컴퓨터에만 있다 — 저장소에 든 자리표시 파일은 skip-worktree 로, 나머지는 `.gitignore` 로 커밋 대상에서 빠진다.
+  - 실제 값이 든 설정 파일을 `git add -f` 로 강제로 올리지 않는다.
 
 ### secret 값 확인하기
 
-켠 로그인 수단으로 로그인할 때 오류 배너가 뜨면 그 수단의 secret 이 자리표시 값 `unset` 으로 남아 있는지 확인한다. secret 을 쓰는 수단과 secret 이름은 아래와 같다.
+켠 로그인 수단으로 로그인할 때 오류 배너가 뜨면 그 수단의 secret 이 자리표시 값 `unset` 으로 남아 있는지 확인한다.
+- secret 을 쓰는 수단과 secret 이름은 아래와 같다.
 
 | 수단 | secret |
 |---|---|
@@ -1099,7 +1136,9 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 | Naver | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` |
 | LINE | `LINE_CHANNEL_ID` · `LINE_CHANNEL_SECRET` |
 
-- secret 이름마다 아래 명령을 실행한다. `<your-project-id>` 는 `config/<flavor>.json` 의 `firebaseProjectId` 값이다. 명령은 값을 화면에 출력하지 않고 `unset` 인지만 알려 준다 — `functions:secrets:access` 를 그대로 실행하면 값이 출력되므로 그 출력은 공유하지 않는다.
+- secret 이름마다 아래 명령을 실행한다.
+  - `<your-project-id>` 는 `config/<flavor>.json` 의 `firebaseProjectId` 값이다.
+  - 명령은 값을 화면에 출력하지 않고 `unset` 인지만 알려 준다 — `functions:secrets:access` 를 그대로 실행하면 값이 출력되므로 그 출력은 공유하지 않는다.
 
   ```bash
   if v="$(firebase functions:secrets:access <secret 이름> --project <your-project-id> 2>&1)"; then
@@ -1110,12 +1149,30 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
   unset v
   ```
 
-- `unset` 이면 `./setup.sh --providers` 를 다시 실행하고, 체크 목록에서 Enter 로 지금 그대로 둔다. 켠 수단의 단계가 다시 검사되어 `config/<flavor>.json` 의 값으로 secret 을 맞추고, 서버에만 두는 secret 이면 콘솔에서 받은 값을 다시 묻는다. 옛 secret 버전을 쓰는 함수는 「Cloud Functions 배포」 단계가 다시 배포한다.
+- `unset` 이면 `./setup.sh --providers` 를 다시 실행하고, 체크 목록에서 Enter 로 지금 그대로 둔다.
+  - 켠 수단의 단계가 다시 검사되어 `config/<flavor>.json` 의 값으로 secret 을 맞추고, 서버에만 두는 secret 이면 콘솔에서 받은 값을 다시 묻는다.
+  - 옛 secret 버전을 쓰는 함수는 「Cloud Functions 배포」 단계가 다시 배포한다.
 
 ### 그 밖의 문제
 
-- **회원탈퇴 같은 보호된 기능이 debug 빌드에서 실패한다.** App Check 디버그 토큰이 등록돼 있지 않은 것이다 — Android 로그에 `Error getting App Check token; using placeholder token instead` 가 보이면 이 경우다. debug 빌드는 위저드가 만든 토큰(`config/<flavor>.json` 의 `appCheckDebugToken`)을 쓴다. `./setup.sh` 를 다시 실행하면 「App Check 디버그 토큰」 단계가 그 토큰이 iOS · Android 앱에 등록돼 있는지 보고 빠진 앱에 다시 등록한다 — config 에 토큰이 없으면 새로 만들어 등록한다. 그 뒤 앱을 다시 빌드해야 새 토큰이 들어간다. `appCheckDebugToken` 을 비워 두면 앱이 설치마다 토큰을 만들어 로그에 출력하고, 앱 데이터를 지우거나(`adb shell pm clear <applicationId>`) 다시 설치하면 그 토큰이 바뀐다 — 비우지 말고 위저드가 만든 값을 쓴다.
-- **로그인 수단의 키를 채우기 전에도 빌드 · 기동은 된다.** 로그인 수단 키가 비어 있어도 Android · iOS 빌드와 앱 기동은 성공한다. `enabledAuthProviders` 의 example 값이 빈 문자열이라 소셜 로그인 버튼은 보이지 않는다. 끈 수단은 다른 앱과 겹칠 수 있는 URL scheme 을 등록하지 않고, `unset` 이 들어간 자리표시 scheme(Android 예: `unset.kakao.oauth`)이 그 자리에 들어간다. `bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all]` 로 확인하고, 성공하면 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor> <case>` 다. 이 스크립트는 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 를 읽지도 바꾸지도 않는다.
-- **`config/<flavor>.json` 을 커밋하려 한다.** 이 파일에는 본인 키가 들어 있어 `.gitignore` 가 막는다. `git add -f` 로 강제로 올리지 않는다 — `git status --ignored config/` 로 ignored 상태인지 확인한다.
-- **example 파일에 본인 키를 넣었다.** `config/*.example.json` · `ios/Flutter/*.example.xcconfig` 는 자리표시 값 그대로 둔다. 본인 값은 위저드가 만든 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 에만 들어간다.
-- **빌드 명령에 다른 config 를 줬다.** 앱은 `--dart-define-from-file=config/<flavor>.json` 으로 빌드한다(예: `fvm flutter run --flavor dev --dart-define-from-file=config/dev.json`). example 파일로 빌드하면 Kakao · Facebook SDK 초기화가 실패하거나 Firebase 프로젝트가 맞지 않는다.
+- **회원탈퇴 같은 보호된 기능이 debug 빌드에서 실패한다.**
+  - App Check 디버그 토큰이 등록돼 있지 않은 것이다 — Android 로그에 `Error getting App Check token; using placeholder token instead` 가 보이면 이 경우다.
+  - debug 빌드는 위저드가 만든 토큰(`config/<flavor>.json` 의 `appCheckDebugToken`)을 쓴다.
+  - `./setup.sh` 를 다시 실행하면 「App Check 디버그 토큰」 단계가 그 토큰이 iOS · Android 앱에 등록돼 있는지 보고 빠진 앱에 다시 등록한다 — config 에 토큰이 없으면 새로 만들어 등록한다.
+  - 그 뒤 앱을 다시 빌드해야 새 토큰이 들어간다.
+  - `appCheckDebugToken` 을 비워 두면 앱이 설치마다 토큰을 만들어 로그에 출력하고, 앱 데이터를 지우거나(`adb shell pm clear <applicationId>`) 다시 설치하면 그 토큰이 바뀐다 — 비우지 말고 위저드가 만든 값을 쓴다.
+- **로그인 수단의 키를 채우기 전에도 빌드 · 기동은 된다.**
+  - 로그인 수단 키가 비어 있어도 Android · iOS 빌드와 앱 기동은 성공한다.
+  - `enabledAuthProviders` 의 example 값이 빈 문자열이라 소셜 로그인 버튼은 보이지 않는다.
+  - 끈 수단은 다른 앱과 겹칠 수 있는 URL scheme 을 등록하지 않고, `unset` 이 들어간 자리표시 scheme(Android 예: `unset.kakao.oauth`)이 그 자리에 들어간다.
+  - `bash scripts/verify_placeholder_builds.sh <android|ios> <dev|stg|prod> [off|google|all]` 로 확인하고, 성공하면 마지막 줄이 `PLACEHOLDER-BUILD-OK <platform> <flavor> <case>` 다.
+  - 이 스크립트는 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 를 읽지도 바꾸지도 않는다.
+- **`config/<flavor>.json` 을 커밋하려 한다.**
+  - 이 파일에는 본인 키가 들어 있어 `.gitignore` 가 막는다.
+  - `git add -f` 로 강제로 올리지 않는다 — `git status --ignored config/` 로 ignored 상태인지 확인한다.
+- **example 파일에 본인 키를 넣었다.**
+  - `config/*.example.json` · `ios/Flutter/*.example.xcconfig` 는 자리표시 값 그대로 둔다.
+  - 본인 값은 위저드가 만든 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` 에만 들어간다.
+- **빌드 명령에 다른 config 를 줬다.**
+  - 앱은 `--dart-define-from-file=config/<flavor>.json` 으로 빌드한다(예: `fvm flutter run --flavor dev --dart-define-from-file=config/dev.json`).
+  - example 파일로 빌드하면 Kakao · Facebook SDK 초기화가 실패하거나 Firebase 프로젝트가 맞지 않는다.
