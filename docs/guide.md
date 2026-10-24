@@ -2336,18 +2336,24 @@ bash scripts/deploy_functions.sh dev --apply
 
 ### 릴리스 서명(keystore)
 
-`android/app/build.gradle.kts` 의 `buildTypes.release` 는 Flutter 템플릿 그대로 debug 키로 서명한다(`signingConfig = signingConfigs.getByName("debug")` 줄과 그 위 TODO 주석). Play 에 올릴 빌드는 내 키로 서명해야 하므로 아래대로 바꾼다. 이 release 설정은 flavor 를 가리지 않는다 — 키를 바꾸면 dev · stg 의 release 빌드도 같은 키로 서명된다. 공식 절차: <https://docs.flutter.dev/deployment/android>
+`android/app/build.gradle.kts` 의 `buildTypes.release` 는 Flutter 템플릿 그대로 debug 키로 서명한다(`signingConfig = signingConfigs.getByName("debug")` 줄과 그 위 TODO 주석).
+- Play 에 올릴 빌드는 내 키로 서명해야 하므로 아래대로 바꾼다.
+- 이 release 설정은 flavor 를 가리지 않는다 — 키를 바꾸면 dev · stg 의 release 빌드도 같은 키로 서명된다.
+- 공식 절차: <https://docs.flutter.dev/deployment/android>
 
-1. **키를 만든다.** 이미 업로드 키가 있으면 건너뛴다.
+1. **키를 만든다.**
+   - 이미 업로드 키가 있으면 건너뛴다.
 
    ```bash
    keytool -genkey -v -keystore ~/upload-keystore.jks -keyalg RSA \
            -storetype JKS -keysize 2048 -validity 10000 -alias upload
    ```
 
-   keystore 파일은 저장소 밖에 두고 공개 저장소에 올리지 않는다. `keytool` 이 PATH 에 없으면 `fvm flutter doctor -v` 의 `Java binary at:` 경로에서 `java` 를 `keytool` 로 바꿔 실행한다.
+   keystore 파일은 저장소 밖에 두고 공개 저장소에 올리지 않는다.
+   - `keytool` 이 PATH 에 없으면 `fvm flutter doctor -v` 의 `Java binary at:` 경로에서 `java` 를 `keytool` 로 바꿔 실행한다.
 
-2. **`android/key.properties` 를 만든다.** 값은 1 에서 정한 것이다.
+2. **`android/key.properties` 를 만든다.**
+   - 값은 1 에서 정한 것이다.
 
    ```properties
    storePassword=<비밀번호>
@@ -2356,9 +2362,11 @@ bash scripts/deploy_functions.sh dev --apply
    storeFile=/Users/<사용자>/upload-keystore.jks
    ```
 
-   `.gitignore` 가 `key.properties` · `*.jks` · `*.keystore` 를 git 밖에 두므로 이 파일은 커밋되지 않는다. 비밀번호를 다른 tracked 파일에 옮겨 적지 않는다.
+   `.gitignore` 가 `key.properties` · `*.jks` · `*.keystore` 를 git 밖에 두므로 이 파일은 커밋되지 않는다.
+   - 비밀번호를 다른 tracked 파일에 옮겨 적지 않는다.
 
-3. **`android/app/build.gradle.kts` 를 세 곳 고친다.** 맨 위 import 두 줄(킷 파일 1행의 `import java.util.Base64` 옆), `plugins { }` 와 `android {` 사이의 `key.properties` 읽기, `android { }` 안의 `signingConfigs` 와 `buildTypes.release` 의 `signingConfig` 다.
+3. **`android/app/build.gradle.kts` 를 세 곳 고친다.**
+   - 맨 위 import 두 줄(킷 파일 1행의 `import java.util.Base64` 옆), `plugins { }` 와 `android {` 사이의 `key.properties` 읽기, `android { }` 안의 `signingConfigs` 와 `buildTypes.release` 의 `signingConfig` 다.
 
    ```kotlin
    import java.util.Base64
@@ -2395,7 +2403,8 @@ bash scripts/deploy_functions.sh dev --apply
    }
    ```
 
-4. **이 키의 지문 · 키 해시를 얻는다.** `<keystore 경로>` · `<별칭>` 은 1 의 값이다(위 예대로면 `~/upload-keystore.jks` · `upload`).
+4. **이 키의 지문 · 키 해시를 얻는다.**
+   - `<keystore 경로>` · `<별칭>` 은 1 의 값이다(위 예대로면 `~/upload-keystore.jks` · `upload`).
 
    ```bash
    # SHA-1 · SHA-256 — 출력의 SHA1: · SHA256: 줄
@@ -2405,7 +2414,9 @@ bash scripts/deploy_functions.sh dev --apply
    keytool -exportcert -alias <별칭> -keystore <keystore 경로> | openssl sha1 -binary | openssl base64
    ```
 
-5. **지문 · 키 해시를 등록한다.** 콘솔 단계는 각 수단 절에 있다 — 이 절은 무엇을 어디에 더하는지만 적는다. 켜지 않은 수단의 행은 건너뛴다.
+5. **지문 · 키 해시를 등록한다.**
+   - 콘솔 단계는 각 수단 절에 있다 — 이 절은 무엇을 어디에 더하는지만 적는다.
+   - 켜지 않은 수단의 행은 건너뛴다.
 
    | 등록할 곳 | 값 | 콘솔 단계 |
    |---|---|---|
@@ -2416,9 +2427,18 @@ bash scripts/deploy_functions.sh dev --apply
 
    flavor 마다 Firebase 프로젝트 · 콘솔 앱이 다르므로, 그 flavor 의 release 빌드를 쓰는 곳에 각각 더한다.
 
-**Google Play 앱 서명.** Play 로 배포하면 Google 이 앱 서명 키로 다시 서명해 사용자에게 보낸다. 내가 만든 키는 업로드 키가 되고, 사용자 기기의 앱은 앱 서명 키로 서명돼 있다. 그래서 위 표의 곳에는 Play Console 의 「앱 서명」 화면에 있는 앱 서명 키의 SHA-1 · SHA-256 도 등록한다(prod 의 App Check Play Integrity 는 위저드가 이 SHA-256 을 받는다). 그 화면은 Play Console 에서 앱을 열고 왼쪽 「Google Play로 보호됨」 → 「Play 스토어 보호」 를 펼쳐 「앱 서명 키 보호」 의 「Play 앱 서명 관리」 를 누르면 열린다 — 「테스트 및 출시」 → 「앱 무결성」 은 「앱 무결성 설정의 위치가 변경되었습니다」 안내 뒤 같은 곳으로 보낸다. 앱 서명 키의 키 해시는 SHA-1 에서 만든다 — `echo <SHA-1> | tr -d ':' | xxd -r -p | openssl base64`. 공식 안내: <https://support.google.com/googleplay/android-developer/answer/9842756>
+**Google Play 앱 서명.**
+- Play 로 배포하면 Google 이 앱 서명 키로 다시 서명해 사용자에게 보낸다.
+- 내가 만든 키는 업로드 키가 되고, 사용자 기기의 앱은 앱 서명 키로 서명돼 있다.
+- 그래서 위 표의 곳에는 Play Console 의 「앱 서명」 화면에 있는 앱 서명 키의 SHA-1 · SHA-256 도 등록한다(prod 의 App Check Play Integrity 는 위저드가 이 SHA-256 을 받는다).
+- 그 화면은 Play Console 에서 앱을 열고 왼쪽 「Google Play로 보호됨」 → 「Play 스토어 보호」 를 펼쳐 「앱 서명 키 보호」 의 「Play 앱 서명 관리」 를 누르면 열린다 — 「테스트 및 출시」 → 「앱 무결성」 은 「앱 무결성 설정의 위치가 변경되었습니다」 안내 뒤 같은 곳으로 보낸다.
+- 앱 서명 키의 키 해시는 SHA-1 에서 만든다 — `echo <SHA-1> | tr -d ':' | xxd -r -p | openssl base64`.
+- 공식 안내: <https://support.google.com/googleplay/android-developer/answer/9842756>
 
-**키를 잃으면.** Play 앱 서명을 쓰면 업로드 키를 잃어도 Play Console 에서 업로드 키 재설정을 요청할 수 있다. Play 앱 서명 없이 앱 서명 키를 직접 관리하다 잃으면 재설정할 수 없고, 같은 앱으로 업데이트를 올릴 수 없다. keystore 파일과 비밀번호는 저장소 밖 안전한 곳에 따로 보관한다.
+**키를 잃으면.**
+- Play 앱 서명을 쓰면 업로드 키를 잃어도 Play Console 에서 업로드 키 재설정을 요청할 수 있다.
+- Play 앱 서명 없이 앱 서명 키를 직접 관리하다 잃으면 재설정할 수 없고, 같은 앱으로 업데이트를 올릴 수 없다.
+- keystore 파일과 비밀번호는 저장소 밖 안전한 곳에 따로 보관한다.
 
 ### iOS 서명
 
