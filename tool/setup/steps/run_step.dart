@@ -274,6 +274,20 @@ final class RunStep implements Step {
     buildCodegenCommand().render(),
   ];
 
+  /// 이번 실행에서 준비를 이미 마쳤을 때 준비 계획 줄 자리에 보이는 괄호 줄.
+  static const String preparedPlanNote =
+      '(이번 실행에서 패키지 받기 · 코드 생성을 마쳐 다시 하지 않습니다)';
+
+  /// [context] 세션에 맞는 준비 계획 줄을 만든다 — 이번 실행에서 준비를 이미
+  /// 마쳤으면([WizardSession.isAppBuildPrepared]) [preparedPlanNote] 한 줄, 아니면
+  /// [buildPrepareBuildPlanLines] 다.
+  ///
+  /// 실행 단계와 소셜 로그인 확인 단계의 계획 줄이 함께 쓴다.
+  static List<String> buildPreparePlanLinesFor(WizardContext context) =>
+      context.session.isAppBuildPrepared
+      ? const <String>[preparedPlanNote]
+      : buildPrepareBuildPlanLines();
+
   /// 앱을 띄우는 경로([launchAppForSignIn])의 계획 줄을 만든다 — 기기 목록 ·
   /// 시뮬레이터 켜기 · [guideNote] · `flutter run` 순이다.
   ///
@@ -533,7 +547,7 @@ final class RunStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _RunMode.run => <String>[
-      ...buildPrepareBuildPlanLines(),
+      ...buildPreparePlanLinesFor(context),
       ...buildLaunchPlanLines(
         context,
         guideNote: '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
@@ -541,7 +555,7 @@ final class RunStep implements Step {
       ..._buildRecountPlanLines(),
     ],
     _RunMode.rebuild => <String>[
-      ...buildPrepareBuildPlanLines(),
+      ...buildPreparePlanLinesFor(context),
       ...buildLaunchPlanLines(context, guideNote: rebuildPlanNote),
       ..._buildRecountPlanLines(),
     ],
@@ -591,9 +605,13 @@ final class RunStep implements Step {
   /// 앱을 띄우기 전에 저장소 루트에서 패키지를 받고 코드를 생성한다.
   ///
   /// 실행 단계와 소셜 로그인 확인 단계가 [launchAppForSignIn] 앞에 함께 쓴다.
-  /// 패키지 받기가 실패하면 코드 생성을 하지 않고 그 실패를, 코드 생성이
-  /// 실패하면 그 실패를 출력 원문과 함께 돌려주고, 둘 다 성공하면 null 이다.
+  /// 한 위저드 실행에서 성공한 뒤 다시 하지 않는다 — 실패했으면 다시 시도 때
+  /// 다시 한다. 이번 실행에서 이미 마쳤으면([WizardSession.isAppBuildPrepared])
+  /// 명령 없이 null 이다. 패키지 받기가 실패하면 코드 생성을 하지 않고 그 실패를,
+  /// 코드 생성이 실패하면 그 실패를 출력 원문과 함께 돌려주고, 둘 다 성공하면
+  /// 세션에 준비를 마쳤다고 남기고 null 이다.
   Future<Failed?> prepareAppBuild(WizardContext context) async {
+    if (context.session.isAppBuildPrepared) return null;
     final String root = context.projectRoot;
     final CommandResult pubGet = await context.runner.stream(
       buildPubGetCommand(workingDirectory: root),
@@ -607,6 +625,7 @@ final class RunStep implements Step {
     if (!codegen.isSuccess) {
       return Failed('코드 생성이 실패했습니다', result: codegen);
     }
+    context.session.isAppBuildPrepared = true;
     return null;
   }
 

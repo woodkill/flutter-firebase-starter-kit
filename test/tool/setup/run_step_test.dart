@@ -2292,4 +2292,102 @@ void main() {
       expect(closure, isNot(contains('providers')));
     });
   });
+
+  group('T-21-RUN-07: 준비는 한 실행에 한 번', () {
+    test('T-21-RUN-07: 앱 실행 실패 뒤 다시 시도하면 준비를 다시 하지 않는다 · '
+        '실행 2회 · ✓', () async {
+      // 실행 진행 y → 기기 기본값 → 다시 시도 → 기기 기본값.
+      final harness = _Harness(root, const <String?>['y', '', '1', '']);
+      for (final users in <int>[0, 0, 0, 1]) {
+        harness.registerVerifiedUsers(users);
+      }
+      harness
+        ..registerPreparation()
+        ..registerDevices(
+          buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+        )
+        ..registerRun(simulatorId, 1)
+        ..registerRun(simulatorId, 0);
+
+      expect(await harness.run(), wizardExitDone, reason: harness.output);
+      expect(harness.streamKeys, <String>[
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      expect(harness.runner.countMode(RunMode.interactive), 2);
+      expect(harness.context.session.isAppBuildPrepared, isTrue);
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+    });
+
+    test('T-21-RUN-07: 코드 생성이 실패한 뒤 다시 시도하면 준비를 다시 한다', () async {
+      // 실행 진행 y → 다시 시도 → 기기 기본값.
+      final harness = _Harness(root, const <String?>['y', '1', '']);
+      for (final users in <int>[0, 0, 0, 1]) {
+        harness.registerVerifiedUsers(users);
+      }
+      harness.runner
+        ..on(
+          FakeCommandRunner.buildKey(RunStep.buildPubGetCommand()),
+          const CommandResult(0, '', ''),
+        )
+        ..on(
+          FakeCommandRunner.buildKey(RunStep.buildCodegenCommand()),
+          const CommandResult(1, '', 'build_runner failed\n'),
+        )
+        ..on(
+          FakeCommandRunner.buildKey(RunStep.buildCodegenCommand()),
+          const CommandResult(0, '', ''),
+        );
+      harness
+        ..registerDevices(
+          buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+        )
+        ..registerRun(simulatorId, 0);
+
+      expect(await harness.run(), wizardExitDone, reason: harness.output);
+      expect(harness.output, contains('  실패 — 코드 생성이 실패했습니다'));
+      expect(harness.streamKeys, <String>[
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      expect(harness.context.session.isAppBuildPrepared, isTrue);
+    });
+
+    test('T-21-RUN-07: 준비를 마친 세션의 계획 줄은 준비 두 줄 대신 안내 한 줄', () async {
+      final harness = _Harness(root, const <String?>[]);
+      harness.registerVerifiedUsers(0);
+      final step = RunStep();
+
+      expect(RunStep.buildPreparePlanLinesFor(harness.context), <String>[
+        ...RunStep.buildPrepareBuildPlanLines(),
+      ]);
+      harness.context.session.isAppBuildPrepared = true;
+      expect(await step.check(harness.context), isA<Todo>());
+      final List<String> lines = step.plannedCommandLines(harness.context);
+
+      expect(RunStep.buildPreparePlanLinesFor(harness.context), <String>[
+        RunStep.preparedPlanNote,
+      ]);
+      expect(
+        RunStep.preparedPlanNote,
+        '(이번 실행에서 패키지 받기 · 코드 생성을 마쳐 다시 하지 않습니다)',
+      );
+      expect(lines.first, RunStep.preparedPlanNote);
+      expect(lines, isNot(contains('fvm flutter pub get')));
+      expect(
+        lines,
+        isNot(
+          contains(
+            'fvm dart run build_runner build --delete-conflicting-outputs',
+          ),
+        ),
+      );
+    });
+  });
 }

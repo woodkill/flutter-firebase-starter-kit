@@ -400,7 +400,41 @@ final class _Harness {
 
   /// 대화형 실행 명령 호출 수.
   int get launchCount => runner.countCalls(RunMode.interactive, runKey);
+
+  /// 앞 단계(끝남) · 실제 실행 단계 · 로그인 확인으로 위저드를 돌린다.
+  ///
+  /// 로그인 확인은 목록의 실행 단계와 다른 [RunStep] 으로 앱을 다시 띄운다 —
+  /// 실제 단계 목록과 같은 모양이다.
+  Future<int> runWithRunStep(Set<String> providers) =>
+      runWizard(context, <Step>[
+        _FinishedStep('configure', '앱 등록 · 설정 파일'),
+        _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
+        _FinishedStep('rules', 'Firestore · Storage rules'),
+        _FinishedStep('app_check', 'App Check 디버그 토큰'),
+        _FinishedStep('functions', 'Cloud Functions 배포'),
+        RunStep(delay: (Duration duration) async {}),
+        SignInCheckStep(
+          enabledProviders: providers,
+          launcher: RunStep(delay: (Duration duration) async {}),
+        ),
+      ]);
 }
+
+/// 인증된 이메일 사용자 1명과([hasGoogle] 면) Google 사용자 1명이 든 사용자 목록.
+RestResponse buildPasswordUsersPage({required bool hasGoogle}) => RestResponse(
+  200,
+  jsonEncode(<String, Object?>{
+    'users': <Object?>[
+      buildUser(fakeUid, fakeEmail, const <String>['password']),
+      if (hasGoogle)
+        buildUser(
+          '${fakeUid}g',
+          'signin-user-g@example.invalid',
+          const <String>['google.com'],
+        ),
+    ],
+  }),
+);
 
 /// [text] 안에 [needle] 이 나온 횟수.
 int countText(String text, String needle) => needle.allMatches(text).length;
@@ -1085,5 +1119,131 @@ void main() {
     expect(harness.launchCount, 2);
     expect(harness.lines, contains('  아직 로그인 기록이 없습니다: Kakao'));
     expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Kakao 1명'));
+  });
+
+  group('T-21-SIGNIN-01: 준비를 마친 실행의 다시 실행', () {
+    test('T-21-SIGNIN-01: 준비를 마친 세션이면 앱을 다시 실행해도 패키지 받기 · '
+        '코드 생성 0 · 실행 1 · 계획 줄은 안내 한 줄', () async {
+      final harness = _Harness(root, const <String?>['1', '']);
+      harness.context.session.isAppBuildPrepared = true;
+      harness
+        ..onUsers(<RestResponse>[
+          buildGoogleUsersPage(0),
+          buildGoogleUsersPage(0),
+          buildGoogleUsersPage(1),
+        ])
+        ..registerLaunch();
+
+      final int code = await harness.run(const <String>{
+        'google',
+      }, withNext: false);
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 0);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 0);
+      expect(harness.launchCount, 1);
+      expect(harness.output, contains('    ${RunStep.preparedPlanNote}\n'));
+      expect(harness.output, isNot(contains(r'  $ fvm flutter pub get')));
+      expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Google 1명'));
+    });
+
+    test('T-21-SIGNIN-01: 새 세션이면 지금처럼 준비 각 1회 뒤 준비를 마친 것으로 '
+        '남긴다', () async {
+      final harness = _Harness(root, const <String?>['1', '']);
+      harness
+        ..onUsers(<RestResponse>[
+          buildGoogleUsersPage(0),
+          buildGoogleUsersPage(0),
+          buildGoogleUsersPage(1),
+        ])
+        ..registerLaunch();
+
+      final int code = await harness.run(const <String>{
+        'google',
+      }, withNext: false);
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 1);
+      expect(harness.launchCount, 1);
+      expect(harness.output, contains('  \$ fvm flutter pub get\n'));
+      expect(harness.context.session.isAppBuildPrepared, isTrue);
+    });
+  });
+
+  group('T-21-SIGNIN-02: 실행 단계가 다시 빌드한 실행의 소셜 로그인 확인', () {
+    setUp(() {
+      File(configPath).writeAsStringSync(
+        '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId, 'enabledAuthProviders': 'google'})}\n',
+      );
+    });
+
+    /// 다시 빌드 안내 줄이 모두 화면에 있고 켠 수단 · 다음 단계를 말하는지 본다.
+    void expectRebuildGuide(_Harness harness) {
+      final List<String> guide = RunStep.buildRebuildGuideLines(
+        harness.context,
+      );
+      expect(guide.first, contains('이메일 + Google'));
+      expect(guide[1], contains('「소셜 로그인 확인」'));
+      for (final line in guide) {
+        expect(harness.output, contains('$line\n'));
+      }
+    }
+
+    test('T-21-SIGNIN-02: 다시 빌드한 실행에서 로그인하면 소셜 로그인 확인은 세기만 하고 ✓ · '
+        '준비 각 1회 · 실행 1회 · 다시 실행 질문 0', () async {
+      // 실행 단계 진행 y → 기기 기본값.
+      final harness = _Harness(root, const <String?>['y', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      harness
+        ..onUsers(<RestResponse>[
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: true),
+        ])
+        ..registerLaunch();
+
+      final int code = await harness.runWithRunStep(const <String>{'google'});
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}${RunStep.appCheckTokenReason}\n',
+        ),
+      );
+      expectRebuildGuide(harness);
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 1);
+      expect(harness.launchCount, 1);
+      expect(harness.output, isNot(contains(choiceLines)));
+      expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Google 1명'));
+    });
+
+    test('T-21-SIGNIN-02: 기록이 아직 없으면 진행 · 미루기 · 멈춤을 묻고 앱을 다시 실행 → '
+        '✓ · 준비 각 1회 · 실행 2회', () async {
+      // 실행 단계 진행 y → 기기 기본값 → 앱을 다시 실행 → 기기 기본값.
+      final harness = _Harness(root, const <String?>['y', '', '1', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      harness
+        ..onUsers(<RestResponse>[
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: false),
+          buildPasswordUsersPage(hasGoogle: true),
+        ])
+        ..registerLaunch();
+
+      final int code = await harness.runWithRunStep(const <String>{'google'});
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expectRebuildGuide(harness);
+      expect(harness.output, contains(choiceLines));
+      expect(harness.runner.countCalls(RunMode.stream, pubGetKey), 1);
+      expect(harness.runner.countCalls(RunMode.stream, codegenKey), 1);
+      expect(harness.launchCount, 2);
+      expect(harness.lines, contains('  ✓ 소셜 로그인 확인 — Google 1명'));
+    });
   });
 }

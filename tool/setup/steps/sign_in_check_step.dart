@@ -15,9 +15,12 @@ import 'run_step.dart';
 /// uid · 로그인 시각 · 문서 이름은 화면 · 기록에 쓰지 않고 수단 이름과 개수만
 /// 보인다.
 ///
-/// 아직 기록이 없는 수단이 있으면 패키지 받기 · 코드 생성([RunStep.prepareAppBuild])
-/// 뒤 실행 단계와 같은 경로([RunStep.launchAppForSignIn])로 앱을 다시 띄워 그
-/// 수단으로 로그인하게 한 뒤 다시 센다. 그래도 남으면 단계
+/// 앱을 저절로 다시 띄우지 않는다 — 실행 단계가 이번 실행에서 앱을 다시 빌드해
+/// 띄웠으면 그 실행에서 켠 수단으로 로그인하게 안내하므로, 이 단계는 세기만 하고
+/// 모두 있으면 끝이다. 아직 기록이 없는 수단이 남아 사용자가 「앱을 다시 실행」 을
+/// 고른 경우에만 패키지 받기 · 코드 생성([RunStep.prepareAppBuild] — 이번 실행에서
+/// 이미 마쳤으면 명령 0) 뒤 실행 단계와 같은 경로([RunStep.launchAppForSignIn])로
+/// 앱을 다시 띄워 그 수단으로 로그인하게 한 뒤 다시 센다. 그래도 남으면 단계
 /// 안에서 같은 세 선택지(다시 실행 · 나중에 · 멈춤)를 다시 묻는다. 나중에는
 /// 저장하지 않으므로 다음 실행의 점검표에 다시 보인다.
 final class SignInCheckStep implements DeferrableStep {
@@ -115,7 +118,7 @@ final class SignInCheckStep implements DeferrableStep {
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _SignInMode.relaunch => <String>[
-      ...RunStep.buildPrepareBuildPlanLines(),
+      ...RunStep.buildPreparePlanLinesFor(context),
       ...RunStep.buildLaunchPlanLines(context, guideNote: relaunchPlanNote),
       recountPlanNote,
       // Custom Token 수단도 문서 주인의 로그인 기록을 사용자 목록에서 읽는다.
@@ -151,8 +154,9 @@ final class SignInCheckStep implements DeferrableStep {
   /// 패키지 받기 · 코드 생성 뒤 실행 단계와 같은 경로로 앱을 다시 띄우고 다시
   /// 센다 — 아직 없는 수단이 남으면 다시 묻는다.
   ///
-  /// 준비는 한 번의 단계 실행에서 한 번만 하고, 실패하면 앱을 띄우지 않고 그
-  /// 실패를 돌려준다. 모두 1명 이상이면 [Applied](위저드가 다시 검사해 ✓ 줄을
+  /// 준비는 한 위저드 실행에서 성공한 뒤 다시 하지 않고([RunStep.prepareAppBuild]
+  /// — 실행 단계가 이미 마쳤으면 명령 0), 실패하면 앱을 띄우지 않고 그 실패를
+  /// 돌려준다. 모두 1명 이상이면 [Applied](위저드가 다시 검사해 ✓ 줄을
   /// 낸다), 세지 못하면 실패, 나중에면 [DeferredByUser], 멈춤 · 입력 끝이면
   /// [Declined] 다. 앱 실행이 끝나지 않은 결과(실패 · 대상 고르기 입력 끝)는
   /// 그대로 돌려준다.
