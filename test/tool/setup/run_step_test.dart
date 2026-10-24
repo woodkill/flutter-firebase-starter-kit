@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
+import '../../../tool/setup/build_inputs.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/redactor.dart';
@@ -12,6 +13,7 @@ import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
+import '../../../tool/setup/steps/flavor_steps.dart';
 import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/storage_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
@@ -56,6 +58,70 @@ final class _FinishedStep implements Step {
 
   @override
   Future<StepOutcome> apply(WizardContext context) async => const Applied();
+}
+
+/// 할 일 앞 단계 stub — 처음 검사는 할 일이고, 실행하면 [onApply] 를 부른 뒤
+/// [outcome] 을 돌려주고 끝남이 된다.
+final class _WritingStep implements Step {
+  _WritingStep(
+    this.id,
+    this.title, {
+    required this.onApply,
+    this.outcome = const Applied(),
+  });
+
+  @override
+  final String id;
+
+  @override
+  final String title;
+
+  /// 실행할 때 부르는 함수 — 빌드 입력 파일을 바꾼다.
+  final void Function() onApply;
+
+  /// 실행 결과.
+  final StepOutcome outcome;
+
+  /// 실행했으면 true.
+  bool isApplied = false;
+
+  @override
+  List<String> get dependsOn => const <String>[];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async =>
+      isApplied ? const Done('바꿈') : const Todo('바꿀 것이 있습니다');
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => const <String>[];
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    onApply();
+    isApplied = true;
+    return outcome;
+  }
+}
+
+/// 시험 전용 가짜 비밀 문자열 — 화면 · 기록에 나오지 않아야 한다.
+const String probeSecretMarker = 'p-시험용가짜비밀';
+
+/// sha256 16진 지문 꼴.
+final RegExp digestPattern = RegExp('[0-9a-f]{64}');
+
+/// [steps] 에서 [id] 단계의 `dependsOn` 전이 닫힘을 모은다.
+Set<String> collectDependencyClosure(List<Step> steps, String id) {
+  final byId = <String, Step>{for (final Step step in steps) step.id: step};
+  final closure = <String>{};
+  final pending = <String>[...byId[id]!.dependsOn];
+  while (pending.isNotEmpty) {
+    final String next = pending.removeLast();
+    if (closure.add(next)) pending.addAll(byId[next]?.dependsOn ?? <String>[]);
+  }
+  return closure;
 }
 
 /// `flutter devices --machine` 항목 하나를 만든다(키 구조는 Flutter 출력과 같다).
@@ -253,18 +319,45 @@ final class _Harness {
       RunStep.buildBatchGetRequest(projectId).url.toString();
 
   /// 앞 단계(끝남) · 실행 단계로 위저드를 돌린다.
-  Future<int> run() => runWizard(context, <Step>[
+  Future<int> run() => runWizard(context, buildRunList());
+
+  /// 앞 단계(끝남 — [functions] 를 주면 그 자리에 둠) · 실행 단계 목록을 만든다.
+  List<Step> buildRunList({Step? functions}) => <Step>[
     _FinishedStep('configure', '앱 등록 · 설정 파일'),
     _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
     _FinishedStep('rules', 'Firestore · Storage rules'),
     _FinishedStep('app_check', 'App Check 디버그 토큰'),
-    _FinishedStep('functions', 'Cloud Functions 배포'),
+    functions ?? _FinishedStep('functions', 'Cloud Functions 배포'),
     RunStep(
       delay: (Duration duration) async {
         delays.add(duration);
       },
     ),
-  ]);
+  ];
+
+  /// [steps] 로 진입 실행 함수(시작 지문 기록 → 위저드 실행)를 돌린다.
+  Future<int> runEntry(List<Step> steps, {StepListBuilder? rebuildSteps}) =>
+      runSetupWizard(context, steps, rebuildSteps: rebuildSteps);
+
+  /// 사용자 목록이 인증된 이메일 사용자 [count] 명을 돌려주게 등록한다.
+  void registerVerifiedUsers(int count) {
+    rest.on(
+      'GET',
+      firstPageUrl,
+      buildPage(<Map<String, Object?>>[
+        for (var i = 0; i < count; i++) buildVerifiedUser('user-$i'),
+      ]),
+    );
+  }
+
+  /// 준비 · 기기 목록(iOS 시뮬레이터) · 실행 성공을 등록한다.
+  void registerLaunchFlow() {
+    registerPreparation();
+    registerDevices(
+      buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+    );
+    registerRun(simulatorId, 0);
+  }
 
   /// 할 일 경로의 앞 명령(pub get · 코드 생성)을 성공으로 등록한다.
   void registerPreparation() {
@@ -1869,6 +1962,334 @@ void main() {
         step.plannedCommandLines(context).take(2),
         RunStep.buildPrepareBuildPlanLines(),
       );
+    });
+  });
+
+  group('T-21-RUN-02: 새 App Check 토큰 갈래', () {
+    test('T-21-RUN-02: 사용자 1명이어도 ✗ 다시 빌드 사유 · 계획 줄 · 다시 빌드 안내 · '
+        '준비 · 실행 각 1회 · ✓', () async {
+      File('$root/${UserFilesStep.jsonUserPath}').writeAsStringSync(
+        '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId, 'enabledAuthProviders': 'google'})}\n',
+      );
+      final harness = _Harness(root, const <String?>['y', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      expect(await harness.run(), wizardExitDone);
+
+      final String output = harness.output;
+      expect(
+        output,
+        contains(
+          '▶ ${RunStep.stepTitle}\n'
+          '  ${RunStep.rebuildReasonPrefix}${RunStep.appCheckTokenReason}\n',
+        ),
+      );
+      expect(output, contains('    ${RunStep.rebuildPlanNote}\n'));
+      expect(output, contains('  \$ fvm flutter pub get\n'));
+      expect(
+        output,
+        contains(
+          '  \$ fvm dart run build_runner build --delete-conflicting-outputs\n',
+        ),
+      );
+      expect(
+        output,
+        contains(RunStep.buildBatchGetRequest(projectId).displayCurl()),
+      );
+      final List<String> guide = RunStep.buildRebuildGuideLines(
+        harness.context,
+      );
+      expect(guide, hasLength(3));
+      expect(guide.first, contains('이메일 + Google'));
+      expect(guide[1], contains('「소셜 로그인 확인」'));
+      for (final line in guide) {
+        expect(output, contains('$line\n'));
+      }
+      expect(harness.streamKeys, <String>[
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      expect(output, contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'));
+    });
+
+    test('T-21-RUN-02: 지금 지문 그대로 이미 띄웠으면 명령 0 · ✓', () async {
+      final harness = _Harness(root, const <String?>[]);
+      harness.context.session
+        ..hasRegisteredAppCheckToken = true
+        ..launchedBuildInputs = readBuildInputDigests(harness.context);
+      harness.registerVerifiedUsers(1);
+
+      expect(await harness.run(), wizardExitDone);
+      expect(harness.runner.calls, isEmpty);
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+    });
+  });
+
+  test('T-21-RUN-03: 코드 생성 파일이 없으면 사용자가 있어도 다시 빌드 · ✓', () async {
+    File('$root/lib/a.dart')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync("part 'a.g.dart';\n");
+    final harness = _Harness(root, const <String?>['y', '']);
+    harness
+      ..registerVerifiedUsers(1)
+      ..registerLaunchFlow();
+
+    expect(await harness.run(), wizardExitDone);
+
+    expect(
+      harness.output,
+      contains(
+        '  ${RunStep.rebuildReasonPrefix}${RunStep.missingCodegenReason}\n',
+      ),
+    );
+    expect(RunStep.missingCodegenReason, '코드 생성 파일이 없습니다');
+    expect(harness.streamKeys, hasLength(2));
+    expect(harness.runner.countMode(RunMode.interactive), 1);
+    // 가짜 코드 생성은 파일을 만들지 않지만 띄운 지문 규칙으로 ✓ 다.
+    expect(
+      harness.output,
+      contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+    );
+  });
+
+  group('T-21-RUN-04: 이번 실행에서 빌드 입력이 바뀜(진입 실행 함수)', () {
+    /// config 에 가짜 비밀 문자열을 넣고 xcconfig 를 만드는 쓰기 단계.
+    _WritingStep buildWritingStep() => _WritingStep(
+      'functions',
+      'Cloud Functions 배포',
+      onApply: () {
+        File('$root/${UserFilesStep.jsonUserPath}').writeAsStringSync(
+          '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId, 'enabledAuthProviders': '', 'appCheckDebugToken': probeSecretMarker})}\n',
+        );
+        File('$root/${UserFilesStep.xcconfigUserPath}')
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('PROBE_VALUE = 1\n');
+      },
+    );
+
+    test('T-21-RUN-04: 쓰기 단계가 config · xcconfig 를 바꾸면 경로만 보이는 사유로 '
+        '다시 빌드 · ✓ · 값 · 지문은 화면 · 기록 0', () async {
+      final harness = _Harness(root, const <String?>['y', 'y', '']);
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      final int code = await harness.runEntry(
+        harness.buildRunList(functions: buildWritingStep()),
+      );
+
+      expect(code, wizardExitDone);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}${RunStep.changedInputsReasonPrefix}'
+          'config/dev.json · ios/Flutter/dev.xcconfig\n',
+        ),
+      );
+      expect(
+        RunStep.changedInputsReasonPrefix,
+        '이번 실행에서 빌드에 들어가는 파일이 바뀌었습니다: ',
+      );
+      expect(harness.streamKeys, hasLength(2));
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+
+      // 값 · 지문은 화면 · 기록에 0 이고 세션에만 있다(양성 대조).
+      for (final text in <String>[harness.output, harness.logText]) {
+        expect(text, isNot(contains(probeSecretMarker)));
+        expect(digestPattern.hasMatch(text), isFalse);
+      }
+      final Map<String, String?>? atStart =
+          harness.context.session.buildInputsAtStart;
+      expect(atStart, isNotNull);
+      expect(
+        atStart!.values.whereType<String>().where(digestPattern.hasMatch),
+        isNotEmpty,
+      );
+    });
+
+    test('T-21-RUN-04: 바뀐 것이 없으면 명령 0 · ✓', () async {
+      final harness = _Harness(root, const <String?>['y']);
+      harness.registerVerifiedUsers(1);
+
+      final int code = await harness.runEntry(
+        harness.buildRunList(
+          functions: _WritingStep(
+            'functions',
+            'Cloud Functions 배포',
+            onApply: () {},
+          ),
+        ),
+      );
+
+      expect(code, wizardExitDone);
+      expect(harness.runner.calls, isEmpty);
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+    });
+
+    test('T-21-RUN-04: 위저드 실행을 직접 부르면 시작 지문이 없어 바뀜을 판정하지 '
+        '않는다', () async {
+      final harness = _Harness(root, const <String?>['y']);
+      harness.registerVerifiedUsers(1);
+
+      final int code = await runWizard(
+        harness.context,
+        harness.buildRunList(functions: buildWritingStep()),
+      );
+
+      expect(code, wizardExitDone);
+      expect(harness.runner.calls, isEmpty);
+      expect(harness.context.session.buildInputsAtStart, isNull);
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+    });
+  });
+
+  test('T-21-RUN-05: 로그인 수단을 바꾸고 목록을 다시 짠 바퀴에서 실행 단계가 '
+      '다시 빌드 · 준비 · 실행 각 1회 · ✓', () async {
+    final harness = _Harness(root, const <String?>['y', 'y', '']);
+    harness
+      ..registerVerifiedUsers(1)
+      ..registerLaunchFlow();
+    final providers = _WritingStep(
+      'providers',
+      '로그인 수단',
+      onApply: () {
+        File('$root/${UserFilesStep.jsonUserPath}').writeAsStringSync(
+          '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId, 'enabledAuthProviders': 'google'})}\n',
+        );
+      },
+      outcome: const Replan(),
+    );
+    final steps = <Step>[providers, ...harness.buildRunList()];
+
+    final int code = await harness.runEntry(steps, rebuildSteps: () => steps);
+
+    expect(code, wizardExitDone);
+    expect(harness.output, contains(replanLine));
+    // 새 바퀴의 점검표에서 실행 단계가 할 일이 된다.
+    final String afterReplan = harness.output.substring(
+      harness.output.indexOf(replanLine),
+    );
+    expect(
+      afterReplan,
+      contains(
+        '  ✗ ${RunStep.stepTitle} — ${RunStep.rebuildReasonPrefix}'
+        '${RunStep.changedInputsReasonPrefix}config/dev.json\n',
+      ),
+    );
+    expect(harness.streamKeys, <String>[
+      'fvm flutter pub get',
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+    ]);
+    expect(harness.runner.countMode(RunMode.interactive), 1);
+    expect(afterReplan, contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'));
+  });
+
+  group('T-21-RUN-06: 다시 빌드 실패 갈래', () {
+    test('T-21-RUN-06: 코드 생성 실패 → 실패 · 기기 조회 · 실행 0 · 띄운 지문 없음', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      harness.registerVerifiedUsers(1);
+      harness.runner
+        ..on(
+          FakeCommandRunner.buildKey(RunStep.buildPubGetCommand()),
+          const CommandResult(0, '', ''),
+        )
+        ..on(
+          FakeCommandRunner.buildKey(RunStep.buildCodegenCommand()),
+          const CommandResult(1, '', 'build_runner failed\n'),
+        );
+
+      expect(await harness.run(), wizardExitStopped);
+      expect(harness.output, contains('  실패 — 코드 생성이 실패했습니다'));
+      expect(
+        harness.runner.countCalls(
+          RunMode.capture,
+          'fvm flutter devices --machine',
+        ),
+        0,
+      );
+      expect(harness.runner.countMode(RunMode.interactive), 0);
+      expect(harness.context.session.launchedBuildInputs, isNull);
+    });
+
+    test('T-21-RUN-06: flutter run 종료 코드 1 → 「앱 실행이 실패했습니다」 · '
+        '띄운 지문 없음', () async {
+      final harness = _Harness(root, const <String?>['y', '', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerPreparation()
+        ..registerDevices(
+          buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+        )
+        ..registerRun(simulatorId, 1);
+
+      expect(await harness.run(), wizardExitStopped);
+      expect(harness.output, contains('  실패 — 앱 실행이 실패했습니다'));
+      expect(harness.context.session.launchedBuildInputs, isNull);
+    });
+  });
+
+  group('T-21-RUN-08: 빌드 입력을 쓰는 단계는 실행 단계의 전이 의존 단계다', () {
+    test('T-21-RUN-08: 여섯 수단을 켠 목록', () {
+      final Set<String> closure = collectDependencyClosure(
+        buildSteps(flavor: Flavor.dev, enabledProviders: allProviderTokens),
+        'run',
+      );
+
+      expect(
+        closure,
+        containsAll(<String>[
+          'user_files',
+          'identity',
+          'firebase_project',
+          'configure',
+          'google',
+          'google_ios',
+          'app_check',
+          'facebook',
+          'kakao',
+          'naver',
+          'line',
+          'providers',
+        ]),
+      );
+    });
+
+    test('T-21-RUN-08: 수단 없는 목록 — 로그인 수단 단계는 닫힘 밖(새 바퀴가 덮음)', () {
+      final Set<String> closure = collectDependencyClosure(
+        buildSteps(flavor: Flavor.dev, enabledProviders: const <String>{}),
+        'run',
+      );
+
+      expect(
+        closure,
+        containsAll(<String>[
+          'user_files',
+          'identity',
+          'firebase_project',
+          'configure',
+          'app_check',
+        ]),
+      );
+      expect(closure, isNot(contains('providers')));
     });
   });
 }

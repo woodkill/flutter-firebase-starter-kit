@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
+import '../tool/setup/build_inputs.dart';
 import '../tool/setup/command_runner.dart';
 import '../tool/setup/completion.dart';
 import '../tool/setup/flavor.dart';
@@ -145,7 +146,7 @@ Future<void> main(List<String> arguments) async {
       ),
     );
     try {
-      code = await runWizard(
+      code = await runSetupWizard(
         context,
         buildCurrentSteps(),
         onCompleted: showCompletionSummary,

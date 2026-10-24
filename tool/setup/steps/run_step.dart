@@ -16,8 +16,9 @@ import 'billing_step.dart';
 /// 읽어 이메일이 인증된 비밀번호 사용자 수를 센다. 끝 판정은 인증된 이메일
 /// 사용자 수다 — 1명 이상이면 끝이다(앱이 떴는지가 아니라 사용자가 가입 · 인증까지
 /// 마쳤는지로 판정한다). 다만 사용자가 1명 이상이어도 이번 실행에서 빌드가
-/// 필요하면([findRebuildReasons] — 예: 같은 실행에서 App Check 디버그 토큰을
-/// 등록함) 할 일로 두고 앱을 다시 빌드해 띄운다. 응답의 이메일 · uid · 표시 이름은
+/// 필요하면 할 일로 두고 앱을 다시 빌드해 띄운다([findRebuildReasons] — 같은
+/// 실행에서 App Check 디버그 토큰을 등록함 · 코드 생성 파일이 없음 · 이번 실행에서
+/// 빌드 입력 파일이 바뀜). 응답의 이메일 · uid · 표시 이름은
 /// 화면 · 기록에 쓰지 않고 개수만 보인다.
 ///
 /// 실행은 패키지 받기 → 코드 생성 → 실행 대상 고르기(iOS · Android 만 · 기본값은
@@ -127,22 +128,50 @@ final class RunStep implements Step {
   /// 다시 빌드 안내의 마지막 줄 — 사용자가 이미 있으므로 가입 확인을 말하지 않는다.
   static const String rebuildQuitLine = '끝나면 이 터미널에서 q 를 눌러 실행을 끝냅니다';
 
+  /// `lib` 소스가 가리키는 코드 생성 파일이 없을 때의 다시 빌드 사유.
+  static const String missingCodegenReason = '코드 생성 파일이 없습니다';
+
+  /// 이번 실행에서 빌드 입력 파일이 바뀌었을 때의 다시 빌드 사유 앞부분 — 뒤에
+  /// 바뀐 파일의 저장소 상대 경로가 ` · ` 로 이어 붙는다.
+  static const String changedInputsReasonPrefix =
+      '이번 실행에서 빌드에 들어가는 파일이 바뀌었습니다: ';
+
   /// 이번 실행에서 앱을 다시 빌드해 띄워야 하는 사유를 순서대로 모은다 — 없으면
   /// 빈 목록.
   ///
   /// 이번 실행에서 지금 빌드 입력 그대로 앱을 띄웠으면(`launchedBuildInputs` 가
   /// 지금 지문과 같으면) 사유가 없다 — 다시 빌드한 뒤의 재검사가 되풀이하지
-  /// 않는다. 그 밖에는 App Check 디버그 토큰을 이번 실행에서 등록했으면
-  /// [appCheckTokenReason] 이다.
+  /// 않는다. 그 밖에는 이 순서로 모은다.
+  ///
+  /// 1. App Check 디버그 토큰을 이번 실행에서 등록했으면 [appCheckTokenReason].
+  /// 2. `lib` 소스가 가리키는 코드 생성 파일이 없으면([hasMissingGeneratedParts])
+  ///    [missingCodegenReason].
+  /// 3. 시작 지문(`buildInputsAtStart`)이 있고 지금 지문과 다른 파일이 있으면
+  ///    [changedInputsReasonPrefix] 뒤에 바뀐 파일의 저장소 상대 경로만 ` · ` 로
+  ///    잇는다 — 파일 내용 · 지문은 쓰지 않는다.
+  ///
+  /// 3 의 전제: 빌드 입력 파일을 쓰는 단계는 모두 이 단계의 (전이) 의존 단계라,
+  /// 그 단계가 할 일인 바퀴에서 이 단계는 점검표에서 건너뛰어지지 않고 자기
+  /// 차례에 다시 검사된다. 수단을 켜지 않은 목록의 로그인 수단 단계는 의존
+  /// 단계가 아니지만 목록을 다시 짜 새 바퀴로 다시 검사된다(T-21-RUN-08 · 05).
   static List<String> findRebuildReasons(WizardContext context) {
     final WizardSession session = context.session;
     final Map<String, String?>? launched = session.launchedBuildInputs;
-    if (launched != null &&
-        _isSameDigests(launched, readBuildInputDigests(context))) {
+    final Map<String, String?>? atStart = session.buildInputsAtStart;
+    final Map<String, String?>? current = launched != null || atStart != null
+        ? readBuildInputDigests(context)
+        : null;
+    if (launched != null && _isSameDigests(launched, current!)) {
       return const <String>[];
     }
+    final List<String> changed = atStart == null
+        ? const <String>[]
+        : findChangedBuildInputs(atStart, current!);
     return <String>[
       if (session.hasRegisteredAppCheckToken) appCheckTokenReason,
+      if (hasMissingGeneratedParts(context.projectRoot)) missingCodegenReason,
+      if (changed.isNotEmpty)
+        '$changedInputsReasonPrefix${changed.join(' · ')}',
     ];
   }
 
