@@ -251,7 +251,9 @@
      `NoticesScreen`)을 만들고, `lib/core/router/app_router.dart` 에서 그 파일을
      import 한 뒤 **홈 GoRoute(`AppRoutes.home`)의 `routes:` 안에**(앱 안 부모 화면이
      있으면 그 GoRoute 의 `routes:` 안에) 등록한다. 하위 route 의 `path` 는 `/` 없는
-     조각 상수다. `name` 은 필수다(GA4 screen name · Test 3).
+     조각 상수다. `name` 은 필수다 — Analytics 의 화면 이름(GA4 screen name)으로
+     쓰이고, 5단계의 `test/core/router/app_router_observers_test.dart` Test 3 이
+     모든 route 에 `name` 이 있는지와 그 개수를 본다.
      ```dart
      GoRoute(
        path: AppRoutes.noticesSegment,
@@ -1674,7 +1676,7 @@ done
 **② 색 · 그림 경로를 정한다.** `flutter_native_splash.yaml` 에서 고친다.
 
 - `color` · `color_dark` — 라이트 · 다크 배경색(킷 값 `"#FFFFFF"` · `"#000000"`).
-- `image` · `image_dark` — 로고 그림 경로(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
+- `image` · `image_dark` — 로고 그림 경로(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`). ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다. 다른 이름을 쓰면 `test/infrastructure/native_splash_yaml_test.dart` 의 `image:` 단언도 새 경로로 고친다.
 - `android_12:` 블록 — Android 12 이상의 OS SplashScreen 설정이다. 같은 이름의 `image` · `image_dark` · `color` · `color_dark` 를 따로 둔다. 위의 값과 함께 고친다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.

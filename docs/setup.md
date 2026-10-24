@@ -377,7 +377,7 @@ Kakao 로그인을 앱에 둘 때 이 절을 따른다. Kakao 를 켜지 않으�
 5. 이메일을 받도록 동의 항목을 설정한다(할 일 줄 `동의 항목에서 이메일을 받도록 설정`) — 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 의 Kakao 행에 있다. 이 동의 항목은 비즈 앱(또는 테스트 앱)에서만 설정할 수 있다 — 일반 앱이면 먼저 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 대로 비즈 앱으로 전환한다.
 6. 키 두 개를 모은다. 네이티브 앱 키는 `[앱] > [플랫폼 키] > [네이티브 앱 키]` 의 키 값이고, 어드민 키는 `[앱] > [어드민 키]` 에 있다.
 7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Kakao 네이티브 앱 키` · `Kakao 어드민 키` 를 차례로 입력한다 — 어드민 키는 화면에 보이지 않게 받는다. 위저드가 어드민 키를 Kakao 서버로 확인한 뒤 네이티브 앱 키는 config · xcconfig · Secret Manager 에, 어드민 키는 Secret Manager 에만 기록한다. 그 프로젝트의 Secret Manager 에 어드민 키가 이미 있으면(같은 프로젝트에서 다시 켜거나 다시 실행할 때) 위저드는 어드민 키를 묻지 않고 그 값으로 확인한다 — 이때 네이티브 앱 키는 그 어드민 키와 같은 Kakao 앱의 키를 넣는다. 다른 Kakao 앱의 키를 넣으면 이미 가입한 사용자가 로그인 · 회원탈퇴를 하지 못한다. 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
-8. 앱 아이콘은 선택이다. 올리려면 `[앱] > [일반]` 의 「앱 기본 정보」 → 「수정」 에서 「앱 아이콘」 에 `.setup/icons/kakao-128x128.png` 를 올린다(「앱 생성」 창에서 만들 때 올려도 된다)(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다). 콘솔은 JPG · GIF · PNG 를 받고, 128 px 를 권장하며 250 KB 까지 받는다.
+8. 앱 아이콘은 선택이다. 올리려면 `[앱] > [일반]` 의 「앱 기본 정보」 → 「수정」 에서 「앱 아이콘」 에 `.setup/icons/kakao-128x128.png` 를 올린다 — 단계 2 의 「앱 생성」 창에서 앱을 만들 때 올려도 된다. 파일은 끌어다 놓거나, 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣어 고른다. 콘솔은 JPG · GIF · PNG 를 받고, 128 px 를 권장하며 250 KB 까지 받는다.
 
 #### 확인 방법
 
@@ -460,7 +460,7 @@ LINE 로그인을 앱에 둘 때 이 절을 따른다. LINE 을 켜지 않으면
    - `Android 서명 SHA-1` — 디버그 서명 키의 SHA-1 을 LINE 이 받는 대문자 · 콜론 꼴로 보인다. `LINE Login` 탭의 `Package signatures` 칸에 넣는다. SHA-1 을 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
    - `Channel icon · 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/line-512x512.png` 다.
 2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다. 앱 종류는 「App types」 에서 「Mobile app」 을 고른다.
-3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다. `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다. 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다. `Android URL scheme` 칸에 넣을 값은 위저드 값 표에 없다.
+3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다. `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다. 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다. `Android URL scheme` 칸은 비워 둔다 — 선택 칸이고, 킷의 Android 앱은 LINE 로그인에 URL scheme 을 쓰지 않는다.
 4. 이메일 주소 권한을 신청한다(할 일 줄 `OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다`) — `Basic settings` → `OpenID Connect` 의 `Email address permission` 이 `Unapplied` 면 `Apply` 로 신청한다. 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
 5. 개발 중 로그인할 계정에 역할을 준다. 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 채널의 「Roles」 탭 → 「Invite by email」 에서 Admin 이나 Tester 역할을 준다 — 프로바이더 화면에도 같은 이름의 「Roles」 탭이 있지만 그쪽 역할은 Admin · Member 뿐이고 Tester 가 없다.
 6. Channel ID · Channel Secret 을 모은다 — 채널의 `Basic settings` 탭에 있다.
