@@ -238,6 +238,8 @@ final class AppCheckStep implements Step {
       return Failed('${context.paths.json} 에 토큰을 쓰지 못했습니다 — ${e.message}');
     }
     if (outcome is Applied && _mode != _AppCheckMode.done) {
+      // 새 토큰은 다시 빌드해야 앱에 들어간다 — 실행 단계가 이 신호를 읽어 빌드한다.
+      context.session.hasRegisteredAppCheckToken = true;
       context.terminal.writeLine('  $rebuildNotice');
     }
     return outcome;

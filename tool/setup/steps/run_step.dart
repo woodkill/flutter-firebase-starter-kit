@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../build_inputs.dart';
 import '../command_runner.dart';
 import '../flavor.dart';
+import '../providers/provider_catalog.dart';
 import '../rest_client.dart';
 import '../step.dart';
 import '../wizard.dart';
@@ -11,12 +13,16 @@ import 'billing_step.dart';
 /// 앱 실행 · 로그인 확인 단계 — 위저드의 마지막 단계다.
 ///
 /// 검사는 Identity Toolkit 의 사용자 목록(`accounts:batchGet`)을 끝 페이지까지
-/// 읽어 이메일이 인증된 비밀번호 사용자 수를 센다. 1명 이상이면 끝이다 — 앱이
-/// 떴는지가 아니라 사용자가 가입 · 인증까지 마쳤는지로 판정한다. 응답의 이메일 ·
-/// uid · 표시 이름은 화면 · 기록에 쓰지 않고 개수만 보인다.
+/// 읽어 이메일이 인증된 비밀번호 사용자 수를 센다. 끝 판정은 인증된 이메일
+/// 사용자 수다 — 1명 이상이면 끝이다(앱이 떴는지가 아니라 사용자가 가입 · 인증까지
+/// 마쳤는지로 판정한다). 다만 사용자가 1명 이상이어도 이번 실행에서 빌드가
+/// 필요하면([findRebuildReasons] — 예: 같은 실행에서 App Check 디버그 토큰을
+/// 등록함) 할 일로 두고 앱을 다시 빌드해 띄운다. 응답의 이메일 · uid · 표시 이름은
+/// 화면 · 기록에 쓰지 않고 개수만 보인다.
 ///
 /// 실행은 패키지 받기 → 코드 생성 → 실행 대상 고르기(iOS · Android 만 · 기본값은
-/// iOS 시뮬레이터) → 할 일 안내 → 대화형 `flutter run` 이다. 대상이 없으면
+/// iOS 시뮬레이터) → 할 일 안내 → 대화형 `flutter run` 이다. 사용자가 없으면 가입 ·
+/// 이메일 인증 안내를, 다시 빌드면 새 빌드에서 확인할 것을 안내한다. 대상이 없으면
 /// `xcrun simctl` 로 iPhone 시뮬레이터 하나를 켜고 Xcode 의 시뮬레이터 화면 앱을
 /// 연 뒤 다시 찾는다. 실행이 끝나 돌아오면 위저드가 다시 검사한다.
 final class RunStep implements Step {
@@ -106,6 +112,69 @@ final class RunStep implements Step {
   /// 사용자가 없을 때의 할 일 사유.
   static const String noUserReason =
       '인증된 이메일 사용자가 없습니다 — 앱에서 가입 · 이메일 인증을 마쳐야 합니다';
+
+  /// 다시 빌드해야 할 때의 할 일 사유 앞부분 — 뒤에 사유가 ` · ` 로 이어 붙는다.
+  static const String rebuildReasonPrefix = '앱을 다시 빌드해야 합니다 — ';
+
+  /// 이번 실행에서 App Check 디버그 토큰을 새로 만들거나 등록했을 때의 다시 빌드
+  /// 사유.
+  static const String appCheckTokenReason = '이번 실행에서 App Check 디버그 토큰을 등록했습니다';
+
+  /// 다시 빌드 계획에서 앱을 띄우기 전 안내를 설명하는 괄호 줄.
+  static const String rebuildPlanNote =
+      '(앱을 띄우기 전에 새 빌드에서 확인할 것을 보여 줍니다 — 켠 로그인 수단의 버튼)';
+
+  /// 다시 빌드 안내의 마지막 줄 — 사용자가 이미 있으므로 가입 확인을 말하지 않는다.
+  static const String rebuildQuitLine = '끝나면 이 터미널에서 q 를 눌러 실행을 끝냅니다';
+
+  /// 이번 실행에서 앱을 다시 빌드해 띄워야 하는 사유를 순서대로 모은다 — 없으면
+  /// 빈 목록.
+  ///
+  /// 이번 실행에서 지금 빌드 입력 그대로 앱을 띄웠으면(`launchedBuildInputs` 가
+  /// 지금 지문과 같으면) 사유가 없다 — 다시 빌드한 뒤의 재검사가 되풀이하지
+  /// 않는다. 그 밖에는 App Check 디버그 토큰을 이번 실행에서 등록했으면
+  /// [appCheckTokenReason] 이다.
+  static List<String> findRebuildReasons(WizardContext context) {
+    final WizardSession session = context.session;
+    final Map<String, String?>? launched = session.launchedBuildInputs;
+    if (launched != null &&
+        _isSameDigests(launched, readBuildInputDigests(context))) {
+      return const <String>[];
+    }
+    return <String>[
+      if (session.hasRegisteredAppCheckToken) appCheckTokenReason,
+    ];
+  }
+
+  /// 두 빌드 입력 지문 모음이 같은 경로 · 같은 값인지 본다.
+  static bool _isSameDigests(
+    Map<String, String?> left,
+    Map<String, String?> right,
+  ) {
+    if (left.length != right.length) return false;
+    for (final MapEntry<String, String?> entry in left.entries) {
+      if (!right.containsKey(entry.key)) return false;
+      if (right[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  /// 다시 빌드한 앱을 띄우기 전에 보이는 안내를 만든다(마지막 줄은
+  /// [rebuildQuitLine]).
+  ///
+  /// 켠 로그인 수단은 config 의 `enabledAuthProviders` 에서 읽는다. 켠 소셜 수단이
+  /// 있을 때만 그 수단으로 한 번 로그인하라는 줄을 더한다.
+  static List<String> buildRebuildGuideLines(WizardContext context) {
+    final Set<String> enabled = readEnabledProviders(
+      context.resolve(context.paths.json),
+    );
+    return <String>[
+      '  앱을 새 빌드로 띄웁니다 — 로그인 화면에 켠 로그인 수단(${describeProviders(enabled)})의 버튼이 보이는지 확인합니다',
+      if (enabled.isNotEmpty)
+        '  켠 소셜 로그인 수단으로 아직 로그인하지 않았으면 그 수단으로 한 번 로그인합니다 — 다음 「소셜 로그인 확인」 단계가 수단마다 로그인 수를 셉니다',
+      '  $rebuildQuitLine',
+    ];
+  }
 
   /// 패키지를 받는 명령을 만든다.
   static Command buildPubGetCommand({String? workingDirectory}) => Command(
@@ -418,6 +487,13 @@ final class RunStep implements Step {
       case _UserCountFailed(:final String reason, :final CommandResult? result):
         return _mark(_RunMode.requestFailed, reason, result: result);
       case _UserCountOk(:final int verified) when verified > 0:
+        final List<String> reasons = findRebuildReasons(context);
+        if (reasons.isNotEmpty) {
+          return _mark(
+            _RunMode.rebuild,
+            '$rebuildReasonPrefix${reasons.join(' · ')}',
+          );
+        }
         _mode = _RunMode.done;
         return Done('인증된 이메일 사용자 $verified명');
       case _UserCountOk():
@@ -433,18 +509,29 @@ final class RunStep implements Step {
         context,
         guideNote: '(앱을 띄우기 전에 앱에서 할 일을 보여 줍니다 — 가입 · 이메일 인증)',
       ),
-      '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
-      buildBatchGetRequest(_projectId).displayCurl(),
+      ..._buildRecountPlanLines(),
+    ],
+    _RunMode.rebuild => <String>[
+      ...buildPrepareBuildPlanLines(),
+      ...buildLaunchPlanLines(context, guideNote: rebuildPlanNote),
+      ..._buildRecountPlanLines(),
     ],
     _RunMode.requestFailed => <String>['(응답 원문을 보입니다)'],
     _RunMode.unreadable || _RunMode.done => const <String>[],
   };
+
+  /// 실행이 끝난 뒤 인증된 이메일 사용자를 다시 세는 계획 줄.
+  List<String> _buildRecountPlanLines() => <String>[
+    '(실행이 끝나면 아래 요청으로 인증된 이메일 사용자를 다시 셉니다 — 개수만 보입니다)',
+    buildBatchGetRequest(_projectId).displayCurl(),
+  ];
 
   @override
   Future<StepOutcome> apply(WizardContext context) async {
     // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
     return switch (_mode) {
       _RunMode.run => await _runApp(context),
+      _RunMode.rebuild => await _rebuildApp(context),
       _RunMode.requestFailed => Failed(_reason, result: _failedResult),
       _RunMode.unreadable => Failed(_reason),
       _RunMode.done => const Applied(),
@@ -457,6 +544,19 @@ final class RunStep implements Step {
     if (prepared != null) return prepared;
 
     return await launchAppForSignIn(context, guideLines: signUpGuideLines);
+  }
+
+  /// 패키지 받기 → 코드 생성 → 대상 고르기 → 다시 빌드 안내 → 앱 실행.
+  ///
+  /// 사용자가 이미 있으므로 가입 안내 대신 새 빌드에서 확인할 것을 안내한다.
+  Future<StepOutcome> _rebuildApp(WizardContext context) async {
+    final Failed? prepared = await prepareAppBuild(context);
+    if (prepared != null) return prepared;
+
+    return await launchAppForSignIn(
+      context,
+      guideLines: buildRebuildGuideLines(context),
+    );
   }
 
   /// 앱을 띄우기 전에 저장소 루트에서 패키지를 받고 코드를 생성한다.
@@ -488,7 +588,8 @@ final class RunStep implements Step {
   /// 실행 단계와 소셜 로그인 확인 단계가 함께 쓴다. [guideLines] 는 한 줄씩
   /// 그대로 쓴다(들여쓰기는 넘기는 쪽 몫). 대상 목록을 읽지 못하거나 대상이
   /// 없으면 실패, 고르기 입력이 끝나면 [Declined], 실행 종료 코드가 0 이 아니면
-  /// 실패, 아니면 [Applied] 다.
+  /// 실패, 아니면 [Applied] 다. 띄우기에 성공하면 지금 빌드 입력 지문을 세션에
+  /// 남긴다 — 실행 단계의 재검사가 같은 빌드로 다시 빌드하지 않는다.
   Future<StepOutcome> launchAppForSignIn(
     WizardContext context, {
     required List<String> guideLines,
@@ -522,6 +623,7 @@ final class RunStep implements Step {
     if (code != 0) {
       return Failed('$runFailedSummary (종료 코드 $code)');
     }
+    context.session.launchedBuildInputs = readBuildInputDigests(context);
     return const Applied();
   }
 
@@ -724,6 +826,10 @@ final class _IosRuntime {
 enum _RunMode {
   /// 인증된 사용자가 없다 — 앱을 실행한다.
   run,
+
+  /// 인증된 사용자는 있지만 이번 실행에서 빌드가 필요하다 — 다시 빌드해 앱을
+  /// 띄운다.
+  rebuild,
 
   /// 사용자 목록을 읽지 못했다.
   requestFailed,

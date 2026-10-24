@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
+import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
@@ -12,6 +13,7 @@ import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
+import '../../../tool/setup/steps/run_step.dart';
 import '../../../tool/setup/steps/user_files_step.dart';
 import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/uuid.dart';
@@ -117,6 +119,110 @@ RestResponse buildTokenList(String tokensUrl, List<String> names) =>
       }),
     );
 
+/// 토큰을 새로 만드는 흐름의 REST 응답을 등록한 가짜 REST 실행기를 만든다.
+///
+/// iOS 앱에는 옛 고정 이름 항목이 있어 지운 뒤 등록하고, Android 앱은 빈
+/// 목록에서 등록한다. 재검사 목록에는 두 앱 모두 새 항목이 있다.
+FakeRestClient buildCreateFlowRest() => FakeRestClient()
+  ..on(
+    'GET',
+    iosTokensUrl,
+    buildTokenList(iosTokensUrl, <String>[
+      '$wizardDisplayName:old1',
+      'manual:keep',
+    ]),
+  )
+  ..on(
+    'GET',
+    iosTokensUrl,
+    buildTokenList(iosTokensUrl, <String>[
+      'manual:keep',
+      '$wizardDisplayName:new1',
+    ]),
+  )
+  ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))
+  ..on(
+    'GET',
+    androidTokensUrl,
+    buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:new2']),
+  )
+  ..on('DELETE', '$iosTokensUrl/old1', const RestResponse(200, '{}'))
+  ..on('POST', iosTokensUrl, const RestResponse(200, '{}'))
+  ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
+
+/// 실행 단계 시험의 가짜 iOS 시뮬레이터 id — UUID 모양(실제 UDID 와 같은 꼴).
+const String runSimulatorId = '0A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D';
+
+/// 인증된 이메일 · 비밀번호 사용자 [count] 명이 든 사용자 목록(batchGet) 응답을
+/// 만든다.
+RestResponse buildVerifiedUsersPage(int count) => RestResponse(
+  200,
+  jsonEncode(<String, Object?>{
+    'kind': 'identitytoolkit#DownloadAccountResponse',
+    'users': <Object?>[
+      for (var i = 0; i < count; i++)
+        <String, Object?>{
+          'localId': 'u$i',
+          'email': 'u$i@example.invalid',
+          'emailVerified': true,
+          'providerUserInfo': <Object?>[
+            <String, Object?>{
+              'providerId': 'password',
+              'email': 'u$i@example.invalid',
+              'rawId': 'u$i@example.invalid',
+            },
+          ],
+        },
+    ],
+  }),
+);
+
+/// iOS 시뮬레이터 하나 · macOS 데스크톱 하나가 든 기기 목록 성공 출력을 만든다.
+CommandResult buildRunDevicesOutput() => CommandResult(
+  0,
+  jsonEncode(<Object?>[
+    <String, Object?>{
+      'name': 'iPhone 17',
+      'id': runSimulatorId,
+      'isSupported': true,
+      'targetPlatform': 'ios',
+      'emulator': true,
+      'sdk': 'sdk',
+    },
+    <String, Object?>{
+      'name': 'macOS',
+      'id': 'macos',
+      'isSupported': true,
+      'targetPlatform': 'darwin',
+      'emulator': false,
+      'sdk': 'sdk',
+    },
+  ]),
+  '',
+);
+
+/// 실행 단계의 준비(패키지 받기 · 코드 생성) · 기기 목록 · 앱 실행을 성공으로
+/// 등록한다.
+void registerRunCommands(FakeCommandRunner runner) {
+  runner
+    ..on(
+      FakeCommandRunner.buildKey(RunStep.buildPubGetCommand()),
+      const CommandResult(0, 'Got dependencies!\n', ''),
+    )
+    ..on(
+      FakeCommandRunner.buildKey(RunStep.buildCodegenCommand()),
+      const CommandResult(0, 'Built with build_runner\n', ''),
+    )
+    ..on(
+      FakeCommandRunner.buildKey(RunStep.buildDevicesCommand()),
+      buildRunDevicesOutput(),
+    )
+    ..on(
+      FakeCommandRunner.buildKey(RunStep.buildRunCommand(runSimulatorId)),
+      const CommandResult(0, '', ''),
+    );
+}
+
 void main() {
   late Directory tempDir;
   late String root;
@@ -208,12 +314,15 @@ void main() {
       readJsonString(config.path, AppCheckStep.tokenKey) ?? '<없음>';
 
   /// 앞 단계(끝남) · App Check 단계로 위저드를 돌린다.
+  ///
+  /// [session] 을 주면 그 세션으로 돌린다 — 실행 뒤 세션 상태를 읽을 때 쓴다.
   Future<int> runAppCheckStep(
     FakeRestClient rest,
     ScriptedTerminal terminal, {
     FakeCommandRunner? runner,
     MemoryLogSink? log,
     Random? random,
+    WizardSession? session,
   }) => runWizard(
     buildTestContext(
       projectRoot: root,
@@ -222,6 +331,7 @@ void main() {
       log: log,
       rest: rest,
       random: random,
+      session: session,
     ),
     <Step>[
       _FinishedStep('configure', '앱 등록 · 설정 파일'),
@@ -303,8 +413,9 @@ void main() {
           ]),
         );
       final terminal = ScriptedTerminal(const <String?>[]);
+      final session = WizardSession();
 
-      final int code = await runAppCheckStep(rest, terminal);
+      final int code = await runAppCheckStep(rest, terminal, session: session);
 
       expect(code, wizardExitDone);
       expect(
@@ -314,6 +425,8 @@ void main() {
       expect(terminal.asks, isEmpty);
       expect(listRequests(rest, 'POST'), isEmpty);
       expect(listRequests(rest, 'DELETE'), isEmpty);
+      // 이미 끝난 단계는 새 토큰을 등록하지 않았으므로 다시 빌드 신호를 남기지 않는다.
+      expect(session.hasRegisteredAppCheckToken, isFalse);
     },
   );
 
@@ -322,41 +435,29 @@ void main() {
     late ScriptedTerminal terminal;
     late MemoryLogSink log;
     late FakeCommandRunner runner;
+    late WizardSession session;
     late int code;
 
     setUp(() async {
       writeAppFiles();
       expect(readToken(), '');
-      rest = FakeRestClient()
-        ..on(
-          'GET',
-          iosTokensUrl,
-          buildTokenList(iosTokensUrl, <String>[
-            '$wizardDisplayName:old1',
-            'manual:keep',
-          ]),
-        )
-        ..on(
-          'GET',
-          iosTokensUrl,
-          buildTokenList(iosTokensUrl, <String>[
-            'manual:keep',
-            '$wizardDisplayName:new1',
-          ]),
-        )
-        ..on('GET', androidTokensUrl, buildTokenList(androidTokensUrl, []))
-        ..on(
-          'GET',
-          androidTokensUrl,
-          buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:new2']),
-        )
-        ..on('DELETE', '$iosTokensUrl/old1', const RestResponse(200, '{}'))
-        ..on('POST', iosTokensUrl, const RestResponse(200, '{}'))
-        ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
+      rest = buildCreateFlowRest();
       terminal = ScriptedTerminal(const <String?>['y']);
       log = MemoryLogSink(Redactor());
       runner = FakeCommandRunner();
-      code = await runAppCheckStep(rest, terminal, runner: runner, log: log);
+      session = WizardSession();
+      code = await runAppCheckStep(
+        rest,
+        terminal,
+        runner: runner,
+        log: log,
+        session: session,
+      );
+    });
+
+    test('토큰을 새로 만들어 등록하면 세션에 다시 빌드 신호를 남긴다', () {
+      expect(code, wizardExitDone);
+      expect(session.hasRegisteredAppCheckToken, isTrue);
     });
 
     test(
@@ -435,6 +536,112 @@ void main() {
     );
   });
 
+  test('T-21-RUN-01 같은 실행에서 토큰을 새로 만들면 인증된 사용자가 있어도 실행 단계가 '
+      '다시 빌드 사유를 보이고 준비 · 실행 각 1회 뒤 ✓ · 종료 0', () async {
+    writeAppFiles();
+    final rest = buildCreateFlowRest()
+      ..on(
+        'GET',
+        RunStep.buildBatchGetRequest(projectId).url.toString(),
+        buildVerifiedUsersPage(1),
+      );
+    final runner = FakeCommandRunner();
+    registerRunCommands(runner);
+    // App Check 진행 y → 실행 단계 진행 y → 기기 고르기 기본값.
+    final terminal = ScriptedTerminal(const <String?>['y', 'y', '']);
+    final log = MemoryLogSink(Redactor());
+    final WizardContext context = buildTestContext(
+      projectRoot: root,
+      runner: runner,
+      terminal: terminal,
+      log: log,
+      rest: rest,
+    );
+
+    final int code = await runWizard(context, <Step>[
+      _FinishedStep('configure', '앱 등록 · 설정 파일'),
+      _FinishedStep('apis', '필요한 Google Cloud API'),
+      AppCheckStep(),
+      _FinishedStep('functions', 'Cloud Functions 배포'),
+      _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
+      _FinishedStep('rules', 'Firestore · Storage rules'),
+      RunStep(delay: (Duration duration) async {}),
+    ]);
+
+    final output = terminal.output.toString();
+    expect(code, wizardExitDone);
+
+    // App Check 안내가 실행 단계 머리보다 앞에 있다.
+    final int noticeAt = output.indexOf(AppCheckStep.rebuildNotice);
+    final int runHeadAt = output.indexOf('▶ ${RunStep.stepTitle}');
+    expect(noticeAt, greaterThanOrEqualTo(0));
+    expect(runHeadAt, greaterThan(noticeAt));
+
+    // 사용자가 1명 있어도 실행 단계가 다시 빌드 사유로 할 일이 된다.
+    expect(
+      output,
+      contains(
+        '▶ ${RunStep.stepTitle}\n'
+        '  ${RunStep.rebuildReasonPrefix}${RunStep.appCheckTokenReason}\n',
+      ),
+    );
+    expect(
+      RunStep.rebuildReasonPrefix + RunStep.appCheckTokenReason,
+      '앱을 다시 빌드해야 합니다 — 이번 실행에서 App Check 디버그 토큰을 등록했습니다',
+    );
+
+    // 안내는 다시 빌드 안내 그대로 — 가입 안내 · 가입 확인 끝줄은 보이지 않는다.
+    final List<String> guideLines = RunStep.buildRebuildGuideLines(context);
+    expect(guideLines, hasLength(2));
+    expect(guideLines.first, contains('(이메일만)'));
+    expect(guideLines.last, '  ${RunStep.rebuildQuitLine}');
+    for (final line in guideLines) {
+      expect(output, contains('$line\n'));
+    }
+    expect(output, isNot(contains(RunStep.quitLine)));
+    expect(output, isNot(contains(RunStep.signUpGuideLines.first)));
+
+    // 준비(패키지 받기 → 코드 생성)와 앱 실행이 각 1회다.
+    final streamKeys = <String>[
+      for (final FakeCall call in runner.calls)
+        if (call.mode == RunMode.stream) call.key,
+    ];
+    expect(streamKeys, <String>[
+      'fvm flutter pub get',
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+    ]);
+    expect(runner.countMode(RunMode.interactive), 1);
+    expect(
+      runner.countCalls(
+        RunMode.interactive,
+        FakeCommandRunner.buildKey(RunStep.buildRunCommand(runSimulatorId)),
+      ),
+      1,
+    );
+
+    // 다시 빌드한 뒤의 재검사는 사유 없이 ✓ 로 끝난다.
+    expect(output, contains('  ✓ 앱 실행 · 로그인 확인 — 인증된 이메일 사용자 1명'));
+    expect(context.session.hasRegisteredAppCheckToken, isTrue);
+    final Map<String, String?>? launched = context.session.launchedBuildInputs;
+    expect(launched, isNotNull);
+    const paths = FlavorPaths(Flavor.dev);
+    expect(launched!.keys.toList(), <String>[
+      paths.json,
+      paths.xcconfig,
+      paths.dartOptions,
+      paths.iosPlist,
+      paths.androidJson,
+    ]);
+    expect(launched[paths.json], isNotNull);
+    expect(launched[paths.xcconfig], isNull);
+    // 지문은 세션 메모리에만 있고 화면 · 기록에는 쓰지 않는다.
+    for (final String? digest in launched.values) {
+      if (digest == null) continue;
+      expect(output, isNot(contains(digest)));
+      expect(log.text, isNot(contains(digest)));
+    }
+  });
+
   test(
     'T-19-APPCHECK-04 토큰이 있고 Android 앱에만 항목이 없으면 Android POST 1회 · DELETE 0 · iOS 는 목록 GET 만',
     () async {
@@ -456,11 +663,14 @@ void main() {
         )
         ..on('POST', androidTokensUrl, const RestResponse(200, '{}'));
       final terminal = ScriptedTerminal(const <String?>['y']);
+      final session = WizardSession();
 
-      final int code = await runAppCheckStep(rest, terminal);
+      final int code = await runAppCheckStep(rest, terminal, session: session);
 
       expect(code, wizardExitDone);
       expect(readToken(), token);
+      // 빠진 앱에 등록만 해도 새 빌드가 필요하다는 신호를 남긴다.
+      expect(session.hasRegisteredAppCheckToken, isTrue);
       expect(rest.countRequests('POST', androidTokensUrl), 1);
       expect(rest.countRequests('POST', iosTokensUrl), 0);
       expect(listRequests(rest, 'DELETE'), isEmpty);
@@ -491,8 +701,14 @@ void main() {
       ..on('POST', iosTokensUrl, const RestResponse(400, limitBody));
     final terminal = ScriptedTerminal(const <String?>['y']);
     final log = MemoryLogSink(Redactor());
+    final session = WizardSession();
 
-    final int code = await runAppCheckStep(rest, terminal, log: log);
+    final int code = await runAppCheckStep(
+      rest,
+      terminal,
+      log: log,
+      session: session,
+    );
 
     final output = terminal.output.toString();
     final String token = readToken();
@@ -502,6 +718,8 @@ void main() {
     expect(output, contains(limitBody));
     expect(output, isNot(contains(token)));
     expect(log.text, isNot(contains(token)));
+    // 등록이 실패했으면 다시 빌드 신호를 남기지 않는다.
+    expect(session.hasRegisteredAppCheckToken, isFalse);
   });
 
   test(
