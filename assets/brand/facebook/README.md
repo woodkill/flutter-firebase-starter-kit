@@ -23,6 +23,9 @@ Meta 공식 BI 아님) 위젯은 쓰지 않는다.
 - `'Continue with Facebook'`
 - `'Login with Facebook'`
 
+킷의 버튼은 두 번째 문구 `'Login with Facebook'` 을 쓴다. 한국어 · 일본어 문구는
+`'Facebook으로 로그인'` · `'Facebookでログイン'` 이다(ARB `authFacebookSignIn`).
+
 변형 금지 원문 (Meta Login UX Guide):
 - `DON'T modify the 'f' logo in any way`
 
@@ -93,7 +96,7 @@ Meta Brand Resource Center (`https://www.meta.com/brand/resources/`) 에는 별�
   / dark `#131314`) · 글자색 (`#1F1F1F` / `#E3E3E3`) · 외곽선 색 (`#747775` /
   `#8E918F`).
 - Locale: 언어별 파일이 없다. 'f' 마크만 있어 언어와 무관하다. 라벨 텍스트
-  (`'Continue with Facebook'` / `'Facebook 으로 시작하기'` / `'Facebookでログイン'`) 는
+  (`'Login with Facebook'` / `'Facebook으로 로그인'` / `'Facebookでログイン'`) 는
   `Text(AppLocalizations.of(context).authFacebookSignIn)` 가 따로 그린다.
 - Format: SVG 1장 (`btn_signin_icon.svg` — Meta 의 logo pack 은 AI + PNG
   만 주고 SVG 는 없어서 AI 원본의 vector path 로 만든다). `BrandedSocialButton` 의
@@ -133,7 +136,7 @@ Meta Brand Resource Center (`https://www.meta.com/brand/resources/`) 에는 별�
 assets/brand/facebook/
 ├── btn_signin_icon.svg (Primary Logo 의 vector path 2개 — 파란 원 + 흰 'f', viewBox 0 0 20 20)
 ├── LICENSE.txt         (Meta 라이선스 원문 + 변형 금지 + 사전 검수)
-└── README.md           (이 파일 — 7개 제목 schema)
+└── README.md           (이 파일)
 ```
 
 언어 · 밝기별 하위 디렉토리는 없다. `pubspec.yaml` 의 assets 에는
