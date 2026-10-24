@@ -154,5 +154,45 @@ void main() {
       expect(collectItemBlocks(tabled, '1. '), <String>['1. 표를 본다.']);
       expect(collectItemBlocks(fenced, '1. '), <String>['1. 명령을 친다.']);
     });
+    test('T-21-BLOCK-08: 인용 블록 머리는 표지를 벗긴 본문으로 판정하고 인용 여부가 '
+        '바뀌는 줄에서 멈춘다', () {
+      // 리뷰 재현 입력 — 인용 안 번호 단계는 다음 번호 앞에서 멈춘다.
+      const numbered =
+          '> 1. 첫 단계다.\n'
+          '> 2. 둘째 단계다.\n'
+          '> 3. 셋째 단계다.\n'
+          '\n'
+          '다음.\n';
+      // 인용 안 「문단 + 하위 항목」 은 붙는다(문서의 `> ⚠ …` 꼴).
+      const paragraph =
+          '> ⚠ 주의할 점이다.\n'
+          '> - 하나다.\n'
+          '> - 둘이다.\n'
+          '>\n'
+          '> 다른 문단이다.\n';
+      // 인용 머리 뒤 인용 밖 줄에서 멈춘다.
+      const leaving =
+          '> 인용 문단이다.\n'
+          '인용 밖 줄이다.\n';
+      // 인용 밖 머리 뒤 0칸 인용 줄에서 멈추고, 깊이 들여 쓴 인용은 항목 안이라 붙는다.
+      const entering =
+          '- 할 일이다.\n'
+          '> 인용이다.\n';
+      const nested =
+          '1. 단계다.\n'
+          '   > 단계 안 인용이다.\n'
+          '2. 다음 단계다.\n';
+
+      expect(collectItemBlocks(numbered, '> 1. '), <String>['> 1. 첫 단계다.']);
+      expect(collectItemBlocks(numbered, '> 2. '), <String>['> 2. 둘째 단계다.']);
+      expect(collectItemBlocks(paragraph, '> ⚠'), <String>[
+        '> ⚠ 주의할 점이다.\n> - 하나다.\n> - 둘이다.',
+      ]);
+      expect(collectItemBlocks(leaving, '> 인용'), <String>['> 인용 문단이다.']);
+      expect(collectItemBlocks(entering, '- 할 일'), <String>['- 할 일이다.']);
+      expect(collectItemBlocks(nested, '1. '), <String>[
+        '1. 단계다.\n   > 단계 안 인용이다.',
+      ]);
+    });
   });
 }

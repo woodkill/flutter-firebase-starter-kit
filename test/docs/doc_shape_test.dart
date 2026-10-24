@@ -53,9 +53,6 @@ final RegExp _numberMarker = RegExp(r'^\d+\. ');
 /// 제목 줄(`#` 1 ~ 6개 + 공백).
 final RegExp _headingLine = RegExp('^#{1,6} ');
 
-/// 줄 앞 인용 표지(`>` 와 뒤 공백 하나 · 여러 겹).
-final RegExp _quoteMarker = RegExp('^(?: *> ?)+');
-
 /// 한글 한 글자.
 final RegExp _koreanChar = RegExp('[가-힣]');
 
@@ -167,7 +164,7 @@ List<_BlockDraft> _scanDrafts(String markdown) {
       open = null;
       continue;
     }
-    final Match? quote = _quoteMarker.firstMatch(raw);
+    final Match? quote = quoteMarkerHead.firstMatch(raw);
     final isQuote = quote != null;
     final String body = isQuote ? raw.substring(quote.end) : raw;
     final String trimmed = body.trim();

@@ -112,6 +112,12 @@ final RegExp _numberMarkerHead = RegExp(r'^\d+\. ');
 /// 들여쓰기 0 의 마크다운 제목 줄(`#` 1 ~ 6개 + 공백)이다.
 final RegExp _zeroIndentHeadingLine = RegExp('^#{1,6} ');
 
+/// 줄 앞 인용 표지(`>` 와 뒤 공백 하나 · 여러 겹)다.
+///
+/// [collectItemBlocks] 와 문서 꼴 시험(`test/docs/doc_shape_test.dart`)이 같은
+/// 규칙으로 인용 표지를 벗기도록 여기 한 번만 둔다.
+final RegExp quoteMarkerHead = RegExp('^(?: *> ?)+');
+
 /// [line] 앞의 공백 수를 센다.
 int _leadingSpaceCount(String line) => line.length - line.trimLeft().length;
 
@@ -123,9 +129,15 @@ int _leadingSpaceCount(String line) => line.length - line.trimLeft().length;
 /// 둔다. 덩어리 개수 · 순서는 [linesStartingWith] 와 같다 — 덩어리가 겹쳐도 머리
 /// 줄마다 따로 만들고, 머리 줄이 없으면 빈 목록이다.
 ///
-/// 덩어리는 머리 줄과 뒤따르는 줄을 차례로 `\n` 으로 이은 원문이다. 머리 줄의
-/// 들여쓰기 k(앞 공백 수)와 머리가 목록 항목인지로 뒤 줄을 판정한다.
-/// - 빈 줄(공백뿐) · 들여쓰기 0 의 제목 줄 · 글 끝에서 멈춘다.
+/// 덩어리는 머리 줄과 뒤따르는 줄을 차례로 `\n` 으로 이은 원문이다. 판정은 줄 앞
+/// 인용 표지([quoteMarkerHead])를 벗긴 본문으로 한다 — 머리 본문의 들여쓰기 k(앞
+/// 공백 수)와 머리가 목록 항목인지로 뒤 줄을 판정한다. 덩어리에는 표지를 벗기지
+/// 않은 원문 줄을 넣는다.
+/// - 인용 여부가 머리와 다른 줄(인용 머리 뒤 인용 밖 줄 · 인용 밖 머리 뒤 인용
+///   줄)에서 멈춘다. 다만 인용 밖 머리보다 깊이 들여 쓴 `>` 줄은 항목 안의
+///   인용이라 붙인다.
+/// - 본문이 빈 줄(공백뿐 · `>` 만 있는 줄) · 들여쓰기 0 의 제목 줄 · 글 끝에서
+///   멈춘다.
 /// - 들여쓰기가 k 보다 큰 줄(하위 항목 · 이어 쓴 줄 · 들여 쓴 펜스)은 붙인다.
 /// - 들여쓰기가 k 이하인 줄은 머리가 목록 항목이면 목록 표지 줄 · 표 줄(`|`) ·
 ///   펜스 줄에서 멈추고, 머리가 문단 줄이면 번호 표지 줄 · 표 줄 · 펜스 줄에서
@@ -142,16 +154,30 @@ List<String> collectItemBlocks(String text, String prefix) {
     if (!head.startsWith(prefix)) {
       continue;
     }
-    final int headIndent = _leadingSpaceCount(head);
-    final bool isListHead = _listMarkerHead.hasMatch(head.trimLeft());
+    final Match? headQuote = quoteMarkerHead.firstMatch(head);
+    final isQuoteHead = headQuote != null;
+    final String headBody = isQuoteHead ? head.substring(headQuote.end) : head;
+    final int headIndent = _leadingSpaceCount(headBody);
+    final bool isListHead = _listMarkerHead.hasMatch(headBody.trimLeft());
     final block = <String>[head];
     for (var i = start + 1; i < lines.length; i++) {
       final String line = lines[i];
-      final String body = line.trimLeft();
-      if (body.isEmpty || _zeroIndentHeadingLine.hasMatch(line)) {
+      final Match? quote = quoteMarkerHead.firstMatch(line);
+      if ((quote != null) != isQuoteHead) {
+        // 인용 밖 머리보다 깊이 들여 쓴 `>` 줄은 항목 안의 인용이라 붙인다.
+        if (!isQuoteHead && _leadingSpaceCount(line) > headIndent) {
+          block.add(line);
+          continue;
+        }
         break;
       }
-      if (_leadingSpaceCount(line) <= headIndent) {
+      // 인용 표지를 벗긴 본문으로 판정한다 — 인용 밖 줄은 원문 그대로다.
+      final String content = quote == null ? line : line.substring(quote.end);
+      final String body = content.trimLeft();
+      if (body.isEmpty || _zeroIndentHeadingLine.hasMatch(content)) {
+        break;
+      }
+      if (_leadingSpaceCount(content) <= headIndent) {
         final bool isStructural =
             body.startsWith('|') || body.startsWith('```');
         final bool stopsHere = isListHead
