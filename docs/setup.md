@@ -201,20 +201,29 @@ clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이
 
 **위저드 흐름**
 
-1. 저장소 루트에서 체크 목록을 연다. stg · prod 는 `--flavor stg` · `--flavor prod` 를 함께 준다.
+1. 저장소 루트에서 체크 목록을 연다.
+   - stg · prod 는 `--flavor stg` · `--flavor prod` 를 함께 준다.
 
    ```bash
    ./setup.sh --providers
    ```
 
-2. 위저드가 `로그인 수단 — 이메일 로그인은 늘 켜져 있습니다` 아래에 번호 목록을 보인다. 번호를 묻는 질문에 **켤 수단과 이미 켜 둔 수단의 번호**를 띄어 써서 입력한다 — 넣지 않은 번호의 수단은 꺼진다.
-3. 위저드가 「지금 · 새 값 · 더한 것 · 기록」 값 표를 보이고, `y` 를 받은 뒤 `config/<flavor>.json` 의 `enabledAuthProviders` 에 켠 수단을 더한다. 이어서 단계 목록을 다시 짜고 켠 수단의 단계를 진행한다. 콘솔에 앱 아이콘 칸이 있는 수단을 켰으면 먼저 「앱 아이콘」 단계가 원본 이미지를 묻는다([위저드 실행](#위저드-실행) 의 「앱 아이콘 단계」).
-4. 수단마다 위저드가 `<수단> 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔에 넣을 값(패키지명 · 번들 ID · 키 해시 · 리디렉션 주소 등)과 콘솔 주소(`콘솔:` 줄) · 할 일 줄이 든다.
-5. 값 표를 보며 그 provider 콘솔에서 앱을 등록하고 값을 넣는다 — 수단별 콘솔 단계는 아래 하위 절에 있다. 위저드가 `콘솔에서 키를 받았나요?` 를 물으면 키를 받았을 때 `네 — 키를 입력합니다` 를, 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
-6. 콘솔에서 받은 키를 한 번 입력한다. 비밀 값은 화면에 보이지 않게 받고, 위저드가 형식 · 서버 확인 뒤에 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` · Secret Manager 에 기록하고, Apple · Facebook 은 Firebase 로그인 설정에도 기록한다. Google 은 입력할 키가 없다 — 위저드가 Firebase 에서 Google 로그인을 켜고 Web client ID 를 읽어 기록한다.
+2. 위저드가 `로그인 수단 — 이메일 로그인은 늘 켜져 있습니다` 아래에 번호 목록을 보인다.
+   - 번호를 묻는 질문에 **켤 수단과 이미 켜 둔 수단의 번호**를 띄어 써서 입력한다 — 넣지 않은 번호의 수단은 꺼진다.
+3. 위저드가 「지금 · 새 값 · 더한 것 · 기록」 값 표를 보이고, `y` 를 받은 뒤 `config/<flavor>.json` 의 `enabledAuthProviders` 에 켠 수단을 더한다.
+   - 이어서 단계 목록을 다시 짜고 켠 수단의 단계를 진행한다.
+   - 콘솔에 앱 아이콘 칸이 있는 수단을 켰으면 먼저 「앱 아이콘」 단계가 원본 이미지를 묻는다([위저드 실행](#위저드-실행) 의 「앱 아이콘 단계」).
+4. 수단마다 위저드가 `<수단> 콘솔에 넣을 값 — <flavor>` 값 표를 보인다.
+   - 콘솔에 넣을 값(패키지명 · 번들 ID · 키 해시 · 리디렉션 주소 등)과 콘솔 주소(`콘솔:` 줄) · 할 일 줄이 든다.
+5. 값 표를 보며 그 provider 콘솔에서 앱을 등록하고 값을 넣는다 — 수단별 콘솔 단계는 아래 하위 절에 있다.
+   - 위저드가 `콘솔에서 키를 받았나요?` 를 물으면 키를 받았을 때 `네 — 키를 입력합니다` 를, 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
+6. 콘솔에서 받은 키를 한 번 입력한다.
+   - 비밀 값은 화면에 보이지 않게 받고, 위저드가 형식 · 서버 확인 뒤에 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` · Secret Manager 에 기록하고, Apple · Facebook 은 Firebase 로그인 설정에도 기록한다.
+   - Google 은 입력할 키가 없다 — 위저드가 Firebase 에서 Google 로그인을 켜고 Web client ID 를 읽어 기록한다.
 7. 「Cloud Functions 배포」 단계가 공통 함수와 켠 수단의 함수를 배포하고, 앱에서 부를 수 있게 공개 호출이 설정돼 있는지 확인한다.
 8. Kakao · Naver · LINE 가운데 하나라도 켰으면 「Custom Token 서명 권한」 단계가 함수 서비스 계정의 토큰 서명 권한을 확인하고 없으면 붙인다([Kakao · Naver · LINE 서명 권한(Token Creator)](#kakao--naver--line-서명-권한token-creator)).
-9. 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄우고, 「소셜 로그인 확인」 단계가 켠 수단마다 로그인한 사용자 수를 센다. 앱에서 켠 수단으로 한 번씩 로그인한다.
+9. 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄우고, 「소셜 로그인 확인」 단계가 켠 수단마다 로그인한 사용자 수를 센다.
+   - 앱에서 켠 수단으로 한 번씩 로그인한다.
 
 **수단별로 필요한 것**
 
@@ -229,7 +238,8 @@ clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이
 | Naver | `naver` | `naverClientId` · `naverClientSecret` · `naverUrlScheme` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `NAVER_URL_SCHEME` | `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider` · `disconnectNaverProvider` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | [Naver 로그인 켜기](#naver-로그인-켜기) |
 | LINE | `line` | `lineChannelId` | `LINE_CHANNEL_ID` | `lineCustomToken` · `linkLineProvider` · `disconnectLineProvider` | `LINE_CHANNEL_ID` · `LINE_CHANNEL_SECRET` | [LINE 로그인 켜기](#line-로그인-켜기) |
 
-공통 함수(`ping` · `unlinkCustomTokenProvider` · `deleteUserAccount` · `lookupSignInMethods` · `mirrorTermsAcceptanceSnapshot` · `mirrorAccountEmail` · `sendTestPush`)는 수단과 무관하게 늘 배포된다. 콘솔에 등록할 때 그 수단이 이메일을 주도록 함께 설정한다 — 수단별 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
+공통 함수(`ping` · `unlinkCustomTokenProvider` · `deleteUserAccount` · `lookupSignInMethods` · `mirrorTermsAcceptanceSnapshot` · `mirrorAccountEmail` · `sendTestPush`)는 수단과 무관하게 늘 배포된다.
+- 콘솔에 등록할 때 그 수단이 이메일을 주도록 함께 설정한다 — 수단별 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
 
 provider 를 킷에 더하거나 빼는 일은 유지보수자 작업이라 이 문서에 절차가 없다 — 그 절차와 설계 이유는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md) 에 있다.
 
@@ -241,29 +251,47 @@ provider 를 킷에 더하거나 빼는 일은 유지보수자 작업이라 이 
 
 #### 문제 해결
 
-- **켠 수단의 버튼이 로그인 화면에 없다.** `enabledAuthProviders` 는 빌드 때 앱에 들어가므로 앱을 다시 빌드한다. Remote Config 의 `auth_provider_<토큰>_enabled` 가 `false` 로 게시돼 있지 않은지도 본다([Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기)).
-- **버튼을 누르면 오류 배너가 뜬다.** 그 수단의 secret 이 자리표시 값 `unset` 으로 남아 있는지 [secret 값 확인하기](#secret-값-확인하기) 로 확인한다. 값 표의 값을 콘솔에 모두 넣었는지 수단별 콘솔 단계도 다시 본다.
-- **Kakao · Naver · LINE 로그인이 오류 배너로 끝나거나, Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로 끝난다.** 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 함수의 서비스 계정에 토큰 서명 권한이 없는 것이다 — [Kakao · Naver · LINE 서명 권한(Token Creator)](#kakao--naver--line-서명-권한token-creator) 으로 확인하고 붙인다.
-- **「소셜 로그인 확인」 이 `아직 로그인 기록이 없습니다:` 뒤에 수단 이름을 보인다.** 그 수단으로 로그인한 기록이 아직 없다. `앱을 다시 실행` 을 고르면 앱이 다시 뜨고, 그 수단으로 로그인한 뒤 `q` 로 끝내면 위저드가 다시 센다. Kakao · Naver · LINE 은 다른 수단으로 가입한 계정에 계정 연결로만 붙였으면 기록으로 세지 않는다 — 그 수단의 버튼으로 한 번 로그인해야 기록이 생긴다. `나중에` 를 고르면 다음 실행의 점검표에 다시 보인다.
+- **켠 수단의 버튼이 로그인 화면에 없다.**
+  - `enabledAuthProviders` 는 빌드 때 앱에 들어가므로 앱을 다시 빌드한다.
+  - Remote Config 의 `auth_provider_<토큰>_enabled` 가 `false` 로 게시돼 있지 않은지도 본다([Kill Switch 로 로그인 수단 막기](guide.md#kill-switch-로-로그인-수단-막기)).
+- **버튼을 누르면 오류 배너가 뜬다.**
+  - 그 수단의 secret 이 자리표시 값 `unset` 으로 남아 있는지 [secret 값 확인하기](#secret-값-확인하기) 로 확인한다.
+  - 값 표의 값을 콘솔에 모두 넣었는지 수단별 콘솔 단계도 다시 본다.
+- **Kakao · Naver · LINE 로그인이 오류 배너로 끝나거나, Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로 끝난다.**
+  - 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 함수의 서비스 계정에 토큰 서명 권한이 없는 것이다 — [Kakao · Naver · LINE 서명 권한(Token Creator)](#kakao--naver--line-서명-권한token-creator) 으로 확인하고 붙인다.
+- **「소셜 로그인 확인」 이 `아직 로그인 기록이 없습니다:` 뒤에 수단 이름을 보인다.**
+  - 그 수단으로 로그인한 기록이 아직 없다.
+  - `앱을 다시 실행` 을 고르면 앱이 다시 뜨고, 그 수단으로 로그인한 뒤 `q` 로 끝내면 위저드가 다시 센다.
+  - Kakao · Naver · LINE 은 다른 수단으로 가입한 계정에 계정 연결로만 붙였으면 기록으로 세지 않는다 — 그 수단의 버튼으로 한 번 로그인해야 기록이 생긴다.
+  - `나중에` 를 고르면 다음 실행의 점검표에 다시 보인다.
 
 ### Google 로그인 켜기
 
 Google 로그인을 앱에 둘 때 이 절을 따른다. Google 을 켜지 않으면 이 절을 건너뛴다.
 
-**전제:** [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Google 을 골랐다. Google 은 따로 개발자 콘솔 앱을 만들지 않는다 — 위저드가 Firebase 에서 Google 로그인을 켜면서 OAuth 동의 화면의 앱 이름 · 지원 이메일을 값 표의 값으로 정하고, Web client ID 를 `googleServerClientId` 에 기록한다.
+**전제:** [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Google 을 골랐다.
+- Google 은 따로 개발자 콘솔 앱을 만들지 않는다 — 위저드가 Firebase 에서 Google 로그인을 켜면서 OAuth 동의 화면의 앱 이름 · 지원 이메일을 값 표의 값으로 정하고, Web client ID 를 `googleServerClientId` 에 기록한다.
 
 #### 콘솔 단계
 
-1. 위저드가 `Google 로그인 — 동의 화면` 값 표를 보인다. 행은 아래와 같다.
+1. 위저드가 `Google 로그인 — 동의 화면` 값 표를 보인다.
+   - 행은 아래와 같다.
    - `앱 이름` — `config/<flavor>.json` 의 `appName` 값이다. 동의 화면에서 사용자가 보는 앱 이름이 된다.
    - `지원 이메일` — 동의 화면의 지원 이메일이다. 위저드가 gcloud 에 로그인한 계정을 제안하고, `지원 이메일 고치기` 로 바꿀 수 있다.
    - `동의 화면 로고 · 출시 전 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/google-120x120.png` 다.
-2. 이미 동의 화면이 있는 프로젝트면 위저드 안내(`이미 동의 화면이 있으면 그 이름 · 이메일을 넣으세요`)대로 그 이메일을 넣는다. 값이 맞으면 `이대로 진행` 을 고른다 — 위저드가 Google 로그인을 켜고 동의 화면을 만든다.
-3. 값 표 아래에 `조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다` 가 보이면 프로젝트가 조직 아래에 있는 것이다. Google Cloud 콘솔의 OAuth 동의 화면(콘솔 이름 「Google 인증 플랫폼」) → 「대상」 에서 「사용자 유형」 을 외부로 바꾼다. 조직이 없는 프로젝트는 「사용자 유형」 이 이미 「외부」 이고, 이 줄이 보이지 않아 이 단계를 건너뛴다.
-4. 결과를 콘솔에서 본다 — Google Cloud 콘솔의 프로젝트 선택 창에서 그 프로젝트를 고른다(조직이 없는 프로젝트는 「조직 없음」 아래에 있다). 이어서 `OAuth 동의 화면` → `브랜딩` 을 열면 앱 이름 · 지원 이메일이 값 표와 같다.
-5. 동의 화면 로고는 출시 전 선택이다. 올리려면 「브랜딩」 화면의 「앱 로고」 → 「업로드할 로고 파일」 에 `.setup/icons/google-120x120.png` 를 올린다. 위저드 노트대로 로고는 Google 의 브랜드 인증을 거쳐야 동의 화면에 보인다.
+2. 이미 동의 화면이 있는 프로젝트면 위저드 안내(`이미 동의 화면이 있으면 그 이름 · 이메일을 넣으세요`)대로 그 이메일을 넣는다.
+   - 값이 맞으면 `이대로 진행` 을 고른다 — 위저드가 Google 로그인을 켜고 동의 화면을 만든다.
+3. 값 표 아래에 `조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다` 가 보이면 프로젝트가 조직 아래에 있는 것이다.
+   - Google Cloud 콘솔의 OAuth 동의 화면(콘솔 이름 「Google 인증 플랫폼」) → 「대상」 에서 「사용자 유형」 을 외부로 바꾼다.
+   - 조직이 없는 프로젝트는 「사용자 유형」 이 이미 「외부」 이고, 이 줄이 보이지 않아 이 단계를 건너뛴다.
+4. 결과를 콘솔에서 본다 — Google Cloud 콘솔의 프로젝트 선택 창에서 그 프로젝트를 고른다(조직이 없는 프로젝트는 「조직 없음」 아래에 있다).
+   - 이어서 `OAuth 동의 화면` → `브랜딩` 을 열면 앱 이름 · 지원 이메일이 값 표와 같다.
+5. 동의 화면 로고는 출시 전 선택이고, 올리려면 「브랜딩」 화면의 「앱 로고」 → 「업로드할 로고 파일」 에 `.setup/icons/google-120x120.png` 를 올린다.
+   - 위저드 노트대로 로고는 Google 의 브랜드 인증을 거쳐야 동의 화면에 보인다.
 6. 출시 전에 「대상」 화면의 「게시 상태」 와 「브랜딩」 화면 맨 아래 「인증 상태」 의 「브랜딩 확인」 에서 동의 화면의 게시 상태와 브랜드 인증을 확인한다.
-7. iOS · Android 쪽은 위저드가 한다. 「Google — iOS 쪽」 단계가 설정 파일의 `REVERSED_CLIENT_ID` 를 `ios/Flutter/<flavor>.xcconfig` 에 쓰고, 「Google — Android 쪽」 단계가 디버그 서명 키의 SHA-1 을 Firebase 의 Android 앱에 등록한다. release 서명 키의 SHA-1 은 위저드가 등록하지 않는다 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 Firebase 콘솔 → 프로젝트 설정 → 「일반」 의 Android 앱에서 「SHA 인증서 지문」 표 아래 「디지털 지문 추가」 로 더한다.
+7. iOS · Android 쪽은 위저드가 한다.
+   - 「Google — iOS 쪽」 단계가 설정 파일의 `REVERSED_CLIENT_ID` 를 `ios/Flutter/<flavor>.xcconfig` 에 쓰고, 「Google — Android 쪽」 단계가 디버그 서명 키의 SHA-1 을 Firebase 의 Android 앱에 등록한다.
+   - release 서명 키의 SHA-1 은 위저드가 등록하지 않는다 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 Firebase 콘솔 → 프로젝트 설정 → 「일반」 의 Android 앱에서 「SHA 인증서 지문」 표 아래 「디지털 지문 추가」 로 더한다.
 
 #### 확인 방법
 
@@ -273,9 +301,15 @@ Google 로그인을 앱에 둘 때 이 절을 따른다. Google 을 켜지 않�
 
 #### 문제 해결
 
-- **조직 밖 계정으로 로그인하면 거부된다.** 프로젝트가 조직 아래에 있고 동의 화면 대상이 조직 안으로 묶여 있는 것이다 — 콘솔 단계 3 으로 외부로 바꾼다.
-- **Android 에서 Google 계정을 고른 뒤 로그인이 끝나지 않는다.** 그 빌드를 서명한 키의 SHA-1 이 Firebase 의 Android 앱에 없는 것이다. debug 빌드면 `./setup.sh` 를 다시 실행해 「Google — Android 쪽」 단계가 등록하게 한다 — JDK 나 디버그 서명 키가 없어 지문을 계산하지 못했으면 [시작 전 준비](#시작-전-준비) 의 「Android 도구 · JDK」 를 먼저 갖춘다. release 빌드면 콘솔 단계 7 의 release 키 SHA-1 을 더한다.
-- **iOS 에서 Google 로그인 뒤 앱으로 돌아오지 않는다.** `ios/Flutter/<flavor>.xcconfig` 의 `REVERSED_CLIENT_ID` 가 설정 파일과 다를 수 있다. `./setup.sh` 를 다시 실행하면 「Google — iOS 쪽」 단계가 설정 파일의 값으로 맞춘다 — 그 뒤 앱을 다시 빌드한다.
+- **조직 밖 계정으로 로그인하면 거부된다.**
+  - 프로젝트가 조직 아래에 있고 동의 화면 대상이 조직 안으로 묶여 있는 것이다 — 콘솔 단계 3 으로 외부로 바꾼다.
+- **Android 에서 Google 계정을 고른 뒤 로그인이 끝나지 않는다.**
+  - 그 빌드를 서명한 키의 SHA-1 이 Firebase 의 Android 앱에 없는 것이다.
+  - debug 빌드면 `./setup.sh` 를 다시 실행해 「Google — Android 쪽」 단계가 등록하게 한다 — JDK 나 디버그 서명 키가 없어 지문을 계산하지 못했으면 [시작 전 준비](#시작-전-준비) 의 「Android 도구 · JDK」 를 먼저 갖춘다.
+  - release 빌드면 콘솔 단계 7 의 release 키 SHA-1 을 더한다.
+- **iOS 에서 Google 로그인 뒤 앱으로 돌아오지 않는다.**
+  - `ios/Flutter/<flavor>.xcconfig` 의 `REVERSED_CLIENT_ID` 가 설정 파일과 다를 수 있다.
+  - `./setup.sh` 를 다시 실행하면 「Google — iOS 쪽」 단계가 설정 파일의 값으로 맞춘다 — 그 뒤 앱을 다시 빌드한다.
 
 #### 되돌리기
 
