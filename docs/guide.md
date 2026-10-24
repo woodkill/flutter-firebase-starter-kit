@@ -1219,20 +1219,19 @@ final Color seed =
     AppConfig.parseBrandColor(AppConfig.brandColor) ?? AppTheme.seedColor;
 ```
 
-**① config 의 `brandColor` 를 바꾼다.** `config/dev.json` 의 `brandColor` 를 `#RRGGBB`
-형식으로 쓴다. 아래는 example 파일의 값이다.
+**① config 의 `brandColor` 를 바꾼다.**
+- `config/dev.json` 의 `brandColor` 를 `#RRGGBB` 형식으로 쓴다. 아래는 example 파일의 값이다.
 
 ```json
 "brandColor": "#673AB7"
 ```
 
-비우거나 형식이 틀리면 `app_theme.dart` 의 상수 `AppTheme.seedColor`
-(`Colors.deepPurple`)로 칠한다. 같은 `brandColor` 가 `kit` 발송 모드 메일과 결과
-페이지의 색에도 쓰인다 — `kit` 모드면 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기)
-「켜기」 ④ · ⑥ 을 다시 한다. stg · prod 는 `config/stg.json` · `config/prod.json` 의
-같은 키다.
+비우거나 형식이 틀리면 `app_theme.dart` 의 상수 `AppTheme.seedColor` (`Colors.deepPurple`)로 칠한다.
+- 같은 `brandColor` 가 `kit` 발송 모드 메일과 결과 페이지의 색에도 쓰인다 — `kit` 모드면 [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 을 다시 한다.
+- stg · prod 는 `config/stg.json` · `config/prod.json` 의 같은 키다.
 
-**② 앱을 다시 빌드한다.** `brandColor` 는 빌드 때 들어간다.
+**② 앱을 다시 빌드한다.**
+- `brandColor` 는 빌드 때 들어간다.
 
 ```bash
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
@@ -1241,10 +1240,8 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 시드 하나에서 `ColorScheme.fromSeed` 가 M3 팔레트 **전체**(primary /
   secondary / tertiary / surface / error 및 각 `on-` 쌍)를 파생하므로,
   개별 색을 일일이 지정하지 않아도 된다.
-- 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접
-  넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` /
-  `darkTheme: AppTheme.dark(seedColor: Colors.teal),`). **라이트와 다크에 같은 시드를
-  넘긴다** — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋난다.
+- 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접 넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` / `darkTheme: AppTheme.dark(seedColor: Colors.teal),`).
+  - **라이트와 다크에 같은 시드를 넘긴다** — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋난다.
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
