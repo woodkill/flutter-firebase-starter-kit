@@ -823,17 +823,21 @@ iOS 실기기의 푸시 알림은 Firebase 에 APNs 인증 키가 있어야 도�
 
 iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 쓰지 않으면 이 절을 건너뛴다 — Android 알림에는 필요 없다.
 
-**전제:** Apple Developer 에서 APNs 를 켠 `.p8` 키가 있다. [Apple 로그인 켜기](#apple-로그인-켜기) 콘솔 단계 5 의 키(APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나)를 그대로 쓴다.
+**전제:** Apple Developer 에서 APNs 를 켠 `.p8` 키가 있다.
+- [Apple 로그인 켜기](#apple-로그인-켜기) 콘솔 단계 5 의 키(APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나)를 그대로 쓴다.
 
 #### 콘솔 단계
 
-1. 위저드의 「App Check — DeviceCheck」 단계에서 Apple 키를 넣으면, 이어지는 「APNs 키」 단계가 `Firebase 콘솔에 올릴 APNs 인증 키` 값 표를 보인다. 행은 아래와 같다.
+1. 위저드의 「App Check — DeviceCheck」 단계에서 Apple 키를 넣으면, 이어지는 「APNs 키」 단계가 `Firebase 콘솔에 올릴 APNs 인증 키` 값 표를 보인다.
+   - 행은 아래와 같다.
    - `iOS 앱 (번들 ID)` — 키를 올릴 iOS 앱이다. 위저드 노트대로 Firebase 프로젝트에 iOS 앱이 여럿이면 이 번들 ID 의 앱에 올린다.
    - `.p8` — `Key ID <Key ID> 의 .p8` 꼴로, 올릴 키 파일을 가리킨다.
    - `Key ID` · `Team ID` — 키를 올릴 때 함께 넣는 값이다.
 2. Firebase 콘솔에서 그 프로젝트를 열고 `프로젝트 설정` → `클라우드 메시징` → `Apple 앱 구성` 에서 값 표의 번들 ID 앱을 찾는다.
-3. `APN 인증 키` 아래 `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸에 같은 `.p8` 을 올린다(할 일 줄 `Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키`). 올리는 창의 「키 ID(필수 항목)」 · 「팀 ID(필수 항목)」 칸에 값 표의 `Key ID` · `Team ID` 를 넣는다 — 「팀 ID(필수 항목)」 은 이미 채워져 있을 수 있으니 값 표의 `Team ID` 와 같은지 본다.
-4. stg · prod 는 그 flavor 의 Firebase 프로젝트에서 같은 일을 한다. 키 파일은 저장소에 두지 않는다.
+3. `APN 인증 키` 아래 `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸에 같은 `.p8` 을 올린다(할 일 줄 `Firebase 콘솔에 APNs 인증 키 올리기 — iOS 앱마다 · 개발 · 운영 같은 키`).
+   - 올리는 창의 「키 ID(필수 항목)」 · 「팀 ID(필수 항목)」 칸에 값 표의 `Key ID` · `Team ID` 를 넣는다 — 「팀 ID(필수 항목)」 은 이미 채워져 있을 수 있으니 값 표의 `Team ID` 와 같은지 본다.
+4. stg · prod 는 그 flavor 의 Firebase 프로젝트에서 같은 일을 한다.
+   - 키 파일은 저장소에 두지 않는다.
 
 #### 확인 방법
 
@@ -842,12 +846,16 @@ iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 �
 
 #### 문제 해결
 
-- **iOS 실기기에 알림이 오지 않는다.** 값 표의 번들 ID 앱에 키를 올렸는지, `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸 모두 올렸는지 본다. 앱 쪽 설정(Push Notifications capability · `aps-environment`)은 [FCM 알림](guide.md#fcm-알림) 에서 확인한다.
-- **`.p8` 파일을 잃어버렸다.** 같은 키는 다시 내려받을 수 없다 — Apple Developer 의 Keys 에서 새 키를 만들고 `./setup.sh` 를 다시 실행해 DeviceCheck 에 새 키를 넣은 뒤, 같은 키를 이 절대로 올린다.
+- **iOS 실기기에 알림이 오지 않는다.**
+  - 값 표의 번들 ID 앱에 키를 올렸는지, `개발 APNs 인증 키` · `프로덕션 APNs 인증 키` 두 칸 모두 올렸는지 본다.
+  - 앱 쪽 설정(Push Notifications capability · `aps-environment`)은 [FCM 알림](guide.md#fcm-알림) 에서 확인한다.
+- **`.p8` 파일을 잃어버렸다.**
+  - 같은 키는 다시 내려받을 수 없다 — Apple Developer 의 Keys 에서 새 키를 만들고 `./setup.sh` 를 다시 실행해 DeviceCheck 에 새 키를 넣은 뒤, 같은 키를 이 절대로 올린다.
 
 #### 되돌리기
 
-올린 키는 같은 `APN 인증 키` 칸에서 지우거나 새 키로 바꾼다. 지우면 iOS 실기기에 알림이 오지 않는다.
+올린 키는 같은 `APN 인증 키` 칸에서 지우거나 새 키로 바꾼다.
+- 지우면 iOS 실기기에 알림이 오지 않는다.
 
 ### App Check 등록 확인
 
@@ -865,12 +873,16 @@ iOS 앱에서 푸시 알림을 받을 때 이 절을 따른다. iOS 알림을 �
 
 - Firebase 콘솔에서 그 프로젝트를 열고 App Check 의 「앱」 탭에서 Android 앱에 Play Integrity, iOS 앱에 DeviceCheck 가 등록돼 있는지(「상태」 가 「등록됨」) 본다.
 - App Check 「앱」 탭의 앱 행 「⋮」 메뉴 → 「디버그 토큰 관리」 에 표시 이름 `setup-wizard-<flavor>` 인 디버그 토큰이 iOS · Android 앱마다 있는지 본다.
-- debug 빌드에서 회원탈퇴 같은 보호된 기능이 동작한다. dev · stg 의 Play Integrity 는 설정 뒤 1~2분 지나 release 빌드로 확인한다.
+- debug 빌드에서 회원탈퇴 같은 보호된 기능이 동작한다.
+  - dev · stg 의 Play Integrity 는 설정 뒤 1~2분 지나 release 빌드로 확인한다.
 
 #### 문제 해결
 
-- **debug 빌드에서 보호된 기능이 실패한다.** 디버그 토큰 등록을 본다 — [그 밖의 문제](#그-밖의-문제) 의 App Check 디버그 토큰 항목.
-- **release 빌드에서 보호된 기능이 실패한다.** 출시용 단계를 미뤘으면 `./setup.sh` 를 다시 실행해 「App Check — Play Integrity」 · 「App Check — DeviceCheck」 를 마친다. prod 의 Android 는 Play 에 앱을 올린 뒤 Play 앱 서명 키의 SHA-256 을 넣는다.
+- **debug 빌드에서 보호된 기능이 실패한다.**
+  - 디버그 토큰 등록을 본다 — [그 밖의 문제](#그-밖의-문제) 의 App Check 디버그 토큰 항목.
+- **release 빌드에서 보호된 기능이 실패한다.**
+  - 출시용 단계를 미뤘으면 `./setup.sh` 를 다시 실행해 「App Check — Play Integrity」 · 「App Check — DeviceCheck」 를 마친다.
+  - prod 의 Android 는 Play 에 앱을 올린 뒤 Play 앱 서명 키의 SHA-256 을 넣는다.
 
 ## stg · prod 설정
 
@@ -878,7 +890,8 @@ dev 와 따로 쓰는 stg · prod 환경이 필요하면 이 절을 따른다. f
 
 **전제**
 
-- dev 의 처음 설정이 끝나 있다([위저드 실행](#위저드-실행)). Functions 리전은 dev 실행이 정한다(아래 「Functions 리전」).
+- dev 의 처음 설정이 끝나 있다([위저드 실행](#위저드-실행)).
+  - Functions 리전은 dev 실행이 정한다(아래 「Functions 리전」).
 
 **단계**
 
@@ -887,14 +900,18 @@ dev 와 따로 쓰는 stg · prod 환경이 필요하면 이 절을 따른다. f
 ./setup.sh --flavor prod
 ```
 
-- 위저드가 그 flavor 의 Firebase 프로젝트를 만들거나 고르는 것부터 dev 와 같은 흐름을 적용한다. 그 flavor 의 사용자 설정 파일(`config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig`)을 example 파일에서 만들어 채운다.
-- 앱 이름 · Bundle ID 접미사는 flavor 마다 다르다 — example 값은 dev `StarterKit Dev` · `.dev`, stg `StarterKit Stg` · `.stg`, prod `StarterKit` · 빈 접미사다. 그래서 세 flavor 의 앱을 한 기기에 같이 설치할 수 있다.
-- 로그인 수단은 flavor 마다 따로 켠다 — `./setup.sh --flavor prod --providers` 처럼 `--providers` 를 함께 준다. 켤 수단의 콘솔 앱도 flavor 마다 따로 만든다([Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱)).
+- 위저드가 그 flavor 의 Firebase 프로젝트를 만들거나 고르는 것부터 dev 와 같은 흐름을 적용한다.
+  - 그 flavor 의 사용자 설정 파일(`config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig`)을 example 파일에서 만들어 채운다.
+- 앱 이름 · Bundle ID 접미사는 flavor 마다 다르다 — example 값은 dev `StarterKit Dev` · `.dev`, stg `StarterKit Stg` · `.stg`, prod `StarterKit` · 빈 접미사다.
+  - 그래서 세 flavor 의 앱을 한 기기에 같이 설치할 수 있다.
+- 로그인 수단은 flavor 마다 따로 켠다 — `./setup.sh --flavor prod --providers` 처럼 `--providers` 를 함께 준다.
+  - 켤 수단의 콘솔 앱도 flavor 마다 따로 만든다([Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱)).
 - 같은 명령을 다시 실행하면 그 flavor 에서 끝난 단계는 검사만 하고 건너뛴다.
 
 **Functions 리전**
 
-Cloud Functions 리전은 dev 처음 설정의 「위치 · Firestore」 단계에서 Firestore 위치와 함께 한 번 고른다(기본 `asia-northeast3` · 서울). 위저드는 고른 값을 세 곳에 같이 쓴다.
+Cloud Functions 리전은 dev 처음 설정의 「위치 · Firestore」 단계에서 Firestore 위치와 함께 한 번 고른다(기본 `asia-northeast3` · 서울).
+- 위저드는 고른 값을 세 곳에 같이 쓴다.
 
 | 위치 | 값 |
 |---|---|
@@ -902,26 +919,39 @@ Cloud Functions 리전은 dev 처음 설정의 「위치 · Firestore」 단계�
 | `functions/src/shared/region.ts` 의 `REGION` | 함수를 배포할 리전 |
 | `lib/core/config/app_config.dart` | `functionsRegion` 이 없을 때 앱이 쓰는 기본값 |
 
-리전은 모든 flavor 가 함께 쓴다. stg · prod 는 리전을 묻지 않고 `dev 와 같은 위치 — Functions 리전은 모든 flavor 가 함께 씁니다.` 를 보인 뒤 `region.ts` 의 값으로 Firestore 를 만들고 그 flavor config 의 `functionsRegion` 을 맞춘다. 앱의 `functionsRegion` 과 함수의 `REGION` 이 어긋나면 빌드 · analyze 는 통과하지만 앱이 함수를 부를 때 `not-found` 로 실패한다 — Kakao · Naver · LINE 로그인과 회원탈퇴가 막힌다. 그래서 리전은 위저드로 바꾼다.
+리전은 모든 flavor 가 함께 쓴다.
+- stg · prod 는 리전을 묻지 않고 `dev 와 같은 위치 — Functions 리전은 모든 flavor 가 함께 씁니다.` 를 보인 뒤 `region.ts` 의 값으로 Firestore 를 만들고 그 flavor config 의 `functionsRegion` 을 맞춘다.
+- 앱의 `functionsRegion` 과 함수의 `REGION` 이 어긋나면 빌드 · analyze 는 통과하지만 앱이 함수를 부를 때 `not-found` 로 실패한다 — Kakao · Naver · LINE 로그인과 회원탈퇴가 막힌다.
+- 그래서 리전은 위저드로 바꾼다.
 
-리전을 바꾸려면 이렇게 한다. Firestore 위치는 바뀌지 않는다.
+리전을 바꾸려면 이렇게 한다.
+- Firestore 위치는 바뀌지 않는다.
 
 1. `functions/src/shared/region.ts` · `lib/core/config/app_config.dart` 에 커밋하지 않은 변경이 없게 한다 — 있으면 위저드가 멈춘다.
-2. `config/dev.json` 의 `functionsRegion` 을 새 리전으로 고친 뒤 `./setup.sh` 를 다시 실행한다. 「위치 · Firestore」 단계가 세 곳의 값이 다르다고 알리고 `Functions 리전을 바꾸면 config/dev.json · functions/src/shared/region.ts · lib/core/config/app_config.dart 세 곳이 함께 바뀝니다.` 를 보인 뒤 리전을 고르게 한다. 고른 값이 세 곳에 쓰인다.
-3. 「Cloud Functions 배포」 단계가 새 리전에 함수를 배포한다. 옛 리전의 함수는 위저드가 지우지 않는다 — Firebase 콘솔 Functions 의 「대시보드」 탭 함수 표에서 옛 리전의 함수(함수 이름 아래에 리전이 보인다)를 찾아 행 끝 「⋮」 의 「함수 삭제」 로 지운다.
+2. `config/dev.json` 의 `functionsRegion` 을 새 리전으로 고친 뒤 `./setup.sh` 를 다시 실행한다.
+   - 「위치 · Firestore」 단계가 세 곳의 값이 다르다고 알리고 `Functions 리전을 바꾸면 config/dev.json · functions/src/shared/region.ts · lib/core/config/app_config.dart 세 곳이 함께 바뀝니다.` 를 보인 뒤 리전을 고르게 한다.
+   - 고른 값이 세 곳에 쓰인다.
+3. 「Cloud Functions 배포」 단계가 새 리전에 함수를 배포한다.
+   - 옛 리전의 함수는 위저드가 지우지 않는다 — Firebase 콘솔 Functions 의 「대시보드」 탭 함수 표에서 옛 리전의 함수(함수 이름 아래에 리전이 보인다)를 찾아 행 끝 「⋮」 의 「함수 삭제」 로 지운다.
 4. 위저드 끝에 보이는 바뀐 추적 파일(`region.ts` · `app_config.dart`)을 확인하고 커밋한다.
 5. stg · prod 는 다음 `./setup.sh --flavor stg` · `./setup.sh --flavor prod` 실행에서 그 flavor config 의 `functionsRegion` 이 새 값으로 맞춰지고, 함수가 새 리전에 배포된다.
 
 ### Kakao · Naver 는 flavor 마다 새 앱
 
-Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg · prod 의 키가 모두 달라야 하고, 검수도 앱마다 따로 받는다. dev 앱이 검수를 통과해도 prod 앱의 검수가 끝난 것은 아니다. 검수는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+Kakao · Naver 는 flavor 마다 콘솔 앱을 새로 만든다 — dev · stg · prod 의 키가 모두 달라야 하고, 검수도 앱마다 따로 받는다.
+- dev 앱이 검수를 통과해도 prod 앱의 검수가 끝난 것은 아니다.
+- 검수는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
 
 1. 그 flavor 로 체크 목록을 열고 수단을 켠다 — 예: `./setup.sh --flavor prod --providers`.
-2. 위저드가 값 표에 그 flavor 의 패키지명 · 번들 ID 같은 콘솔에 넣을 값과 `이번에 만들 콘솔 앱: prod 용 하나 — dev · stg 앱은 그 flavor 로 위저드를 실행할 때 따로 만듭니다` 를 보인다. 그 값으로 콘솔에 새 앱을 만든다.
-3. 새 앱의 키를 그 flavor 의 위저드에 넣는다. 위저드는 그 flavor 의 설정과 그 Firebase 프로젝트에 키를 기록한다. 다른 flavor 와 같은 키를 넣으면 `flavor 마다 새 콘솔 앱의 키를 넣으세요` 를 보이고 다시 묻는다.
+2. 위저드가 값 표에 그 flavor 의 패키지명 · 번들 ID 같은 콘솔에 넣을 값과 `이번에 만들 콘솔 앱: prod 용 하나 — dev · stg 앱은 그 flavor 로 위저드를 실행할 때 따로 만듭니다` 를 보인다.
+   - 그 값으로 콘솔에 새 앱을 만든다.
+3. 새 앱의 키를 그 flavor 의 위저드에 넣는다.
+   - 위저드는 그 flavor 의 설정과 그 Firebase 프로젝트에 키를 기록한다.
+   - 다른 flavor 와 같은 키를 넣으면 `flavor 마다 새 콘솔 앱의 키를 넣으세요` 를 보이고 다시 묻는다.
 
 - release 빌드는 release 키로 서명하므로, Kakao 앱의 Android 키 해시에는 release 키의 해시도 등록한다 — release 키는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든다.
-- 흔한 실수: dev 의 키를 prod 에 그대로 쓴다. 검수를 받지 않은 dev 앱의 키로는 출시한 앱의 사용자가 로그인하지 못한다.
+- 흔한 실수: dev 의 키를 prod 에 그대로 쓴다.
+  - 검수를 받지 않은 dev 앱의 키로는 출시한 앱의 사용자가 로그인하지 못한다.
 
 ## 로그인 수단 끄기
 
