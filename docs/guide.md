@@ -39,27 +39,23 @@
 
 ### ① 기본 방법 — `home_body.dart` 만 바꾼다
 
-1. `HomeBody` 의 `build` 를 앱 홈 내용으로 바꾼다. 클래스 이름과 `const HomeBody()`
-   로 부를 수 있는 생성자는 남긴다 — `home_screen.dart` 가
-   `const Expanded(child: HomeBody())` 로 부른다. 개발자 안내 카드가 필요 없으면
-   `showsDeveloperGuide` 인자와 카드 코드를 지워도 된다(그때는
-   `test/features/home/home_body_test.dart` 도 함께 고친다).
-2. `home_screen.dart` 는 손대지 않는다. 알림 탭 이동 · 공지 · 게스트 안내 · 설정
-   진입은 이 파일이 맡으므로, 본문을 통째로 바꿔도 그 기능은 그대로 남는다.
-3. 지금 본문 — **release 빌드는 빈 본문**(`SizedBox.shrink`)이다. 그 밖 빌드(debug ·
-   profile)는 개발자 안내 카드 1장(「이 본문을 앱 홈으로 바꾸세요」 + 「데모 화면
-   열기」 버튼)이다. 분기는 `showsDeveloperGuide` 기본값 const `!kReleaseMode` 하나다.
-4. 본문은 `Expanded` 안에 들어가 높이가 정해져 있다. 내용이 길면 스크롤 위젯으로
-   감싼다(280 dp 폭 · 가로 회전에서도 넘치지 않게).
-5. **앱 이름** — config `appName`(`config/{flavor}.json` → `--dart-define-from-file`)
-   하나를 바꾸면 OS 최근 앱 화면의 제목(`onGenerateTitle`)과 홈 AppBar 제목이 함께
-   바뀐다. 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를
-   쓴다. 값이 비어 있으면 로케일별 ARB `appTitle` 이다. 게스트 홈은 AppBar
-   오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
-6. 본문을 바꾸면 홈을 그리는 시험 두 곳도 맞춘다. 앱 기동 시험 `test/widget_test.dart`
-   는 홈에 개발자 안내 카드 제목이 보이는지 본다 — 카드를 지웠으면 그 단언을 새 본문
-   내용으로 바꾼다. 홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png` 는
-   본문까지 찍으므로 그 시험 파일 하나로 다시 만든다.
+1. `HomeBody` 의 `build` 를 앱 홈 내용으로 바꾼다.
+   - 클래스 이름과 `const HomeBody()` 로 부를 수 있는 생성자는 남긴다 — `home_screen.dart` 가 `const Expanded(child: HomeBody())` 로 부른다.
+   - 개발자 안내 카드가 필요 없으면 `showsDeveloperGuide` 인자와 카드 코드를 지워도 된다(그때는 `test/features/home/home_body_test.dart` 도 함께 고친다).
+2. `home_screen.dart` 는 손대지 않는다.
+   - 알림 탭 이동 · 공지 · 게스트 안내 · 설정 진입은 이 파일이 맡으므로, 본문을 통째로 바꿔도 그 기능은 그대로 남는다.
+3. 지금 본문 — **release 빌드는 빈 본문**(`SizedBox.shrink`)이다.
+   - 그 밖 빌드(debug · profile)는 개발자 안내 카드 1장(「이 본문을 앱 홈으로 바꾸세요」 + 「데모 화면 열기」 버튼)이다.
+   - 분기는 `showsDeveloperGuide` 기본값 const `!kReleaseMode` 하나다.
+4. 본문은 `Expanded` 안에 들어가 높이가 정해져 있다.
+   - 내용이 길면 스크롤 위젯으로 감싼다(280 dp 폭 · 가로 회전에서도 넘치지 않게).
+5. **앱 이름** — config `appName`(`config/{flavor}.json` → `--dart-define-from-file`) 하나를 바꾸면 OS 최근 앱 화면의 제목(`onGenerateTitle`)과 홈 AppBar 제목이 함께 바뀐다.
+   - 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를 쓴다.
+   - 값이 비어 있으면 로케일별 ARB `appTitle` 이다.
+   - 게스트 홈은 AppBar 오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
+6. 본문을 바꾸면 홈을 그리는 시험 두 곳도 맞춘다.
+   - 앱 기동 시험 `test/widget_test.dart` 는 홈에 개발자 안내 카드 제목이 보이는지 본다 — 카드를 지웠으면 그 단언을 새 본문 내용으로 바꾼다.
+   - 홈 golden `home_171_guest_announcement_ko_280_{light,dark}.png` 는 본문까지 찍으므로 그 시험 파일 하나로 다시 만든다.
    ```bash
    fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
    ```
