@@ -5,6 +5,7 @@ import '../command_runner.dart';
 import '../config_files.dart';
 import '../firebase_app_files.dart';
 import '../flavor.dart';
+import '../rebuild_markers.dart';
 import '../rest_client.dart';
 import '../step.dart';
 import '../uuid.dart';
@@ -239,7 +240,9 @@ final class AppCheckStep implements Step {
     }
     if (outcome is Applied && _mode != _AppCheckMode.done) {
       // 새 토큰은 다시 빌드해야 앱에 들어간다 — 실행 단계가 이 신호를 읽어 빌드한다.
+      // 세션 플래그는 이번 실행, 빌드 대기 표지는 중간에 멈춘 뒤의 다음 실행 몫이다.
       context.session.hasRegisteredAppCheckToken = true;
+      markAppCheckRebuildPending(context);
       context.terminal.writeLine('  $rebuildNotice');
     }
     return outcome;

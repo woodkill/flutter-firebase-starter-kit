@@ -5,6 +5,7 @@ import '../build_inputs.dart';
 import '../command_runner.dart';
 import '../flavor.dart';
 import '../providers/provider_catalog.dart';
+import '../rebuild_markers.dart';
 import '../rest_client.dart';
 import '../step.dart';
 import '../wizard.dart';
@@ -15,11 +16,12 @@ import 'billing_step.dart';
 /// 검사는 Identity Toolkit 의 사용자 목록(`accounts:batchGet`)을 끝 페이지까지
 /// 읽어 이메일이 인증된 비밀번호 사용자 수를 센다. 끝 판정은 인증된 이메일
 /// 사용자 수다 — 1명 이상이면 끝이다(앱이 떴는지가 아니라 사용자가 가입 · 인증까지
-/// 마쳤는지로 판정한다). 다만 사용자가 1명 이상이어도 이번 실행에서 빌드가
-/// 필요하면 할 일로 두고 앱을 다시 빌드해 띄운다([findRebuildReasons] — 같은
-/// 실행에서 App Check 디버그 토큰을 등록함 · 코드 생성 파일이 없음 · 이번 실행에서
-/// 빌드 입력 파일이 바뀜). 응답의 이메일 · uid · 표시 이름은
-/// 화면 · 기록에 쓰지 않고 개수만 보인다.
+/// 마쳤는지로 판정한다). 다만 사용자가 1명 이상이어도 빌드가 필요하면 할 일로
+/// 두고 앱을 다시 빌드해 띄운다([findRebuildReasons] — App Check 디버그 토큰을
+/// 등록한 뒤 아직 빌드하지 않음 · 코드 생성 파일이 없음 · 빌드 입력 파일이 바뀜).
+/// 앞 실행에서 생긴 신호는 `.setup/` 의 flavor 별 표지(`rebuild_markers.dart`)로
+/// 이어 받는다 — 실행을 나눠 끝내도 마지막 단계가 빌드한다. 응답의 이메일 · uid ·
+/// 표시 이름은 화면 · 기록에 쓰지 않고 개수만 보인다.
 ///
 /// 실행은 패키지 받기 → 코드 생성 → 실행 대상 고르기(iOS · Android 만 · 기본값은
 /// iOS 시뮬레이터) → 할 일 안내 → 대화형 `flutter run` 이다. 사용자가 없으면 가입 ·
@@ -136,19 +138,34 @@ final class RunStep implements Step {
   static const String changedInputsReasonPrefix =
       '이번 실행에서 빌드에 들어가는 파일이 바뀌었습니다: ';
 
-  /// 이번 실행에서 앱을 다시 빌드해 띄워야 하는 사유를 순서대로 모은다 — 없으면
-  /// 빈 목록.
+  /// 앞 실행에서 App Check 디버그 토큰을 등록한 뒤 앱을 띄우지 않았을 때(빌드
+  /// 대기 표지가 있을 때)의 다시 빌드 사유.
+  static const String pendingAppCheckTokenReason =
+      'App Check 디버그 토큰을 새로 등록한 뒤 앱을 아직 빌드하지 않았습니다';
+
+  /// 마지막으로 앱을 띄운 뒤(앞 실행 포함) 빌드 입력 파일이 바뀌었을 때의 다시
+  /// 빌드 사유 — 파일 경로 · 지문은 쓰지 않는다.
+  static const String changedSinceLastLaunchReason =
+      '마지막으로 앱을 띄운 뒤 빌드에 들어가는 파일이 바뀌었습니다';
+
+  /// 앱을 다시 빌드해 띄워야 하는 사유를 순서대로 모은다 — 없으면 빈 목록.
   ///
   /// 이번 실행에서 지금 빌드 입력 그대로 앱을 띄웠으면(`launchedBuildInputs` 가
   /// 지금 지문과 같으면) 사유가 없다 — 다시 빌드한 뒤의 재검사가 되풀이하지
   /// 않는다. 그 밖에는 이 순서로 모은다.
   ///
-  /// 1. App Check 디버그 토큰을 이번 실행에서 등록했으면 [appCheckTokenReason].
+  /// 1. App Check 디버그 토큰을 이번 실행에서 등록했으면 [appCheckTokenReason],
+  ///    이번 실행에서 앱을 띄운 적이 없고 빌드 대기 표지가 있으면(앞 실행에서
+  ///    등록) [pendingAppCheckTokenReason] — 둘 다 참이어도 한 번만 보인다.
   /// 2. `lib` 소스가 가리키는 코드 생성 파일이 없으면([hasMissingGeneratedParts])
   ///    [missingCodegenReason].
   /// 3. 시작 지문(`buildInputsAtStart`)이 있고 지금 지문과 다른 파일이 있으면
   ///    [changedInputsReasonPrefix] 뒤에 바뀐 파일의 저장소 상대 경로만 ` · ` 로
   ///    잇는다 — 파일 내용 · 지문은 쓰지 않는다.
+  /// 4. 이번 실행에서 앱을 띄운 적이 없고, 3 이 비었고, 마지막 띄움 표지가 있는데
+  ///    지금 합성 해시와 다르면([hasBuildInputsChangedSinceLastLaunch])
+  ///    [changedSinceLastLaunchReason] — 앞 실행에서 바뀌고 멈춘 경우다. 표지가
+  ///    없으면(위저드로 띄운 적이 없는 트리) 사유가 없다.
   ///
   /// 3 의 전제: 빌드 입력 파일을 쓰는 단계는 모두 이 단계의 (전이) 의존 단계라,
   /// 그 단계가 할 일인 바퀴에서 이 단계는 점검표에서 건너뛰어지지 않고 자기
@@ -167,11 +184,22 @@ final class RunStep implements Step {
     final List<String> changed = atStart == null
         ? const <String>[]
         : findChangedBuildInputs(atStart, current!);
+    final bool hasChangedSinceLastLaunch =
+        launched == null &&
+        changed.isEmpty &&
+        hasBuildInputsChangedSinceLastLaunch(
+          context,
+          current ?? readBuildInputDigests(context),
+        );
     return <String>[
-      if (session.hasRegisteredAppCheckToken) appCheckTokenReason,
+      if (session.hasRegisteredAppCheckToken)
+        appCheckTokenReason
+      else if (launched == null && hasAppCheckRebuildPending(context))
+        pendingAppCheckTokenReason,
       if (hasMissingGeneratedParts(context.projectRoot)) missingCodegenReason,
       if (changed.isNotEmpty)
         '$changedInputsReasonPrefix${changed.join(' · ')}',
+      if (hasChangedSinceLastLaunch) changedSinceLastLaunchReason,
     ];
   }
 
@@ -637,7 +665,9 @@ final class RunStep implements Step {
   /// 그대로 쓴다(들여쓰기는 넘기는 쪽 몫). 대상 목록을 읽지 못하거나 대상이
   /// 없으면 실패, 고르기 입력이 끝나면 [Declined], 실행 종료 코드가 0 이 아니면
   /// 실패, 아니면 [Applied] 다. 띄우기에 성공하면 지금 빌드 입력 지문을 세션에
-  /// 남긴다 — 실행 단계의 재검사가 같은 빌드로 다시 빌드하지 않는다.
+  /// 남긴다 — 실행 단계의 재검사가 같은 빌드로 다시 빌드하지 않는다. 같은 자리에서
+  /// 마지막 띄움 표지에 합성 해시를 쓰고 App Check 빌드 대기 표지를 지운다
+  /// ([recordAppLaunchMarkers]) — 다음 실행이 이 빌드를 기준으로 판정한다.
   Future<StepOutcome> launchAppForSignIn(
     WizardContext context, {
     required List<String> guideLines,
@@ -671,7 +701,9 @@ final class RunStep implements Step {
     if (code != 0) {
       return Failed('$runFailedSummary (종료 코드 $code)');
     }
-    context.session.launchedBuildInputs = readBuildInputDigests(context);
+    final Map<String, String?> launched = readBuildInputDigests(context);
+    context.session.launchedBuildInputs = launched;
+    recordAppLaunchMarkers(context, launched);
     return const Applied();
   }
 

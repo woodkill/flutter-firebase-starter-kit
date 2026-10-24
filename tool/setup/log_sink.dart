@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'file_mode.dart';
 import 'redactor.dart';
 
 /// 위저드 실행 기록 — 명령 · 출력 · 판정을 종류별 줄로 남긴다.
@@ -63,8 +64,8 @@ final class FileLogSink implements LogSink {
     final setupDir = Directory('$projectRoot/.setup');
     final logDir = Directory('$projectRoot/$logDirectory');
     await logDir.create(recursive: true);
-    _restrictMode(setupDir.path, '700');
-    _restrictMode(logDir.path, '700');
+    restrictFileMode(setupDir.path, ownerOnlyDirectoryMode);
+    restrictFileMode(logDir.path, ownerOnlyDirectoryMode);
 
     final String stamp = formatLogTimestamp(now);
     for (var attempt = 1; attempt <= maxNameAttempts; attempt++) {
@@ -77,7 +78,7 @@ final class FileLogSink implements LogSink {
         if (file.existsSync()) continue;
         rethrow;
       }
-      _restrictMode(file.path, '600');
+      restrictFileMode(file.path, ownerOnlyFileMode);
       final RandomAccessFile handle = file.openSync(mode: FileMode.append);
       return FileLogSink._(file.path, handle, redactor);
     }
@@ -89,17 +90,6 @@ final class FileLogSink implements LogSink {
     String pad(int value, int width) => value.toString().padLeft(width, '0');
     return '${pad(time.year, 4)}${pad(time.month, 2)}${pad(time.day, 2)}-'
         '${pad(time.hour, 2)}${pad(time.minute, 2)}${pad(time.second, 2)}';
-  }
-
-  /// 고정 인자로 `chmod` 를 실행해 [target] 의 권한을 [mode] 로 좁힌다.
-  static void _restrictMode(String target, String mode) {
-    final ProcessResult result = Process.runSync('chmod', <String>[
-      mode,
-      target,
-    ]);
-    if (result.exitCode != 0) {
-      throw FileSystemException('권한을 $mode 로 바꾸지 못했습니다', target);
-    }
   }
 
   @override

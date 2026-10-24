@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 import '../../../tool/setup/build_inputs.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/rebuild_markers.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
@@ -2389,5 +2390,275 @@ void main() {
         ),
       );
     });
+  });
+
+  group('T-21-RUN-09: 앞 실행의 App Check 빌드 대기 표지', () {
+    test('T-21-RUN-09: 새 세션 + 대기 표지 + 사용자 1명 → 다시 빌드 1회 · 표지 '
+        '지워짐 · 마지막 띄움 표지 기록 · 재검사 ✓ · 종료 0', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      markAppCheckRebuildPending(harness.context);
+      final pending = File(
+        '$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}',
+      );
+      expect(pending.existsSync(), isTrue);
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      final int code = await harness.runEntry(harness.buildRunList());
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '▶ ${RunStep.stepTitle}\n'
+          '  ${RunStep.rebuildReasonPrefix}'
+          '${RunStep.pendingAppCheckTokenReason}\n',
+        ),
+      );
+      expect(
+        RunStep.pendingAppCheckTokenReason,
+        'App Check 디버그 토큰을 새로 등록한 뒤 앱을 아직 빌드하지 않았습니다',
+      );
+      expect(harness.streamKeys, <String>[
+        'fvm flutter pub get',
+        'fvm dart run build_runner build --delete-conflicting-outputs',
+      ]);
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      expect(pending.existsSync(), isFalse);
+      final lastLaunch = File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}');
+      expect(
+        lastLaunch.readAsStringSync(),
+        '${computeBuildInputsHash(readBuildInputDigests(harness.context))}\n',
+      );
+      // 표지 디렉터리 · 파일은 소유자만 열 수 있다.
+      expect(
+        FileStat.statSync('$root/$rebuildMarkerDirectory').modeString(),
+        'rwx------',
+      );
+      expect(FileStat.statSync(lastLaunch.path).modeString(), 'rw-------');
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+    });
+
+    test('T-21-RUN-09: 같은 실행의 등록 플래그와 대기 표지가 함께 참이면 App Check '
+        '사유는 이번 실행 문구로 한 번만', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      harness.context.session.hasRegisteredAppCheckToken = true;
+      markAppCheckRebuildPending(harness.context);
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      expect(await harness.runEntry(harness.buildRunList()), wizardExitDone);
+
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}${RunStep.appCheckTokenReason}\n',
+        ),
+      );
+      expect(
+        harness.output,
+        isNot(contains(RunStep.pendingAppCheckTokenReason)),
+      );
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+    });
+
+    test('T-21-RUN-09: flutter run 이 실패하면 대기 표지를 남기고 마지막 띄움 표지를 '
+        '쓰지 않는다', () async {
+      final harness = _Harness(root, const <String?>['y', '', '2']);
+      markAppCheckRebuildPending(harness.context);
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerPreparation()
+        ..registerDevices(
+          buildDevicesOutput(<Map<String, Object?>>[buildSimulator()]),
+        )
+        ..registerRun(simulatorId, 1);
+
+      expect(await harness.runEntry(harness.buildRunList()), wizardExitStopped);
+      expect(
+        File(
+          '$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}').existsSync(),
+        isFalse,
+      );
+    });
+  });
+
+  group('T-21-RUN-10: 마지막 띄움 표지와 지금 빌드 입력이 다름', () {
+    test('T-21-RUN-10: 새 세션 + 표지 ≠ 지금 → 다시 빌드 1회 · 표지 갱신 · ✓ · '
+        '화면 · 기록에 지문 · 합성 해시 0', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      // 앞 실행에서 띄운 뒤 config 가 바뀌고 멈춘 모양.
+      recordAppLaunchMarkers(
+        harness.context,
+        readBuildInputDigests(harness.context),
+      );
+      final lastLaunch = File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}');
+      final String before = lastLaunch.readAsStringSync();
+      File('$root/${UserFilesStep.jsonUserPath}').writeAsStringSync(
+        '${jsonEncode(<String, Object?>{'firebaseProjectId': projectId, 'enabledAuthProviders': '', 'appCheckDebugToken': probeSecretMarker})}\n',
+      );
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      final int code = await harness.runEntry(harness.buildRunList());
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}'
+          '${RunStep.changedSinceLastLaunchReason}\n',
+        ),
+      );
+      expect(
+        RunStep.changedSinceLastLaunchReason,
+        '마지막으로 앱을 띄운 뒤 빌드에 들어가는 파일이 바뀌었습니다',
+      );
+      expect(harness.streamKeys, hasLength(2));
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+      final Map<String, String?> current = readBuildInputDigests(
+        harness.context,
+      );
+      final String after = lastLaunch.readAsStringSync();
+      expect(after, isNot(before));
+      expect(after, '${computeBuildInputsHash(current)}\n');
+      expect(
+        harness.output,
+        contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+      );
+
+      // 표지는 합성 해시 한 값만 — 파일별 지문 · 값이 아니다(양성 대조).
+      expect(RegExp(r'^[0-9a-f]{64}\n$').hasMatch(after), isTrue);
+      expect(current.values, isNot(contains(after.trim())));
+      expect(after, isNot(contains(probeSecretMarker)));
+      // 화면 · 기록에는 값 · 지문 · 합성 해시가 0 이다.
+      for (final text in <String>[harness.output, harness.logText]) {
+        expect(text, isNot(contains(probeSecretMarker)));
+        expect(digestPattern.hasMatch(text), isFalse);
+        expect(text, isNot(contains(after.trim())));
+        expect(text, isNot(contains(before.trim())));
+      }
+    });
+
+    test('T-21-RUN-10: 표지 내용을 읽어 같은지 확인할 수 없으면 다시 빌드 쪽', () async {
+      final harness = _Harness(root, const <String?>['y', '']);
+      File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('해시 아님\n');
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      expect(await harness.runEntry(harness.buildRunList()), wizardExitDone);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}'
+          '${RunStep.changedSinceLastLaunchReason}\n',
+        ),
+      );
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+    });
+
+    test('T-21-RUN-10: 이번 실행의 바뀐 경로가 보이면 앞 실행 사유를 겹쳐 보이지 '
+        '않는다', () async {
+      final harness = _Harness(root, const <String?>['y', 'y', '']);
+      recordAppLaunchMarkers(
+        harness.context,
+        readBuildInputDigests(harness.context),
+      );
+      harness
+        ..registerVerifiedUsers(1)
+        ..registerLaunchFlow();
+
+      final int code = await harness.runEntry(
+        harness.buildRunList(
+          functions: _WritingStep(
+            'functions',
+            'Cloud Functions 배포',
+            onApply: () {
+              File(
+                '$root/${UserFilesStep.xcconfigUserPath}',
+              ).createSync(recursive: true);
+            },
+          ),
+        ),
+      );
+
+      expect(code, wizardExitDone, reason: harness.output);
+      expect(
+        harness.output,
+        contains(
+          '  ${RunStep.rebuildReasonPrefix}${RunStep.changedInputsReasonPrefix}'
+          'ios/Flutter/dev.xcconfig\n',
+        ),
+      );
+      expect(
+        harness.output,
+        isNot(contains(RunStep.changedSinceLastLaunchReason)),
+      );
+      expect(harness.runner.countMode(RunMode.interactive), 1);
+    });
+  });
+
+  test('T-21-RUN-11: 새 세션 + 마지막 띄움 표지 = 지금 → 명령 0 · ✓', () async {
+    final harness = _Harness(root, const <String?>[]);
+    recordAppLaunchMarkers(
+      harness.context,
+      readBuildInputDigests(harness.context),
+    );
+    harness.registerVerifiedUsers(1);
+
+    expect(await harness.runEntry(harness.buildRunList()), wizardExitDone);
+    expect(harness.runner.calls, isEmpty);
+    expect(
+      harness.output,
+      contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+    );
+  });
+
+  test('T-21-RUN-12: 표지가 없으면 지금 동작 그대로 명령 0 · 다른 flavor 표지는 보지 '
+      '않는다', () async {
+    // stg 표지 둘(대기 · 다른 해시)은 dev 판정에 섞이지 않는다.
+    for (final path in <String>[
+      buildAppCheckPendingMarkerPath(Flavor.stg),
+      buildLastLaunchMarkerPath(Flavor.stg),
+    ]) {
+      File('$root/$path')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('${'0' * 64}\n');
+    }
+    final harness = _Harness(root, const <String?>[]);
+    harness.registerVerifiedUsers(1);
+
+    expect(await harness.runEntry(harness.buildRunList()), wizardExitDone);
+    expect(harness.runner.calls, isEmpty);
+    expect(
+      harness.output,
+      contains('  ✓ ${RunStep.stepTitle} — 인증된 이메일 사용자 1명'),
+    );
+    expect(
+      File('$root/${buildLastLaunchMarkerPath(Flavor.dev)}').existsSync(),
+      isFalse,
+    );
+    expect(
+      buildLastLaunchMarkerPath(Flavor.dev),
+      '.setup/last-launch-dev.sha256',
+    );
+    expect(
+      buildAppCheckPendingMarkerPath(Flavor.stg),
+      '.setup/app-check-rebuild-pending-stg',
+    );
   });
 }

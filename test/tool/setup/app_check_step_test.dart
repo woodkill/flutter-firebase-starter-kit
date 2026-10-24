@@ -4,10 +4,12 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 
+import '../../../tool/setup/build_inputs.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
+import '../../../tool/setup/rebuild_markers.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
 import '../../../tool/setup/step.dart';
@@ -98,6 +100,34 @@ final class _FinishedStep implements Step {
 
   @override
   Future<StepOutcome> apply(WizardContext context) async => const Applied();
+}
+
+/// 실행하면 실패하는 할 일 단계 — 앞 실행이 중간에 멈추는 모양을 만든다.
+final class _FailingStep implements Step {
+  _FailingStep(this.id, this.title);
+
+  @override
+  final String id;
+
+  @override
+  final String title;
+
+  @override
+  List<String> get dependsOn => const <String>[];
+
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async =>
+      const Todo('배포할 함수가 있습니다');
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) => const <String>[];
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async =>
+      const Failed('배포가 실패했습니다');
 }
 
 /// 디버그 토큰 목록 응답을 만든다 — [names] 는 `<표시 이름>:<id>` 꼴.
@@ -427,6 +457,12 @@ void main() {
       expect(listRequests(rest, 'DELETE'), isEmpty);
       // 이미 끝난 단계는 새 토큰을 등록하지 않았으므로 다시 빌드 신호를 남기지 않는다.
       expect(session.hasRegisteredAppCheckToken, isFalse);
+      expect(
+        File(
+          '$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}',
+        ).existsSync(),
+        isFalse,
+      );
     },
   );
 
@@ -720,6 +756,10 @@ void main() {
     expect(log.text, isNot(contains(token)));
     // 등록이 실패했으면 다시 빌드 신호를 남기지 않는다.
     expect(session.hasRegisteredAppCheckToken, isFalse);
+    expect(
+      File('$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}').existsSync(),
+      isFalse,
+    );
   });
 
   test(
@@ -1063,5 +1103,196 @@ void main() {
         );
       },
     );
+  });
+
+  group('T-21-RUN-13: App Check 적용이 그 flavor 의 빌드 대기 표지를 쓴다', () {
+    test('T-21-RUN-13: dev 토큰을 새로 만들어 등록하면 dev 대기 표지 · 0600 · '
+        '디렉터리 0700 · stg 표지 없음', () async {
+      writeAppFiles();
+      final int code = await runAppCheckStep(
+        buildCreateFlowRest(),
+        ScriptedTerminal(const <String?>['y']),
+      );
+
+      expect(code, wizardExitDone);
+      final pending = File(
+        '$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}',
+      );
+      expect(pending.existsSync(), isTrue);
+      expect(pending.readAsStringSync(), isEmpty);
+      expect(FileStat.statSync(pending.path).modeString(), 'rw-------');
+      expect(
+        FileStat.statSync('$root/$rebuildMarkerDirectory').modeString(),
+        'rwx------',
+      );
+      expect(
+        File(
+          '$root/${buildAppCheckPendingMarkerPath(Flavor.stg)}',
+        ).existsSync(),
+        isFalse,
+      );
+    });
+
+    test('T-21-RUN-13: stg 의 빠진 앱에 등록하면 stg 대기 표지만', () async {
+      writeAppFiles();
+      final File stgConfig = writeStgFixture();
+      replaceJsonString(
+        stgConfig.path,
+        AppCheckStep.tokenKey,
+        generateUuidV4(Random(5)),
+      );
+      final rest = FakeRestClient()
+        ..on(
+          'GET',
+          stgIosTokensUrl,
+          buildTokenList(stgIosTokensUrl, <String>['$stgDisplayName:i1']),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, []),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, []),
+        )
+        ..on(
+          'GET',
+          stgAndroidTokensUrl,
+          buildTokenList(stgAndroidTokensUrl, <String>['$stgDisplayName:a1']),
+        )
+        ..on('POST', stgAndroidTokensUrl, const RestResponse(200, '{}'));
+
+      final int code = await runStgAppCheckStep(
+        rest,
+        ScriptedTerminal(const <String?>['y']),
+      );
+
+      expect(code, wizardExitDone);
+      expect(rest.countRequests('POST', stgAndroidTokensUrl), 1);
+      expect(
+        File(
+          '$root/${buildAppCheckPendingMarkerPath(Flavor.stg)}',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}',
+        ).existsSync(),
+        isFalse,
+      );
+    });
+  });
+
+  test('T-21-RUN-14: G-21-6 — 실행 N 에서 토큰을 등록하고 배포 실패로 멈춘 뒤 새 '
+      '세션의 실행 N+1 이 사용자가 있어도 다시 빌드 1회 · ✓ · 종료 0', () async {
+    writeAppFiles();
+    final batchGetUrl = RunStep.buildBatchGetRequest(projectId).url.toString();
+
+    // 실행 N — App Check 진행 y → 배포 진행 y → 실패 뒤 멈춤.
+    final restN = buildCreateFlowRest()
+      ..on('GET', batchGetUrl, buildVerifiedUsersPage(1));
+    final runnerN = FakeCommandRunner();
+    final terminalN = ScriptedTerminal(const <String?>['y', 'y', '2']);
+    final logN = MemoryLogSink(Redactor());
+    final int codeN = await runSetupWizard(
+      buildTestContext(
+        projectRoot: root,
+        runner: runnerN,
+        terminal: terminalN,
+        log: logN,
+        rest: restN,
+      ),
+      <Step>[
+        _FinishedStep('configure', '앱 등록 · 설정 파일'),
+        _FinishedStep('apis', '필요한 Google Cloud API'),
+        AppCheckStep(),
+        _FailingStep('functions', 'Cloud Functions 배포'),
+        _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
+        _FinishedStep('rules', 'Firestore · Storage rules'),
+        RunStep(delay: (Duration duration) async {}),
+      ],
+    );
+    final outputN = terminalN.output.toString();
+    expect(codeN, wizardExitStopped, reason: outputN);
+    expect(outputN, contains(AppCheckStep.rebuildNotice));
+    expect(runnerN.countMode(RunMode.interactive), 0);
+    final String token = readToken();
+    expect(isUuidV4(token), isTrue);
+    final pending = File('$root/${buildAppCheckPendingMarkerPath(Flavor.dev)}');
+    expect(pending.existsSync(), isTrue);
+
+    // 실행 N+1 — 새 세션 · 새 단계 객체. App Check 는 이미 끝남, 배포는 이번엔 끝남.
+    final restN1 = FakeRestClient()
+      ..on(
+        'GET',
+        iosTokensUrl,
+        buildTokenList(iosTokensUrl, <String>['$wizardDisplayName:new1']),
+      )
+      ..on(
+        'GET',
+        androidTokensUrl,
+        buildTokenList(androidTokensUrl, <String>['$wizardDisplayName:new2']),
+      )
+      ..on('GET', batchGetUrl, buildVerifiedUsersPage(1));
+    final runnerN1 = FakeCommandRunner();
+    registerRunCommands(runnerN1);
+    // 실행 단계 진행 y → 기기 고르기 기본값.
+    final terminalN1 = ScriptedTerminal(const <String?>['y', '']);
+    final logN1 = MemoryLogSink(Redactor());
+    final WizardContext contextN1 = buildTestContext(
+      projectRoot: root,
+      runner: runnerN1,
+      terminal: terminalN1,
+      log: logN1,
+      rest: restN1,
+    );
+    final int codeN1 = await runSetupWizard(contextN1, <Step>[
+      _FinishedStep('configure', '앱 등록 · 설정 파일'),
+      _FinishedStep('apis', '필요한 Google Cloud API'),
+      AppCheckStep(),
+      _FinishedStep('functions', 'Cloud Functions 배포'),
+      _FinishedStep('sign_in', '로그인 수단 (이메일 · 익명)'),
+      _FinishedStep('rules', 'Firestore · Storage rules'),
+      RunStep(delay: (Duration duration) async {}),
+    ]);
+
+    final outputN1 = terminalN1.output.toString();
+    expect(codeN1, wizardExitDone, reason: outputN1);
+    expect(contextN1.session.hasRegisteredAppCheckToken, isFalse);
+    expect(outputN1, contains('  ✓ ${AppCheckStep.stepTitle} — '));
+    expect(
+      outputN1,
+      contains(
+        '▶ ${RunStep.stepTitle}\n'
+        '  ${RunStep.rebuildReasonPrefix}'
+        '${RunStep.pendingAppCheckTokenReason}\n',
+      ),
+    );
+    expect(listRequests(restN1, 'POST'), isEmpty);
+    final streamKeys = <String>[
+      for (final FakeCall call in runnerN1.calls)
+        if (call.mode == RunMode.stream) call.key,
+    ];
+    expect(streamKeys, <String>[
+      'fvm flutter pub get',
+      'fvm dart run build_runner build --delete-conflicting-outputs',
+    ]);
+    expect(runnerN1.countMode(RunMode.interactive), 1);
+    expect(outputN1, contains('  ✓ 앱 실행 · 로그인 확인 — 인증된 이메일 사용자 1명'));
+    expect(pending.existsSync(), isFalse);
+    final String hash = File(
+      '$root/${buildLastLaunchMarkerPath(Flavor.dev)}',
+    ).readAsStringSync().trim();
+    expect(hash, computeBuildInputsHash(readBuildInputDigests(contextN1)));
+
+    // 두 실행의 화면 · 기록에 토큰 · 합성 해시 0(양성 대조: 토큰은 config 에 있다).
+    for (final text in <String>[outputN, logN.text, outputN1, logN1.text]) {
+      expect(text, isNot(contains(token)));
+      expect(text, isNot(contains(hash)));
+      expect(RegExp('[0-9a-f]{64}').hasMatch(text), isFalse);
+    }
   });
 }
