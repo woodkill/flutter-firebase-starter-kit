@@ -3666,14 +3666,12 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile
 | `ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved` | 20개 핀의 `version` · `revision` | **빌드가 존중하는 쪽.** 실제 빌드가 `-workspace Runner.xcworkspace` 로 돌기 때문 |
 | `ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` | 위와 **바이트 동일**해야 한다 | Flutter 의 사전 해석(prefetch)이 이 컨테이너를 쓴다. 지우면 **핀을 무시한 최신값으로 자동 재생성**된다 |
 
-- 두 파일 모두 tracked 다. 한쪽만 추적하면 fresh clone 의 첫 빌드에서 다른 쪽이
-  최신값으로 생기고 `git status` 가 더러워진다.
+- 두 파일 모두 tracked 다.
+  - 한쪽만 추적하면 fresh clone 의 첫 빌드에서 다른 쪽이 최신값으로 생기고 `git status` 가 더러워진다.
 - 같은지 확인: `cmp -s ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved && echo SAME`
 - **이 불변식은 `fvm flutter test` 가 지킨다** — 두 파일이 다르면 시험이 실패한다.
-  Xcode 는 **해석한 컨테이너 한쪽만** 갱신하므로(`.xcodeproj` 를
-  직접 열면 project 쪽, `Runner.xcworkspace` 를 열면 workspace 쪽) 한쪽만 바뀌는
-  것이 **정상 동작**이다. 이 시험이 실패하면 아래 ⚠ 박스가 말하는 핀 drift 가 이미
-  시작된 것이다 — 의도한 쪽을 다른 쪽으로 복사해 같은 커밋에 담는다.
+  - Xcode 는 **해석한 컨테이너 한쪽만** 갱신하므로(`.xcodeproj` 를 직접 열면 project 쪽, `Runner.xcworkspace` 를 열면 workspace 쪽) 한쪽만 바뀌는 것이 **정상 동작**이다.
+  - 이 시험이 실패하면 아래 ⚠ 박스가 말하는 핀 drift 가 이미 시작된 것이다 — 의도한 쪽을 다른 쪽으로 복사해 같은 커밋에 담는다.
 
 **Firebase · 소셜 로그인 SDK 의 현재 고정값** (Google 로그인 SDK 가 끌어오는 전이 의존 `appauth-ios` 도 함께 싣는다 · 표에 없는 핀은 해석 결과를 그대로 수용한다)
 
@@ -3700,13 +3698,9 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile
    ls build/ios/SourcePackages/checkouts          # 디렉터리 이름을 먼저 확인
    git -C build/ios/SourcePackages/checkouts/<디렉터리> describe --tags
    ```
-   - **디렉터리 이름은 identity 가 아니라 repo 이름이다.** 위 표의 열 제목이
-     「Swift package identity」(소문자)라 헷갈리기 쉬운데, SPM 은 checkout 디렉터리를
-     저장소 URL 의 **마지막 경로 요소에서 `.git` 접미사를 뗀 이름**으로 만든다
-     (`https://github.com/google/GoogleUtilities.git` → `GoogleUtilities`).
-     현재 핀 20개 중 **16개의 `location` 이 `.git` 으로 끝나므로 URL 의 마지막 경로
-     요소를 그대로 쓰면 안 된다** — `.git` 이 붙은 이름으로 `git -C` 를 걸면
-     `No such file or directory` 가 난다. 재현:
+   - **디렉터리 이름은 identity 가 아니라 repo 이름이다.**
+     - 위 표의 열 제목이 「Swift package identity」(소문자)라 헷갈리기 쉬운데, SPM 은 checkout 디렉터리를 저장소 URL 의 **마지막 경로 요소에서 `.git` 접미사를 뗀 이름**으로 만든다 (`https://github.com/google/GoogleUtilities.git` → `GoogleUtilities`).
+     - 현재 핀 20개 중 **16개의 `location` 이 `.git` 으로 끝나므로 URL 의 마지막 경로 요소를 그대로 쓰면 안 된다** — `.git` 이 붙은 이름으로 `git -C` 를 걸면 `No such file or directory` 가 난다. 재현:
      ```bash
      R=ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved
      jq '.pins | length' "$R"                             # 20
@@ -3726,24 +3720,20 @@ Flutter 3.44+ 는 SPM 이 **기본 on** 이고 `flutter create` 는 `ios/Podfile
   패키지를 올리면 네이티브 SDK 가 따라 올라간다** — `Package.resolved` 는 손으로
   고치지 않는다.
 
-> ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를
-> 누르지 말 것.**
+> ⚠ **`Package.resolved` 를 지우지 말고, Xcode 의 *Update to Latest Package Versions* 를 누르지 말 것.**
 >
-> 핀이 풀리면 위 표의 SDK 6개가 같은 조작 한 번에 함께 다시 해석된다. `exact` 로 선언된
-> `firebase-ios-sdk` 는 값이 그대로다. 범위로 선언된 4개(`googlesignin-ios` ·
-> `facebook-ios-sdk` · `line-sdk-ios-swift` · `naveridlogin-sdk-ios-swift`)는 각자 선언
-> 범위 안에서, 전이 의존인 `appauth-ios` 는 그것을 쓰는 패키지가 요구하는 범위 안에서
-> 다시 해석된다. LINE 은 `flutter_line_sdk` 3.0.0 이 `from: "5.17.0"` 으로 선언하므로
-> **5.17.0** 을 벗어나 5.18 이상으로 올라간다.
+> 핀이 풀리면 위 표의 SDK 6개가 같은 조작 한 번에 함께 다시 해석된다.
+> - `exact` 로 선언된 `firebase-ios-sdk` 는 값이 그대로다.
+> - 범위로 선언된 4개(`googlesignin-ios` · `facebook-ios-sdk` · `line-sdk-ios-swift` · `naveridlogin-sdk-ios-swift`)는 각자 선언 범위 안에서, 전이 의존인 `appauth-ios` 는 그것을 쓰는 패키지가 요구하는 범위 안에서 다시 해석된다.
+> - LINE 은 `flutter_line_sdk` 3.0.0 이 `from: "5.17.0"` 으로 선언하므로 **5.17.0** 을 벗어나 5.18 이상으로 올라간다.
 >
-> 지금 킷은 `flutter_line_sdk` 3.0.0(iOS 15.0 이상 · LineSDK 5.17 이상 요구)과 핀
-> **5.17.0** 을 함께 쓴다. LINE 핀을 올리려면 위 「상향 절차」 를 따른다.
+> 지금 킷은 `flutter_line_sdk` 3.0.0(iOS 15.0 이상 · LineSDK 5.17 이상 요구)과 핀 **5.17.0** 을 함께 쓴다.
+> - LINE 핀을 올리려면 위 「상향 절차」 를 따른다.
 
-- **SPM 경로에서는 `firebase_app_check` 가 `RecaptchaEnterprise`(바이너리 XCFramework,
-  `recaptcha-enterprise-mobile-sdk` 18.9.1)를 함께 링크한다** — CocoaPods 경로에는 없던
-  SDK 다. 앱 크기 · privacy manifest · 심사 신고 대상 판단에 넣을 것.
-- **`flutter clean` 은 SPM checkout(`build/ios/SourcePackages`)까지 지운다** — 다음 빌드가
-  수백 MB 를 다시 받아 수 분이 걸린다. 캐시 문제를 풀려는 목적이라면 ⑥ 을 먼저 볼 것.
+- **SPM 경로에서는 `firebase_app_check` 가 `RecaptchaEnterprise`(바이너리 XCFramework, `recaptcha-enterprise-mobile-sdk` 18.9.1)를 함께 링크한다** — CocoaPods 경로에는 없던 SDK 다.
+  - 앱 크기 · privacy manifest · 심사 신고 대상 판단에 넣을 것.
+- **`flutter clean` 은 SPM checkout(`build/ios/SourcePackages`)까지 지운다** — 다음 빌드가 수백 MB 를 다시 받아 수 분이 걸린다.
+  - 캐시 문제를 풀려는 목적이라면 ⑥ 을 먼저 볼 것.
 
 ### ③ 새 플러그인을 넣기 전에 확인할 것
 
