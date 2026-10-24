@@ -2003,38 +2003,71 @@ bash scripts/deploy_email.sh dev hosting --apply
 
 ## Firebase 서비스 쓰기
 
-킷에 들어 있는 Firebase 서비스 — 알림(FCM) · Remote Config · Cloud Storage · Firestore · Cloud Functions — 를 내 앱에 맞게 쓰는 법이다. Firestore · Storage rules 배포 · 기본 버킷 · 함수 배포는 위저드가 이미 했다. 이 절은 그 뒤 내가 고치는 파일과 직접 하는 일만 다룬다. 예시는 dev flavor 기준이고, `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+킷에 들어 있는 Firebase 서비스 — 알림(FCM) · Remote Config · Cloud Storage · Firestore · Cloud Functions — 를 내 앱에 맞게 쓰는 법이다.
+- Firestore · Storage rules 배포 · 기본 버킷 · 함수 배포는 위저드가 이미 했다.
+- 이 절은 그 뒤 내가 고치는 파일과 직접 하는 일만 다룬다.
+- 예시는 dev flavor 기준이고, `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
 
 ### FCM 알림
 
-앱이 포그라운드 · 백그라운드 · 종료 상태 어디에 있든 같은 모양의 시스템 알림이 뜨고, 알림을 탭하면 payload `data.route` 의 화면이 열린다. 알림은 내 서버나 함수가 `users/{uid}/fcmTokens` 의 기기 토큰으로 보낸다. 킷이 직접 보내는 알림은 [알림 시험 발송](#알림-시험-발송) 하나다. 받은 알림을 모아 보여 주는 앱 안 알림함은 없다 — 필요하면 보낼 때 사용자 문서 아래에 알림 문서를 함께 쓰고 목록 화면을 더한다.
+앱이 포그라운드 · 백그라운드 · 종료 상태 어디에 있든 같은 모양의 시스템 알림이 뜨고, 알림을 탭하면 payload `data.route` 의 화면이 열린다.
+- 알림은 내 서버나 함수가 `users/{uid}/fcmTokens` 의 기기 토큰으로 보낸다.
+- 킷이 직접 보내는 알림은 [알림 시험 발송](#알림-시험-발송) 하나다.
+- 받은 알림을 모아 보여 주는 앱 안 알림함은 없다 — 필요하면 보낼 때 사용자 문서 아래에 알림 문서를 함께 쓰고 목록 화면을 더한다.
 
-**알림 받기 켜기:** 앱의 설정 → 「알림」 → 「알림 받기」 다. 게스트가 아닌 사용자에게만 이 섹션이 있다. 켤 때만 OS 알림 권한을 묻는다 — 앱 시작 · 홈 · 온보딩에서는 묻지 않는다. 허용하면 이 기기의 토큰이 `users/{uid}/fcmTokens/{token}` 에 저장되고, 거부하면 꺼짐 그대로 휴대폰 설정에서 허용하라는 안내가 뜬다. 끄면 이 기기의 문서만 지운다. 한 계정이 여러 기기를 쓰면 기기마다 문서가 하나다.
+**알림 받기 켜기:** 앱의 설정 → 「알림」 → 「알림 받기」 다.
+- 게스트가 아닌 사용자에게만 이 섹션이 있다.
+- 켤 때만 OS 알림 권한을 묻는다 — 앱 시작 · 홈 · 온보딩에서는 묻지 않는다.
+- 허용하면 이 기기의 토큰이 `users/{uid}/fcmTokens/{token}` 에 저장되고, 거부하면 꺼짐 그대로 휴대폰 설정에서 허용하라는 안내가 뜬다.
+- 끄면 이 기기의 문서만 지운다.
+- 한 계정이 여러 기기를 쓰면 기기마다 문서가 하나다.
 
 **앱이 하는 일:**
 
-- **포그라운드 표시:** Android 는 앱이 떠 있을 때 받은 알림을 로컬 알림(`flutter_local_notifications`)으로 띄우고, iOS 는 OS 기본 모양으로 띄운다. Android 알림 채널은 `general` 하나다.
-- **탭 이동:** `data.route` 문자열이 허용 목록 `kNotificationRoutableRoutes`(`lib/features/notifications/application/notification_route.dart`)의 경로와 정확히 같을 때만 그 화면으로 가고, 목록 밖 · 없음 · 외부 URL 은 홈이다. 이동은 홈 화면이 그려진 뒤에 일어난다 — 앱이 종료된 상태에서 탭해도 스플래시 → 홈 → 대상 순서다. 목록과 새 화면을 더하는 법은 [④ 알림 탭으로 열 화면](#-알림-탭으로-열-화면--허용-목록) 에 있다.
-- **결과 스택:** 허용 목록 가운데 홈이 아닌 경로(설정 · 계정 정보 · 약관 둘)는 홈 하위 route 라, 알림으로 열면 홈 → (설정) → 대상 스택이 만들어진다 — 계정 정보 화면은 홈 · 설정 · 계정 정보 3장, 설정 · 약관은 2장이고, 앱바 ← · Android 뒤로 · iOS 스와이프 뒤로로 홈까지 돌아온다. 홈이 맨 아래에 남으므로 계정 정보 화면 위에서도 다음 알림을 받아 이동한다. 중간 화면(설정)도 보이지 않는 아래 장으로 그려지므로, 부모 화면에 처음 그려질 때 도는 작업을 넣으면 이 알림 경로에서도 돈다.
-- **로그아웃 · 탈퇴:** 로그아웃 직전에 이 기기의 토큰 문서를 지우고 알림 받기를 꺼짐으로 돌린다 — 같은 기기에 다른 계정으로 로그인하면 알림은 꺼짐으로 시작한다. OS 알림 권한은 건드리지 않는다. 오프라인 등으로 정리가 끝나지 못하면 앱이 기기에 표식을 남겨 다음 기회(같은 계정으로 다시 로그인 · 다른 계정이 알림을 켤 때 · 로그아웃 상태로 앱 시작)에 문서를 지우거나 이전 토큰을 폐기한다. 그 전까지는 이전 계정 앞으로 보낸 알림이 이 기기에 뜰 수 있다.
-- **앱 언어 변경:** 켜진 기기 문서의 `locale` 을 바로 바꾼다(`ko` · `en` · `ja`, 그 밖은 `en`). 서버는 이 값으로 알림 문구 언어를 고른다.
-- **앱 밖에서 OS 알림 권한을 끔:** 앱으로 돌아오면 스위치가 꺼지고 문서가 지워진다. 다시 허용하고 돌아오면 켜진다.
-- **오래 열지 않은 기기:** 켜진 기기는 앱 시작 · 복귀 · 언어 변경 때마다 문서의 `expireAt` 을 지금 + 30일로 다시 쓴다. 지난 문서는 Firestore TTL 정책이 지운다 — 위저드는 이 정책을 켜지 않으므로 아래 명령을 프로젝트마다 한 번 실행한다. 둘째 명령의 상태가 `ACTIVE` 가 되면 켜진 것이다. 실제 삭제는 만료 뒤 보통 24시간 안에 일어나고, 그 사이 남은 문서는 시험 발송 함수가 건너뛰고 지운다.
+- **포그라운드 표시:** Android 는 앱이 떠 있을 때 받은 알림을 로컬 알림(`flutter_local_notifications`)으로 띄우고, iOS 는 OS 기본 모양으로 띄운다.
+  - Android 알림 채널은 `general` 하나다.
+- **탭 이동:** `data.route` 문자열이 허용 목록 `kNotificationRoutableRoutes`(`lib/features/notifications/application/notification_route.dart`)의 경로와 정확히 같을 때만 그 화면으로 가고, 목록 밖 · 없음 · 외부 URL 은 홈이다.
+  - 이동은 홈 화면이 그려진 뒤에 일어난다 — 앱이 종료된 상태에서 탭해도 스플래시 → 홈 → 대상 순서다.
+  - 목록과 새 화면을 더하는 법은 [④ 알림 탭으로 열 화면](#-알림-탭으로-열-화면--허용-목록) 에 있다.
+- **결과 스택:** 허용 목록 가운데 홈이 아닌 경로(설정 · 계정 정보 · 약관 둘)는 홈 하위 route 라, 알림으로 열면 홈 → (설정) → 대상 스택이 만들어진다 — 계정 정보 화면은 홈 · 설정 · 계정 정보 3장, 설정 · 약관은 2장이고, 앱바 ← · Android 뒤로 · iOS 스와이프 뒤로로 홈까지 돌아온다.
+  - 홈이 맨 아래에 남으므로 계정 정보 화면 위에서도 다음 알림을 받아 이동한다.
+  - 중간 화면(설정)도 보이지 않는 아래 장으로 그려지므로, 부모 화면에 처음 그려질 때 도는 작업을 넣으면 이 알림 경로에서도 돈다.
+- **로그아웃 · 탈퇴:** 로그아웃 직전에 이 기기의 토큰 문서를 지우고 알림 받기를 꺼짐으로 돌린다 — 같은 기기에 다른 계정으로 로그인하면 알림은 꺼짐으로 시작한다.
+  - OS 알림 권한은 건드리지 않는다.
+  - 오프라인 등으로 정리가 끝나지 못하면 앱이 기기에 표식을 남겨 다음 기회(같은 계정으로 다시 로그인 · 다른 계정이 알림을 켤 때 · 로그아웃 상태로 앱 시작)에 문서를 지우거나 이전 토큰을 폐기한다.
+  - 그 전까지는 이전 계정 앞으로 보낸 알림이 이 기기에 뜰 수 있다.
+- **앱 언어 변경:** 켜진 기기 문서의 `locale` 을 바로 바꾼다(`ko` · `en` · `ja`, 그 밖은 `en`).
+  - 서버는 이 값으로 알림 문구 언어를 고른다.
+- **앱 밖에서 OS 알림 권한을 끔:** 앱으로 돌아오면 스위치가 꺼지고 문서가 지워진다.
+  - 다시 허용하고 돌아오면 켜진다.
+- **오래 열지 않은 기기:** 켜진 기기는 앱 시작 · 복귀 · 언어 변경 때마다 문서의 `expireAt` 을 지금 + 30일로 다시 쓴다.
+  - 지난 문서는 Firestore TTL 정책이 지운다 — 위저드는 이 정책을 켜지 않으므로 아래 명령을 프로젝트마다 한 번 실행한다.
+  - 둘째 명령의 상태가 `ACTIVE` 가 되면 켜진 것이다.
+  - 실제 삭제는 만료 뒤 보통 24시간 안에 일어나고, 그 사이 남은 문서는 시험 발송 함수가 건너뛰고 지운다.
 
 ```bash
 gcloud firestore fields ttls update expireAt --collection-group=fcmTokens --enable-ttl --project <your-project-id>
 gcloud firestore fields ttls list --collection-group=fcmTokens --project <your-project-id>
 ```
 
-**iOS 앱 쪽 설정:** APNs 인증 키는 [APNs 인증 키 올리기](setup.md#apns-인증-키-올리기) 대로 올린다. 앱에는 Xcode Runner 타깃 → Signing & Capabilities 의 Push Notifications capability 가 있고, `ios/Runner/Runner.entitlements` 의 `aps-environment` 는 `development` 다 — App Store · TestFlight 로 내보내는 빌드는 `production` 이어야 하고 프로비저닝 프로파일과 맞아야 한다. `ios/Runner/Info.plist` 의 `UIBackgroundModes` 에 `remote-notification` 이 있다. 번들 ID 를 바꿨으면 같은 번들 ID 의 프로비저닝 프로파일에 Push Notifications 가 켜져 있는지 본다.
+**iOS 앱 쪽 설정:** APNs 인증 키는 [APNs 인증 키 올리기](setup.md#apns-인증-키-올리기) 대로 올린다.
+- 앱에는 Xcode Runner 타깃 → Signing & Capabilities 의 Push Notifications capability 가 있고, `ios/Runner/Runner.entitlements` 의 `aps-environment` 는 `development` 다 — App Store · TestFlight 로 내보내는 빌드는 `production` 이어야 하고 프로비저닝 프로파일과 맞아야 한다.
+- `ios/Runner/Info.plist` 의 `UIBackgroundModes` 에 `remote-notification` 이 있다.
+- 번들 ID 를 바꿨으면 같은 번들 ID 의 프로비저닝 프로파일에 Push Notifications 가 켜져 있는지 본다.
 
 **Android 빌드 요건:** `flutter_local_notifications` 는 core library desugaring 이 필요하다 — `android/app/build.gradle.kts` 의 `isCoreLibraryDesugaringEnabled = true` 와 `coreLibraryDesugaring(...)` 두 줄을 지우면 Android 빌드가 실패한다.
 
-**백그라운드에서 할 일:** `lib/features/notifications/data/firebase_messaging_background_handler.dart` 의 함수는 지금 아무 일도 하지 않는다. data 전용 메시지로 백그라운드 작업을 하려면 여기에 넣는다. 별도 isolate 에서 돌므로 다른 Firebase 서비스를 쓰려면 `Firebase.initializeApp()` 을 먼저 부른다.
+**백그라운드에서 할 일:** `lib/features/notifications/data/firebase_messaging_background_handler.dart` 의 함수는 지금 아무 일도 하지 않는다.
+- data 전용 메시지로 백그라운드 작업을 하려면 여기에 넣는다.
+- 별도 isolate 에서 돌므로 다른 Firebase 서비스를 쓰려면 `Firebase.initializeApp()` 을 먼저 부른다.
 
 ### Remote Config
 
-앱을 다시 배포하지 않고 값을 바꾸는 스위치 · 문구는 `FeatureFlag` enum(`lib/core/remote_config/feature_flag.dart`)에 둔다. enum 이 Remote Config 키 이름과 기본값을 함께 갖고, 앱이 시작할 때 그 기본값을 넣으므로 콘솔에 키가 없어도 기본값으로 동작한다. 값은 `featureFlagsProvider` 로 읽는다. 앱이 떠 있으면 콘솔에서 게시한 값이 곧 반영된다. 로그인 수단 버튼을 숨기는 키는 이 enum 밖에 있다 — [Kill Switch 로 로그인 수단 막기](#kill-switch-로-로그인-수단-막기).
+앱을 다시 배포하지 않고 값을 바꾸는 스위치 · 문구는 `FeatureFlag` enum(`lib/core/remote_config/feature_flag.dart`)에 둔다.
+- enum 이 Remote Config 키 이름과 기본값을 함께 갖고, 앱이 시작할 때 그 기본값을 넣으므로 콘솔에 키가 없어도 기본값으로 동작한다.
+- 값은 `featureFlagsProvider` 로 읽는다.
+- 앱이 떠 있으면 콘솔에서 게시한 값이 곧 반영된다.
+- 로그인 수단 버튼을 숨기는 키는 이 enum 밖에 있다 — [Kill Switch 로 로그인 수단 막기](#kill-switch-로-로그인-수단-막기).
 
 **본보기 = 홈 공지 배너:**
 
@@ -2045,21 +2078,36 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project <your-p
 | `announcement_message_en` | String | `''` | 영어 앱 문구 · 다른 언어 칸이 비었을 때의 대체 문구 |
 | `announcement_message_ja` | String | `''` | 일본어 앱 문구 |
 
-- **보이는 조건:** 스위치가 `true` 이고, 앱 언어 칸 → 비었으면 en 칸 순서로 고른 문구가 비어 있지 않고(공백만 있는 칸도 빈 칸으로 본다), 그 문구가 사용자가 닫은 문구와 다를 때다. 게스트 · 가입자 모두에게 홈 AppBar 바로 아래에 보인다.
-- **닫기:** 사용자가 닫은 문구를 기기에 기억한다. 같은 공지를 다시 보이려면 문구를 바꾼다 — 공백 하나만 달라도 다른 문구다. 앱은 문구를 자르거나 다듬지 않고 링크 · 마크업도 해석하지 않는다.
-- **문구 길이:** 360 dp 폭에서 3줄 이내(한국어 약 60자)를 권장한다. 배너가 고정이라 길수록 본문을 가린다.
+- **보이는 조건:** 스위치가 `true` 이고, 앱 언어 칸 → 비었으면 en 칸 순서로 고른 문구가 비어 있지 않고(공백만 있는 칸도 빈 칸으로 본다), 그 문구가 사용자가 닫은 문구와 다를 때다.
+  - 게스트 · 가입자 모두에게 홈 AppBar 바로 아래에 보인다.
+- **닫기:** 사용자가 닫은 문구를 기기에 기억한다.
+  - 같은 공지를 다시 보이려면 문구를 바꾼다 — 공백 하나만 달라도 다른 문구다.
+  - 앱은 문구를 자르거나 다듬지 않고 링크 · 마크업도 해석하지 않는다.
+- **문구 길이:** 360 dp 폭에서 3줄 이내(한국어 약 60자)를 권장한다.
+  - 배너가 고정이라 길수록 본문을 가린다.
 
-**콘솔에 키 만들기:** 위저드는 Remote Config 를 바꾸지 않는다. [Kill Switch](#kill-switch-로-로그인-수단-막기) 단계 ① ~ ③ 과 같은 화면에서 위 표의 네 키를 이름 · 데이터 유형 그대로 만들고 게시한다. 스위치를 `true` 로, `announcement_message_ko` 에 문구를 넣고 게시하면 실행 중인 앱에 배너가 나타난다.
+**콘솔에 키 만들기:** 위저드는 Remote Config 를 바꾸지 않는다.
+- [Kill Switch](#kill-switch-로-로그인-수단-막기) 단계 ① ~ ③ 과 같은 화면에서 위 표의 네 키를 이름 · 데이터 유형 그대로 만들고 게시한다.
+- 스위치를 `true` 로, `announcement_message_ko` 에 문구를 넣고 게시하면 실행 중인 앱에 배너가 나타난다.
 
-**스위치 더하기:** `FeatureFlag` enum 에 `myFeatureEnabled('my_feature_enabled', false),` 꼴로 한 줄을 더하고, 쓰는 곳에서 `ref.watch(featureFlagsProvider).boolValue(FeatureFlag.myFeatureEnabled)` 로 읽는다. 기본값은 앱 시작 때 함께 들어간다. 콘솔에 같은 이름의 키를 만들어 값을 바꾼다.
+**스위치 더하기:** `FeatureFlag` enum 에 `myFeatureEnabled('my_feature_enabled', false),` 꼴로 한 줄을 더하고, 쓰는 곳에서 `ref.watch(featureFlagsProvider).boolValue(FeatureFlag.myFeatureEnabled)` 로 읽는다.
+- 기본값은 앱 시작 때 함께 들어간다.
+- 콘솔에 같은 이름의 키를 만들어 값을 바꾼다.
 
 ### Cloud Storage · 프로필 사진
 
 킷의 Storage 본보기는 프로필 사진이다. 사진은 `users/{uid}/profile/avatar.jpg` 하나를 덮어쓴다(`profilePhotoPath` · `lib/features/settings/data/profile_photo_repository.dart`).
 
-- **쓰는 법(앱 사용자):** 설정 → 계정 정보 화면 「프로필」 의 첫 행(프로필 사진)을 누르면 시트가 뜬다. 「갤러리에서 사진 선택」 으로 고른 사진은 올리기 전에 줄여(`maxWidth: 1024` · `imageQuality: 85`) 올리고, 설정 계정 행 · 계정 정보 화면이 다시 시작하지 않아도 새 사진을 보인다. 「올린 사진 삭제」 는 확인 창 없이 지우고 소셜 계정 사진(없으면 기본 아바타)으로 돌아간다. 게스트에게는 사진 행이 없다.
-- **권한 창이 없다:** Android 는 Photo Picker, iOS 는 PHPicker 를 쓴다 — 저장소 · 사진 권한 창이 뜨지 않는다. 카메라 촬영은 없다. iOS 의 `ios/Runner/Info.plist` `NSPhotoLibraryUsageDescription` 은 영어 한 문장이다.
-- **rules:** `storage.rules` 는 본인 `users/{uid}/` 아래만 읽고 쓰게 하고, 쓰기는 게스트가 아닌 사용자 · 5MB 이하 · `image/` 형식만 허용한다. 본인 경로 아래는 어떤 경로 · 몇 개든 쓸 수 있다 — 사진 한 장만 쓸 거면 match 를 `match /users/{userId}/profile/avatar.jpg` 로 좁히고 rules 시험의 경계 경우를 함께 고친다. 앱도 올리기 전에 같은 상한(`kProfilePhotoMaxBytes`)으로 크기를 본다 — 상한을 바꾸면 두 곳을 함께 고친다.
+- **쓰는 법(앱 사용자):** 설정 → 계정 정보 화면 「프로필」 의 첫 행(프로필 사진)을 누르면 시트가 뜬다.
+  - 「갤러리에서 사진 선택」 으로 고른 사진은 올리기 전에 줄여(`maxWidth: 1024` · `imageQuality: 85`) 올리고, 설정 계정 행 · 계정 정보 화면이 다시 시작하지 않아도 새 사진을 보인다.
+  - 「올린 사진 삭제」 는 확인 창 없이 지우고 소셜 계정 사진(없으면 기본 아바타)으로 돌아간다.
+  - 게스트에게는 사진 행이 없다.
+- **권한 창이 없다:** Android 는 Photo Picker, iOS 는 PHPicker 를 쓴다 — 저장소 · 사진 권한 창이 뜨지 않는다.
+  - 카메라 촬영은 없다.
+  - iOS 의 `ios/Runner/Info.plist` `NSPhotoLibraryUsageDescription` 은 영어 한 문장이다.
+- **rules:** `storage.rules` 는 본인 `users/{uid}/` 아래만 읽고 쓰게 하고, 쓰기는 게스트가 아닌 사용자 · 5MB 이하 · `image/` 형식만 허용한다.
+  - 본인 경로 아래는 어떤 경로 · 몇 개든 쓸 수 있다 — 사진 한 장만 쓸 거면 match 를 `match /users/{userId}/profile/avatar.jpg` 로 좁히고 rules 시험의 경계 경우를 함께 고친다.
+  - 앱도 올리기 전에 같은 상한(`kProfilePhotoMaxBytes`)으로 크기를 본다 — 상한을 바꾸면 두 곳을 함께 고친다.
 - **보이는 사진 · 이름의 순서:** 설정 계정 행 · 계정 정보 화면이 같은 규칙을 쓴다(`lib/features/auth/domain/profile_display.dart`).
 
 | 순서 | 사진 | 이름 |
@@ -2069,12 +2117,17 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project <your-p
 | 3 | 로그인 수단 프로필 사진(같은 순서) | 계정 정보 화면은 「-」, 설정 계정 행은 이메일(없으면 「-」) |
 | 4 | 기본 아바타 | — |
 
-- **자르기 화면은 없다:** 사진은 원형 40 dp 에 가운데를 맞춰 그린다. 자르기 · 필터를 넣으려면 패키지를 고르기 전에 [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm) ③ 대로 SPM 지원부터 확인하고, `profile_photo_repository.dart` 의 `pickImage` 뒤 · `putFile` 앞에 끼운다. 올릴 때 넣는 `contentType` 은 자른 결과 형식에 맞춘다.
-- **탈퇴하면:** 서버가 `users/{uid}/` 아래 Storage 파일을 계정 삭제보다 먼저 모두 지운다. 본인 경로 아래 파일이 많을수록 탈퇴가 오래 걸린다.
+- **자르기 화면은 없다:** 사진은 원형 40 dp 에 가운데를 맞춰 그린다.
+  - 자르기 · 필터를 넣으려면 패키지를 고르기 전에 [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm) ③ 대로 SPM 지원부터 확인하고, `profile_photo_repository.dart` 의 `pickImage` 뒤 · `putFile` 앞에 끼운다.
+  - 올릴 때 넣는 `contentType` 은 자른 결과 형식에 맞춘다.
+- **탈퇴하면:** 서버가 `users/{uid}/` 아래 Storage 파일을 계정 삭제보다 먼저 모두 지운다.
+  - 본인 경로 아래 파일이 많을수록 탈퇴가 오래 걸린다.
 
 ### Firestore 저장소 · 보안 규칙
 
-**저장소 본보기:** `users/{uid}/fcmTokens` 저장소(`lib/features/notifications/data/fcm_token_repository.dart`)가 킷의 타입 고정 Firestore 저장소다 — 컬렉션 참조를 `withConverter` 로 Freezed 모델(`FcmToken`)에 묶고, 날짜는 `@TimestampConverter()`(`lib/core/firestore/timestamp_converter.dart`)로 바꾸고, 메서드는 `guardResult` 로 감싸 `Result<T>` 를 돌려준다. 새 컬렉션을 처음부터 만드는 과정은 튜토리얼 [③ withConverter 저장소](#-withconverter-저장소) · [⑧ Firestore rules 와 rules 시험](#-firestore-rules-와-rules-시험) 이 이 꼴을 그대로 따른다. 문서 전체를 앱이 가지는 서브컬렉션은 이 꼴이 맞고, 필드가 적고 서버와 한 문서를 나눠 쓰면 `set(…, SetOptions(merge: true))` 의 map 쓰기가 맞다(예: 약관 동의 기록).
+**저장소 본보기:** `users/{uid}/fcmTokens` 저장소(`lib/features/notifications/data/fcm_token_repository.dart`)가 킷의 타입 고정 Firestore 저장소다 — 컬렉션 참조를 `withConverter` 로 Freezed 모델(`FcmToken`)에 묶고, 날짜는 `@TimestampConverter()`(`lib/core/firestore/timestamp_converter.dart`)로 바꾸고, 메서드는 `guardResult` 로 감싸 `Result<T>` 를 돌려준다.
+- 새 컬렉션을 처음부터 만드는 과정은 튜토리얼 [③ withConverter 저장소](#-withconverter-저장소) · [⑧ Firestore rules 와 rules 시험](#-firestore-rules-와-rules-시험) 이 이 꼴을 그대로 따른다.
+- 문서 전체를 앱이 가지는 서브컬렉션은 이 꼴이 맞고, 필드가 적고 서버와 한 문서를 나눠 쓰면 `set(…, SetOptions(merge: true))` 의 map 쓰기가 맞다(예: 약관 동의 기록).
 
 **`users/{uid}` 필드 규칙(`firestore.rules`):**
 
@@ -2089,22 +2142,31 @@ gcloud firestore fields ttls list --collection-group=fcmTokens --project <your-p
 | 문서 삭제 | 앱은 못 한다(탈퇴는 서버가 지운다) |
 | `users/{uid}/fcmTokens/{token}` | 본인만 읽고 지운다. 만들기 · 고치기는 게스트가 아닌 본인만, 키 다섯(`token` · `platform` · `locale` · `updatedAt` · `expireAt`)만, `expireAt` 은 지금 + 60일 이하 |
 
-**새 필드를 쓰려면:** 앱이 `users/{uid}` 에 새 키를 쓰면 `firestore.rules` 의 `clientKeys()` 에 그 키를 더하고 rules 시험도 더한다 — 안 하면 앱의 쓰기가 `permission-denied` 로 거부된다. `FcmToken` 에 필드를 더하면 fcmTokens 규칙의 `hasOnly` 목록도 고친다. 규칙은 형식뿐 아니라 값의 범위도 검사하는 것이 기본이다 — 새 필드에도 길이 · 형식 상한을 둔다. 사진을 Storage 밖(CDN 등)에 두면 `photoOk` 의 주소 정규식을, `kFcmTokenTtl`(`lib/features/notifications/domain/fcm_token.dart`)을 60일 넘게 늘리면 fcmTokens 규칙의 `duration.value(60, 'd')` 를 함께 고친다.
+**새 필드를 쓰려면:** 앱이 `users/{uid}` 에 새 키를 쓰면 `firestore.rules` 의 `clientKeys()` 에 그 키를 더하고 rules 시험도 더한다 — 안 하면 앱의 쓰기가 `permission-denied` 로 거부된다.
+- `FcmToken` 에 필드를 더하면 fcmTokens 규칙의 `hasOnly` 목록도 고친다.
+- 규칙은 형식뿐 아니라 값의 범위도 검사하는 것이 기본이다 — 새 필드에도 길이 · 형식 상한을 둔다.
+- 사진을 Storage 밖(CDN 등)에 두면 `photoOk` 의 주소 정규식을, `kFcmTokenTtl`(`lib/features/notifications/domain/fcm_token.dart`)을 60일 넘게 늘리면 fcmTokens 규칙의 `duration.value(60, 'd')` 를 함께 고친다.
 
-**rules 시험과 배포:** rules 를 고치면 에뮬레이터에서 시험을 돌린다. 실제 Firebase 프로젝트에는 접속하지 않는다. Java 11 이상이 필요하고, 처음 한 번은 에뮬레이터 파일을 내려받는다. 포트 8080(Firestore) · 9199(Storage) · 9150 이 비어 있어야 한다. 쓰는 법은 튜토리얼 [⑧](#-firestore-rules-와-rules-시험) 에 있다.
+**rules 시험과 배포:** rules 를 고치면 에뮬레이터에서 시험을 돌린다.
+- 실제 Firebase 프로젝트에는 접속하지 않는다.
+- Java 11 이상이 필요하고, 처음 한 번은 에뮬레이터 파일을 내려받는다.
+- 포트 8080(Firestore) · 9199(Storage) · 9150 이 비어 있어야 한다.
+- 쓰는 법은 튜토리얼 [⑧](#-firestore-rules-와-rules-시험) 에 있다.
 
 ```bash
 cd functions && pnpm test:rules
 ```
 
-시험이 통과하면 고친 rules 를 올린다. Storage rules 는 `--only storage` 로 올린다.
+시험이 통과하면 고친 rules 를 올린다.
+- Storage rules 는 `--only storage` 로 올린다.
 
 ```bash
 firebase deploy --only firestore:rules --project <your-project-id>
 firebase deploy --only storage --project <your-project-id>
 ```
 
-**오류 처리:** 데이터 계층과 화면 상태 계층이 예상 못 한 예외를 한 번씩 잡아 Crashlytics 에 남기고, 사용자에게는 앱 문구로 보인다. 킷이 분류한 오류(`AppException`)는 기록하지 않는다.
+**오류 처리:** 데이터 계층과 화면 상태 계층이 예상 못 한 예외를 한 번씩 잡아 Crashlytics 에 남기고, 사용자에게는 앱 문구로 보인다.
+- 킷이 분류한 오류(`AppException`)는 기록하지 않는다.
 
 | 상황 | 쓸 것 | 하는 일 |
 |---|---|---|
@@ -2114,17 +2176,27 @@ firebase deploy --only storage --project <your-project-id>
 | 고정 위치가 없는 잠깐의 오류(버튼 동작 실패 등) | `showErrorSnackBar(context, e)`(`lib/shared/widgets/error_snack_bar.dart`) | 연달아 부르면 마지막 하나만 남는다 |
 | provider 의 `AsyncValue` 를 그대로 그릴 때 | `AsyncValueView<T>(value: …, data: …, onRetry: …)`(`lib/shared/widgets/async_value_view.dart`) | 기본 로딩 · 오류(+「다시 시도」), 또는 `loading:` · `error:` builder |
 
-- **기록 이름:** `'<저장소>_<메서드>'` 꼴의 코드 경로 이름만 쓴다. 이메일 · 토큰 · URL · 파일 경로 · 서버 메시지는 넣지 않는다.
-- **문구:** 세 표면 모두 `lib/core/l10n/exception_l10n.dart` 의 `resolveExceptionMessage` 를 거친다. 새 `AppException` 종류를 만들면 그 파일의 switch 에 항목을 더하고 그 시험에도 항목을 더한다 — 빠지면 debug 는 assert 로 멈추고 release 는 일반 오류 문구를 보인다.
-- **깨진 화면 대체 `ErrorFallback`:** release · profile 빌드에서 위젯을 그리다 예외가 나면 빨간 화면 대신 「문제가 발생했습니다」 / 「앱을 종료한 뒤 다시 실행해 주세요.」(ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`)를 그리고, 앱을 실행할 때마다 처음 한 번만 non-fatal 을 남긴다. debug 빌드는 빨간 화면 그대로이므로 `--profile` 이나 `--release` 로 확인한다. 위젯은 `lib/shared/widgets/error_fallback.dart` 다.
-- **App Check 차단 안내:** callable 함수가 App Check 로 거부되면 앱은 「요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.」(ARB `errorAppCheckFailed`)를 보이고 다시 로그인하라고 보내지 않는다. 판정은 `classifyAppCheckRejection`(`lib/core/functions/callable_rejection.dart`) 하나가 하고 non-fatal `app_check_rejected_<함수 이름>` 을 남긴다 — 내 callable 을 부르는 코드도 `FirebaseFunctionsException` 을 이 함수에 먼저 넘긴다. App Check 등록은 [App Check 등록 확인](setup.md#app-check-등록-확인) 이다.
-- **오프라인 배너는 없다:** 요청이 실패하면 인터넷 연결 오류 문구가 위 표면으로 나간다. 늘 보이는 오프라인 배너가 필요하면 연결 감지 패키지를 더하고 그 상태를 앱 화면 틀에 그린다.
+- **기록 이름:** `'<저장소>_<메서드>'` 꼴의 코드 경로 이름만 쓴다.
+  - 이메일 · 토큰 · URL · 파일 경로 · 서버 메시지는 넣지 않는다.
+- **문구:** 세 표면 모두 `lib/core/l10n/exception_l10n.dart` 의 `resolveExceptionMessage` 를 거친다.
+  - 새 `AppException` 종류를 만들면 그 파일의 switch 에 항목을 더하고 그 시험에도 항목을 더한다 — 빠지면 debug 는 assert 로 멈추고 release 는 일반 오류 문구를 보인다.
+- **깨진 화면 대체 `ErrorFallback`:** release · profile 빌드에서 위젯을 그리다 예외가 나면 빨간 화면 대신 「문제가 발생했습니다」 / 「앱을 종료한 뒤 다시 실행해 주세요.」(ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`)를 그리고, 앱을 실행할 때마다 처음 한 번만 non-fatal 을 남긴다.
+  - debug 빌드는 빨간 화면 그대로이므로 `--profile` 이나 `--release` 로 확인한다.
+  - 위젯은 `lib/shared/widgets/error_fallback.dart` 다.
+- **App Check 차단 안내:** callable 함수가 App Check 로 거부되면 앱은 「요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.」(ARB `errorAppCheckFailed`)를 보이고 다시 로그인하라고 보내지 않는다.
+  - 판정은 `classifyAppCheckRejection`(`lib/core/functions/callable_rejection.dart`) 하나가 하고 non-fatal `app_check_rejected_<함수 이름>` 을 남긴다 — 내 callable 을 부르는 코드도 `FirebaseFunctionsException` 을 이 함수에 먼저 넘긴다.
+  - App Check 등록은 [App Check 등록 확인](setup.md#app-check-등록-확인) 이다.
+- **오프라인 배너는 없다:** 요청이 실패하면 인터넷 연결 오류 문구가 위 표면으로 나간다.
+  - 늘 보이는 오프라인 배너가 필요하면 연결 감지 패키지를 더하고 그 상태를 앱 화면 틀에 그린다.
 
 ### Cloud Functions 함수 더하기
 
 내가 만든 callable 함수를 킷 배포에 더하는 절차다.
 
-**① 함수 파일과 export.** `functions/src/` 에 `onCall` 함수 파일을 두고 `functions/src/index.ts` 에 export 한 줄을 더한다. 아래 예시는 `functions/src/my_function.ts` 로 그대로 저장해도 `pnpm run build` · `pnpm run lint` 를 통과한다. region 은 `functions/src/index.ts` 의 전역 설정을 따른다.
+**① 함수 파일과 export.**
+- `functions/src/` 에 `onCall` 함수 파일을 두고 `functions/src/index.ts` 에 export 한 줄을 더한다.
+- 아래 예시는 `functions/src/my_function.ts` 로 그대로 저장해도 `pnpm run build` · `pnpm run lint` 를 통과한다.
+- region 은 `functions/src/index.ts` 의 전역 설정을 따른다.
 
 ```typescript
 import {onCall, HttpsError} from "firebase-functions/https";
@@ -2154,15 +2226,20 @@ export const myFunction = onCall(
 export {myFunction} from "./my_function";
 ```
 
-**② 시험.** `functions/test/` 에 시험을 둔다. 킷의 함수 시험처럼 `firebase-functions-test` 로 함수를 감싸 부른다.
+**② 시험.**
+- `functions/test/` 에 시험을 둔다.
+- 킷의 함수 시험처럼 `firebase-functions-test` 로 함수를 감싸 부른다.
 
-**③ secret.** 함수가 secret 을 쓰면 예시처럼 `defineSecret` 으로 선언해 `secrets` 옵션에 넣고, 배포 전에 값을 등록한다.
+**③ secret.**
+- 함수가 secret 을 쓰면 예시처럼 `defineSecret` 으로 선언해 `secrets` 옵션에 넣고, 배포 전에 값을 등록한다.
 
 ```bash
 firebase functions:secrets:set MY_SECRET --project <your-project-id>
 ```
 
-**④ 배포 목록에 이름을 더한다.** 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다. 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 시험이 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
+**④ 배포 목록에 이름을 더한다.**
+- 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다.
+- 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 시험이 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
 
 **⑤ 게이트.**
 
@@ -2174,7 +2251,9 @@ pnpm test
 cd ..
 ```
 
-**⑥ 배포.** 먼저 옵션 없이 실행해 출력의 `functions` 목록에 새 함수가 있는지 보고, 맞으면 `--apply` 로 배포한다. 처음 배포한 함수는 공개 호출이 켜졌는지 본다 — [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ⑥ 과 같은 방법으로, 인증 없이 보낸 POST 가 `401` 이면 정상이고 `403` 이면 공개 호출이 빠진 것이다(Google Cloud 콘솔 → Cloud Run 의 그 서비스에서 같은 칸을 켠다).
+**⑥ 배포.**
+- 먼저 옵션 없이 실행해 출력의 `functions` 목록에 새 함수가 있는지 보고, 맞으면 `--apply` 로 배포한다.
+- 처음 배포한 함수는 공개 호출이 켜졌는지 본다 — [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ⑥ 과 같은 방법으로, 인증 없이 보낸 POST 가 `401` 이면 정상이고 `403` 이면 공개 호출이 빠진 것이다(Google Cloud 콘솔 → Cloud Run 의 그 서비스에서 같은 칸을 켠다).
 
 ```bash
 bash scripts/deploy_functions.sh dev
@@ -2185,12 +2264,20 @@ bash scripts/deploy_functions.sh dev --apply
 
 ### 공개 프로필 · 이름 편집 넓히기
 
-킷에는 공개 프로필과 이름 편집이 없다 — 앱에 필요하면 아래 방향으로 더한다. Firebase 는 Auth 사용자 객체에 속성을 더하지 말고 다른 저장소에 두라고 안내한다 — 「You cannot add other properties to the user object directly; instead, you can store the additional properties in any other storage services, like Google Cloud Firestore.」 (<https://firebase.google.com/docs/auth/users>).
+킷에는 공개 프로필과 이름 편집이 없다 — 앱에 필요하면 아래 방향으로 더한다.
+- Firebase 는 Auth 사용자 객체에 속성을 더하지 말고 다른 저장소에 두라고 안내한다 — 「You cannot add other properties to the user object directly; instead, you can store the additional properties in any other storage services, like Google Cloud Firestore.」 (<https://firebase.google.com/docs/auth/users>).
 
-1. **공개 프로필은 별도 문서(예: `profiles/{uid}`)에 둔다.** Firestore rules 는 문서 단위로 읽는다 — 「Reads in Rules are performed at the document level. You either retrieve the full document, or you retrieve nothing.」 (<https://firebase.google.com/docs/firestore/security/rules-fields>). `users/{uid}` 는 비공개 필드(`email` · `linkedProviders` · `termsAccepted`)를 담고 본인만 읽으므로, 공개할 값은 별도 문서로 뺀다.
-2. **편집할 값의 원본을 옮긴다.** 공개 프로필을 더하면 `customPhotoUrl` 과 이름 필드(더했다면)의 원본을 공개 문서로 옮긴다. 두 문서에 사본을 두지 않는다 — 사본은 어긋난다.
-3. **공개 문서 규칙:** 이메일을 넣지 않는다. 공개 여부 필드를 두고 rules 에서 그 값(또는 본인)으로 읽기를 판정한다. 쓰기는 본인 + 키 허용 목록(`users/{uid}` 의 `clientKeys()` 와 같은 방식)으로 한다.
-4. **이름 편집은 사진과 같은 꼴이다:** 앱이 가지는 Firestore 필드(예: `customDisplayName`)를 더한다 — `firestore.rules` `clientKeys()` 에 키 하나 + rules 시험, 사용자 문서를 읽는 모델 · 파서에 필드 하나, 표시 이름 계산에서 `resolveProfileValue` 결과보다 먼저 쓴다. Auth `displayName` 에는 쓰지 않는다 — 가입 수단으로 다시 로그인하면 로그인 수단 프로필로 덮어쓴다([알아 둘 동작](#알아-둘-동작) 의 프로필 갱신).
+1. **공개 프로필은 별도 문서(예: `profiles/{uid}`)에 둔다.**
+   - Firestore rules 는 문서 단위로 읽는다 — 「Reads in Rules are performed at the document level. You either retrieve the full document, or you retrieve nothing.」 (<https://firebase.google.com/docs/firestore/security/rules-fields>).
+   - `users/{uid}` 는 비공개 필드(`email` · `linkedProviders` · `termsAccepted`)를 담고 본인만 읽으므로, 공개할 값은 별도 문서로 뺀다.
+2. **편집할 값의 원본을 옮긴다.**
+   - 공개 프로필을 더하면 `customPhotoUrl` 과 이름 필드(더했다면)의 원본을 공개 문서로 옮긴다.
+   - 두 문서에 사본을 두지 않는다 — 사본은 어긋난다.
+3. **공개 문서 규칙:** 이메일을 넣지 않는다.
+   - 공개 여부 필드를 두고 rules 에서 그 값(또는 본인)으로 읽기를 판정한다.
+   - 쓰기는 본인 + 키 허용 목록(`users/{uid}` 의 `clientKeys()` 와 같은 방식)으로 한다.
+4. **이름 편집은 사진과 같은 꼴이다:** 앱이 가지는 Firestore 필드(예: `customDisplayName`)를 더한다 — `firestore.rules` `clientKeys()` 에 키 하나 + rules 시험, 사용자 문서를 읽는 모델 · 파서에 필드 하나, 표시 이름 계산에서 `resolveProfileValue` 결과보다 먼저 쓴다.
+   - Auth `displayName` 에는 쓰지 않는다 — 가입 수단으로 다시 로그인하면 로그인 수단 프로필로 덮어쓴다([알아 둘 동작](#알아-둘-동작) 의 프로필 갱신).
 
 ### 바꿀 수 있는 지점
 
