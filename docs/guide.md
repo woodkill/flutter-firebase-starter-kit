@@ -2743,7 +2743,9 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 ## 앱 운영하기
 
-출시한 앱을 운영하면서 하는 일 — 로그인 수단 버튼을 급히 숨기기, 오류 보고 · 사용 통계 확인, 시험 알림 보내기, 게스트 계정 정리 — 을 모은다. 예시는 dev flavor 기준이다. flavor 마다 Firebase 프로젝트가 다르므로 콘솔 작업은 그 flavor 의 프로젝트에서 한다.
+출시한 앱을 운영하면서 하는 일 — 로그인 수단 버튼을 급히 숨기기, 오류 보고 · 사용 통계 확인, 시험 알림 보내기, 게스트 계정 정리 — 을 모은다.
+- 예시는 dev flavor 기준이다.
+- flavor 마다 Firebase 프로젝트가 다르므로 콘솔 작업은 그 flavor 의 프로젝트에서 한다.
 
 ### Kill Switch 로 로그인 수단 막기
 
@@ -2794,9 +2796,11 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 ### Crashlytics · Analytics
 
-오류 보고(Crashlytics)와 사용 통계(Analytics) 코드는 모든 flavor 에서 켜져 있다. 할 일은 받는 쪽 확인이다 — 아래 시험으로 오류 보고와 이벤트가 콘솔에 들어오는지 본다.
+오류 보고(Crashlytics)와 사용 통계(Analytics) 코드는 모든 flavor 에서 켜져 있다.
+- 할 일은 받는 쪽 확인이다 — 아래 시험으로 오류 보고와 이벤트가 콘솔에 들어오는지 본다.
 
-**첫 화면 확인:** 콘솔에서 켤 것은 없다 — 앱이 첫 보고를 보내면 Crashlytics 의 「대시보드」 탭이 열린다. 그 전에는 「SDK 추가」 안내 화면이나 「앱이 감지되었으며 비정상 종료를 기다리는 중입니다.」 가 보이고, 누르지 않아도 된다.
+**첫 화면 확인:** 콘솔에서 켤 것은 없다 — 앱이 첫 보고를 보내면 Crashlytics 의 「대시보드」 탭이 열린다.
+- 그 전에는 「SDK 추가」 안내 화면이나 「앱이 감지되었으며 비정상 종료를 기다리는 중입니다.」 가 보이고, 누르지 않아도 된다.
 
 **오류 보고 시험(dev):**
 
@@ -2806,10 +2810,14 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
    fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
    ```
 
-2. 데모 화면의 Dev Tools 에서 「테스트 에러 전송」 을 누른다. Dev Tools 는 debug 빌드에만 있다 — 데모 화면 위치는 [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법).
-3. Firebase 콘솔의 Crashlytics 에 non-fatal 오류 `Dev Tools test error` 가 나타난다. 나타나기까지 시간이 걸릴 수 있다. 「대시보드」 탭 맨 위 필터 칩이 기본으로 「이벤트 유형 = "비정상 종료"」 라 이 오류는 가려진다 — 칩에서 「심각하지 않음」 을 고른다.
+2. 데모 화면의 Dev Tools 에서 「테스트 에러 전송」 을 누른다.
+   - Dev Tools 는 debug 빌드에만 있다 — 데모 화면 위치는 [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법).
+3. Firebase 콘솔의 Crashlytics 에 non-fatal 오류 `Dev Tools test error` 가 나타난다.
+   - 나타나기까지 시간이 걸릴 수 있다.
+   - 「대시보드」 탭 맨 위 필터 칩이 기본으로 「이벤트 유형 = "비정상 종료"」 라 이 오류는 가려진다 — 칩에서 「심각하지 않음」 을 고른다.
 
-**사용 통계 확인(DebugView):** Analytics 의 일반 보고서는 늦게 반영되고, DebugView 는 디버그 모드로 켠 기기의 이벤트를 바로 보여 준다. 킷은 디버그 모드를 저절로 켜지 않으므로 기기에서 켠다.
+**사용 통계 확인(DebugView):** Analytics 의 일반 보고서는 늦게 반영되고, DebugView 는 디버그 모드로 켠 기기의 이벤트를 바로 보여 준다.
+- 킷은 디버그 모드를 저절로 켜지 않으므로 기기에서 켠다.
 
 ```bash
 # Android 에뮬레이터 · 실기기 (dev flavor 의 패키지 이름)
@@ -2819,18 +2827,26 @@ adb shell setprop debug.firebase.analytics.app com.slimpumpkin.flutter_starter_k
 adb shell setprop debug.firebase.analytics.app .none.
 ```
 
-패키지 이름을 바꿨으면 `com.slimpumpkin.flutter_starter_kit` 자리에 내 패키지 이름을 쓴다(dev flavor 는 끝에 `.dev`). iOS 는 Xcode → Product → Scheme → Edit Scheme → Run → Arguments 의 Arguments Passed On Launch 에 `-FIRDebugEnabled` 를 더한다. 켠 뒤 Dev Tools 의 「Analytics 이벤트 전송」 을 누르면 왼쪽 메뉴 「애널리틱스」 → 「DebugView」 에 이벤트 `dev_tools_test_event` 가 나타난다.
+패키지 이름을 바꿨으면 `com.slimpumpkin.flutter_starter_kit` 자리에 내 패키지 이름을 쓴다(dev flavor 는 끝에 `.dev`).
+- iOS 는 Xcode → Product → Scheme → Edit Scheme → Run → Arguments 의 Arguments Passed On Launch 에 `-FIRDebugEnabled` 를 더한다.
+- 켠 뒤 Dev Tools 의 「Analytics 이벤트 전송」 을 누르면 왼쪽 메뉴 「애널리틱스」 → 「DebugView」 에 이벤트 `dev_tools_test_event` 가 나타난다.
 
 **출시 빌드:** release 빌드의 크래시 위치를 읽으려면 dSYM(iOS) · NDK 기호(Android)를 올린다 — [빌드 · 출시](#빌드--출시) 에 있다.
 
 **문제 해결:**
 
-- **오류 보고가 들어오지 않는다.** 「대시보드」 맨 위 필터 칩 「이벤트 유형 = "비정상 종료"」 가 기본이라 「테스트 에러 전송」 의 심각하지 않은 오류가 가려진다 — 칩에서 「심각하지 않음」 을 고른다. `android/app/src/main/AndroidManifest.xml` 에 `firebase_crashlytics_collection_enabled` 를 `false` 로 넣었다면 지운다 — 킷은 이 값을 넣지 않는다.
-- **DebugView 에 이벤트가 없다.** 위 명령의 패키지 이름이 실행한 flavor 의 패키지 이름과 같은지 본다. 명령을 실행한 뒤 앱을 다시 시작한다.
+- **오류 보고가 들어오지 않는다.**
+  - 「대시보드」 맨 위 필터 칩 「이벤트 유형 = "비정상 종료"」 가 기본이라 「테스트 에러 전송」 의 심각하지 않은 오류가 가려진다 — 칩에서 「심각하지 않음」 을 고른다.
+  - `android/app/src/main/AndroidManifest.xml` 에 `firebase_crashlytics_collection_enabled` 를 `false` 로 넣었다면 지운다 — 킷은 이 값을 넣지 않는다.
+- **DebugView 에 이벤트가 없다.**
+  - 위 명령의 패키지 이름이 실행한 flavor 의 패키지 이름과 같은지 본다.
+  - 명령을 실행한 뒤 앱을 다시 시작한다.
 
 ### 알림 시험 발송
 
-알림이 내 기기까지 오는지, 탭하면 화면이 열리는지 볼 때 쓴다. 데모 화면 Dev Tools 의 「나에게 테스트 알림 보내기」 가 내 계정에서 알림 받기를 켠 모든 기기로 시험 알림을 보낸다. 서버의 보내기 스위치 `SEND_TEST_PUSH_ENABLED` 는 기본으로 꺼져 있다 — 개발 프로젝트에서만 켜고, 시험을 마치면 끈다.
+알림이 내 기기까지 오는지, 탭하면 화면이 열리는지 볼 때 쓴다.
+- 데모 화면 Dev Tools 의 「나에게 테스트 알림 보내기」 가 내 계정에서 알림 받기를 켠 모든 기기로 시험 알림을 보낸다.
+- 서버의 보내기 스위치 `SEND_TEST_PUSH_ENABLED` 는 기본으로 꺼져 있다 — 개발 프로젝트에서만 켜고, 시험을 마치면 끈다.
 
 **전제:**
 
@@ -2839,13 +2855,17 @@ adb shell setprop debug.firebase.analytics.app .none.
 
 **켜기:**
 
-1. `functions/.env.<your-project-id>` 에 아래 한 줄을 넣는다. `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다. 파일이 없으면 새로 만든다. 이 파일은 git 이 무시하므로 커밋하지 않는다.
+1. `functions/.env.<your-project-id>` 에 아래 한 줄을 넣는다.
+   - `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
+   - 파일이 없으면 새로 만든다.
+   - 이 파일은 git 이 무시하므로 커밋하지 않는다.
 
    ```
    SEND_TEST_PUSH_ENABLED=true
    ```
 
-2. 함수를 다시 배포한다. 옵션 없이 실행한 출력의 `functions` 목록에 `sendTestPush` 가 있는지 본 뒤 `--apply` 를 붙인다.
+2. 함수를 다시 배포한다.
+   - 옵션 없이 실행한 출력의 `functions` 목록에 `sendTestPush` 가 있는지 본 뒤 `--apply` 를 붙인다.
 
    ```bash
    bash scripts/deploy_functions.sh dev
@@ -2854,7 +2874,8 @@ adb shell setprop debug.firebase.analytics.app .none.
 
 3. 앱의 데모 화면 Dev Tools 에서 「나에게 테스트 알림 보내기」 를 누른다.
 
-**확인 방법:** 누른 뒤 아래 안내 가운데 하나가 뜬다. 앱을 홈 화면으로 내린 상태에서도 알림이 오고, 알림을 탭하면 설정 화면이 열린다.
+**확인 방법:** 누른 뒤 아래 안내 가운데 하나가 뜬다.
+- 앱을 홈 화면으로 내린 상태에서도 알림이 오고, 알림을 탭하면 설정 화면이 열린다.
 
 | 안내 | 뜻 |
 |---|---|
@@ -2864,11 +2885,18 @@ adb shell setprop debug.firebase.analytics.app .none.
 | 「게스트 상태에서는 테스트 알림을 보낼 수 없어요. 로그인한 뒤 설정에서 알림 받기를 켜 주세요.」 | 게스트로 눌렀다 — 게스트는 알림을 받지 않는다 |
 | 그 밖의 오류 안내 | 네트워크 · App Check 등으로 실패했다. 같은 계정으로 1분에 10번을 넘게 누르면 잠시 거부한다 |
 
-**끄기(운영 필수):** 그 줄을 지우거나 값을 `false` 로 바꾸고 「켜기」 ② 로 다시 배포한다. 값이 정확히 `true` 가 아니면 꺼져 있다. stg · prod 의 파일에는 이 줄을 넣지 않는다. [인증 메일 발송 모드](#인증-메일-발송-모드-켜고-끄기) 의 배포 스크립트는 같은 파일의 메일 줄만 고치고 이 줄은 그대로 둔다. 함수 자체를 앱에서 빼는 법은 [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법) 의 지우는 법에 있다.
+**끄기(운영 필수):** 그 줄을 지우거나 값을 `false` 로 바꾸고 「켜기」 ② 로 다시 배포한다.
+- 값이 정확히 `true` 가 아니면 꺼져 있다.
+- stg · prod 의 파일에는 이 줄을 넣지 않는다.
+- [인증 메일 발송 모드](#인증-메일-발송-모드-켜고-끄기) 의 배포 스크립트는 같은 파일의 메일 줄만 고치고 이 줄은 그대로 둔다.
+- 함수 자체를 앱에서 빼는 법은 [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법) 의 지우는 법에 있다.
 
 ### 익명 계정 정리
 
-게스트(익명) 계정이 쌓이는 것을 정리하고 싶을 때 쓴다. 앱은 로그인하지 않은 사용자를 익명 계정으로 두므로, 앱을 연 기기마다 익명 계정이 생기고 로그아웃할 때마다 빈 익명 계정이 하나 더 남는다. Firebase 는 만든 지 30일이 지난 익명 계정을 자동으로 지우는 기능을 준다. 이 기능을 켜려면 프로젝트를 Identity Platform 으로 업그레이드해야 하고, 위저드는 업그레이드도 자동 정리도 하지 않는다.
+게스트(익명) 계정이 쌓이는 것을 정리하고 싶을 때 쓴다.
+- 앱은 로그인하지 않은 사용자를 익명 계정으로 두므로, 앱을 연 기기마다 익명 계정이 생기고 로그아웃할 때마다 빈 익명 계정이 하나 더 남는다.
+- Firebase 는 만든 지 30일이 지난 익명 계정을 자동으로 지우는 기능을 준다.
+- 이 기능을 켜려면 프로젝트를 Identity Platform 으로 업그레이드해야 하고, 위저드는 업그레이드도 자동 정리도 하지 않는다.
 
 공식 문서 「Automatic clean-up」(<https://firebase.google.com/docs/auth/web/anonymous-auth>):
 
@@ -2879,16 +2907,27 @@ adb shell setprop debug.firebase.analytics.app .none.
 
 **켜기:**
 
-1. Firebase 콘솔의 Authentication 에서 프로젝트를 Identity Platform 으로 업그레이드한다. 업그레이드된 프로젝트는 Authentication 머리에 「Authentication with Identity Platform」 이 보인다. 앱 코드는 바꾸지 않아도 된다(「You do not need to change your apps when upgrading from Firebase Authentication to Identity Platform…」 — <https://docs.cloud.google.com/identity-platform/docs/product-comparison>). 요금 · MAU 한도 · 되돌릴 수 있는지는 공식 문서(<https://firebase.google.com/pricing> · 위 product-comparison 페이지)로 확인한다.
+1. Firebase 콘솔의 Authentication 에서 프로젝트를 Identity Platform 으로 업그레이드한다.
+   - 업그레이드된 프로젝트는 Authentication 머리에 「Authentication with Identity Platform」 이 보인다.
+   - 앱 코드는 바꾸지 않아도 된다(「You do not need to change your apps when upgrading from Firebase Authentication to Identity Platform…」 — <https://docs.cloud.google.com/identity-platform/docs/product-comparison>).
+   - 요금 · MAU 한도 · 되돌릴 수 있는지는 공식 문서(<https://firebase.google.com/pricing> · 위 product-comparison 페이지)로 확인한다.
 2. 익명 계정 자동 정리를 켠다 — Authentication 의 「로그인 방법」 탭에서 로그인 제공업체 「익명」 행을 수정하면 「자동 정리 사용 설정」 체크 상자가 있다(「설정」 탭에는 없다).
 
 **알아 둘 것:**
 
-- **기준은 만든 시점이다(쓰지 않은 기간이 아니다).** 만든 지 30일이 지난 익명 계정이 지워진다. 켜기 전에 만든 계정은 켠 때부터 30일 뒤가 대상이다. 로그인 수단을 연결해 정식 계정이 된 계정은 지워지지 않는다.
-- **Auth 계정이 지워져도 Firestore · Storage 의 데이터는 남는다.** 그래서 킷은 익명 사용자에게 데이터를 만들지 않는다 — 기기 알림 토큰과 프로필 사진은 rules(`firestore.rules` · `storage.rules`)가 익명의 쓰기를 막고 앱도 정식 사용자에게만 그 메뉴를 보이며, `users/{uid}` 문서도 익명에게는 만들지 않는다. 익명 사용자에게 데이터를 저장하는 기능을 더하면 그 데이터를 정리하는 수단(예: 예약 실행 함수)도 함께 만든다.
-- **30일 넘게 게스트로만 쓰는 사용자도 지워진다.** 지워진 계정은 다음 ID 토큰 갱신 때 로그아웃처럼 나타나고, 앱은 새 익명 계정으로 온보딩 · 약관 동의를 다시 보여 준다. 게스트 기간을 보장해야 하는 앱은 자동 정리를 끄거나 게스트에게 가입을 권한다.
+- **기준은 만든 시점이다(쓰지 않은 기간이 아니다).**
+  - 만든 지 30일이 지난 익명 계정이 지워진다.
+  - 켜기 전에 만든 계정은 켠 때부터 30일 뒤가 대상이다.
+  - 로그인 수단을 연결해 정식 계정이 된 계정은 지워지지 않는다.
+- **Auth 계정이 지워져도 Firestore · Storage 의 데이터는 남는다.**
+  - 그래서 킷은 익명 사용자에게 데이터를 만들지 않는다 — 기기 알림 토큰과 프로필 사진은 rules(`firestore.rules` · `storage.rules`)가 익명의 쓰기를 막고 앱도 정식 사용자에게만 그 메뉴를 보이며, `users/{uid}` 문서도 익명에게는 만들지 않는다.
+  - 익명 사용자에게 데이터를 저장하는 기능을 더하면 그 데이터를 정리하는 수단(예: 예약 실행 함수)도 함께 만든다.
+- **30일 넘게 게스트로만 쓰는 사용자도 지워진다.**
+  - 지워진 계정은 다음 ID 토큰 갱신 때 로그아웃처럼 나타나고, 앱은 새 익명 계정으로 온보딩 · 약관 동의를 다시 보여 준다.
+  - 게스트 기간을 보장해야 하는 앱은 자동 정리를 끄거나 게스트에게 가입을 권한다.
 
-**끄기:** 같은 설정에서 익명 계정 자동 정리를 끈다. 이미 지워진 계정은 되살아나지 않는다.
+**끄기:** 같은 설정에서 익명 계정 자동 정리를 끈다.
+- 이미 지워진 계정은 되살아나지 않는다.
 
 ## 킷 업데이트 반영
 
