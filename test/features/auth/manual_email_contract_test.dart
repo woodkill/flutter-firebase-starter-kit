@@ -875,10 +875,10 @@ void main() {
       final String readme = readTrackedFile(_configReadmePath);
       final regions = <String, String>{
         'setup.md 키 표 행': _readLineStartingWith(setup, _webApiKeyRowPrefix),
-        'guide.md 문제 해결 항목': _readLineStartingWith(
+        'guide.md 문제 해결 항목': collectItemBlocks(
           _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
           _webApiKeyTroubleBulletPrefix,
-        ),
+        ).take(1).join(),
         'config/README 절': sliceMarkdownSection(
           readme,
           _webApiKeyReadmeHeading,
@@ -999,10 +999,10 @@ void main() {
             ],
           ),
           'guide.md 문제 해결 항목': (
-            _readLineStartingWith(
+            collectItemBlocks(
               _sliceLinesBetween(resultPage, '### 문제 해결', '### 되돌리기'),
               _webApiKeyTroubleBulletPrefix,
-            ),
+            ).take(1).join(),
             <String>[
               _webApiKeyConsolePath,
               _webApiKeyBrowserKeyName,
