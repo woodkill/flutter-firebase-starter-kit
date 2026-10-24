@@ -317,23 +317,41 @@ Google 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에
 
 ### Apple 로그인 켜기
 
-Apple 로그인을 앱에 둘 때 이 절을 따른다. Apple 을 켜지 않으면 이 절을 건너뛴다. iOS 앱은 기기의 Apple 로그인을 쓰고, Android 앱은 Apple 웹 로그인을 거치므로 Apple Developer 에 Services ID 와 키를 더 만든다.
+Apple 로그인을 앱에 둘 때 이 절을 따른다.
+- Apple 을 켜지 않으면 이 절을 건너뛴다.
+- iOS 앱은 기기의 Apple 로그인을 쓰고, Android 앱은 Apple 웹 로그인을 거치므로 Apple Developer 에 Services ID 와 키를 더 만든다.
 
-**전제:** Apple Developer 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Apple 을 골랐다.
+**전제:** Apple Developer 계정이 있다([시작 전 준비](#시작-전-준비)).
+- [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Apple 을 골랐다.
 
 #### 콘솔 단계
 
-1. 「Apple 로그인 — iOS 쪽」 단계가 Firebase 에서 Apple 로그인을 켜고 앱의 번들 ID 를 등록한다 — iOS 쪽은 콘솔에서 할 일이 없다. App ID 의 Sign in with Apple capability 는 자동 서명이면 Xcode 가 켠다. 수동 서명이면 [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
-2. 「Apple 로그인 — Android 쪽」 단계가 `Apple 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 행은 아래와 같다.
+1. 「Apple 로그인 — iOS 쪽」 단계가 Firebase 에서 Apple 로그인을 켜고 앱의 번들 ID 를 등록한다 — iOS 쪽은 콘솔에서 할 일이 없다.
+   - App ID 의 Sign in with Apple capability 는 자동 서명이면 Xcode 가 켠다.
+   - 수동 서명이면 [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
+2. 「Apple 로그인 — Android 쪽」 단계가 `Apple 콘솔에 넣을 값 — <flavor>` 값 표를 보인다.
+   - 행은 아래와 같다.
    - `Services ID (제안)` — 번들 ID 를 소문자로 쓰고 `.signin` 을 붙인 값이다. 만들 Services ID 의 identifier 로 쓴다.
    - `Return URL` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
    - `도메인` — `<your-project-id>.firebaseapp.com`
    - `primary App ID (번들 ID)` — iOS 앱의 번들 ID 다. Services ID 를 이 App ID 에 묶는다.
 3. Apple Developer(<https://developer.apple.com/account>)의 Certificates, Identifiers & Profiles 에서 Services ID 를 만든다 — Identifiers 의 (+) 를 눌러 「Register a new identifier」 에서 「Services IDs」 를 고른 뒤 identifier 칸에 `Services ID (제안)` 값을 넣는다.
-4. 만든 Services ID 에서 Sign in with Apple 을 켜고 그 줄의 「Configure」 를 누른다. 열린 창 「Web Authentication Configuration」 의 「Primary App ID」 에서 `primary App ID (번들 ID)` 의 App ID 를 고르고, 「Website URLs」 의 (+) 를 눌러 「Domains and Subdomains」 칸에 `도메인` 값을, 「Return URLs」 칸에 `Return URL` 값을 넣는다. 「Next」 → 목록을 확인하고 「Done」 → 「Continue」 → 「Save」 순서로 저장한다. App ID 쪽의 「Sign In with Apple: App ID Configuration」 창은 이 창과 다른 창이다.
-5. 키를 만든다 — Certificates, Identifiers & Profiles → Keys 의 (+) 에서 새 키를 만들고 「Apple Push Notifications service (APNs)」 · 「DeviceCheck」 · 「Sign in with Apple」 체크 상자를 켠 뒤 Sign in with Apple 줄의 「Configure」 를 누른다 — 화면 안내대로 이 줄은 설정해야 켜진다. 위저드 할 일 줄 `APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나를 만들고 .p8 을 내려받기` 대로 만들면 같은 키를 APNs · App Check 에도 쓴다. `.p8` 파일은 한 번만 내려받을 수 있으므로 안전한 곳에 둔다. Key ID 는 키 화면에 보이고, 내려받은 파일 이름(`AuthKey_<Key ID>.p8`)에도 들어 있다.
-6. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 Services ID · `.p8` 파일 경로 · Key ID 를 입력한다 — 파일 경로는 Finder 에서 `.p8` 파일을 터미널 창으로 끌어다 놓으면 들어간다. Team ID 는 `ios/Flutter/<flavor>.xcconfig` 의 `DEVELOPMENT_TEAM` 이 형식에 맞으면 묻지 않고, 비었으면 `Apple Team ID` 를 물어 그 자리에 쓴다 — Team ID 는 Apple Developer 계정의 「멤버십 세부 사항」 의 「팀 ID」 에 있다. 위저드가 Firebase 의 Apple 로그인 설정에 기록한다.
-7. Android 쪽 콘솔 작업을 미루려면 `지금 안 함` 을 고른다. Android 에서 Apple 로그인만 막히고, 미룬 일은 위저드 끝의 「release 빌드 전에 끝내야 할 일」 목록에 보인다.
+4. 만든 Services ID 에서 Sign in with Apple 을 켜고 그 줄의 「Configure」 를 누른다.
+   - 열린 창 「Web Authentication Configuration」 의 「Primary App ID」 에서 `primary App ID (번들 ID)` 의 App ID 를 고르고, 「Website URLs」 의 (+) 를 눌러 「Domains and Subdomains」 칸에 `도메인` 값을, 「Return URLs」 칸에 `Return URL` 값을 넣는다.
+   - 「Next」 → 목록을 확인하고 「Done」 → 「Continue」 → 「Save」 순서로 저장한다.
+   - App ID 쪽의 「Sign In with Apple: App ID Configuration」 창은 이 창과 다른 창이다.
+5. 키를 만든다 — Certificates, Identifiers & Profiles → Keys 의 (+) 에서 새 키를 만들고 「Apple Push Notifications service (APNs)」 · 「DeviceCheck」 · 「Sign in with Apple」 체크 상자를 켠 뒤 Sign in with Apple 줄의 「Configure」 를 누른다.
+   - 화면 안내대로 이 줄은 설정해야 켜진다.
+   - 위저드 할 일 줄 `APNs · DeviceCheck · Sign in with Apple 을 함께 켠 키 하나를 만들고 .p8 을 내려받기` 대로 만들면 같은 키를 APNs · App Check 에도 쓴다.
+   - `.p8` 파일은 한 번만 내려받을 수 있으므로 안전한 곳에 둔다.
+   - Key ID 는 키 화면에 보이고, 내려받은 파일 이름(`AuthKey_<Key ID>.p8`)에도 들어 있다.
+6. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 값 세 개를 입력한다.
+   - 순서는 Services ID → `.p8` 파일 경로 → Key ID 다.
+   - 파일 경로는 Finder 에서 `.p8` 파일을 터미널 창으로 끌어다 놓으면 들어간다.
+   - Team ID 는 `ios/Flutter/<flavor>.xcconfig` 의 `DEVELOPMENT_TEAM` 이 형식에 맞으면 묻지 않고, 비었으면 `Apple Team ID` 를 물어 그 자리에 쓴다 — Team ID 는 Apple Developer 계정의 「멤버십 세부 사항」 의 「팀 ID」 에 있다.
+   - 위저드가 Firebase 의 Apple 로그인 설정에 기록한다.
+7. Android 쪽 콘솔 작업을 미루려면 `지금 안 함` 을 고른다.
+   - Android 에서 Apple 로그인만 막히고, 미룬 일은 위저드 끝의 「release 빌드 전에 끝내야 할 일」 목록에 보인다.
 
 #### 확인 방법
 
@@ -343,10 +361,16 @@ Apple 로그인을 앱에 둘 때 이 절을 따른다. Apple 을 켜지 않으�
 
 #### 문제 해결
 
-- **Android 에서 Apple 로그인 뒤 브라우저가 닫히지 않는다.** 기기 · 브라우저에 따라 로그인 뒤 브라우저가 자동으로 닫히지 않는다 — 앱으로 직접 돌아오면 로그인이 끝나 있다. 브라우저를 로그인 전에 닫은 뒤 Apple 버튼이 반응하지 않으면 앱을 다시 실행한다.
-- **Android 에서 Apple 웹 로그인이 오류 화면으로 끝난다.** Services ID 의 도메인 · Return URL 이 값 표와 글자 그대로 같은지, 위저드에 넣은 Services ID 가 만든 것과 같은지 본다. 위저드의 Apple 키 입력을 미뤘다면 `./setup.sh` 를 다시 실행해 「Apple 로그인 — Android 쪽」 단계를 마친다.
-- **`.p8` 파일을 잃어버렸다.** 같은 키는 다시 내려받을 수 없다 — Keys 에서 새 키를 만들고 `./setup.sh --providers` 를 다시 실행해 새 키를 넣는다.
-- **iOS 실기기 빌드가 서명 오류로 끝난다.** App ID 에 Sign in with Apple capability 가 없는 것이다 — [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
+- **Android 에서 Apple 로그인 뒤 브라우저가 닫히지 않는다.**
+  - 기기 · 브라우저에 따라 로그인 뒤 브라우저가 자동으로 닫히지 않는다 — 앱으로 직접 돌아오면 로그인이 끝나 있다.
+  - 브라우저를 로그인 전에 닫은 뒤 Apple 버튼이 반응하지 않으면 앱을 다시 실행한다.
+- **Android 에서 Apple 웹 로그인이 오류 화면으로 끝난다.**
+  - Services ID 의 도메인 · Return URL 이 값 표와 글자 그대로 같은지, 위저드에 넣은 Services ID 가 만든 것과 같은지 본다.
+  - 위저드의 Apple 키 입력을 미뤘다면 `./setup.sh` 를 다시 실행해 「Apple 로그인 — Android 쪽」 단계를 마친다.
+- **`.p8` 파일을 잃어버렸다.**
+  - 같은 키는 다시 내려받을 수 없다 — Keys 에서 새 키를 만들고 `./setup.sh --providers` 를 다시 실행해 새 키를 넣는다.
+- **iOS 실기기 빌드가 서명 오류로 끝난다.**
+  - App ID 에 Sign in with Apple capability 가 없는 것이다 — [iOS 서명 — Apple 을 꺼도 필요한 capability](#ios-서명--apple-을-꺼도-필요한-capability) 대로 켠다.
 
 #### 되돌리기
 
@@ -356,23 +380,35 @@ Apple 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 
 
 Facebook 로그인을 앱에 둘 때 이 절을 따른다. Facebook 을 켜지 않으면 이 절을 건너뛴다.
 
-**전제:** Meta for Developers 계정이 있다. [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Facebook 을 골랐다. Android 키 해시는 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
+**전제:** Meta for Developers 계정이 있다.
+- [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Facebook 을 골랐다.
+- Android 키 해시는 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
 
 #### 콘솔 단계
 
-1. 위저드가 `Facebook 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.facebook.com/apps` 줄에 있고, 행은 아래와 같다.
+1. 위저드가 `Facebook 콘솔에 넣을 값 — <flavor>` 값 표를 보인다.
+   - 콘솔 주소는 `콘솔: https://developers.facebook.com/apps` 줄에 있고, 행은 아래와 같다.
    - `iOS 번들 ID` · `Android 패키지명` · `Android 클래스 이름` · `Android 키 해시` — Facebook 앱의 iOS · Android 플랫폼에 넣는 값이다. 키 해시를 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
    - `OAuth redirect URI` — `https://<your-project-id>.firebaseapp.com/__/auth/handler`
    - `앱 아이콘(1024 x 1024) · 앱 게시 때 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/facebook-1024x1024.png` 다.
 2. 앱을 만들고 Facebook 로그인 사용 사례를 더한다(할 일 줄 `앱 만들기 · Facebook 로그인 사용 사례 추가`) — 사용 사례 목록에서 「Facebook 로그인을 통한 인증 및 사용자의 데이터 요청」 을 고른다.
 3. 리디렉션 주소를 넣는다 — `Facebook 로그인 → 설정 → 클라이언트 OAuth 설정 → 유효한 OAuth 리디렉션 URI` 칸에 `OAuth redirect URI` 값을 넣고 저장한다.
-4. Android 플랫폼을 더한다 — 빠른 시작 Android 의 「3. Android 프로젝트에 대해 Facebook에 알리기」 에서 「패키지 이름」 · 「기본 액티비티 클래스 이름」 칸에 `Android 패키지명` · `Android 클래스 이름` 값을 넣는다. `키 해시` 칸에 `Android 키 해시` 값을 넣고 `Save` 를 누른 뒤 `계속` 을 누른다 — 키 해시를 넣기 전에는 `계속` 이 눌리지 않는다.
+4. Android 플랫폼을 더한다 — 빠른 시작 Android 의 「3. Android 프로젝트에 대해 Facebook에 알리기」 에서 「패키지 이름」 · 「기본 액티비티 클래스 이름」 칸에 `Android 패키지명` · `Android 클래스 이름` 값을 넣는다.
+   - `키 해시` 칸에 `Android 키 해시` 값을 넣고 `Save` 를 누른 뒤 `계속` 을 누른다 — 키 해시를 넣기 전에는 `계속` 이 눌리지 않는다.
 5. iOS 플랫폼을 더한다 — 빠른 시작 iOS 의 「2. 번들 식별자 추가」 에서 「번들 ID」 칸에 `iOS 번들 ID` 값을 넣는다.
-6. 키 세 개를 모은다. App ID · App Secret 은 「앱 설정 → 기본 설정」 의 「앱 ID」 · 「앱 시크릿 코드」(「보기」 로 연다)에, Client Token 은 「앱 설정 → 고급 설정」 의 「클라이언트 토큰」 에 있다.
-7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Facebook App ID` · `Facebook Client Token` · `Facebook App Secret` 을 입력한다. 위저드가 App ID 와 App Secret 의 짝을 Facebook 서버로 확인한 뒤 config · xcconfig · Secret Manager 와 Firebase 의 Facebook 로그인 설정에 기록한다.
+6. 키 세 개를 모은다.
+   - App ID · App Secret 은 「앱 설정 → 기본 설정」 의 「앱 ID」 · 「앱 시크릿 코드」(「보기」 로 연다)에, Client Token 은 「앱 설정 → 고급 설정」 의 「클라이언트 토큰」 에 있다.
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 키 세 개를 입력한다.
+   - 순서는 `Facebook App ID` → `Facebook Client Token` → `Facebook App Secret` 다.
+   - 위저드가 App ID 와 App Secret 의 짝을 Facebook 서버로 확인한 뒤 config · xcconfig · Secret Manager 와 Firebase 의 Facebook 로그인 설정에 기록한다.
 8. 이메일은 Facebook 에서 필수로 받을 수 없다 — 할 일 줄의 이메일 권한은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
-9. 개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있다. 테스트할 Facebook 계정을 「앱 역할」 화면의 「테스터」 · 「개발자」 탭에서 「사람 추가」 로 더한다. 같은 메뉴의 「테스트 사용자 계정」 은 시뮬레이션 계정을 만드는 다른 기능이다.
-10. 출시 전에 앱을 게시한다. 게시 화면에 `Currently ineligible for submission` 이 보이면 그 아래 항목 — 앱 아이콘(1024 x 1024) · 개인정보처리방침 URL · 사용자 데이터 삭제 · 카테고리 — 을 채운다. 앱 아이콘은 `.setup/icons/facebook-1024x1024.png` 를 「앱 설정 → 기본 설정」 의 「앱 아이콘」 칸에 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다). 앱 아이콘은 게시 때 필수이고 개발 모드 로그인에는 필요 없다.
+9. 개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있다.
+   - 테스트할 Facebook 계정을 「앱 역할」 화면의 「테스터」 · 「개발자」 탭에서 「사람 추가」 로 더한다.
+   - 같은 메뉴의 「테스트 사용자 계정」 은 시뮬레이션 계정을 만드는 다른 기능이다.
+10. 출시 전에 앱을 게시한다.
+    - 게시 화면에 `Currently ineligible for submission` 이 보이면 그 아래 항목 — 앱 아이콘(1024 x 1024) · 개인정보처리방침 URL · 사용자 데이터 삭제 · 카테고리 — 을 채운다.
+    - 앱 아이콘은 `.setup/icons/facebook-1024x1024.png` 를 「앱 설정 → 기본 설정」 의 「앱 아이콘」 칸에 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다).
+    - 앱 아이콘은 게시 때 필수이고 개발 모드 로그인에는 필요 없다.
 
 #### 확인 방법
 
@@ -381,11 +417,17 @@ Facebook 로그인을 앱에 둘 때 이 절을 따른다. Facebook 을 켜지 �
 
 #### 문제 해결
 
-- **역할이 없는 계정으로 로그인하면 거부된다.** 앱이 개발 모드다 — 그 계정에 앱 역할을 주거나, 콘솔 단계 10 대로 앱을 게시한다.
-- **Facebook 이 리디렉션 주소를 거부한다.** `유효한 OAuth 리디렉션 URI` 칸에 값 표의 `OAuth redirect URI` 가 글자 그대로 들어 있는지 본다.
-- **Android 에서 키 해시가 맞지 않는다는 오류가 뜬다.** 그 빌드를 서명한 키의 키 해시가 Facebook 앱에 없는 것이다. debug 빌드는 값 표의 `Android 키 해시` 를, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 키 해시를 `키 해시` 칸에 더한다.
-- **위저드가 `App Secret 이 App ID 와 맞지 않습니다` 를 보인다.** 두 값을 같은 Facebook 앱에서 다시 복사해 넣는다.
-- **계정 정보의 「이메일」 행이 「-」 다.** 사용자가 이메일 권한을 거부했거나 Facebook 계정에 유효한 이메일이 없다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
+- **역할이 없는 계정으로 로그인하면 거부된다.**
+  - 앱이 개발 모드다 — 그 계정에 앱 역할을 주거나, 콘솔 단계 10 대로 앱을 게시한다.
+- **Facebook 이 리디렉션 주소를 거부한다.**
+  - `유효한 OAuth 리디렉션 URI` 칸에 값 표의 `OAuth redirect URI` 가 글자 그대로 들어 있는지 본다.
+- **Android 에서 키 해시가 맞지 않는다는 오류가 뜬다.**
+  - 그 빌드를 서명한 키의 키 해시가 Facebook 앱에 없는 것이다.
+  - debug 빌드는 값 표의 `Android 키 해시` 를, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 키 해시를 `키 해시` 칸에 더한다.
+- **위저드가 `App Secret 이 App ID 와 맞지 않습니다` 를 보인다.**
+  - 두 값을 같은 Facebook 앱에서 다시 복사해 넣는다.
+- **계정 정보의 「이메일」 행이 「-」 다.**
+  - 사용자가 이메일 권한을 거부했거나 Facebook 계정에 유효한 이메일이 없다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
 
 #### 되돌리기
 
