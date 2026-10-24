@@ -2306,25 +2306,29 @@ bash scripts/deploy_functions.sh dev --apply
 
 ## 빌드 · 출시
 
-스토어에 올릴 빌드(Android App Bundle · iOS ipa)를 만들 때 이 절을 따른다. 예는 prod flavor 로 쓴다 — stg 는 명령의 `prod` 를 `stg` 로 바꾼다.
+스토어에 올릴 빌드(Android App Bundle · iOS ipa)를 만들 때 이 절을 따른다.
+- 예는 prod flavor 로 쓴다 — stg 는 명령의 `prod` 를 `stg` 로 바꾼다.
 
 **전제:**
 
 - 그 flavor 의 위저드를 끝냈다(`./setup.sh --flavor prod` — [stg · prod 설정](setup.md#stg--prod-설정)).
-- 위저드 끝의 `release 빌드 전에 끝내야 할 일:` 목록을 비웠다. 그 목록의 출시용 단계(Play Integrity · DeviceCheck · APNs 키)는 [알림(APNs) · App Check](setup.md#알림apns--app-check) 에서 끝낸다.
+- 위저드 끝의 `release 빌드 전에 끝내야 할 일:` 목록을 비웠다.
+  - 그 목록의 출시용 단계(Play Integrity · DeviceCheck · APNs 키)는 [알림(APNs) · App Check](setup.md#알림apns--app-check) 에서 끝낸다.
 - Android 는 release 서명 키를 만들어 연결했다 — [릴리스 서명(keystore)](#릴리스-서명keystore).
 - iOS 는 Team 을 정하고 크래시 기호를 올릴 앱을 맞췄다 — [iOS 서명](#ios-서명) · [크래시 기호 올리기](#크래시-기호-올리기).
 
 ### 단계
 
-1. `pubspec.yaml` 의 `version:`(예: `1.0.0+1`)을 올린다. `+` 뒤 빌드 번호는 스토어에 올릴 때마다 달라야 한다.
+1. `pubspec.yaml` 의 `version:`(예: `1.0.0+1`)을 올린다.
+   - `+` 뒤 빌드 번호는 스토어에 올릴 때마다 달라야 한다.
 2. Android App Bundle 을 만든다.
 
    ```bash
    fvm flutter build appbundle --flavor prod --dart-define-from-file=config/prod.json
    ```
 
-   산출물은 `build/app/outputs/bundle/prodRelease/app-prod-release.aab` 다. Play Console 에 이 파일을 올린다.
+   산출물은 `build/app/outputs/bundle/prodRelease/app-prod-release.aab` 다.
+   - Play Console 에 이 파일을 올린다.
 
 3. iOS 빌드를 만든다.
 
@@ -2332,7 +2336,8 @@ bash scripts/deploy_functions.sh dev --apply
    fvm flutter build ipa --flavor prod --dart-define-from-file=config/prod.json
    ```
 
-   `build/ios/archive/` 에 Xcode archive(`.xcarchive`), `build/ios/ipa/` 에 App Store 용 `.ipa` 가 생긴다. App Store Connect 에 올리는 방법은 Flutter 공식 문서 <https://docs.flutter.dev/deployment/ios> 를 따른다.
+   `build/ios/archive/` 에 Xcode archive(`.xcarchive`), `build/ios/ipa/` 에 App Store 용 `.ipa` 가 생긴다.
+   - App Store Connect 에 올리는 방법은 Flutter 공식 문서 <https://docs.flutter.dev/deployment/ios> 를 따른다.
 
 ### 릴리스 서명(keystore)
 
@@ -2442,39 +2447,54 @@ bash scripts/deploy_functions.sh dev --apply
 
 ### iOS 서명
 
-킷의 iOS 프로젝트는 자동 서명(`CODE_SIGN_STYLE = Automatic`)이고 `project.pbxproj` 에 Team 값이 없다. Team 은 `ios/Flutter/prod.xcconfig` 의 `DEVELOPMENT_TEAM` 에 둔다.
+킷의 iOS 프로젝트는 자동 서명(`CODE_SIGN_STYLE = Automatic`)이고 `project.pbxproj` 에 Team 값이 없다.
+- Team 은 `ios/Flutter/prod.xcconfig` 의 `DEVELOPMENT_TEAM` 에 둔다.
 
 ```
 DEVELOPMENT_TEAM = <your-team-id>
 ```
 
 - 비어 있으면 Team ID 가 필요한 위저드 단계(Apple 로그인 · App Check — DeviceCheck · APNs 키)가 한 번 묻고 이 파일에 쓴다.
-- Team 을 Xcode 의 Signing & Capabilities 에서 고르지 않는다. 고르면 Xcode 가 `project.pbxproj` 에 값을 써 넣고, target 수준의 그 값이 xcconfig 의 값을 덮는다.
-- `fvm flutter build ipa` 는 자동 서명으로 ipa 를 내보낸다. 이때 Xcode 가 Apple Developer 계정에 배포 인증서 · 프로비저닝 프로파일을 새로 만들 수 있다. 직접 만든 프로파일로 내보내려면 Xcode 의 Distribute App 이 만든 `ExportOptions.plist` 를 `--export-options-plist=<ExportOptions.plist 경로>` 로 넘긴다.
+- Team 을 Xcode 의 Signing & Capabilities 에서 고르지 않는다.
+  - 고르면 Xcode 가 `project.pbxproj` 에 값을 써 넣고, target 수준의 그 값이 xcconfig 의 값을 덮는다.
+- `fvm flutter build ipa` 는 자동 서명으로 ipa 를 내보낸다.
+  - 이때 Xcode 가 Apple Developer 계정에 배포 인증서 · 프로비저닝 프로파일을 새로 만들 수 있다.
+  - 직접 만든 프로파일로 내보내려면 Xcode 의 Distribute App 이 만든 `ExportOptions.plist` 를 `--export-options-plist=<ExportOptions.plist 경로>` 로 넘긴다.
 
 ### 크래시 기호 올리기
 
 release 빌드의 크래시 위치를 Crashlytics 에서 읽으려면 기호 파일이 필요하다.
 
-**iOS — dSYM.** Runner target 의 빌드 단계 `FlutterFire: "flutterfire upload-crashlytics-symbols"` 가 빌드마다 dSYM 을 올린다. 올리는 곳은 `firebase.json` 의 `flutter.platforms.ios.default` 항목(`projectId` · `appId`)의 앱이다. 위저드는 이 줄에 내 값을 쓰지 않으므로 iOS release 빌드 전에 직접 맞춘다.
+**iOS — dSYM.**
+- Runner target 의 빌드 단계 `FlutterFire: "flutterfire upload-crashlytics-symbols"` 가 빌드마다 dSYM 을 올린다.
+- 올리는 곳은 `firebase.json` 의 `flutter.platforms.ios.default` 항목(`projectId` · `appId`)의 앱이다.
+- 위저드는 이 줄에 내 값을 쓰지 않으므로 iOS release 빌드 전에 직접 맞춘다.
 
-1. `firebase.json` 의 `flutter.platforms.ios.default` 에서 `projectId` 를 그 flavor 의 Firebase 프로젝트 ID, `appId` 를 그 flavor 의 Firebase iOS 앱 ID 로 바꾼다. 값은 `ios/config/<flavor>/GoogleService-Info.plist` 의 `PROJECT_ID` · `GOOGLE_APP_ID` 이거나 Firebase 콘솔 프로젝트 설정의 내 앱 정보다.
+1. `firebase.json` 의 `flutter.platforms.ios.default` 에서 `projectId` 를 그 flavor 의 Firebase 프로젝트 ID, `appId` 를 그 flavor 의 Firebase iOS 앱 ID 로 바꾼다.
+   - 값은 `ios/config/<flavor>/GoogleService-Info.plist` 의 `PROJECT_ID` · `GOOGLE_APP_ID` 이거나 Firebase 콘솔 프로젝트 설정의 내 앱 정보다.
 2. `uploadDebugSymbols` 는 `true` 그대로 둔다.
-3. 항목이 하나라 어느 flavor 를 빌드해도 같은 앱으로 올라간다. 출시 빌드 직전에 그 flavor 의 값으로 맞춘다. 킷 업데이트에서 이 줄이 충돌하면 내 값을 남긴다 — [사용자 소유 표면](#사용자-소유-표면) 6행.
+3. 항목이 하나라 어느 flavor 를 빌드해도 같은 앱으로 올라간다.
+   - 출시 빌드 직전에 그 flavor 의 값으로 맞춘다.
+   - 킷 업데이트에서 이 줄이 충돌하면 내 값을 남긴다 — [사용자 소유 표면](#사용자-소유-표면) 6행.
 
-dSYM 이 없으면 Crashlytics 대시보드에 "Missing dSYM" 알림이 뜨고, 그 크래시는 dSYM 이 올라올 때까지 처리되지 않고 보류된다. 빌드 로그의 `note: Crashlytics upload script = …` 줄은 업로드 스크립트를 찾았다는 뜻일 뿐 업로드가 성공했다는 표시가 아니다 — 확인은 아래 「확인 방법」 의 콘솔 화면으로 한다.
+dSYM 이 없으면 Crashlytics 대시보드에 "Missing dSYM" 알림이 뜨고, 그 크래시는 dSYM 이 올라올 때까지 처리되지 않고 보류된다.
+- 빌드 로그의 `note: Crashlytics upload script = …` 줄은 업로드 스크립트를 찾았다는 뜻일 뿐 업로드가 성공했다는 표시가 아니다 — 확인은 아래 「확인 방법」 의 콘솔 화면으로 한다.
 
-**Android.** 킷의 빌드 명령은 `--obfuscate` · `--split-debug-info` 를 쓰지 않는다 — Dart 스택은 기호를 올리지 않아도 읽힌다. 이 두 옵션을 켜면 크래시가 보고되기 전에 Firebase CLI(11.9.0 이상)로 Dart 기호를 올린다.
+**Android.**
+- 킷의 빌드 명령은 `--obfuscate` · `--split-debug-info` 를 쓰지 않는다 — Dart 스택은 기호를 올리지 않아도 읽힌다.
+- 이 두 옵션을 켜면 크래시가 보고되기 전에 Firebase CLI(11.9.0 이상)로 Dart 기호를 올린다.
 
 ```bash
 firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug-info 디렉터리>
 ```
 
-공식 안내: <https://firebase.google.com/docs/crashlytics/flutter/get-deobfuscated-reports> · 난독화 옵션: <https://docs.flutter.dev/deployment/obfuscate>. 네이티브(NDK) 크래시의 기호 업로드는 킷에 설정이 없다 — 네이티브 코드를 더하는 앱은 Firebase 의 Android NDK 안내 <https://firebase.google.com/docs/crashlytics/android/get-started-ndk> 를 따른다.
+공식 안내: <https://firebase.google.com/docs/crashlytics/flutter/get-deobfuscated-reports> · 난독화 옵션: <https://docs.flutter.dev/deployment/obfuscate>.
+- 네이티브(NDK) 크래시의 기호 업로드는 킷에 설정이 없다 — 네이티브 코드를 더하는 앱은 Firebase 의 Android NDK 안내 <https://firebase.google.com/docs/crashlytics/android/get-started-ndk> 를 따른다.
 
 ### 확인 방법
 
-- **Android 서명:** App Bundle 의 서명 키가 내 키인지 본다. 아래 두 출력의 SHA-256 이 같아야 한다.
+- **Android 서명:** App Bundle 의 서명 키가 내 키인지 본다.
+  - 아래 두 출력의 SHA-256 이 같아야 한다.
 
   ```bash
   keytool -printcert -jarfile build/app/outputs/bundle/prodRelease/app-prod-release.aab
@@ -2487,15 +2507,24 @@ firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug
   codesign -dvv build/ios/archive/*.xcarchive/Products/Applications/*.app
   ```
 
-- **dSYM:** release 빌드를 실기기에 설치해 크래시를 낸 뒤 Firebase 콘솔의 Crashlytics 의 「dSYM」 탭에서 「누락된 dSYM 파일」 표를 본다. 표의 경고가 「경고 0개」 이고 크래시의 스택이 함수 이름으로 보이면 된다.
+- **dSYM:** release 빌드를 실기기에 설치해 크래시를 낸 뒤 Firebase 콘솔의 Crashlytics 의 「dSYM」 탭에서 「누락된 dSYM 파일」 표를 본다.
+  - 표의 경고가 「경고 0개」 이고 크래시의 스택이 함수 이름으로 보이면 된다.
 
 ### 문제 해결
 
-- **release 빌드에서만 Google 로그인이 실패한다.** release 키의 SHA-1 이 Firebase 의 Android 앱에 없는 것이다. 위 표의 첫 행대로 더한다.
-- **release 빌드에서 Kakao · Facebook 이 키 해시가 맞지 않는다는 오류로 끝난다.** 그 빌드를 서명한 키의 키 해시를 그 콘솔 앱에 더한다 — 위 4 · 5.
-- **Play 에서 받은 앱에서만 로그인이 실패한다.** Play 앱 서명 키의 지문 · 키 해시가 빠진 것이다. 위 「Google Play 앱 서명」 대로 앱 서명 키의 값도 더한다.
-- **release 빌드에서 회원탈퇴 같은 보호된 기능이 실패한다.** [App Check 등록 확인](setup.md#app-check-등록-확인) 의 문제 해결을 따른다.
-- **Crashlytics 에 "Missing dSYM" 알림이 뜬다.** `firebase.json` 의 `flutter.platforms.ios.default` 가 그 flavor 의 프로젝트 ID · iOS 앱 ID 인지 본다 — 위 「크래시 기호 올리기」. 고친 뒤 iOS 빌드를 다시 만든다.
+- **release 빌드에서만 Google 로그인이 실패한다.**
+  - release 키의 SHA-1 이 Firebase 의 Android 앱에 없는 것이다.
+  - 위 표의 첫 행대로 더한다.
+- **release 빌드에서 Kakao · Facebook 이 키 해시가 맞지 않는다는 오류로 끝난다.**
+  - 그 빌드를 서명한 키의 키 해시를 그 콘솔 앱에 더한다 — 위 4 · 5.
+- **Play 에서 받은 앱에서만 로그인이 실패한다.**
+  - Play 앱 서명 키의 지문 · 키 해시가 빠진 것이다.
+  - 위 「Google Play 앱 서명」 대로 앱 서명 키의 값도 더한다.
+- **release 빌드에서 회원탈퇴 같은 보호된 기능이 실패한다.**
+  - [App Check 등록 확인](setup.md#app-check-등록-확인) 의 문제 해결을 따른다.
+- **Crashlytics 에 "Missing dSYM" 알림이 뜬다.**
+  - `firebase.json` 의 `flutter.platforms.ios.default` 가 그 flavor 의 프로젝트 ID · iOS 앱 ID 인지 본다 — 위 「크래시 기호 올리기」.
+  - 고친 뒤 iOS 빌드를 다시 만든다.
 
 ## 출시 전 점검
 
