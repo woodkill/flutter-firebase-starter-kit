@@ -3432,18 +3432,16 @@ chmod +x .git/hooks/pre-commit
 | `.vscode/settings.json` | `"dart.flutterSdkPath": ".fvm/flutter_sdk"` | **심볼릭 링크 경로로 고정** |
 | `.mcp.json` dart 서버 | `.fvm/flutter_sdk/bin/dart` | 링크를 따라가므로 수정 불필요 |
 
-- `fvm use <버전>` 은 `.vscode/settings.json` 을 `.fvm/versions/<버전>` 같은
-  **버전 박힌 경로**로 바꿔 버린다. 그대로 커밋하면 다음 상향마다 이 파일이
-  또 바뀐다 → **`git checkout -- .vscode/settings.json` 으로 되돌린다.**
+- `fvm use <버전>` 은 `.vscode/settings.json` 을 `.fvm/versions/<버전>` 같은 **버전 박힌 경로**로 바꿔 버린다.
+  - 그대로 커밋하면 다음 상향마다 이 파일이 또 바뀐다 → **`git checkout -- .vscode/settings.json` 으로 되돌린다.**
 - `fvm use` 뒤 dart MCP 서버 · IDE 의 Analysis Server 는 옛 SDK 프로세스를 물고
   있을 수 있다 → 세션/IDE 재시작을 권한다.
 
 ### ② 상향 절차
 
-1. **같은 HEAD 에서 현재 SDK 기준선을 먼저 잰다** — `pub get` → `build_runner` →
-   `flutter analyze` → `dart analyze` → `dart format --output=none
-   --set-exit-if-changed lib test bin` → **전체 test**. 이 수치가 유일한 비교 기준이다.
-   여기서 이미 실패가 있으면 상향하지 말고 그것부터 해결한다.
+1. **같은 HEAD 에서 현재 SDK 기준선을 먼저 잰다** — `pub get` → `build_runner` → `flutter analyze` → `dart analyze` → `dart format --output=none --set-exit-if-changed lib test bin` → **전체 test**.
+   - 이 수치가 유일한 비교 기준이다.
+   - 여기서 이미 실패가 있으면 상향하지 말고 그것부터 해결한다.
 2. **iOS 네이티브 SDK 의 고정 상태를 먼저 확인한다** — 두 `Package.resolved` 가
    같은 내용인지(`cmp -s`) 보고, 상향 뒤 그대로인지 대조할 기준으로 삼는다
    (「iOS 의존성 관리 (SPM)」 ②).
@@ -3465,8 +3463,8 @@ chmod +x .git/hooks/pre-commit
 
 ### ③ 도구가 자동으로 고치는 tracked 파일 (되돌리지 말고 함께 커밋)
 
-3.41.9 → 3.47.5 에서 실제로 바뀐 것은 다음 3개다. **손으로 되돌려도 다음
-`pub get` · 빌드에서 다시 생긴다.**
+3.41.9 → 3.47.5 에서 실제로 바뀐 것은 다음 3개다.
+- **손으로 되돌려도 다음 `pub get` · 빌드에서 다시 생긴다.**
 
 | 파일 | 원인 | 실제 diff |
 |---|---|---|
@@ -3475,21 +3473,18 @@ chmod +x .git/hooks/pre-commit
 | `pubspec.lock` | SDK 가 고정하는 pub 핀 변화 | 직접 의존성은 `test` · `intl` 둘뿐, transitive 5건(`matcher` · `meta` · `test_api` · `test_core` · `vector_math`). codegen 스택은 불변 |
 
 - `lib/l10n/generated/*.dart`(tracked) 도 SDK 템플릿이 바뀌면 재생성된다 — 재생성되면 함께 커밋한다.
-- SPM 통합은 **이미 적용돼 있다.** `ios/Runner.xcodeproj/project.pbxproj` ·
-  `ios/Runner.xcodeproj/xcshareddata/xcschemes/*.xcscheme` · `Package.resolved` 가
-  바뀌면 **diff 를 읽고 원인을 확인한다** — 도구의 새 migration, 아직 빌드한 적 없는
-  scheme 의 첫 빌드, 또는 **SPM 미지원 플러그인의 유입**(「iOS 의존성 관리 (SPM)」 ④)
-  셋 중 하나다.
+- SPM 통합은 **이미 적용돼 있다.**
+  - `ios/Runner.xcodeproj/project.pbxproj` · `ios/Runner.xcodeproj/xcshareddata/xcschemes/*.xcscheme` · `Package.resolved` 가 바뀌면 **diff 를 읽고 원인을 확인한다** — 도구의 새 migration, 아직 빌드한 적 없는 scheme 의 첫 빌드, 또는 **SPM 미지원 플러그인의 유입**(「iOS 의존성 관리 (SPM)」 ④) 셋 중 하나다.
 
 ### ④ iOS Swift Package Manager — 기본값(on)을 그대로 쓴다
 
-- `pubspec.yaml` 에 SPM 스위치 키를 **두지 않는다.** Flutter 3.44+ 는 SPM 이 기본 on
-  이고 `flutter create` 산출물에도 그 키가 없다 — 킷은 표준 모양을 따른다.
+- `pubspec.yaml` 에 SPM 스위치 키를 **두지 않는다.**
+  - Flutter 3.44+ 는 SPM 이 기본 on 이고 `flutter create` 산출물에도 그 키가 없다 — 킷은 표준 모양을 따른다.
 - **실효 증거 3종**(설정값이 아니라 결과로 판정한다): `project.pbxproj` 의
   `FlutterGeneratedPluginSwiftPackage` 참조 ≥ 1 · `ios/Flutter/ephemeral/Packages`
   존재 · `ios/Podfile` 부재.
-- 해석 우선순위는 **pubspec `flutter: config:` → 전역 `flutter config` → 환경변수**
-  다. `flutter config --list` 는 전역 설정이라 이 프로젝트의 판정 근거가 못 된다.
+- 해석 우선순위는 **pubspec `flutter: config:` → 전역 `flutter config` → 환경변수** 다.
+  - `flutter config --list` 는 전역 설정이라 이 프로젝트의 판정 근거가 못 된다.
 - 옛 키 `disable-swift-package-manager: true` 는 3.47 에서 **manifest 오류**다.
 - iOS 네이티브 의존성의 운영(버전 고정 · 새 플러그인 확인 · 배포 타겟 · 미지원
   플러그인 증상)은 **「iOS 의존성 관리 (SPM)」**(`#ios-의존성-관리-spm`) 절에 있다.
@@ -3509,24 +3504,23 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 | google-services Gradle 플러그인 | `4.5.0` | `android/settings.gradle.kts` 의 `id("com.google.gms.google-services")` | 없음 | 없음 |
 | Crashlytics Gradle 플러그인 | `3.0.8` | `android/settings.gradle.kts` 의 `id("com.google.firebase.crashlytics")` | 없음 | 없음 |
 
-- Flutter 는 Gradle · AGP · KGP 가 오류 하한보다 낮으면 빌드를 멈추고, 경고 하한보다
-  낮으면 지원 종료 경고를 낸다. 킷 값은 셋 모두 경고 하한 이상이다.
+- Flutter 는 Gradle · AGP · KGP 가 오류 하한보다 낮으면 빌드를 멈추고, 경고 하한보다 낮으면 지원 종료 경고를 낸다.
+  - 킷 값은 셋 모두 경고 하한 이상이다.
 
 **정상 출력**
 
 - 지원 종료 경고(`Warning: Flutter support for your project's … will soon be dropped`)는
   나오지 않는다.
-- 대신 모든 Android 빌드에 Kotlin Gradle Plugin 적용 경고 1줄이 나온다. 그 줄은 다음과
-  같다(플러그인 목록은 `…` 로 줄였다).
+- 대신 모든 Android 빌드에 Kotlin Gradle Plugin 적용 경고 1줄이 나온다.
+  - 그 줄은 다음과 같다(플러그인 목록은 `…` 로 줄였다).
   ```
   WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): …
   ```
   정상이다 — 목록의 FlutterFire 플러그인 빌드 파일이 Kotlin Gradle Plugin 을 조건에 따라
   적용하는 줄을 담고 있어 Flutter 도구가 경고한다. 앱 모듈은 AGP 의 내장 Kotlin 을 쓴다.
   이 경고는 빌드를 멈추지 않는다.
-- `--verbose` 를 붙인 release 빌드 로그에는 AGP 안내 1줄
-  `WARNING: The option setting 'android.newDsl=false' is deprecated.` 도 보인다. 새 DSL 을
-  아직 끈 상태라서 정상이다(아래 「남은 단계」).
+- `--verbose` 를 붙인 release 빌드 로그에는 AGP 안내 1줄 `WARNING: The option setting 'android.newDsl=false' is deprecated.` 도 보인다.
+  - 새 DSL 을 아직 끈 상태라서 정상이다(아래 「남은 단계」).
 
 **지우지 말 것**
 
@@ -3539,12 +3533,11 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 
 **남은 단계가 필요해지는 조건**
 
-- **새 DSL 켜기** — `android.newDsl=true` 로 바꾼다. Flutter Gradle 플러그인이 새 DSL 을
-  지원할 때 한다(https://github.com/flutter/flutter/issues/180137).
+- **새 DSL 켜기** — `android.newDsl=true` 로 바꾼다.
+  - Flutter Gradle 플러그인이 새 DSL 을 지원할 때 한다(https://github.com/flutter/flutter/issues/180137).
 - Flutter 상향과 **별도 작업**으로 한다 — ② 의 원인 분리와 같은 이유다.
-- 이 단계는 Android 빌드 설비 계약 시험이 고정한 줄을 바꾼다. 줄을 바꾸면
-  `fvm flutter test` 가 실패하므로, 실패한 시험의 기대값 `android.newDsl=false` 를
-  `android.newDsl=true` 로 고치고 `fvm flutter test` 를 다시 돌린다.
+- 이 단계는 Android 빌드 설비 계약 시험이 고정한 줄을 바꾼다.
+  - 줄을 바꾸면 `fvm flutter test` 가 실패하므로, 실패한 시험의 기대값 `android.newDsl=false` 를 `android.newDsl=true` 로 고치고 `fvm flutter test` 를 다시 돌린다.
 
   같은 계약 시험은 `android/app/build.gradle.kts` 에 Kotlin Gradle Plugin 적용 줄이
   없음과 `android.builtInKotlin=true` 도 고정한다.
@@ -3559,42 +3552,35 @@ fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.js
 
 - `WARNING: Your ` 로 시작하는 줄 1개와 `✓ Built` 줄 1개가 나오면 정상이다.
 - `will soon be dropped` 가 든 줄이 보이면 위 표의 값이 경고 하한 아래다.
-- `✓ Built` 줄이 없으면 경고 줄이 보여도 빌드가 실패한 것이다(KGP 적용 경고는 빌드
-  설정 단계에서 먼저 찍힌다). 같은 빌드 명령을 파이프 없이 다시 돌려 오류를 본다.
+- `✓ Built` 줄이 없으면 경고 줄이 보여도 빌드가 실패한 것이다(KGP 적용 경고는 빌드 설정 단계에서 먼저 찍힌다).
+  - 같은 빌드 명령을 파이프 없이 다시 돌려 오류를 본다.
 
 **문제 해결**
 
-- `defaultConfig contains custom resource values, but the feature is disabled.` 로 설정
-  단계에서 빌드가 멈춘다 → `android/app/build.gradle.kts` 의 `android { buildFeatures { resValues = true } }`
-  가 빠졌다(merge 등). 되살린다 — 그 아래 `resValue(...)` 5곳이 Facebook · Naver 값을
-  리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
-- 스크립트 컴파일 오류 `'var jvmTarget: String' is deprecated. Please migrate to the compilerOptions DSL.`
-  → 옛 Kotlin 옵션 블록(`kotlinOptions { jvmTarget = … }`)이 들어왔다. 지우고 `flutter {}`
-  앞에 `kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }`
-  를 둔다.
+- `defaultConfig contains custom resource values, but the feature is disabled.` 로 설정 단계에서 빌드가 멈춘다 → `android/app/build.gradle.kts` 의 `android { buildFeatures { resValues = true } }` 가 빠졌다(merge 등).
+  - 되살린다 — 그 아래 `resValue(...)` 5곳이 Facebook · Naver 값을 리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
+- 스크립트 컴파일 오류 `'var jvmTarget: String' is deprecated. Please migrate to the compilerOptions DSL.` → 옛 Kotlin 옵션 블록(`kotlinOptions { jvmTarget = … }`)이 들어왔다.
+  - 지우고 `flutter {}` 앞에 `kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }` 를 둔다.
 - Android Studio 로 `android/` 를 열 때 AGP 9.1 을 지원하지 않는다는 안내가 나온다 →
   Android Studio 2025.3.2 이상으로 올린다.
 
 ### ⑥ iOS 환경 요구치
 
-- 최소 deployment target: 3.47 은 **iOS 15.0**(3.41 은 13.0). 킷은 15.6 이라 여유가 있다.
-- Xcode: 필수 ≥ 15, 권장 ≥ 16. 3.47.4 · 3.47.5 에 **Xcode 27 대응 핫픽스**가
-  들어 있다(흰 화면 hang · iOS 27 실기기 디버깅 간헐 크래시) — 3.47.x 를 쓸 거면
-  **3.47.5 이상**을 권한다.
-- 번들 `iproxy` 는 3.47.5 에서도 여전히 **x86_64** 다 → Apple Silicon 에서 실기기
-  실행에 **Rosetta 2 가 필요**하다. macOS major 업그레이드가 Rosetta 를 지울 수
-  있으니 `arch -x86_64 /usr/bin/true` 로 확인한다.
+- 최소 deployment target: 3.47 은 **iOS 15.0**(3.41 은 13.0).
+  - 킷은 15.6 이라 여유가 있다.
+- Xcode: 필수 ≥ 15, 권장 ≥ 16.
+  - 3.47.4 · 3.47.5 에 **Xcode 27 대응 핫픽스**가 들어 있다(흰 화면 hang · iOS 27 실기기 디버깅 간헐 크래시) — 3.47.x 를 쓸 거면 **3.47.5 이상**을 권한다.
+- 번들 `iproxy` 는 3.47.5 에서도 여전히 **x86_64** 다 → Apple Silicon 에서 실기기 실행에 **Rosetta 2 가 필요**하다.
+  - macOS major 업그레이드가 Rosetta 를 지울 수 있으니 `arch -x86_64 /usr/bin/true` 로 확인한다.
 - 실기기 debug 실행은 **USB 연결이 필수**다(무선은 디버거 미부착 → JIT 불가).
-- **CocoaPods 는 iOS 빌드에 필요하지 않다**(iOS 네이티브 의존성은 SPM 이 관리한다 —
-  [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)). 이 킷에는 `macos/` 디렉터리가 없다. `flutter doctor` 의 CocoaPods
-  항목은 **설치 여부와 무관하게 계속 표시된다** — Xcode 워크플로에 조건 없이
-  등록된 검사라 그렇다.
+- **CocoaPods 는 iOS 빌드에 필요하지 않다**(iOS 네이티브 의존성은 SPM 이 관리한다 — [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)).
+  - 이 킷에는 `macos/` 디렉터리가 없다.
+  - `flutter doctor` 의 CocoaPods 항목은 **설치 여부와 무관하게 계속 표시된다** — Xcode 워크플로에 조건 없이 등록된 검사라 그렇다.
 
 ### ⑦ golden test — SDK 상향은 렌더를 바꾼다
 
-- SDK 를 올리면 **golden 이 실패할 수 있다** — 엔진 래스터가 바뀌면 버튼 둥근 모서리
-  안티에일리어싱 같은 작은 차이가 생긴다. 상향 전 같은 커밋의 기준선이 green 이면
-  원인은 SDK 쪽이다.
+- SDK 를 올리면 **golden 이 실패할 수 있다** — 엔진 래스터가 바뀌면 버튼 둥근 모서리 안티에일리어싱 같은 작은 차이가 생긴다.
+  - 상향 전 같은 커밋의 기준선이 green 이면 원인은 SDK 쪽이다.
 - 절차: **같은 HEAD 기준선이 green 인지 먼저 확인** → 실패 golden 의
   `failures/*_isolatedDiff.png` · `*_maskedDiff.png` 를 **눈으로 확인** → 그 뒤에만
   실패한 test 파일만 대상으로 `--update-goldens` → 전체 test 재실행 → 별도 `test:` 커밋.
@@ -3605,16 +3591,12 @@ fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.js
 ### ⑧ `environment: sdk` 하한은 별개 작업이다
 
 `pubspec.yaml` 의 `environment: sdk: ^3.11.1` 은 SDK 를 올릴 때 **함께 올리지 않는다.**
-Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · 호출 체인 split ·
-파라미터 block formatting)는 **language version 3.13 이상에서만** 켜지기 때문에,
-하한을 올리면 대량 재포맷과 언어 규칙 변화가 한꺼번에 들어온다. SDK 상향과
-**분리해서** 별도 작업으로 다뤄라.
+- Dart 3.13 포매터의 스타일 변경 중 상당수(import 섹션 분리 · 호출 체인 split · 파라미터 block formatting)는 **language version 3.13 이상에서만** 켜지기 때문에, 하한을 올리면 대량 재포맷과 언어 규칙 변화가 한꺼번에 들어온다.
+- SDK 상향과 **분리해서** 별도 작업으로 다뤄라.
 
 > 단, **language version 과 무관한** 포매터 수정은 하한을 안 올려도 적용된다.
-> 그래서 SDK 를 올리면 하한을 그대로 두어도 일부 파일이 재포맷될 수 있다 — 재포맷은
-> `style:` 커밋으로 따로 둔다. `dart format --set-exit-if-changed` 를
-> analyze · test 와 동급 게이트로 두면(`.claude/rules/dart-format.md`) 이런 drift 가
-> 누적되지 않는다.
+> - 그래서 SDK 를 올리면 하한을 그대로 두어도 일부 파일이 재포맷될 수 있다 — 재포맷은 `style:` 커밋으로 따로 둔다.
+> - `dart format --set-exit-if-changed` 를 analyze · test 와 동급 게이트로 두면(`.claude/rules/dart-format.md`) 이런 drift 가 누적되지 않는다.
 
 ## iOS 의존성 관리 (SPM)
 
