@@ -175,31 +175,28 @@ final class RunStep implements Step {
     final WizardSession session = context.session;
     final Map<String, String?>? launched = session.launchedBuildInputs;
     final Map<String, String?>? atStart = session.buildInputsAtStart;
-    final Map<String, String?>? current = launched != null || atStart != null
-        ? readBuildInputDigests(context)
-        : null;
-    if (launched != null && _isSameDigests(launched, current!)) {
+    // 지금 지문은 모든 갈래가 쓴다 — 빌드 입력 다섯 파일을 읽을 뿐이다.
+    final Map<String, String?> current = readBuildInputDigests(context);
+    if (launched != null && _isSameDigests(launched, current)) {
       return const <String>[];
     }
     final List<String> changed = atStart == null
         ? const <String>[]
-        : findChangedBuildInputs(atStart, current!);
-    final bool hasChangedSinceLastLaunch =
-        launched == null &&
-        changed.isEmpty &&
-        hasBuildInputsChangedSinceLastLaunch(
-          context,
-          current ?? readBuildInputDigests(context),
-        );
+        : findChangedBuildInputs(atStart, current);
+    // 앞 실행의 표지는 이번 실행에서 아직 앱을 띄우지 않았을 때만 본다.
+    final hasNotLaunchedThisRun = launched == null;
     return <String>[
       if (session.hasRegisteredAppCheckToken)
         appCheckTokenReason
-      else if (launched == null && hasAppCheckRebuildPending(context))
+      else if (hasNotLaunchedThisRun && hasAppCheckRebuildPending(context))
         pendingAppCheckTokenReason,
       if (hasMissingGeneratedParts(context.projectRoot)) missingCodegenReason,
       if (changed.isNotEmpty)
         '$changedInputsReasonPrefix${changed.join(' · ')}',
-      if (hasChangedSinceLastLaunch) changedSinceLastLaunchReason,
+      if (hasNotLaunchedThisRun &&
+          changed.isEmpty &&
+          hasBuildInputsChangedSinceLastLaunch(context, current))
+        changedSinceLastLaunchReason,
     ];
   }
 
