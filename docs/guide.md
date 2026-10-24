@@ -2528,27 +2528,43 @@ firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug
 
 ## 출시 전 점검
 
-스토어에 올리기 전에 로그인 수단의 검수 · 인증, 소셜 로고의 사용 조건, iOS 추적 동의와 Facebook 로그인을 점검한다. release 서명 키는 [릴리스 서명(keystore)](#릴리스-서명keystore) 에서 만든다.
+스토어에 올리기 전에 로그인 수단의 검수 · 인증, 소셜 로고의 사용 조건, iOS 추적 동의와 Facebook 로그인을 점검한다.
+- release 서명 키는 [릴리스 서명(keystore)](#릴리스-서명keystore) 에서 만든다.
 
 ### 로그인 수단 검수 · 인증
 
-Kakao · Naver · LINE 은 콘솔 앱이 개발 상태일 때 일부 사용자만 로그인하거나 일부 정보만 받는다. 모든 사용자에게 열기 전에 켠 수단의 항목을 확인한다 — 끈 수단은 건너뛴다. 아래는 메뉴 위치 · 준비물 · 걸리는 시간이다. 신청 · 제출 여부는 내용을 확인한 뒤 콘솔에서 직접 판단한다.
+Kakao · Naver · LINE 은 콘솔 앱이 개발 상태일 때 일부 사용자만 로그인하거나 일부 정보만 받는다.
+- 모든 사용자에게 열기 전에 켠 수단의 항목을 확인한다 — 끈 수단은 건너뛴다.
+- 아래는 메뉴 위치 · 준비물 · 걸리는 시간이다.
+- 신청 · 제출 여부는 내용을 확인한 뒤 콘솔에서 직접 판단한다.
 
-flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받는다 — [Kakao · Naver 는 flavor 마다 새 앱](setup.md#kakao--naver-는-flavor-마다-새-앱). 대괄호(`[ ]`) · 「」 · 영문으로 적은 메뉴 이름은 각 회사 공식 문서의 경로다.
+flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받는다 — [Kakao · Naver 는 flavor 마다 새 앱](setup.md#kakao--naver-는-flavor-마다-새-앱).
+- 대괄호(`[ ]`) · 「」 · 영문으로 적은 메뉴 이름은 각 회사 공식 문서의 경로다.
 
 #### Kakao
 
-**비즈 앱 전환.** 비즈 앱은 비즈니스 정보를 등록한 앱이다. 비즈 앱이어야 동의항목 [이메일] 을 [필수 동의] 로 설정하고 테스트 앱을 만들 수 있다. 킷은 Kakao 에서 이메일을 받으므로, 이메일을 [필수 동의] 로 두려면 비즈 앱으로 전환한다.
+**비즈 앱 전환.**
+- 비즈 앱은 비즈니스 정보를 등록한 앱이다.
+- 비즈 앱이어야 동의항목 [이메일] 을 [필수 동의] 로 설정하고 테스트 앱을 만들 수 있다.
+- 킷은 Kakao 에서 이메일을 받으므로, 이메일을 [필수 동의] 로 두려면 비즈 앱으로 전환한다.
 
-- **사업자:** 앱 관리 페이지 [앱] > [일반] > [비즈니스 정보] 에서 [사업자 정보 등록] 을 고른다. 앱 아이콘이 등록돼 있어야 하고, 앱의 오너만 등록할 수 있다. 국내 사업자는 사업자등록번호, 해외 사업자는 D-U-N-S 번호를 넣는다.
-- **번호가 없는 개인 개발자:** [앱] > [일반] > [비즈니스 정보] > [개인 개발자 비즈 앱] 에서 전환한다. 조건은 앱 소유자의 본인인증(카카오디벨로퍼스 [계정 설정] > [본인인증]) · 카카오비즈니스 통합 서비스 약관 동의다. 개인 개발자 비즈 앱은 비즈니스 채널을 연결할 수 없다.
+- **사업자:** 앱 관리 페이지 [앱] > [일반] > [비즈니스 정보] 에서 [사업자 정보 등록] 을 고른다.
+  - 앱 아이콘이 등록돼 있어야 하고, 앱의 오너만 등록할 수 있다.
+  - 국내 사업자는 사업자등록번호, 해외 사업자는 D-U-N-S 번호를 넣는다.
+- **번호가 없는 개인 개발자:** [앱] > [일반] > [비즈니스 정보] > [개인 개발자 비즈 앱] 에서 전환한다.
+  - 조건은 앱 소유자의 본인인증(카카오디벨로퍼스 [계정 설정] > [본인인증]) · 카카오비즈니스 통합 서비스 약관 동의다.
+  - 개인 개발자 비즈 앱은 비즈니스 채널을 연결할 수 없다.
 
-**개인정보 동의항목 심사.** 일부 개인정보 동의항목은 추가 기능 권한이 있어야 설정할 수 있다. 킷이 쓰는 동의항목은 이메일([필수 동의]) · 프로필 사진([선택 동의])이고 설정 화면은 [로그인 수단에서 이메일 받기](setup.md#로그인-수단에서-이메일-받기) 에 있다. 그 밖의 개인정보를 더 받을 때 아래 순서를 따른다.
+**개인정보 동의항목 심사.**
+- 일부 개인정보 동의항목은 추가 기능 권한이 있어야 설정할 수 있다.
+- 킷이 쓰는 동의항목은 이메일([필수 동의]) · 프로필 사진([선택 동의])이고 설정 화면은 [로그인 수단에서 이메일 받기](setup.md#로그인-수단에서-이메일-받기) 에 있다.
+- 그 밖의 개인정보를 더 받을 때 아래 순서를 따른다.
 
 1. 비즈 앱 전환 · 신청 자격 확인 · 비즈니스 정보 심사를 먼저 끝낸다.
 2. [앱] > [추가 기능 신청] > [개인정보 동의항목] 에서 [신청] 을 고른다.
 3. 신청 정보를 채운다 — 받을 개인정보의 동의 단계, 회원가입 링크(네이티브 앱은 앱 스토어 URL), 개인정보 처리방침 URL, 회원가입 화면 자료(수집 항목을 보여 주는 파일 하나), 항목별 수집 사유.
-4. 심사는 영업일 기준 3~5일이다. 결과는 앱 멤버의 이메일과 앱 알림으로 오고, 반려되면 [추가 기능 신청] 의 [심사 반려] 에서 사유와 조치 방법을 본다.
+4. 심사는 영업일 기준 3~5일이다.
+   - 결과는 앱 멤버의 이메일과 앱 알림으로 오고, 반려되면 [추가 기능 신청] 의 [심사 반려] 에서 사유와 조치 방법을 본다.
 
 준비할 것(공식 심사 체크리스트 요지):
 
@@ -2562,40 +2578,68 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 
 #### Naver
 
-**사전 검수.** 사전 검수를 통과하기 전에는 애플리케이션 등록자와 멤버(관리자 · 테스터)로 등록된 아이디만 네이버 로그인을 쓸 수 있다. 모든 아이디에 열려면 사전 검수를 통과한다.
+**사전 검수.**
+- 사전 검수를 통과하기 전에는 애플리케이션 등록자와 멤버(관리자 · 테스터)로 등록된 아이디만 네이버 로그인을 쓸 수 있다.
+- 모든 아이디에 열려면 사전 검수를 통과한다.
 
 1. 네이버 개발자센터 > Application > 내 애플리케이션 에서 앱을 고르고 「네이버 로그인 검수 상태」 탭으로 간다.
-2. 제출 자료를 첨부하고 탭 하단의 「검수 요청」 으로 신청한다. 검수 상태가 「검수요청」 으로 바뀐다.
-3. 결과는 신청일로부터 2~3 영업일 이내에 이메일로 온다. 승인되면 「네이버 로그인 검수 상태」 탭이 사라진다. 반려되면 상태가 「승인거부」 로 바뀌고, 사유대로 앱 설정이나 자료를 고친 뒤 재검수를 신청한다.
+2. 제출 자료를 첨부하고 탭 하단의 「검수 요청」 으로 신청한다.
+   - 검수 상태가 「검수요청」 으로 바뀐다.
+3. 결과는 신청일로부터 2~3 영업일 이내에 이메일로 온다.
+   - 승인되면 「네이버 로그인 검수 상태」 탭이 사라진다.
+   - 반려되면 상태가 「승인거부」 로 바뀌고, 사유대로 앱 설정이나 자료를 고친 뒤 재검수를 신청한다.
 
 준비할 것:
 
-- **받는 정보의 활용처.** 이용자 식별자 밖의 정보(메일 주소 등) 조회 권한을 골랐으면 그 정보가 서비스 화면에 쓰이는 캡처를 낸다. 킷은 계정 정보 화면에 이메일을 보인다. 통계 목적만으로 받는 정보, 활용처를 보이지 못하는 정보는 반려 사유다.
-- **로그인 과정.** 네이버 로그인 버튼부터 로그인 · 회원가입이 끝날 때까지의 과정을 본다. 가입 때 서비스 고유의 별도 비밀번호를 요구하면 반려된다 — 킷은 요구하지 않는다.
-- **앱 이름 · 로고.** 로고가 없거나 네이버를 연상시키는 로고, 네이버를 연상시키거나 「로그인」 같은 앱 이름은 반려된다. 이 둘은 정보 제공 동의 화면에 보인다.
-- 받을 정보는 API 설정 탭에서 고른다. 쓰지 않는 정보는 고르지 않는다.
+- **받는 정보의 활용처.**
+  - 이용자 식별자 밖의 정보(메일 주소 등) 조회 권한을 골랐으면 그 정보가 서비스 화면에 쓰이는 캡처를 낸다.
+  - 킷은 계정 정보 화면에 이메일을 보인다.
+  - 통계 목적만으로 받는 정보, 활용처를 보이지 못하는 정보는 반려 사유다.
+- **로그인 과정.**
+  - 네이버 로그인 버튼부터 로그인 · 회원가입이 끝날 때까지의 과정을 본다.
+  - 가입 때 서비스 고유의 별도 비밀번호를 요구하면 반려된다 — 킷은 요구하지 않는다.
+- **앱 이름 · 로고.**
+  - 로고가 없거나 네이버를 연상시키는 로고, 네이버를 연상시키거나 「로그인」 같은 앱 이름은 반려된다.
+  - 이 둘은 정보 제공 동의 화면에 보인다.
+- 받을 정보는 API 설정 탭에서 고른다.
+  - 쓰지 않는 정보는 고르지 않는다.
 
 공식 문서: [네이버 로그인 사전 검수 가이드](https://developers.naver.com/docs/login/verify/verify.md) · 인증 뒤 받을 수 있는 정보(회원 프로필 항목): [회원 프로필 조회 API](https://developers.naver.com/docs/login/profile/profile.md)
 
 #### LINE
 
-**email permission 신청.** 앱은 LINE 로그인 때 늘 `openid` · `profile` · `email` 을 요청한다. 채널에 email permission 이 없으면 로그인은 되고 이메일 없이 가입된다. 권한을 받으면 신청만으로 이메일이 온다 — 코드는 바꾸지 않는다.
+**email permission 신청.**
+- 앱은 LINE 로그인 때 늘 `openid` · `profile` · `email` 을 요청한다.
+- 채널에 email permission 이 없으면 로그인은 되고 이메일 없이 가입된다.
+- 권한을 받으면 신청만으로 이메일이 온다 — 코드는 바꾸지 않는다.
 
 1. LINE Developers Console 에서 채널의 `Basic settings` 탭 → `OpenID Connect` 에서 `Apply` 를 누른다.
-2. 약관에 동의하고, 사용자의 이메일 주소를 모은다는 사실과 쓰는 목적을 설명하는 화면의 스크린샷을 올린다. 그런 화면은 앱에 직접 만든다.
-3. 신청이 받아들여지면 `Email address permission` 아래에 `Applied` 가 보인다. 공식 문서는 걸리는 기간을 적지 않는다.
+2. 약관에 동의하고, 사용자의 이메일 주소를 모은다는 사실과 쓰는 목적을 설명하는 화면의 스크린샷을 올린다.
+   - 그런 화면은 앱에 직접 만든다.
+3. 신청이 받아들여지면 `Email address permission` 아래에 `Applied` 가 보인다.
+   - 공식 문서는 걸리는 기간을 적지 않는다.
 
-서버는 LINE 이 준 이메일을 검증된 이메일로 다룬다. 미검증으로 다루려면 `functions/src/auth/line_custom_token.ts` 의 주석대로 `userInfo.emailVerified = true` 와 `email_verified: true` 두 곳을 함께 `false` 로 바꾸고 함수를 다시 배포한다.
+서버는 LINE 이 준 이메일을 검증된 이메일로 다룬다.
+- 미검증으로 다루려면 `functions/src/auth/line_custom_token.ts` 의 주석대로 `userInfo.emailVerified = true` 와 `email_verified: true` 두 곳을 함께 `false` 로 바꾸고 함수를 다시 배포한다.
 
-**채널 공개.** LINE 로그인 채널은 `Developing` 상태로 만들어지고, 이 상태에서는 Admin · Tester 역할의 사용자만 로그인한다. 다른 사용자에게 열려면 채널 페이지 위의 `Developing` 을 눌러 `Published` 로 바꾼다. 한 번 `Published` 로 바꾸면 `Developing` 으로 되돌릴 수 없다.
+**채널 공개.**
+- LINE 로그인 채널은 `Developing` 상태로 만들어지고, 이 상태에서는 Admin · Tester 역할의 사용자만 로그인한다.
+- 다른 사용자에게 열려면 채널 페이지 위의 `Developing` 을 눌러 `Published` 로 바꾼다.
+- 한 번 `Published` 로 바꾸면 `Developing` 으로 되돌릴 수 없다.
 
-**비즈니스 인증(certified provider).** 인증 제공자(certified provider)가 되면 사용자가 보는 동의 화면에 「Certified」 가 표시되고 Provider page 를 둘 수 있다. 원칙적으로 법인만 인증받을 수 있고, 신청은 LINE 의 담당 영업 또는 Sales partners 로 한다(LINE 이 정한 신청 경로다). certified provider 면 채널의 Privacy policy URL 이 필수다. 로그인이 동작하는 데에는 필요하지 않다.
+**비즈니스 인증(certified provider).**
+- 인증 제공자(certified provider)가 되면 사용자가 보는 동의 화면에 「Certified」 가 표시되고 Provider page 를 둘 수 있다.
+- 원칙적으로 법인만 인증받을 수 있고, 신청은 LINE 의 담당 영업 또는 Sales partners 로 한다(LINE 이 정한 신청 경로다).
+- certified provider 면 채널의 Privacy policy URL 이 필수다.
+- 로그인이 동작하는 데에는 필요하지 않다.
 
 공식 문서: [Integrating LINE Login](https://developers.line.biz/en/docs/line-login/integrate-line-login/) · [Getting started with LINE Login](https://developers.line.biz/en/docs/line-login/getting-started/) · [LINE Developers Console overview](https://developers.line.biz/en/docs/line-developers-console/overview/) · 인증 뒤 받을 수 있는 정보: [LINE Login API reference](https://developers.line.biz/en/reference/line-login/)
 
 ### 소셜 로고 · 브랜드 자산
 
-로그인 버튼 6개의 로고는 각 회사의 상표다. 킷은 `assets/brand/<provider>/` 에 공식 로고 자산과 출처 · 라이선스 · 사전 검수 설명(README)을 둔다. 출시 전에 켠 수단의 README 를 확인한다.
+로그인 버튼 6개의 로고는 각 회사의 상표다.
+- 킷은 `assets/brand/<provider>/` 에 공식 로고 자산과 출처 · 라이선스 · 사전 검수 설명(README)을 둔다.
+- 출시 전에 켠 수단의 README 를 확인한다.
 
 | 수단 | 라이선스 | 공식 BI | 라이선스 본문 | 사전 검수 |
 |---|---|---|---|---|
@@ -2606,13 +2650,18 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 | LINE | LINE Branding License | [공식 BI URL](../assets/brand/line/README.md#공식-bi-url) | [라이선스](../assets/brand/line/README.md#라이선스) | [사전 검수 절차](../assets/brand/line/README.md#사전-검수-절차) |
 | Naver | NAVER Brand License | [공식 BI URL](../assets/brand/naver/README.md#공식-bi-url) | [라이선스](../assets/brand/naver/README.md#라이선스) | [사전 검수 절차](../assets/brand/naver/README.md#사전-검수-절차) |
 
-**변형 정책.** 6개 버튼은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 맨 위 상수로 한 골격을 쓴다 — 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) · 라벨 크기 `kBrandLabelFontSize`(16) · 로고 상자. 브랜드마다 다른 것은 배경색 · 글자색 · 외곽선 · 로고 · 문구다. Kakao · Naver · LINE 로고는 단색 심볼 SVG 에 각 가이드의 색(Kakao 검정 · Naver · LINE 흰색)을 칠하고, Google 로고는 비트맵 PNG 라 칠하지 않으며, Apple · Facebook 로고는 SVG 를 칠하지 않고 그대로 그린다.
+**변형 정책.**
+- 6개 버튼은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 맨 위 상수로 한 골격을 쓴다 — 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) · 라벨 크기 `kBrandLabelFontSize`(16) · 로고 상자.
+- 브랜드마다 다른 것은 배경색 · 글자색 · 외곽선 · 로고 · 문구다.
+- Kakao · Naver · LINE 로고는 단색 심볼 SVG 에 각 가이드의 색(Kakao 검정 · Naver · LINE 흰색)을 칠하고, Google 로고는 비트맵 PNG 라 칠하지 않으며, Apple · Facebook 로고는 SVG 를 칠하지 않고 그대로 그린다.
 
 - 로고 그림 · 가이드 색 · 비율을 바꾸지 않는다.
 - 버튼 색을 앱 테마 색(시드 컬러)으로 바꾸지 않는다 — 버튼 색은 각 브랜드 가이드의 색이다.
 - 골격 상수를 바꾸면 여섯 버튼이 함께 바뀐다.
 
-**알고 둔 가이드와의 차이.** 한 화면의 버튼을 맞추느라 킷이 각 가이드 문장과 다르게 둔 곳이 셋 있다. 심사에서 지적되면 아래 자리를 고친다.
+**알고 둔 가이드와의 차이.**
+- 한 화면의 버튼을 맞추느라 킷이 각 가이드 문장과 다르게 둔 곳이 셋 있다.
+- 심사에서 지적되면 아래 자리를 고친다.
 
 | 차이 | 고치는 자리 |
 |---|---|
@@ -2622,7 +2671,8 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 
 **사용 전 확인:**
 
-1. 켠 수단마다 위 표의 「라이선스」 · 「사전 검수 절차」 를 읽는다. 사전 검수 신청 절차를 둔 회사는 그 절차를 따른다.
+1. 켠 수단마다 위 표의 「라이선스」 · 「사전 검수 절차」 를 읽는다.
+   - 사전 검수 신청 절차를 둔 회사는 그 절차를 따른다.
 2. 로고를 로그인 버튼 밖(마케팅 자료 · 비교 자료 · 눈에 띄는 배치 등)에서 쓰면, 쓰기 전에 각 회사 브랜드 페이지의 조건을 다시 확인한다 — 로그인 버튼과 조건이 다를 수 있고 별도 허가가 필요할 수 있다.
 3. 위 「알고 둔 가이드와의 차이」 셋을 내 앱에 그대로 둘지 정한다.
 
@@ -2630,7 +2680,10 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 
 ### ATT 와 iOS Facebook 로그인
 
-ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이트에 걸쳐 사용자를 추적할 때 받는 동의다. 킷은 ATT 요청을 하지 않는다 — `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription` 이 없고 `pubspec.yaml` 에 `app_tracking_transparency` 같은 패키지가 없다. ATT 요청과 목적 문구는 킷 위에 만드는 앱이 정한다. 다만 ATT 허용 여부가 iOS 의 Facebook 로그인 방식을 바꾸므로 그 경계를 적는다.
+ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이트에 걸쳐 사용자를 추적할 때 받는 동의다.
+- 킷은 ATT 요청을 하지 않는다 — `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription` 이 없고 `pubspec.yaml` 에 `app_tracking_transparency` 같은 패키지가 없다.
+- ATT 요청과 목적 문구는 킷 위에 만드는 앱이 정한다.
+- 다만 ATT 허용 여부가 iOS 의 Facebook 로그인 방식을 바꾸므로 그 경계를 적는다.
 
 **킷이 보장하는 것 · 보장하지 않는 것:**
 
@@ -2652,24 +2705,41 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 | iOS · ATT 허용 | Classic — access token | `FacebookAuthProvider` | Graph API 로 가져온다 | 앱이 실기기에서 확인한다 |
 | Android(ATT 와 무관) | Classic — access token | `FacebookAuthProvider` | Graph API 로 가져온다 | SDK 기본 동작 |
 
-킷의 로그인 호출(`lib/features/auth/data/auth_repository.dart` 의 `_facebookAuth.login`)은 `LoginTracking.enabled` 와 해시한 nonce 를 넘긴다. iOS 에서 ATT 가 허용 상태가 아니면 Facebook SDK 가 이 요청을 Limited Login 으로 바꾼다. Limited Login 의 토큰으로는 Graph API 의 추가 데이터를 요청할 수 없다 — Facebook 원문 "The ID token cannot be used to request additional data using the Graph API, such as friends, photos, or pages". 그래서 iOS 에서는 가입 때 Facebook 프로필 사진을 가져오는 단계를 건너뛴다. 공식 문서: [Limited Login](https://developers.facebook.com/docs/facebook-login/limited-login/)
+킷의 로그인 호출(`lib/features/auth/data/auth_repository.dart` 의 `_facebookAuth.login`)은 `LoginTracking.enabled` 와 해시한 nonce 를 넘긴다.
+- iOS 에서 ATT 가 허용 상태가 아니면 Facebook SDK 가 이 요청을 Limited Login 으로 바꾼다.
+- Limited Login 의 토큰으로는 Graph API 의 추가 데이터를 요청할 수 없다 — Facebook 원문 "The ID token cannot be used to request additional data using the Graph API, such as friends, photos, or pages".
+- 그래서 iOS 에서는 가입 때 Facebook 프로필 사진을 가져오는 단계를 건너뛴다.
+- 공식 문서: [Limited Login](https://developers.facebook.com/docs/facebook-login/limited-login/)
 
 **추적하는 앱이 할 일:**
 
-1. ATT 요청 패키지(예: `app_tracking_transparency`)를 더하고 요청 시점을 정한다. 요청 창은 앱이 활성 상태일 때만 뜨고, 설정에서 추적 요청을 끈 사용자에게는 뜨지 않는다.
-2. `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription`(목적 문구)을 넣는다. 필수 키다 — 이 키 없이 ATT 프레임워크를 쓰면 앱이 종료된다. 공식 문서: [App Tracking Transparency](https://developer.apple.com/documentation/apptrackingtransparency) · [NSUserTrackingUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsusertrackingusagedescription)
-3. 순서를 정한다. Facebook 로그인 뒤에 ATT 를 허용받으면 그 전의 로그인은 이미 Limited Login 으로 끝났다. Classic 로그인을 쓰려면 로그인 전에 요청한다.
-4. Facebook SDK for iOS 17.0.0 이상은 iOS 17 이상 기기에서 Apple 의 ATT 상태로 추적 허용을 판단한다. 킷의 Facebook iOS SDK 는 18 판이라 그 기기에서는 SDK 쪽 설정을 따로 하지 않는다. 킷의 최소 iOS 는 15.6 이다 — iOS 17 미만 기기의 설정은 [Facebook 문서](https://developers.facebook.com/docs/app-events/guides/advertising-tracking-enabled/)를 따른다.
+1. ATT 요청 패키지(예: `app_tracking_transparency`)를 더하고 요청 시점을 정한다.
+   - 요청 창은 앱이 활성 상태일 때만 뜨고, 설정에서 추적 요청을 끈 사용자에게는 뜨지 않는다.
+2. `ios/Runner/Info.plist` 에 `NSUserTrackingUsageDescription`(목적 문구)을 넣는다.
+   - 필수 키다 — 이 키 없이 ATT 프레임워크를 쓰면 앱이 종료된다.
+   - 공식 문서: [App Tracking Transparency](https://developer.apple.com/documentation/apptrackingtransparency) · [NSUserTrackingUsageDescription](https://developer.apple.com/documentation/bundleresources/information-property-list/nsusertrackingusagedescription)
+3. 순서를 정한다.
+   - Facebook 로그인 뒤에 ATT 를 허용받으면 그 전의 로그인은 이미 Limited Login 으로 끝났다.
+   - Classic 로그인을 쓰려면 로그인 전에 요청한다.
+4. Facebook SDK for iOS 17.0.0 이상은 iOS 17 이상 기기에서 Apple 의 ATT 상태로 추적 허용을 판단한다.
+   - 킷의 Facebook iOS SDK 는 18 판이라 그 기기에서는 SDK 쪽 설정을 따로 하지 않는다.
+   - 킷의 최소 iOS 는 15.6 이다 — iOS 17 미만 기기의 설정은 [Facebook 문서](https://developers.facebook.com/docs/app-events/guides/advertising-tracking-enabled/)를 따른다.
 5. App Store 개인정보 라벨 · privacy manifest 를 앱이 하는 추적에 맞춘다.
 6. ATT 를 허용한 상태로 iOS Facebook 로그인 · 가입 · 프로필 사진을 실기기에서 확인한다.
 
 **흔한 실수:**
 
-- **iOS 에서 Facebook 으로 가입했는데 프로필 사진이 비어 있다.** ATT 가 없는 기본 설정의 정상 동작이다 — 킷은 Limited Login 에서 사진을 가져오는 단계를 건너뛴다(`auth_repository.dart`).
-- **Limited 토큰으로 Graph API 의 추가 데이터를 기대한다.** 친구 · 사진 · 페이지 같은 데이터는 Limited 토큰으로 요청할 수 없다.
-- **Facebook 앱으로 넘어가지 않는 것을 오류로 본다.** Limited Login 은 웹 인증 세션을 쓰므로 Facebook 앱으로 넘어가지 않는 것이 정상이다.
-- **`LoginTracking.enabled` 를 넘겼으니 Classic 이라고 가정한다.** iOS 는 ATT 가 허용 상태가 아니면 그 요청과 무관하게 Limited Login 으로 간다.
-- **ATT 를 붙이면서 인증 코드를 갈아엎는다.** Classic 분기는 이미 있다. 바꿀 것은 ATT 요청 · 목적 문구 쪽이고, 허용 상태의 로그인은 앱이 실기기에서 확인한다.
+- **iOS 에서 Facebook 으로 가입했는데 프로필 사진이 비어 있다.**
+  - ATT 가 없는 기본 설정의 정상 동작이다 — 킷은 Limited Login 에서 사진을 가져오는 단계를 건너뛴다(`auth_repository.dart`).
+- **Limited 토큰으로 Graph API 의 추가 데이터를 기대한다.**
+  - 친구 · 사진 · 페이지 같은 데이터는 Limited 토큰으로 요청할 수 없다.
+- **Facebook 앱으로 넘어가지 않는 것을 오류로 본다.**
+  - Limited Login 은 웹 인증 세션을 쓰므로 Facebook 앱으로 넘어가지 않는 것이 정상이다.
+- **`LoginTracking.enabled` 를 넘겼으니 Classic 이라고 가정한다.**
+  - iOS 는 ATT 가 허용 상태가 아니면 그 요청과 무관하게 Limited Login 으로 간다.
+- **ATT 를 붙이면서 인증 코드를 갈아엎는다.**
+  - Classic 분기는 이미 있다.
+  - 바꿀 것은 ATT 요청 · 목적 문구 쪽이고, 허용 상태의 로그인은 앱이 실기기에서 확인한다.
 
 ## 앱 운영하기
 
