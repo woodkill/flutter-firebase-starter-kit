@@ -190,7 +190,9 @@
 
 > **로그인 수단은 저장소 루트에서 `./setup.sh --providers` 로 켠다 — 설정 위저드가 체크 목록을 열고, 수단마다 콘솔에 넣을 값을 보여 준 뒤 키를 받아 기록하고 배포한다.**
 
-clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이메일로 계속」 과 가입 링크만 보인다. 켠 수단만 provider 콘솔 등록과 키가 필요하고, 끈 수단은 콘솔 등록 · 키 · 함수가 필요 없다. 이 절은 수단마다 콘솔에서 할 일을 위저드 값 표의 행 이름과 이어서 적는다.
+clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이메일로 계속」 과 가입 링크만 보인다.
+- 켠 수단만 provider 콘솔 등록과 키가 필요하고, 끈 수단은 콘솔 등록 · 키 · 함수가 필요 없다.
+- 이 절은 수단마다 콘솔에서 할 일을 위저드 값 표의 행 이름과 이어서 적는다.
 
 ### 켜는 순서와 수단별로 필요한 것
 
@@ -576,34 +578,54 @@ Naver 를 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 
 
 LINE 로그인을 앱에 둘 때 이 절을 따른다. LINE 을 켜지 않으면 이 절을 건너뛴다. LINE 콘솔은 영어 화면이라 칸 이름을 영어 원문 그대로 쓴다.
 
-**전제:** LINE Developers 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 LINE 을 골랐다. Android 서명 SHA-1 은 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
+**전제:** LINE Developers 계정이 있다([시작 전 준비](#시작-전-준비)).
+- [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 LINE 을 골랐다.
+- Android 서명 SHA-1 은 JDK 와 디버그 서명 키가 있어야 계산된다([시작 전 준비](#시작-전-준비)).
 
 #### 콘솔 단계
 
-1. 위저드가 `LINE 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.line.biz/console/` 줄에 있고, 행은 아래와 같다.
+1. 위저드가 `LINE 콘솔에 넣을 값 — <flavor>` 값 표를 보인다.
+   - 콘솔 주소는 `콘솔: https://developers.line.biz/console/` 줄에 있고, 행은 아래와 같다.
    - `iOS 번들 ID` — `LINE Login` 탭의 `iOS bundle ID` 칸에 넣는다.
    - `Android 패키지명` — `LINE Login` 탭의 `Package names` 칸에 넣는다.
-   - `Android 서명 SHA-1` — 디버그 서명 키의 SHA-1 을 LINE 이 받는 대문자 · 콜론 꼴로 보인다. `LINE Login` 탭의 `Package signatures` 칸에 넣는다. SHA-1 을 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
+   - `Android 서명 SHA-1` — 디버그 서명 키의 SHA-1 을 LINE 이 받는 대문자 · 콜론 꼴로 보인다. `LINE Login` 탭의 `Package signatures` 칸에 넣는다.
+     - SHA-1 을 계산하지 못했으면 행 값이 `(이 Mac 에서는 계산할 수 없음 — 비워 두세요 · …)` 이고 그 칸은 비워 둔다.
    - `Channel icon · 선택` — 「앱 아이콘」 단계가 만든 `.setup/icons/line-512x512.png` 다.
-2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다. 앱 종류는 「App types」 에서 「Mobile app」 을 고른다.
-3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다. `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다. 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다. `Android URL scheme` 칸은 비워 둔다 — 선택 칸이고, 킷의 Android 앱은 LINE 로그인에 URL scheme 을 쓰지 않는다.
-4. 이메일 주소 권한을 신청한다(할 일 줄 `OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다`) — `Basic settings` → `OpenID Connect` 의 `Email address permission` 이 `Unapplied` 면 `Apply` 로 신청한다. 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
-5. 개발 중 로그인할 계정에 역할을 준다. 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 채널의 「Roles」 탭 → 「Invite by email」 에서 Admin 이나 Tester 역할을 준다 — 프로바이더 화면에도 같은 이름의 「Roles」 탭이 있지만 그쪽 역할은 Admin · Member 뿐이고 Tester 가 없다.
+2. 채널을 만든다(할 일 줄 `LINE Login 채널 만들기`) — `Create a new channel` 에서 `Channel type` 으로 `LINE Login` 을 고르고, `Provider` · `Region to provide the service` · `Company or owner's country or region` 을 채운다.
+   - 앱 종류는 「App types」 에서 「Mobile app」 을 고른다.
+3. 앱 값을 넣는다(할 일 줄 `iOS 번들 ID · Android 패키지명 · 서명 SHA-1 등록`) — 채널의 `LINE Login` 탭에서 `iOS bundle ID` · `Package names` · `Package signatures` 칸에 값 표의 세 행을 넣고 저장한다.
+   - `Package signatures` 는 값 표의 대문자 · 콜론 꼴 그대로 넣는다.
+   - 킷의 iOS 앱은 `line3rdp.<번들 ID>` URL scheme 으로 돌아오고 universal link 를 쓰지 않으므로 `iOS universal link` 칸은 비워 둔다.
+   - `Android URL scheme` 칸은 비워 둔다 — 선택 칸이고, 킷의 Android 앱은 LINE 로그인에 URL scheme 을 쓰지 않는다.
+4. 이메일 주소 권한을 신청한다(할 일 줄 `OpenID Connect 의 이메일 주소 권한 신청 — 신청하지 않으면 로그인 때 이메일을 받지 못합니다`) — `Basic settings` → `OpenID Connect` 의 `Email address permission` 이 `Unapplied` 면 `Apply` 로 신청한다.
+   - 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+5. 개발 중 로그인할 계정에 역할을 준다.
+   - 위저드 할 일 줄 `개발 중인 채널은 Admin 이나 Tester 역할을 준 계정으로 로그인합니다` 대로 시험할 LINE 계정에 채널의 「Roles」 탭 → 「Invite by email」 에서 Admin 이나 Tester 역할을 준다 — 프로바이더 화면에도 같은 이름의 「Roles」 탭이 있지만 그쪽 역할은 Admin · Member 뿐이고 Tester 가 없다.
 6. Channel ID · Channel Secret 을 모은다 — 채널의 `Basic settings` 탭에 있다.
-7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `LINE Channel ID` · `LINE Channel Secret` 을 차례로 입력한다 — Channel Secret 은 화면에 보이지 않게 받는다. 위저드가 두 값의 짝을 LINE 서버로 확인한 뒤 Channel ID 는 config · xcconfig · Secret Manager 에, Channel Secret 은 Secret Manager 에만 기록한다. 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
-8. 채널 아이콘은 선택이다. 올리려면 단계 2 의 `Create a new channel` 화면에서 「Channel icon」 칸의 「Register」 로 `.setup/icons/line-512x512.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다). `Channel icon` 은 PNG · JPG · JPEG · GIF · BMP 를 3MB 까지 받고 크기 규정은 없다.
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 값 두 개를 입력한다.
+   - 순서는 `LINE Channel ID` → `LINE Channel Secret` 다. Channel Secret 은 화면에 보이지 않게 받는다.
+   - 위저드가 두 값의 짝을 LINE 서버로 확인한 뒤 Channel ID 는 config · xcconfig · Secret Manager 에, Channel Secret 은 Secret Manager 에만 기록한다.
+   - 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
+8. 채널 아이콘은 선택이고, 올리려면 단계 2 의 `Create a new channel` 화면에서 「Channel icon」 칸의 「Register」 로 `.setup/icons/line-512x512.png` 를 올린다(끌어다 놓거나 파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다).
+   - `Channel icon` 은 PNG · JPG · JPEG · GIF · BMP 를 3MB 까지 받고 크기 규정은 없다.
 
 #### 확인 방법
 
-- 앱을 다시 빌드해 실행하면 로그인 화면에 LINE 버튼이 보이고, 역할을 준 계정으로 로그인하면 앱에 로그인된다. LINE 앱이 설치된 기기는 LINE 앱으로, 없는 기기는 LINE 웹 로그인 화면으로 로그인한다.
+- 앱을 다시 빌드해 실행하면 로그인 화면에 LINE 버튼이 보이고, 역할을 준 계정으로 로그인하면 앱에 로그인된다.
+  - LINE 앱이 설치된 기기는 LINE 앱으로, 없는 기기는 LINE 웹 로그인 화면으로 로그인한다.
 - 위저드의 「소셜 로그인 확인」 단계가 `LINE 1명` 꼴로 1명 이상을 센다.
 
 #### 문제 해결
 
-- **로그인이 `This channel is now developing status. User need to have developer role` 로 끝난다.** 채널이 개발 중 상태이고 그 계정에 역할이 없는 것이다 — 콘솔 단계 5 대로 Admin 이나 Tester 역할을 준다.
-- **Android 에서 LINE 앱으로 넘어갔다가 빈 화면으로 돌아오고 로그인되지 않는다.** `Package signatures` 의 SHA-1 이 그 빌드를 서명한 키와 다르거나 대문자 · 콜론 꼴이 아니다. debug 빌드는 값 표의 `Android 서명 SHA-1` 을 그대로, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 같은 꼴로 더한다.
-- **위저드가 `Channel ID 가 맞지 않습니다` 나 `Channel Secret 이 Channel ID 와 맞지 않습니다` 를 보인다.** 위저드가 틀린 쪽 값을 다시 묻는다 — 같은 채널의 `Basic settings` 탭에서 값을 다시 복사해 넣는다.
-- **계정 정보의 「이메일」 행이 「-」 다.** `Email address permission` 을 신청하지 않았거나 사용자가 이메일 제공에 동의하지 않은 것이다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
+- **로그인이 `This channel is now developing status. User need to have developer role` 로 끝난다.**
+  - 채널이 개발 중 상태이고 그 계정에 역할이 없는 것이다 — 콘솔 단계 5 대로 Admin 이나 Tester 역할을 준다.
+- **Android 에서 LINE 앱으로 넘어갔다가 빈 화면으로 돌아오고 로그인되지 않는다.**
+  - `Package signatures` 의 SHA-1 이 그 빌드를 서명한 키와 다르거나 대문자 · 콜론 꼴이 아니다.
+  - debug 빌드는 값 표의 `Android 서명 SHA-1` 을 그대로, release 빌드는 [릴리스 서명(keystore)](guide.md#릴리스-서명keystore) 에서 만든 키의 SHA-1 을 같은 꼴로 더한다.
+- **위저드가 `Channel ID 가 맞지 않습니다` 나 `Channel Secret 이 Channel ID 와 맞지 않습니다` 를 보인다.**
+  - 위저드가 틀린 쪽 값을 다시 묻는다 — 같은 채널의 `Basic settings` 탭에서 값을 다시 복사해 넣는다.
+- **계정 정보의 「이메일」 행이 「-」 다.**
+  - `Email address permission` 을 신청하지 않았거나 사용자가 이메일 제공에 동의하지 않은 것이다 — [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기).
 
 #### 되돌리기
 
@@ -611,13 +633,22 @@ LINE 을 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 �
 
 ### Kakao · Naver · LINE 서명 권한(Token Creator)
 
-Kakao · Naver · LINE 의 함수는 로그인 때(Naver · LINE 은 연결 해제 · 회원탈퇴 때도) Firebase Custom Token 을 만들어 서명한다. 그래서 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다. 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 수단의 로그인이 앱에서 오류 배너로 끝나고 Naver · LINE 의 연결 해제 · 회원탈퇴도 오류로 끝난다. 셋 가운데 하나도 켜지 않으면 이 절을 건너뛴다.
+Kakao · Naver · LINE 의 함수는 로그인 때(Naver · LINE 은 연결 해제 · 회원탈퇴 때도) Firebase Custom Token 을 만들어 서명한다.
+- 그래서 함수가 실행되는 서비스 계정(따로 정하지 않으면 프로젝트의 기본 Compute 서비스 계정)에 그 계정 자신을 구성원으로 한 Service Account Token Creator(`roles/iam.serviceAccountTokenCreator`)가 있어야 한다.
+- 기본 Compute 서비스 계정이 기본으로 받는 역할에는 이 권한이 없어, 빠뜨리면 그 수단의 로그인이 앱에서 오류 배너로 끝나고 Naver · LINE 의 연결 해제 · 회원탈퇴도 오류로 끝난다.
+- 셋 가운데 하나도 켜지 않으면 이 절을 건너뛴다.
 
-**위저드가 하는 일:** 「Cloud Functions 배포」 뒤 「Custom Token 서명 권한」 단계가 켠 수단 함수의 런타임 서비스 계정을 읽고, 권한이 없으면 그 계정에 조건 없이 붙인다 — 프로젝트 수준 역할은 바꾸지 않는다. 권한이 있으면 `함수 런타임 서비스 계정 <n>개 · Token Creator 있음` 으로 지나가고, 막 붙였으면 `Token Creator 를 붙였습니다 — 반영에 몇 분 걸릴 수 있어 …` 를 보인다. 프로젝트마다 한 번 하면 되고, 위저드를 다시 실행할 때마다 다시 확인한다.
+**위저드가 하는 일:** 「Cloud Functions 배포」 뒤 「Custom Token 서명 권한」 단계가 켠 수단 함수의 런타임 서비스 계정을 읽고, 권한이 없으면 그 계정에 조건 없이 붙인다 — 프로젝트 수준 역할은 바꾸지 않는다.
+- 권한이 있으면 `함수 런타임 서비스 계정 <n>개 · Token Creator 있음` 으로 지나가고, 막 붙였으면 `Token Creator 를 붙였습니다 — 반영에 몇 분 걸릴 수 있어 …` 를 보인다.
+- 프로젝트마다 한 번 하면 되고, 위저드를 다시 실행할 때마다 다시 확인한다.
 
 #### 직접 확인하고 붙이기
 
-위저드 밖에서 확인하거나, 위저드가 붙이지 못했을 때 아래 명령을 쓴다. 먼저 함수의 서비스 계정을 읽는다. 서비스 이름은 함수 이름을 소문자로 쓴 것이다(Kakao `kakaocustomtoken` · Naver `navercustomtoken` · LINE `linecustomtoken`). `--region` 은 `config/<flavor>.json` 의 `functionsRegion` 값이고(아래 `asia-northeast3` 은 example 값), `<your-project-id>` 는 `firebaseProjectId` 값이다. 출력된 이메일이 아래 명령의 `<service-account-email>` 자리에 들어간다.
+위저드 밖에서 확인하거나, 위저드가 붙이지 못했을 때 아래 명령을 쓴다.
+- 먼저 함수의 서비스 계정을 읽는다.
+- 서비스 이름은 함수 이름을 소문자로 쓴 것이다(Kakao `kakaocustomtoken` · Naver `navercustomtoken` · LINE `linecustomtoken`).
+- `--region` 은 `config/<flavor>.json` 의 `functionsRegion` 값이고(아래 `asia-northeast3` 은 example 값), `<your-project-id>` 는 `firebaseProjectId` 값이다.
+- 출력된 이메일이 아래 명령의 `<service-account-email>` 자리에 들어간다.
 
 ```bash
 gcloud run services describe kakaocustomtoken --region asia-northeast3 --project <your-project-id> --format='value(spec.template.spec.serviceAccountName)'
@@ -629,24 +660,38 @@ gcloud run services describe kakaocustomtoken --region asia-northeast3 --project
 gcloud iam service-accounts get-iam-policy <service-account-email> --project <your-project-id> --format=json
 ```
 
-없으면 붙인다. 그 서비스 계정에만 붙고 프로젝트 수준 역할은 바뀌지 않는다.
+없으면 붙인다.
+- 그 서비스 계정에만 붙고 프로젝트 수준 역할은 바뀌지 않는다.
 
 ```bash
 gcloud iam service-accounts add-iam-policy-binding <service-account-email> --member=serviceAccount:<service-account-email> --role=roles/iam.serviceAccountTokenCreator --condition=None --project <your-project-id>
 ```
 
-성공하면 `Updated IAM policy for serviceAccount` 로 시작하는 줄이 나온다. 권한이 반영되기까지 몇 분 걸릴 수 있다. 켠 수단의 함수가 서로 다른 서비스 계정을 쓰면 계정마다 한다.
+성공하면 `Updated IAM policy for serviceAccount` 로 시작하는 줄이 나온다.
+- 권한이 반영되기까지 몇 분 걸릴 수 있다.
+- 켠 수단의 함수가 서로 다른 서비스 계정을 쓰면 계정마다 한다.
 
 #### 문제 해결
 
-- **위저드가 `함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다` 를 보인다.** 서비스 계정의 IAM 정책을 바꿀 수 있는 계정(예: 프로젝트 소유자)으로 gcloud 에 로그인했는지 확인한다. 조직 정책이 막으면 조직 관리자에게 그 프로젝트의 예외를 요청한다. 권한이 생긴 뒤 `./setup.sh` 를 다시 실행하면 이어진다.
-- **Kakao · Naver · LINE 로그인이 오류 배너로 끝나거나, Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로 끝난다.** 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 이 권한이 없는 것이다 — 위 명령으로 확인하고 붙인다. 막 붙였다면 몇 분 기다린 뒤 로그인 · 해제 · 탈퇴를 다시 시도한다. 해제 · 탈퇴는 그 수단 쪽 연결이 이미 끊긴 상태에서 실패한 것이므로 다시 시도할 때 그 수단의 로그인을 다시 거친다.
+- **위저드가 `함수 런타임 서비스 계정에 Token Creator 를 붙이지 못했습니다` 를 보인다.**
+  - 서비스 계정의 IAM 정책을 바꿀 수 있는 계정(예: 프로젝트 소유자)으로 gcloud 에 로그인했는지 확인한다.
+  - 조직 정책이 막으면 조직 관리자에게 그 프로젝트의 예외를 요청한다.
+  - 권한이 생긴 뒤 `./setup.sh` 를 다시 실행하면 이어진다.
+- **Kakao · Naver · LINE 로그인이 오류 배너로 끝나거나, Naver · LINE 의 연결 해제 · 회원탈퇴가 오류로 끝난다.**
+  - 함수 로그(Cloud Logging)에 `auth/insufficient-permission` 이 있으면 이 권한이 없는 것이다 — 위 명령으로 확인하고 붙인다.
+  - 막 붙였다면 몇 분 기다린 뒤 로그인 · 해제 · 탈퇴를 다시 시도한다.
+  - 해제 · 탈퇴는 그 수단 쪽 연결이 이미 끊긴 상태에서 실패한 것이므로 다시 시도할 때 그 수단의 로그인을 다시 거친다.
 
 ### 로그인 수단에서 이메일 받기
 
-켠 로그인 수단이 가입할 때 이메일을 주도록 provider 콘솔을 설정하는 절차다. 킷은 로그인 수단이 준 이메일을 계정의 이메일로 쓰고, 사용자가 나중에 이메일을 등록하는 화면은 두지 않는다. 이메일이 오지 않은 계정은 설정 → 내 계정(계정 정보 화면)의 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 이미 가입해 있어도 기존 계정 안내 없이 새 계정이 하나 더 생긴다. 그래서 켠 provider 마다 이메일을 필수로 받도록 설정한다. 소셜 로그인을 하나도 켜지 않았으면 이 절을 건너뛴다.
+켠 로그인 수단이 가입할 때 이메일을 주도록 provider 콘솔을 설정하는 절차다.
+- 킷은 로그인 수단이 준 이메일을 계정의 이메일로 쓰고, 사용자가 나중에 이메일을 등록하는 화면은 두지 않는다.
+- 이메일이 오지 않은 계정은 설정 → 내 계정(계정 정보 화면)의 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 이미 가입해 있어도 기존 계정 안내 없이 새 계정이 하나 더 생긴다.
+- 그래서 켠 provider 마다 이메일을 필수로 받도록 설정한다.
+- 소셜 로그인을 하나도 켜지 않았으면 이 절을 건너뛴다.
 
-**전제:** [로그인 수단 켜기](#로그인-수단-켜기) 의 수단별 절로 그 provider 의 콘솔에 앱을 등록한다. 이 절의 설정은 모두 그 콘솔에서 하고, 앱 코드는 고치지 않는다.
+**전제:** [로그인 수단 켜기](#로그인-수단-켜기) 의 수단별 절로 그 provider 의 콘솔에 앱을 등록한다.
+- 이 절의 설정은 모두 그 콘솔에서 하고, 앱 코드는 고치지 않는다.
 
 #### provider 별 설정
 
@@ -659,35 +704,72 @@ gcloud iam service-accounts add-iam-policy-binding <service-account-email> --mem
 | Naver | 있음 | 「연락처 이메일 주소」 를 필수 제공 항목으로 설정한다 |
 | LINE | 없음 | email 권한을 신청한다 — 권한을 받아도 사용자가 이메일 제공에 동의하지 않을 수 있다 |
 
-**Kakao.** 「카카오계정(이메일)」 동의항목의 동의 단계는 비즈 앱 또는 테스트 앱에서만 설정할 수 있다. 일반 앱이면 먼저 비즈 앱으로 전환한다 — 전환 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다. 그다음 Kakao Developers 앱 관리 페이지의 [카카오 로그인] > [동의항목] > [개인정보] 에서 「카카오계정(이메일)」 행의 [설정] 을 누르고, 동의 단계를 [필수 동의] 로 고른 뒤 동의 목적을 입력한다. 설정창에 「카카오계정으로 수집 후 제공」 이 있으면 함께 켠다 — 카카오계정에 등록되지 않은 정보를 사용자에게 동의와 입력을 요청해 받아 주는 기능이다. [필수 동의] 로 두어도 Kakao 가 갖고 있지 않은 정보는 오지 않을 수 있다. 프로필 사진도 받으려면 같은 [카카오 로그인] > [동의항목] > [개인정보] 에서 「프로필 사진」 행의 [설정] 을 누르고 [선택 동의] 로 켠다 — 사용자가 동의하면 ID 토큰에 사진 주소가 담긴다. 앱 등록 순서에서 이 설정의 자리는 [Kakao 로그인 켜기](#kakao-로그인-켜기) 의 콘솔 단계 5 다. 공식 문서: <https://developers.kakao.com/docs/ko/kakaologin/utilize> · <https://developers.kakao.com/docs/ko/kakaologin/prerequisite>
+**Kakao.**
+- 「카카오계정(이메일)」 동의항목의 동의 단계는 비즈 앱 또는 테스트 앱에서만 설정할 수 있다.
+- 일반 앱이면 먼저 비즈 앱으로 전환한다 — 전환 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+- 그다음 Kakao Developers 앱 관리 페이지의 [카카오 로그인] > [동의항목] > [개인정보] 에서 「카카오계정(이메일)」 행의 [설정] 을 누르고, 동의 단계를 [필수 동의] 로 고른 뒤 동의 목적을 입력한다.
+- 설정창에 「카카오계정으로 수집 후 제공」 이 있으면 함께 켠다 — 카카오계정에 등록되지 않은 정보를 사용자에게 동의와 입력을 요청해 받아 주는 기능이다.
+- [필수 동의] 로 두어도 Kakao 가 갖고 있지 않은 정보는 오지 않을 수 있다.
+- 프로필 사진도 받으려면 같은 [카카오 로그인] > [동의항목] > [개인정보] 에서 「프로필 사진」 행의 [설정] 을 누르고 [선택 동의] 로 켠다 — 사용자가 동의하면 ID 토큰에 사진 주소가 담긴다.
+- 앱 등록 순서에서 이 설정의 자리는 [Kakao 로그인 켜기](#kakao-로그인-켜기) 의 콘솔 단계 5 다.
+- 공식 문서: <https://developers.kakao.com/docs/ko/kakaologin/utilize> · <https://developers.kakao.com/docs/ko/kakaologin/prerequisite>
 
-**Naver.** Naver Developers 의 애플리케이션 API 설정 메뉴에서 「연락처 이메일 주소」 를 필수 제공 항목으로 둔다. 추가 제공 항목으로 두면 사용자가 제공 여부를 고르므로 이메일이 오지 않을 수 있다. Naver 는 필수 제공 항목을 서비스 이용에 반드시 필요한 정보로만 설정하라고 안내한다. 앱 등록 순서에서 이 설정의 자리는 [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 4 다. 공식 문서: <https://developers.naver.com/docs/login/devguide/devguide.md>
+**Naver.**
+- Naver Developers 의 애플리케이션 API 설정 메뉴에서 「연락처 이메일 주소」 를 필수 제공 항목으로 둔다.
+- 추가 제공 항목으로 두면 사용자가 제공 여부를 고르므로 이메일이 오지 않을 수 있다.
+- Naver 는 필수 제공 항목을 서비스 이용에 반드시 필요한 정보로만 설정하라고 안내한다.
+- 앱 등록 순서에서 이 설정의 자리는 [Naver 로그인 켜기](#naver-로그인-켜기) 의 콘솔 단계 4 다.
+- 공식 문서: <https://developers.naver.com/docs/login/devguide/devguide.md>
 
-**LINE.** LINE Developers Console 에서 채널의 Basic settings 탭 → OpenID Connect → Apply 로 email 권한을 신청한다 — 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다. 권한이 없는 채널은 동의 화면에 이메일 항목이 없고 이메일 없이 가입된다. 권한을 받은 뒤에도 동의 화면에서 이메일은 필수 항목이 아니다 — 사용자가 이메일 제공에 동의하지 않고 로그인할 수 있다. 공식 문서: <https://developers.line.biz/en/docs/line-login/integrate-line-login/>
+**LINE.**
+- LINE Developers Console 에서 채널의 Basic settings 탭 → OpenID Connect → Apply 로 email 권한을 신청한다 — 신청 절차는 [로그인 수단 검수 · 인증](guide.md#로그인-수단-검수--인증) 에 있다.
+- 권한이 없는 채널은 동의 화면에 이메일 항목이 없고 이메일 없이 가입된다.
+- 권한을 받은 뒤에도 동의 화면에서 이메일은 필수 항목이 아니다 — 사용자가 이메일 제공에 동의하지 않고 로그인할 수 있다.
+- 공식 문서: <https://developers.line.biz/en/docs/line-login/integrate-line-login/>
 
-**Facebook.** 이메일을 필수로 받을 수 없다. 앱은 `email` 권한을 요청하지만, 사용자는 로그인할 때 공개 프로필을 뺀 권한을 모두 거부할 수 있고 Facebook 계정에 유효한 이메일이 없으면 값이 오지 않는다. 공식 문서: <https://developers.facebook.com/documentation/facebook-login/guides/permissions/handle-declined> · <https://developers.facebook.com/docs/graph-api/reference/user/>
+**Facebook.**
+- 이메일을 필수로 받을 수 없다.
+- 앱은 `email` 권한을 요청하지만, 사용자는 로그인할 때 공개 프로필을 뺀 권한을 모두 거부할 수 있고 Facebook 계정에 유효한 이메일이 없으면 값이 오지 않는다.
+- 공식 문서: <https://developers.facebook.com/documentation/facebook-login/guides/permissions/handle-declined> · <https://developers.facebook.com/docs/graph-api/reference/user/>
 
-**Google · Apple.** 설정할 것이 없다. Apple 은 사용자가 가입할 때 이메일 가리기(Hide My Email)를 고르면 `privaterelay.appleid.com` 도메인의 주소가 온다. 공식 문서: <https://firebase.google.com/docs/auth/ios/apple>
+**Google · Apple.**
+- 설정할 것이 없다.
+- Apple 은 사용자가 가입할 때 이메일 가리기(Hide My Email)를 고르면 `privaterelay.appleid.com` 도메인의 주소가 온다.
+- 공식 문서: <https://firebase.google.com/docs/auth/ios/apple>
 
-Facebook · LINE 처럼 이메일을 필수로 받을 수 없는 로그인 수단을 켜면 이메일 없는 계정이 생길 수 있다. 그 계정은 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 만든 계정이 있어도 기존 계정 안내가 뜨지 않는다. 이메일이 꼭 필요한 앱은 가입 흐름에 이메일을 받는 화면을 직접 더한다.
+Facebook · LINE 처럼 이메일을 필수로 받을 수 없는 로그인 수단을 켜면 이메일 없는 계정이 생길 수 있다.
+- 그 계정은 「이메일」 행이 「-」 로 보이고, 같은 사람이 다른 로그인 수단으로 만든 계정이 있어도 기존 계정 안내가 뜨지 않는다.
+- 이메일이 꼭 필요한 앱은 가입 흐름에 이메일을 받는 화면을 직접 더한다.
 
 #### 확인 방법
 
-- 그 provider 로 새로 가입한 뒤 설정 → 내 계정(계정 정보 화면)을 연다. 「이메일」 행에 「-」 가 아니라 그 provider 계정의 이메일이 보인다.
+- 그 provider 로 새로 가입한 뒤 설정 → 내 계정(계정 정보 화면)을 연다.
+  - 「이메일」 행에 「-」 가 아니라 그 provider 계정의 이메일이 보인다.
 - LINE 은 신청이 받아들여지면 채널 Basic settings 탭의 OpenID Connect 에서 Email address permission 아래에 「Applied」 가 보인다.
 
 #### 문제 해결
 
-- **「이메일」 행이 「-」 다.** 그 계정이 가입할 때 provider 가 이메일을 주지 않았다. 원인은 provider 마다 다르다 — 설정을 고친 뒤 새로 가입하는 계정으로 다시 확인한다.
-  - Kakao — 앱이 비즈 앱(또는 테스트 앱)이 아니다. 또는 「카카오계정(이메일)」 동의항목이 [필수 동의] 가 아니다. 또는 Kakao 가 그 사용자의 이메일을 갖고 있지 않다.
+- **「이메일」 행이 「-」 다.**
+  - 그 계정이 가입할 때 provider 가 이메일을 주지 않았다.
+  - 원인은 provider 마다 다르다 — 설정을 고친 뒤 새로 가입하는 계정으로 다시 확인한다.
+  - Kakao — 앱이 비즈 앱(또는 테스트 앱)이 아니다.
+    - 또는 「카카오계정(이메일)」 동의항목이 [필수 동의] 가 아니다.
+    - 또는 Kakao 가 그 사용자의 이메일을 갖고 있지 않다.
   - Naver — 「연락처 이메일 주소」 가 추가 제공 항목이고 사용자가 제공을 고르지 않았다.
-  - LINE — 채널에 email 권한이 없다. 또는 사용자가 동의 화면에서 이메일 제공에 동의하지 않았다. 또는 LINE 계정에 이메일이 등록돼 있지 않다.
-  - Facebook — 사용자가 이메일 권한을 거부했다. 또는 Facebook 계정에 유효한 이메일이 없다. 앱 설정으로는 고칠 수 없다.
-- **같은 사람인데 계정이 두 개 생겼다.** 나중에 쓴 로그인 수단이 이메일을 주지 않았거나 먼저 만든 계정과 다른 이메일을 줬다. 그 로그인 수단을 먼저 만든 계정에 연결하려면 새로 생긴 계정으로 로그인해 회원탈퇴한 뒤, 먼저 만든 계정의 설정 → 내 계정(계정 정보 화면) → 「계정 연결」 에서 연결한다.
+  - LINE — 채널에 email 권한이 없다.
+    - 또는 사용자가 동의 화면에서 이메일 제공에 동의하지 않았다.
+    - 또는 LINE 계정에 이메일이 등록돼 있지 않다.
+  - Facebook — 사용자가 이메일 권한을 거부했다.
+    - 또는 Facebook 계정에 유효한 이메일이 없다.
+    - 앱 설정으로는 고칠 수 없다.
+- **같은 사람인데 계정이 두 개 생겼다.**
+  - 나중에 쓴 로그인 수단이 이메일을 주지 않았거나 먼저 만든 계정과 다른 이메일을 줬다.
+  - 그 로그인 수단을 먼저 만든 계정에 연결하려면 새로 생긴 계정으로 로그인해 회원탈퇴한 뒤, 먼저 만든 계정의 설정 → 내 계정(계정 정보 화면) → 「계정 연결」 에서 연결한다.
 
 #### 되돌리기
 
-Kakao 의 동의 단계와 Naver 의 제공 항목 구분을 바꾸기 전 값으로 되돌린다. 필수로 받지 않으면 그 뒤에 가입하는 계정은 이메일 없이 만들어질 수 있다.
+Kakao 의 동의 단계와 Naver 의 제공 항목 구분을 바꾸기 전 값으로 되돌린다.
+- 필수로 받지 않으면 그 뒤에 가입하는 계정은 이메일 없이 만들어질 수 있다.
 
 ## 알림(APNs) · App Check
 
