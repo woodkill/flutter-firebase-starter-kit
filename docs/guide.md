@@ -218,10 +218,10 @@
 
 ## 내 기능 추가하기
 
-킷 위에 첫 기능을 만드는 길을 한 예로 따라간다. 예는 사용자별 메모 목록이다 — 로그인한
-사용자마다 Firestore `users/{uid}/memos` 에 자기 메모를 두고, 홈에서 들어가는 목록 화면
-하나에서 메모를 추가(입력 시트)하고 지운다. 메모는 정식 사용자만 쓴다. 게스트가 「메모
-추가」 를 누르면 킷의 로그인 권유 시트(`LoginPromptSheet`)가 뜬다.
+킷 위에 첫 기능을 만드는 길을 한 예로 따라간다.
+- 예는 사용자별 메모 목록이다 — 로그인한 사용자마다 Firestore `users/{uid}/memos` 에 자기 메모를 두고, 홈에서 들어가는 목록 화면 하나에서 메모를 추가(입력 시트)하고 지운다.
+- 메모는 정식 사용자만 쓴다.
+- 게스트가 「메모 추가」 를 누르면 킷의 로그인 권유 시트(`LoginPromptSheet`)가 뜬다.
 
 **전제:**
 
@@ -235,9 +235,9 @@
 
 ### ① 기능 폴더 만들기
 
-기능 하나는 `lib/features/<기능>/` 아래에 층별 폴더로 둔다. 메모 기능이 만드는 파일은
-아래와 같다. 시험은 `test/` 아래 같은 경로에, rules 시험은 `functions/test/rules/` 에
-둔다.
+기능 하나는 `lib/features/<기능>/` 아래에 층별 폴더로 둔다.
+- 메모 기능이 만드는 파일은 아래와 같다.
+- 시험은 `test/` 아래 같은 경로에, rules 시험은 `functions/test/rules/` 에 둔다.
 
 ```text
 lib/features/memos/
@@ -253,13 +253,14 @@ test/features/memos/
 functions/test/rules/memos.rules.test.ts
 ```
 
-같은 기능 안의 파일끼리는 상대 경로로 import 한다. `_widgets/` 는 그 화면에서만 쓰는
-위젯을 둔다.
+같은 기능 안의 파일끼리는 상대 경로로 import 한다.
+- `_widgets/` 는 그 화면에서만 쓰는 위젯을 둔다.
 
 ### ② Freezed 모델
 
-`lib/features/memos/domain/memo.dart` 를 만든다. 시각 필드는 킷의 `TimestampConverter`
-로 Firestore Timestamp 와 `DateTime` 을 바꾼다. 문서 id 는 저장하지 않고 읽을 때만 채운다.
+`lib/features/memos/domain/memo.dart` 를 만든다.
+- 시각 필드는 킷의 `TimestampConverter` 로 Firestore Timestamp 와 `DateTime` 을 바꾼다.
+- 문서 id 는 저장하지 않고 읽을 때만 채운다.
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -303,10 +304,9 @@ abstract class Memo with _$Memo {
 
 ### ③ withConverter 저장소
 
-`lib/features/memos/data/memo_repository.dart` 를 만든다. 컬렉션 참조를
-`withConverter<Memo>` 로 고정하고, 쓰기는 킷의 `guardResult` 로 감싸 `Result<void>` 를
-돌려준다. `guardResult` 의 첫 인자는 `'<저장소>_<메서드>'` 꼴의 코드 경로 이름이다 —
-사용자 값 · 메모 본문은 넣지 않는다.
+`lib/features/memos/data/memo_repository.dart` 를 만든다.
+- 컬렉션 참조를 `withConverter<Memo>` 로 고정하고, 쓰기는 킷의 `guardResult` 로 감싸 `Result<void>` 를 돌려준다.
+- `guardResult` 의 첫 인자는 `'<저장소>_<메서드>'` 꼴의 코드 경로 이름이다 — 사용자 값 · 메모 본문은 넣지 않는다.
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -385,9 +385,9 @@ MemoRepository memoRepository(Ref ref) {
 
 ### ④ Riverpod provider
 
-`lib/features/memos/application/memo_providers.dart` 를 만든다. 목록은 킷의
-`authStateProvider` 로 지금 사용자를 보고, 게스트(익명) · 로그아웃이면 빈 목록이다. 추가 ·
-삭제는 정식 사용자가 아니면 저장소를 부르지 않는다.
+`lib/features/memos/application/memo_providers.dart` 를 만든다.
+- 목록은 킷의 `authStateProvider` 로 지금 사용자를 보고, 게스트(익명) · 로그아웃이면 빈 목록이다.
+- 추가 · 삭제는 정식 사용자가 아니면 저장소를 부르지 않는다.
 
 ```dart
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -449,11 +449,9 @@ class MemoEditor extends _$MemoEditor {
 
 ### ⑤ 목록 화면 · 추가 시트
 
-목록 화면 `lib/features/memos/presentation/memo_list_screen.dart` 를 만든다. 「메모 추가」
-버튼은 킷의 `AuthRequired` 로 감싼다 — 정식 사용자면 `onAuthenticated` 가 입력 시트를
-띄우고, 게스트 · 로그아웃이면 `showLoginPromptSheet` 가 로그인 권유 시트를 띄운다. 목록 ·
-불러오기 실패(「다시 시도」 버튼)는 킷의 `AsyncValueView` 가, 삭제 실패는
-`showErrorSnackBar` 가 그린다.
+목록 화면 `lib/features/memos/presentation/memo_list_screen.dart` 를 만든다.
+- 「메모 추가」 버튼은 킷의 `AuthRequired` 로 감싼다 — 정식 사용자면 `onAuthenticated` 가 입력 시트를 띄우고, 게스트 · 로그아웃이면 `showLoginPromptSheet` 가 로그인 권유 시트를 띄운다.
+- 목록 · 불러오기 실패(「다시 시도」 버튼)는 킷의 `AsyncValueView` 가, 삭제 실패는 `showErrorSnackBar` 가 그린다.
 
 ```dart
 import 'dart:async';
@@ -539,8 +537,8 @@ class _MemoTile extends ConsumerWidget {
 }
 ```
 
-입력 시트 `lib/features/memos/presentation/_widgets/memo_add_sheet.dart` 를 만든다. 저장에
-실패하면 시트를 닫지 않고 입력란 아래에 킷의 오류 문구를 보인다.
+입력 시트 `lib/features/memos/presentation/_widgets/memo_add_sheet.dart` 를 만든다.
+- 저장에 실패하면 시트를 닫지 않고 입력란 아래에 킷의 오류 문구를 보인다.
 
 ```dart
 import 'dart:async';
@@ -647,8 +645,8 @@ class _MemoAddSheetState extends ConsumerState<MemoAddSheet> {
 
 ### ⑥ 홈 하위 라우트와 진입 버튼
 
-1. `lib/core/router/app_routes.dart` 의 `AppRoutes` 에 경로 상수 셋(GoRoute 용 조각 · 전체
-   경로 · name)을 더한다. `developerDemoName` 상수 다음에 빈 줄 하나를 두고 넣는다.
+1. `lib/core/router/app_routes.dart` 의 `AppRoutes` 에 경로 상수 셋(GoRoute 용 조각 · 전체 경로 · name)을 더한다.
+   - `developerDemoName` 상수 다음에 빈 줄 하나를 두고 넣는다.
 
 ```dart
   /// 메모 목록 화면의 홈 하위 상대 경로 조각 — GoRoute.path 전용.
@@ -668,9 +666,8 @@ class _MemoAddSheetState extends ConsumerState<MemoAddSheet> {
 import '../../features/memos/presentation/memo_list_screen.dart';
 ```
 
-3. 같은 파일의 홈 `GoRoute`(`path: AppRoutes.home`) 의 `routes:` 목록 맨 끝 — 약관
-   (`AppRoutes.termsPrivacySegment`) `GoRoute` 다음 — 에 아래를 넣는다. 홈 하위에 두면
-   목록 화면에서 「뒤로」 가 홈으로 돌아온다.
+3. 같은 파일의 홈 `GoRoute`(`path: AppRoutes.home`) 의 `routes:` 목록 맨 끝 — 약관 (`AppRoutes.termsPrivacySegment`) `GoRoute` 다음 — 에 아래를 넣는다.
+   - 홈 하위에 두면 목록 화면에서 「뒤로」 가 홈으로 돌아온다.
 
 ```dart
           GoRoute(
@@ -680,9 +677,9 @@ import '../../features/memos/presentation/memo_list_screen.dart';
           ),
 ```
 
-4. 라우트 개수를 세는 킷 시험을 고친다. `test/core/router/app_router_observers_test.dart`
-   는 라우트 전체(하위 포함) 개수와 name 개수를 14 로 센다. 라우트 하나를 더했으므로 두
-   곳을 15 로 바꾼다(최상위 개수 8 은 그대로).
+4. 라우트 개수를 세는 킷 시험을 고친다.
+   - `test/core/router/app_router_observers_test.dart` 는 라우트 전체(하위 포함) 개수와 name 개수를 14 로 센다.
+   - 라우트 하나를 더했으므로 두 곳을 15 로 바꾼다(최상위 개수 8 은 그대로).
 
 ```dart
         expect(
@@ -699,10 +696,9 @@ import '../../features/memos/presentation/memo_list_screen.dart';
    킷 업데이트를 받을 때 이 시험 파일이 충돌할 수 있다 — 합치는 법은
    [킷 업데이트 반영](#킷-업데이트-반영) 에 있다.
 
-5. 홈 본문 `lib/features/home/presentation/home_body.dart` 에 진입 버튼을 둔다. 개발자 안내
-   카드의 「데모 화면 열기」 버튼(`FilledButton.tonal`) 다음에 아래를 넣는다. release
-   빌드의 홈 본문은 비어 있으므로, 내 홈 화면을 만들 때([홈 화면 바꾸기](#홈-화면-바꾸기))
-   이 버튼을 그 본문으로 옮긴다.
+5. 홈 본문 `lib/features/home/presentation/home_body.dart` 에 진입 버튼을 둔다.
+   - 개발자 안내 카드의 「데모 화면 열기」 버튼(`FilledButton.tonal`) 다음에 아래를 넣는다.
+   - release 빌드의 홈 본문은 비어 있으므로, 내 홈 화면을 만들 때([홈 화면 바꾸기](#홈-화면-바꾸기)) 이 버튼을 그 본문으로 옮긴다.
 
 ```dart
               Gap(spacing.sm),
@@ -716,10 +712,9 @@ import '../../features/memos/presentation/memo_list_screen.dart';
 
 ### ⑦ ARB 세 언어
 
-`lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` 에 같은 키 다섯을 더한다. 각 파일의
-맨 끝 항목(`app_en.arb` 는 `@` 설명 블록의 닫는 `}`, `app_ko.arb` · `app_ja.arb` 는 문자열
-값) 뒤에 쉼표를 붙이고, 파일의 마지막 `}` 앞에 아래 줄을 넣는다. 설명(`@` 키)은 템플릿
-파일인 `app_en.arb` 에만 둔다.
+`lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` 에 같은 키 다섯을 더한다.
+- 각 파일의 맨 끝 항목(`app_en.arb` 는 `@` 설명 블록의 닫는 `}`, `app_ko.arb` · `app_ja.arb` 는 문자열 값) 뒤에 쉼표를 붙이고, 파일의 마지막 `}` 앞에 아래 줄을 넣는다.
+- 설명(`@` 키)은 템플릿 파일인 `app_en.arb` 에만 둔다.
 
 `lib/l10n/app_en.arb`:
 
@@ -772,11 +767,10 @@ import '../../features/memos/presentation/memo_list_screen.dart';
 
 ### ⑧ Firestore rules 와 rules 시험
 
-`firestore.rules` 의 `match /users/{userId}` 안, 알림 토큰 블록(`match /fcmTokens/{token}`)
-의 닫는 `}` 다음에 아래를 넣는다. 알림 토큰과 같은 꼴이다 — 본인(`isOwner`)이면서 정식
-사용자(`isRegular`)만 읽고 쓰고, 저장 키는 `hasOnly` 로 모델의 두 키만 받는다. 본문 길이
-상한은 ② 의 `kMemoMaxLength` 와 같다. 메모 고치기는 화면에 없으므로 `update` 는 열지
-않는다.
+`firestore.rules` 의 `match /users/{userId}` 안, 알림 토큰 블록(`match /fcmTokens/{token}`) 의 닫는 `}` 다음에 아래를 넣는다.
+- 알림 토큰과 같은 꼴이다 — 본인(`isOwner`)이면서 정식 사용자(`isRegular`)만 읽고 쓰고, 저장 키는 `hasOnly` 로 모델의 두 키만 받는다.
+- 본문 길이 상한은 ② 의 `kMemoMaxLength` 와 같다.
+- 메모 고치기는 화면에 없으므로 `update` 는 열지 않는다.
 
 ```text
       // memos 서브컬렉션 — 정식 사용자 본인의 메모.
@@ -791,8 +785,8 @@ import '../../features/memos/presentation/memo_list_screen.dart';
       }
 ```
 
-rules 시험 `functions/test/rules/memos.rules.test.ts` 를 만든다. 본인 허용 · 키 · 길이
-위반 거부 · 게스트 거부 · 다른 사용자 거부를 에뮬레이터에서 확인한다.
+rules 시험 `functions/test/rules/memos.rules.test.ts` 를 만든다.
+- 본인 허용 · 키 · 길이 위반 거부 · 게스트 거부 · 다른 사용자 거부를 에뮬레이터에서 확인한다.
 
 ```ts
 // `pnpm test:rules` 전용 — users/{uid}/memos 규칙을 에뮬레이터에서 확인한다.
@@ -897,8 +891,8 @@ describe("users/{uid}/memos rules", () => {
 });
 ```
 
-저장소 루트에서 rules 시험을 돌린다. Firestore · Storage 에뮬레이터가 `demo-` 프로젝트로
-떠서 실제 Firebase 프로젝트에 접속하지 않는다.
+저장소 루트에서 rules 시험을 돌린다.
+- Firestore · Storage 에뮬레이터가 `demo-` 프로젝트로 떠서 실제 Firebase 프로젝트에 접속하지 않는다.
 
 ```bash
 cd functions && pnpm test:rules
@@ -906,9 +900,9 @@ cd functions && pnpm test:rules
 
 ### ⑨ unit · widget 시험
 
-저장소 시험 `test/features/memos/data/memo_repository_test.dart` 를 만든다. Firestore 는
-mocktail 로 대신하고(킷의 `fcm_token_repository_test.dart` 와 같은 꼴), 추가 성공 · 저장
-키 · 오류 처리를 본다. 저장 키 시험은 모델의 키가 ⑧ 의 `hasOnly` 목록과 어긋나면 실패한다.
+저장소 시험 `test/features/memos/data/memo_repository_test.dart` 를 만든다.
+- Firestore 는 mocktail 로 대신하고(킷의 `fcm_token_repository_test.dart` 와 같은 꼴), 추가 성공 · 저장 키 · 오류 처리를 본다.
+- 저장 키 시험은 모델의 키가 ⑧ 의 `hasOnly` 목록과 어긋나면 실패한다.
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1054,7 +1048,7 @@ void main() {
 ```
 
 목록 화면 시험 `test/features/memos/presentation/memo_list_screen_test.dart` 를 만든다.
-목록 provider 를 override 해 빈 상태와 메모 줄을 본다.
+- 목록 provider 를 override 해 빈 상태와 메모 줄을 본다.
 
 ```dart
 import 'package:flutter/material.dart';
@@ -1106,7 +1100,8 @@ void main() {
 
 ### ⑩ 코드 생성 · 분석 · 시험
 
-저장소 루트에서 차례로 돌린다. Freezed · Riverpod 코드를 만들고, ARB 문구를 생성한다.
+저장소 루트에서 차례로 돌린다.
+- Freezed · Riverpod 코드를 만들고, ARB 문구를 생성한다.
 
 ```bash
 fvm dart run build_runner build --delete-conflicting-outputs
@@ -1119,8 +1114,8 @@ fvm flutter gen-l10n
 fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
 ```
 
-분석 두 가지와 전체 시험, rules 시험을 돌린다. 분석은 둘 다 `No issues found!` 여야 한다
-— Riverpod 규칙 진단은 `fvm dart analyze` 에만 나온다.
+분석 두 가지와 전체 시험, rules 시험을 돌린다.
+- 분석은 둘 다 `No issues found!` 여야 한다 — Riverpod 규칙 진단은 `fvm dart analyze` 에만 나온다.
 
 ```bash
 fvm flutter analyze
@@ -1131,8 +1126,8 @@ cd functions && pnpm test:rules
 
 ### 확인 방법
 
-1. 바꾼 rules 를 dev 프로젝트에 올린다. `<your-project-id>` 는 `config/dev.json` 의
-   `firebaseProjectId` 값이다.
+1. 바꾼 rules 를 dev 프로젝트에 올린다.
+   - `<your-project-id>` 는 `config/dev.json` 의 `firebaseProjectId` 값이다.
 
 ```bash
 firebase deploy --only firestore:rules --project <your-project-id>
@@ -1144,16 +1139,16 @@ firebase deploy --only firestore:rules --project <your-project-id>
 fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 ```
 
-3. 정식 사용자로 로그인한 뒤 홈의 「Memos」(한국어 화면은 「메모」) 버튼을 누른다. 「메모
-   추가」 → 입력 → 「메모 추가」 를 누르면 시트가 닫히고 메모가 목록 맨 위에 생긴다.
-   Firebase 콘솔 Firestore 의 `users/<uid>/memos` 에 문서가 하나 생긴다. 휴지통 아이콘을
-   누르면 목록과 콘솔에서 사라진다.
-4. 로그아웃한 뒤 게스트로 들어가 홈의 같은 버튼으로 목록을 연다. 목록은 비어 있고,
-   「메모 추가」 를 누르면 로그인 권유 시트가 뜬다.
+3. 정식 사용자로 로그인한 뒤 홈의 「Memos」(한국어 화면은 「메모」) 버튼을 누른다.
+   - 「메모 추가」 → 입력 → 「메모 추가」 를 누르면 시트가 닫히고 메모가 목록 맨 위에 생긴다.
+   - Firebase 콘솔 Firestore 의 `users/<uid>/memos` 에 문서가 하나 생긴다.
+   - 휴지통 아이콘을 누르면 목록과 콘솔에서 사라진다.
+4. 로그아웃한 뒤 게스트로 들어가 홈의 같은 버튼으로 목록을 연다.
+   - 목록은 비어 있고, 「메모 추가」 를 누르면 로그인 권유 시트가 뜬다.
 
-- **정식 사용자인데 저장하면 입력란 아래에 오류 문구가 나오거나, 목록이 「다시 시도」 와
-  함께 오류를 보인다:** 프로젝트의 rules 에 memos 블록이 없다 — 1번의 배포를 하지 않았거나
-  다른 프로젝트에 올렸다. `--project` 값을 확인하고 다시 배포한 뒤 「다시 시도」 를 누른다.
+- **정식 사용자인데 저장하면 입력란 아래에 오류 문구가 나오거나, 목록이 「다시 시도」 와 함께 오류를 보인다:**
+  - 프로젝트의 rules 에 memos 블록이 없다 — 1번의 배포를 하지 않았거나 다른 프로젝트에 올렸다.
+  - `--project` 값을 확인하고 다시 배포한 뒤 「다시 시도」 를 누른다.
 
 ### 되돌리기
 
@@ -1162,8 +1157,8 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 2. ⑥ 에서 더한 경로 상수 셋 · import 줄 · `GoRoute` · 홈 진입 버튼을 지우고,
    `app_router_observers_test.dart` 의 두 개수를 14 로 돌린다.
 3. ⑦ 의 ARB 키 다섯을 세 파일에서 지우고 `fvm flutter gen-l10n` 을 돌린다.
-4. ⑧ 의 `match /memos/{memoId}` 블록을 지우고 확인 방법 1번의 명령으로 rules 를 다시
-   배포한다. 이미 쓴 메모 문서는 Firebase 콘솔에서 지운다.
+4. ⑧ 의 `match /memos/{memoId}` 블록을 지우고 확인 방법 1번의 명령으로 rules 를 다시 배포한다.
+   - 이미 쓴 메모 문서는 Firebase 콘솔에서 지운다.
 5. ⑩ 의 순서(코드 생성 → 홈 golden 다시 만들기 → 분석 · 시험)를 다시 돌린다.
 
 ## 디자인 토큰 바꾸기
