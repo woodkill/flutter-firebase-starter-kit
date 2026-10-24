@@ -499,47 +499,74 @@ Kakao 를 끄는 법은 [로그인 수단 끄기](#로그인-수단-끄기) 에 
 
 Naver 로그인을 앱에 둘 때 이 절을 따른다. Naver 를 켜지 않으면 이 절을 건너뛴다. NAVER 앱이 설치된 기기는 NAVER 앱으로 로그인하고, 설치되지 않은 기기는 Naver 웹 로그인 화면을 거친다.
 
-**전제:** Naver Developers 계정이 있다([시작 전 준비](#시작-전-준비)). [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Naver 를 골랐다. stg · prod 는 그 flavor 용 Naver 애플리케이션을 새로 만든다 — [Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱).
+**전제:** Naver Developers 계정이 있다([시작 전 준비](#시작-전-준비)).
+- [켜는 순서와 수단별로 필요한 것](#켜는-순서와-수단별로-필요한-것) 의 체크 목록에서 Naver 를 골랐다.
+- stg · prod 는 그 flavor 용 Naver 애플리케이션을 새로 만든다 — [Kakao · Naver 는 flavor 마다 새 앱](#kakao--naver-는-flavor-마다-새-앱).
 
 #### 콘솔 단계
 
-1. 위저드가 `Naver 콘솔에 넣을 값 — <flavor>` 값 표를 보인다. 콘솔 주소는 `콘솔: https://developers.naver.com` 줄에 있고, 행은 아래와 같다.
+1. 위저드가 `Naver 콘솔에 넣을 값 — <flavor>` 값 표를 보인다.
+   - 콘솔 주소는 `콘솔: https://developers.naver.com` 줄에 있고, 행은 아래와 같다.
    - `iOS URL Scheme` — `config/<flavor>.json` 의 `naverUrlScheme` 값이다. 그 값이 비었거나 형식(소문자 영문으로 시작하는 소문자 영문 · 숫자)에 맞지 않으면 행 이름이 `iOS URL Scheme (제안)` 이고, 앱 이름으로 만든 제안값을 보인다.
    - `Android 패키지명` — 안드로이드 환경에 넣는 패키지 이름이다.
    - `로고 이미지 · 필수` — 「앱 아이콘」 단계가 만든 `.setup/icons/naver-140x140.png` 다.
 
    NAVER 앱이 없는 기기의 웹 로그인은 값 표의 `iOS URL Scheme` 값으로 돌아온다(`<URL Scheme>://authorize`) — 콘솔에서 따로 할 일은 없다.
-2. 애플리케이션을 등록한다(할 일 줄 `애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)`) — 「애플리케이션 등록 (API 이용신청)」 화면의 「애플리케이션 이름」 을 채우고 「사용 API」 에서 네이버 로그인을 고른다. 같은 화면의 `로고 이미지` 칸에서 `파일선택` 을 눌러 `.setup/icons/naver-140x140.png` 를 올린다(파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다). 로고 이미지는 필수다 — 없으면 애플리케이션이 저장되지 않는다. 콘솔은 jpg · png · gif 를 받고, 140x140 을 권장하며 500KB 까지 받는다. 로고는 사용자가 보는 로그인 동의 화면에 나온다.
+2. 애플리케이션을 등록한다(할 일 줄 `애플리케이션 등록 · 네이버 로그인 API 사용 · 로고 이미지 올리기(필수 — 없으면 저장되지 않습니다)`) — 「애플리케이션 등록 (API 이용신청)」 화면의 「애플리케이션 이름」 을 채우고 「사용 API」 에서 네이버 로그인을 고른다.
+   - 같은 화면의 `로고 이미지` 칸에서 `파일선택` 을 눌러 `.setup/icons/naver-140x140.png` 를 올린다(파일 선택 창에서 ⌘⇧G 로 `<저장소 경로>/.setup/icons` 를 붙여 넣는다).
+   - 로고 이미지는 필수다 — 없으면 애플리케이션이 저장되지 않는다.
+   - 콘솔은 jpg · png · gif 를 받고, 140x140 을 권장하며 500KB 까지 받는다.
+   - 로고는 사용자가 보는 로그인 동의 화면에 나온다.
 3. 서비스 환경을 넣는다(할 일 줄 `iOS 환경에 다운로드 URL · URL Scheme · Android 환경에 다운로드 URL · 패키지명 등록`) — 「사용 API」 에 네이버 로그인을 고르면 펼쳐지는 「로그인 오픈 API 서비스 환경」 의 「환경 추가」 에서 「안드로이드」 · 「iOS」 두 환경을 더한다.
    - iOS 환경: `다운로드 URL` 과 `URL Scheme` 을 넣는다. `URL Scheme` 칸에는 값 표의 `iOS URL Scheme` 값을 글자 그대로 넣는다.
    - 안드로이드 환경: `다운로드 URL` 과 `안드로이드 앱 패키지 이름` 만 넣는다. `안드로이드 앱 패키지 이름` 칸에는 값 표의 `Android 패키지명` 값을 넣는다.
    - `다운로드 URL` 은 스토어에 올리기 전이면 임의 주소(예: 개발사 홈페이지)를 넣고 출시 뒤 스토어 주소로 바꾼다.
 4. 이메일을 받도록 제공 정보를 설정한다(할 일 줄 `제공 정보에서 이메일 주소 받기`) — 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 의 Naver 행에 있다.
-5. 개발 중 로그인할 아이디를 등록한다. 위저드 할 일 줄 `개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다` 대로 `멤버관리` 에서 `관리자 ID 등록`(최대 3개) 또는 `테스터 ID 등록`(최대 20개)에 시험할 네이버 아이디를 넣는다.
+5. 개발 중 로그인할 아이디를 등록한다.
+   - 위저드 할 일 줄 `개발 중인 애플리케이션은 멤버관리에 등록한 관리자 · 테스터 ID 만 로그인할 수 있습니다` 대로 `멤버관리` 에서 `관리자 ID 등록`(최대 3개) 또는 `테스터 ID 등록`(최대 20개)에 시험할 네이버 아이디를 넣는다.
 6. Client ID · Client Secret 을 모은다 — 내 애플리케이션에서 그 앱을 열면 「개요」 탭의 「애플리케이션 정보」 에 「Client ID」 · 「Client Secret」(「보기」 로 연다)이 있다.
-7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 `Naver Client ID` · `Naver Client Secret` · `Naver URL Scheme` 을 차례로 입력한다. Client Secret 은 화면에 보이지 않게 받는다. `Naver URL Scheme` 은 Enter 만 누르면 제안값이 들어간다 — 콘솔 단계 3 의 `URL Scheme` 칸과 같은 값을 넣는다. 위저드가 Client ID · Client Secret 의 짝을 Naver 서버로 확인한 뒤 config · xcconfig · Secret Manager 에 기록한다(URL Scheme 은 config · xcconfig 에만). 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
+7. 위저드의 `콘솔에서 키를 받았나요?` 에 `네 — 키를 입력합니다` 를 고르고 값 세 개를 입력한다.
+   - 순서는 `Naver Client ID` → `Naver Client Secret` → `Naver URL Scheme` 다. Client Secret 은 화면에 보이지 않게 받는다.
+   - `Naver URL Scheme` 은 Enter 만 누르면 제안값이 들어간다 — 콘솔 단계 3 의 `URL Scheme` 칸과 같은 값을 넣는다.
+   - 위저드가 Client ID · Client Secret 의 짝을 Naver 서버로 확인한 뒤 config · xcconfig · Secret Manager 에 기록한다(URL Scheme 은 config · xcconfig 에만).
+   - 콘솔 작업이 남았으면 `아니요 — 끝내고 콘솔 작업 뒤 다시 실행` 을 고른다.
 
 #### 확인 방법
 
-- 앱을 다시 빌드해 실행하면 로그인 화면에 Naver 버튼이 보이고, 눌러 로그인하면 앱에 로그인된다. NAVER 앱이 있는 기기는 NAVER 앱의 동의 화면을, 없는 기기는 Naver 웹 로그인 화면을 거친다.
+- 앱을 다시 빌드해 실행하면 로그인 화면에 Naver 버튼이 보이고, 눌러 로그인하면 앱에 로그인된다.
+  - NAVER 앱이 있는 기기는 NAVER 앱의 동의 화면을, 없는 기기는 Naver 웹 로그인 화면을 거친다.
 - 위저드의 「소셜 로그인 확인」 단계가 `Naver 1명` 꼴로 1명 이상을 센다.
-- Android 에서 두 경로를 모두 보려면 NAVER 앱을 끈 채(`adb shell pm disable-user --user 0 com.nhn.android.search`) 한 번, 되돌린 뒤(`adb shell pm enable com.nhn.android.search`) 한 번 로그인한다. debug 빌드의 로그 `Naver 경로 선택: mode=web installed=false` · `mode=app installed=true` 가 어느 경로를 탔는지 보인다.
-- iOS 에서 NAVER 앱으로 처음 로그인하면 iOS 가 `"<앱 이름>" wants to open "NAVER"` 확인 알림을 띄운다. `Open` 을 눌러야 NAVER 앱으로 넘어간다 — `Cancel` 을 누르면 오류 배너 없이 로그인 화면으로 돌아온다.
+- Android 에서 두 경로를 모두 보려면 NAVER 앱을 끈 채(`adb shell pm disable-user --user 0 com.nhn.android.search`) 한 번, 되돌린 뒤(`adb shell pm enable com.nhn.android.search`) 한 번 로그인한다.
+  - debug 빌드의 로그 `Naver 경로 선택: mode=web installed=false` · `mode=app installed=true` 가 어느 경로를 탔는지 보인다.
+- iOS 에서 NAVER 앱으로 처음 로그인하면 iOS 가 `"<앱 이름>" wants to open "NAVER"` 확인 알림을 띄운다.
+  - `Open` 을 눌러야 NAVER 앱으로 넘어간다 — `Cancel` 을 누르면 오류 배너 없이 로그인 화면으로 돌아온다.
 
 #### 문제 해결
 
-- **NAVER 앱이 「입력하신 아이디로 로그인할 수 없습니다 … 개발 중 상태에서는 등록된 아이디만 로그인할 수 있습니다」 화면을 띄운다.** 애플리케이션이 개발 중 상태이고 그 아이디가 등록돼 있지 않은 것이다 — 콘솔 단계 5 대로 `멤버관리` 에 그 아이디를 등록한다.
-- **위저드가 `Client ID · Client Secret 짝이 맞지 않습니다` 를 보인다.** 위저드가 두 값을 함께 다시 묻는다 — 같은 애플리케이션의 Client ID 와 Client Secret 을 다시 복사해 넣는다.
-- **위저드가 `Client ID · Client Secret 을 서버에서 확인하지 못했습니다` 를 보인다.** Naver 서버에 닿지 못한 것이다 — 네트워크 연결을 확인하고 `./setup.sh --providers` 를 다시 실행한다.
-- **iOS 에서 Naver 로그인 뒤 앱으로 돌아오지 않는다.** 콘솔 iOS 환경의 `URL Scheme` 과 위저드에 넣은 `Naver URL Scheme` 이 다르다 — 두 값을 값 표의 `iOS URL Scheme` 값으로 맞춘다. 위저드 값을 고치려면 `config/<flavor>.json` 의 `naverUrlScheme` 을 고친 뒤 `./setup.sh --providers` 를 다시 실행하고 앱을 다시 빌드한다.
-- **Android 에서 Naver 버튼을 눌렀는데 오류 배너 없이 로그인 화면으로 돌아온다.** Android 의 Naver 로그인 플러그인은 사용자가 취소한 경우뿐 아니라 오류 설명에 `cancel` 이 든 오류(네트워크 오류 등)도 취소로 앱에 넘긴다. 앱은 취소를 배너 없이 처리하므로 이런 실패는 화면에 드러나지 않는다. debug 빌드의 로그에 `Naver logIn cancel: status=loggedOut` 줄이 있으면 취소로 끝난 것이다 — 네트워크 연결을 확인한 뒤 다시 로그인한다.
-- **NAVER 앱이 없는 기기의 웹 로그인이 로그인 화면 대신 Naver 오류 페이지로 끝난다.** 웹 로그인이 돌아올 주소(`<URL Scheme>://authorize`)를 Naver 가 받아들이는지 PC 브라우저로 확인한다. 아래 주소의 `<clientId>` 에 Client ID 를, `<naverUrlScheme>` 에 값 표의 `iOS URL Scheme` 값을 넣어 연다 — `client_secret` 은 넣지 않는다.
+- **NAVER 앱이 「입력하신 아이디로 로그인할 수 없습니다 … 개발 중 상태에서는 등록된 아이디만 로그인할 수 있습니다」 화면을 띄운다.**
+  - 애플리케이션이 개발 중 상태이고 그 아이디가 등록돼 있지 않은 것이다 — 콘솔 단계 5 대로 `멤버관리` 에 그 아이디를 등록한다.
+- **위저드가 `Client ID · Client Secret 짝이 맞지 않습니다` 를 보인다.**
+  - 위저드가 두 값을 함께 다시 묻는다 — 같은 애플리케이션의 Client ID 와 Client Secret 을 다시 복사해 넣는다.
+- **위저드가 `Client ID · Client Secret 을 서버에서 확인하지 못했습니다` 를 보인다.**
+  - Naver 서버에 닿지 못한 것이다 — 네트워크 연결을 확인하고 `./setup.sh --providers` 를 다시 실행한다.
+- **iOS 에서 Naver 로그인 뒤 앱으로 돌아오지 않는다.**
+  - 콘솔 iOS 환경의 `URL Scheme` 과 위저드에 넣은 `Naver URL Scheme` 이 다르다 — 두 값을 값 표의 `iOS URL Scheme` 값으로 맞춘다.
+  - 위저드 값을 고치려면 `config/<flavor>.json` 의 `naverUrlScheme` 을 고친 뒤 `./setup.sh --providers` 를 다시 실행하고 앱을 다시 빌드한다.
+- **Android 에서 Naver 버튼을 눌렀는데 오류 배너 없이 로그인 화면으로 돌아온다.**
+  - Android 의 Naver 로그인 플러그인은 사용자가 취소한 경우뿐 아니라 오류 설명에 `cancel` 이 든 오류(네트워크 오류 등)도 취소로 앱에 넘긴다.
+  - 앱은 취소를 배너 없이 처리하므로 이런 실패는 화면에 드러나지 않는다.
+  - debug 빌드의 로그에 `Naver logIn cancel: status=loggedOut` 줄이 있으면 취소로 끝난 것이다 — 네트워크 연결을 확인한 뒤 다시 로그인한다.
+- **NAVER 앱이 없는 기기의 웹 로그인이 로그인 화면 대신 Naver 오류 페이지로 끝난다.**
+  - 웹 로그인이 돌아올 주소(`<URL Scheme>://authorize`)를 Naver 가 받아들이는지 PC 브라우저로 확인한다.
+  - 아래 주소의 `<clientId>` 에 Client ID 를, `<naverUrlScheme>` 에 값 표의 `iOS URL Scheme` 값을 넣어 연다 — `client_secret` 은 넣지 않는다.
 
   ```text
   https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=<clientId>&redirect_uri=<naverUrlScheme>%3A%2F%2Fauthorize&state=probe1
   ```
 
-  Naver 로그인 폼이 뜨고, 로그인 뒤 브라우저 주소창이 `<naverUrlScheme>://authorize?code=…&state=probe1` 로 바뀌면 Naver 쪽 설정은 맞다(PC 에는 그 주소를 받을 앱이 없어 이동은 실패한다). 주소의 `code` 값은 한 번만 쓰는 값이므로 기록 · 공유하지 않는다. 로그인 폼 대신 오류 페이지가 뜨면 콘솔 iOS 환경의 `URL Scheme` 이 값 표의 `iOS URL Scheme` 값과 같은지 본다.
+  Naver 로그인 폼이 뜨고, 로그인 뒤 브라우저 주소창이 `<naverUrlScheme>://authorize?code=…&state=probe1` 로 바뀌면 Naver 쪽 설정은 맞다(PC 에는 그 주소를 받을 앱이 없어 이동은 실패한다).
+  - 주소의 `code` 값은 한 번만 쓰는 값이므로 기록 · 공유하지 않는다.
+  - 로그인 폼 대신 오류 페이지가 뜨면 콘솔 iOS 환경의 `URL Scheme` 이 값 표의 `iOS URL Scheme` 값과 같은지 본다.
 
 #### 되돌리기
 
