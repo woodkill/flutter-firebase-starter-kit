@@ -25,7 +25,10 @@
 #                으로 바꾼다. firebase.json 에는 Debug-<flavor> 한 개만 등록되므로
 #                나머지 8개 configuration 의 iOS 빌드가 그 단계에서 실패한다.
 #           2) firebase.json — 한 줄로 재작성되고 buildConfigurations 기록이 추가된다.
-#                이 프로젝트 빌드는 읽지 않는 CLI 내부 기록이다.
+#                빌드는 이 파일의 iOS default 항목만 읽는다 — Crashlytics 업로드 단계
+#                (flutterfire upload-crashlytics-symbols)가 uploadDebugSymbols 로 켜짐을
+#                보고, projectId · appId 가 있어야 돈다. 업로드 대상 앱은 이 값이 아니라
+#                빌드한 앱 안 GoogleService-Info.plist 가 정한다.
 #         → 이 스크립트는 두 파일을 flutterfire 호출 직전에 스냅샷해 두고, 호출 후
 #           (실패한 경우도 포함) 자동으로 되돌린다. 수동 fff configure 로 실행하면
 #           직접 되돌려야 한다. plist/dart options 는 --ios-out/--out 경로에 정상 생성된다.
@@ -193,7 +196,7 @@ restore_cli_side_effects() {
   restore_one_file "$CLI_TOUCHED_PBXPROJ" "project.pbxproj" \
     'bundle-service-file 단계가 중복 추가되고, crashlytics 단계 인자가 --build-configuration=${CONFIGURATION} 로 바뀌어 firebase.json 에 없는 8개 configuration 의 iOS 빌드가 깨진다'
   restore_one_file "$CLI_TOUCHED_FIREBASE_JSON" "firebase.json" \
-    'CLI 내부 기록용 파일이며 이 프로젝트 빌드는 읽지 않는다 (위 단계와 flutterfire reconfigure 만 사용)'
+    'CLI 가 tracked 파일을 한 줄로 재작성하고 buildConfigurations 기록을 더한다 — 빌드는 iOS default 항목(Crashlytics 업로드 단계의 uploadDebugSymbols 켜기 · projectId · appId 존재)만 읽고, 업로드 대상 앱은 빌드한 앱 안 GoogleService-Info.plist 가 정한다'
   rm -rf "$SNAP_DIR"
   SNAP_DIR=""
   return "$rc"
