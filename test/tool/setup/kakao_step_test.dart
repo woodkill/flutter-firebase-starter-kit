@@ -489,7 +489,7 @@ void main() {
       '등록하라는 뜻', () async {
     final List<String> todo = KakaoStep().todoLines;
 
-    expect(todo.first, '애플리케이션 새로 만들기');
+    expect(todo.first, '「앱 생성」 창에서 새 앱 만들기');
     for (final line in todo) {
       expect(line, isNot(contains('flavor 마다')));
     }

@@ -144,7 +144,7 @@ final class KakaoStep extends KeyedProviderStep {
 
   @override
   List<String> get todoLines => <String>[
-    '애플리케이션 새로 만들기',
+    '「앱 생성」 창에서 새 앱 만들기',
     '네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록',
     '카카오 로그인 · OpenID Connect 켜기',
     '동의 항목에서 이메일을 받도록 설정 — ${formatDocReference(emailDocRef)}',
