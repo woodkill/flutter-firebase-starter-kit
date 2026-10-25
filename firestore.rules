@@ -144,8 +144,7 @@ service cloud.firestore {
     //
     // Cloud Function (Admin SDK) 진입점:
     // - 12-02 kakaoCustomToken 등: linkedProviders + providerLinkedAt +
-    //   signUpProviderId set-merge
-    // - mirrorTermsAcceptance: termsAccepted set-merge
+    //   signUpProviderId set-merge · 새 계정이면 termsAccepted set-merge
     // - deleteUserAccount: 문서 · 서브컬렉션 삭제 (탈퇴)
     match /users/{userId} {
       allow read: if isOwner(userId);

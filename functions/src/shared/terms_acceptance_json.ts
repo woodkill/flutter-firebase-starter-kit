@@ -6,8 +6,9 @@
 // **Schema invariant (Pitfall 4 회피)**: 5 필드 (version: int / service: bool /
 // privacy: bool / marketing: bool / acceptedAt: ISO 8601 string) 는 client 의
 // TermsAcceptance Freezed model 5 필드 verbatim mirror. 변경 시 client toJson
-// 출력과 server set payload 양쪽 동시 갱신 의무 (Plan 16-02 mirror_terms_
-// acceptance.ts + Plan 16-03 의 4 Custom Token endpoint 추가 import).
+// 출력과 server set payload 양쪽 동시 갱신 의무 (server set payload =
+// `functions/src/auth/mirror_terms.ts` 의 `mirrorTermsAccepted` — 4 Custom
+// Token endpoint 가 쓴다).
 //
 // 3 Custom Token provider (kakao/naver/line) 의 callable arg
 // `termsAcceptanceSnapshot?: TermsAcceptanceJson` add-only 확장의 shared type.
@@ -39,21 +40,15 @@
  * 현재 값 1 = `TermsNotifier.currentVersion` (terms_notifier.dart:45) 과 일치.
  *
  * **성격: 형식 정규화이지 보안 통제가 아니다 (WR-12, Phase 15 리뷰).**
- * 이전 문서는 이 상한을 "서버가 모르면 미래 버전 위조를 통과시켜 재동의 강제
- * 로직이 무력화된다" 며 보안 통제로 규정했다. 그 주장은 성립하지 않는다 —
- * `firestore.rules` 가 `users/{userId}` 에 대해 본인 전체 write 를 허용하므로
- * (`allow write: if request.auth.uid == userId`), client 는 본 callable 을
- * 거치지 않고 Firestore SDK 로 `users/{uid}.termsAccepted = {version: 999}` 를
- * 그대로 쓸 수 있다. 즉 본 상한은 **정직한 client 의 실수와 서버 경유 경로의
- * 스키마 오염만** 막고 위조는 막지 못한다. 같은 논리가 `linkedProviders` /
- * `providerLinkedAt` 에도 적용된다 (`identity_index.ts` 는 이 필드들을 서버
- * 권위 데이터처럼 쓴다).
- *
- * **실제 통제가 있어야 할 곳은 `firestore.rules` 다.** 다만 현재 client 의
- * `TermsNotifier.mirrorToFirestore` (terms_notifier.dart) 가 `termsAccepted`
- * 를 직접 set 하므로, 필드 단위 write 금지를 지금 도입하면 그 경로가 깨진다.
- * 규칙 강화는 client write 경로 이전과 함께 가야 하며
- * `firestore.rules` 의 "Phase 18 일반화 TODO" (ROADMAP.md Phase 18) 가 그 작업 항목이다.
+ * client 는 `TermsNotifier.mirrorToFirestore` (terms_notifier.dart) 로
+ * `users/{uid}.termsAccepted` 를 Firestore SDK 로 직접 쓴다. `firestore.rules`
+ * 는 이 키를 client write 화이트리스트에 두고 `termsShape` · `termsOk` 로
+ * 5 필드 정확 · 타입 · 필수 동의 true · `acceptedAt` 미래 금지 · version
+ * 비감소를 검사하지만 version 상한은 두지 않는다. 그래서
+ * `{version: 999}` 같은 미래 버전은 client 직접 쓰기로 그대로 들어올 수 있다.
+ * 본 상한은 서버 경유 경로(4 Custom Token endpoint 의 새 계정 첫 기록)에
+ * 들어오는 snapshot 의 형식만 정규화한다 — **정직한 client 의 실수와 서버
+ * 경유 경로의 스키마 오염만** 막고 위조는 막지 못한다.
  * **후속 phase 가 이 상수를 위조 방어라고 믿고 설계하지 말 것.**
  */
 export const SERVER_TERMS_CURRENT_VERSION = 1;
