@@ -1,4 +1,4 @@
-// Phase 17.2 성공 기준 4 (문서 부분) — 매뉴얼의 홈 하위 중첩 안내 계약.
+// Phase 17.2 성공 기준 4 (문서 부분) — docs/guide.md 의 홈 하위 중첩 안내 계약.
 // (FIRE-01 · Nyquist gap-fill · Plan 17.2-04 Task 1/2 의 `<automated>` shell grep 대체)
 //
 // 가이드(docs/guide.md)의 동작 서술과 회귀 가드 지도

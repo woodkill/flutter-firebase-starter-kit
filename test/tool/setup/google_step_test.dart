@@ -726,7 +726,7 @@ void main() {
       ('설정 파일에 없음', null),
       ('형식이 아님', 'com.example.not-reversed'),
     ]) {
-      test('$label → 실행하면 실패 사유 · 매뉴얼 절 · xcconfig 무변경', () async {
+      test('$label → 실행하면 실패 사유 · docs/setup.md 절 · xcconfig 무변경', () async {
         writeIosPlist(value);
         final String before = File(xcconfigPath()).readAsStringSync();
         final h = _Harness(root, const <String?>['y', '2']);

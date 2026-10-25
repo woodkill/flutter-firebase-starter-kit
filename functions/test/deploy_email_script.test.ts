@@ -429,7 +429,8 @@ describe("deploy_email.sh hosting", () => {
 
 describe("deploy_email.sh kit", () => {
   /**
-   * kit 다음 단계 `next:` 3줄 — 매뉴얼 「켜기」 ⑤ TTL → ⑥ 메일 함수 배포 →
+   * kit 다음 단계 `next:` 3줄 — docs/guide.md 「인증 메일 발송 모드 켜고 끄기」
+   * 「켜기」 ⑤ TTL → ⑥ 메일 함수 배포 →
    * ⑦ 확장 함수 invoker 순(D-24 · C-R6). 셋째 줄의 프로젝트 번호는 사용자가
    * 붙여 넣어 실행할 때 `gcloud projects describe` 가 채운다.
    */

@@ -1,4 +1,4 @@
-// 매뉴얼 빌드 설비 안내 계약 (Phase 17.6 — see ROADMAP.md).
+// docs/guide.md 빌드 설비 안내 계약 (Phase 17.6 — see ROADMAP.md).
 //
 // 사용 가이드(docs/guide.md)의 두 안내를 실제 설정 파일과 반복 실행 가능한 test 로
 // 맞춰 본다.

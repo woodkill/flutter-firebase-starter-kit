@@ -421,7 +421,7 @@ void main() {
     expect(h.output, contains('  ✓ ${KakaoStep.stepTitle} — '));
   });
 
-  test('T-20-KAKAO-07: 값 표에 패키지명 · 번들 ID · 콘솔 주소 · 매뉴얼 절이 있고 비밀 값 · '
+  test('T-20-KAKAO-07: 값 표에 패키지명 · 번들 ID · 콘솔 주소 · docs/setup.md 절이 있고 비밀 값 · '
       '결정 ID 모양은 없다', () async {
     final String nativeKey = buildNativeKey();
     final String adminKey = buildAdminKey();

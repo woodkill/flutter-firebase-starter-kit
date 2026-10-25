@@ -389,7 +389,7 @@ void main() {
       expect(buildRows(null).containsKey(KakaoStep.keyHashRowLabel), isFalse);
     });
 
-    test('실행 화면에 Meta 콘솔 주소 · 할 일(앱 역할) · 매뉴얼 절이 있다', () async {
+    test('실행 화면에 Meta 콘솔 주소 · 할 일(앱 역할) · docs/setup.md 절이 있다', () async {
       final String appId = buildAppId();
       final String clientToken = buildClientToken();
       final String appSecret = buildAppSecret();

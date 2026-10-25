@@ -597,7 +597,7 @@ void main() {
     });
   });
 
-  group('T-20-APPLE-04: 계획 줄에 iOS 서명 매뉴얼 절과 자동 서명 안내가 '
+  group('T-20-APPLE-04: 계획 줄에 iOS 서명 docs/setup.md 절과 자동 서명 안내가 '
       '보인다', () {
     test('생성 계획 줄 = curl 표시형 + capability 안내 줄', () async {
       final h = _Harness(root, const <String?>[])

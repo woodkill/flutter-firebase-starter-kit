@@ -1034,7 +1034,7 @@ void main() {
     });
   });
 
-  test('T-20-GOOGLE-08: 다시 받아도 CLIENT_ID 가 없으면 실패 사유에 매뉴얼 절 · '
+  test('T-20-GOOGLE-08: 다시 받아도 CLIENT_ID 가 없으면 실패 사유에 docs/setup.md 절 · '
       '멈춤을 고르면 exit 1 · configure 1회', () async {
     writeRealOptions();
     writePlist();

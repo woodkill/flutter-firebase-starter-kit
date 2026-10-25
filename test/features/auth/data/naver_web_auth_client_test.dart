@@ -351,7 +351,7 @@ void main() {
         hasLength(badRedirects.length),
       );
 
-      // 양성 대조군 — 매뉴얼 9단계 (6) Hosting bounce 형태는 세션을 연다.
+      // 양성 대조군 — Hosting bounce 대안(킷 미구현)의 https 주소 형태는 세션을 연다.
       final result = await buildClient(
         recorder,
         redirectUri: 'https://example.web.app/naver/callback',

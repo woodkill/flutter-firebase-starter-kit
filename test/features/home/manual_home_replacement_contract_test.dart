@@ -1,7 +1,7 @@
-// Phase 17.1 성공 기준 5 (문서 부분) — 매뉴얼 「홈 화면 바꾸기」 절 계약.
+// Phase 17.1 성공 기준 5 (문서 부분) — docs/guide.md 「홈 화면 바꾸기」 절 계약.
 // (AUTH-13 · Nyquist gap-fill · Plan 10 Task 1/2 의 `<automated>` shell grep 대체)
 //
-// ROADMAP SC5: 「매뉴얼에 「홈 화면 바꾸기」 절이 있고 옛 Account 카드 참조가 0 이다」.
+// ROADMAP SC5 의 문서 부분 — 「홈 화면 바꾸기」 절이 있고 옛 Account 카드 참조가 0 이다.
 // Plan 10 은 이를 shell grep 으로 한 번만 확인했다. 이 파일은 같은 의미를 반복
 // 실행 가능한 test 로 고정해 헤딩 이름 변경 · 절 비우기 · 옛 이름 재유입을 막는다.
 //

@@ -33,7 +33,7 @@ void main() {
         1,
         reason:
             '빠지면 설정 단계에서 「defaultConfig contains custom resource '
-            'values, but the feature is disabled.」 로 멈춘다 — 매뉴얼 '
+            'values, but the feature is disabled.」 로 멈춘다 — docs/guide.md '
             '「Flutter SDK 상향 (FVM)」 ⑤',
       );
       expect(

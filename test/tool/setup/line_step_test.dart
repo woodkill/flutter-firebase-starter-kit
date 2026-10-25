@@ -299,7 +299,7 @@ void main() {
       '${LineStep.channelSecretField.label} $hiddenInputHint';
 
   group('T-20-LINE-01: 값 표에 번들 ID · 패키지명 · 대문자 콜론 SHA-1 · '
-      '할 일 · 매뉴얼 절이 있다', () {
+      '할 일 · docs/setup.md 절이 있다', () {
     /// 세션 [fingerprints] 로 dev 값 표를 라벨 → 값으로 모은다.
     Map<String, String> buildRows(DebugFingerprints? fingerprints) {
       final session = WizardSession()..debugFingerprints = fingerprints;
@@ -337,7 +337,7 @@ void main() {
       expect(buildRows(null).keys, <String>['iOS 번들 ID', 'Android 패키지명']);
     });
 
-    test('실행 화면에 콘솔 주소 · 할 일 · 매뉴얼 절이 있다', () async {
+    test('실행 화면에 콘솔 주소 · 할 일 · docs/setup.md 절이 있다', () async {
       final String channelId = buildChannelId();
       final String channelSecret = buildChannelSecret();
       final h = _Harness(root, <String?>['y', '1', channelId, channelSecret]);

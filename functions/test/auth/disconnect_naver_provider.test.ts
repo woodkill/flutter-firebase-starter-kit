@@ -605,7 +605,8 @@ describe("disconnectNaverProvider — custom token 발급 실패", () => {
     mockRevokeOk();
     // Phase 20 리뷰 WR-06 — firebase-admin 은 원인을 err.code 에 싣는다
     // (name 은 언제나 "Error"). 서명 권한 결핍이 이 경로를 막을 때 로그
-    // code 가 매뉴얼 「문제 해결」 의 판별 기준과 같아야 한다. message 의
+    // code 가 docs/setup.md 「Kakao · Naver · LINE 서명 권한(Token Creator)」 의
+    // 문제 해결 판별 기준과 같아야 한다. message 의
     // PII fixture 는 마지막 describe 의 누적 sentinel 이 다섯 메서드로 훑는다.
     mockCreateCustomToken.mockRejectedValueOnce(
       Object.assign(new Error("PII_MINTED_CUSTOM_TOKEN signer failed"), {

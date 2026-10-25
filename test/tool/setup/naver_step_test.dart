@@ -291,7 +291,7 @@ void main() {
       '${NaverStep.clientSecretField.label} $hiddenInputHint';
 
   group('T-20-NAVER-01: 값 표는 URL Scheme 제안 · 패키지명 두 행이고 콘솔에 없는 칸 행은 '
-      '없으며 실행 화면에 매뉴얼 절이 있다', () {
+      '없으며 실행 화면에 docs/setup.md 절이 있다', () {
     test('stg · dev 문맥의 값 표가 그 flavor 값이다', () {
       prepareFlavorFiles(Flavor.stg);
       const available = FingerprintsAvailable(
@@ -376,7 +376,8 @@ void main() {
       }
     });
 
-    test('실행 화면에 콘솔 주소 · 할 일 · 매뉴얼 절이 있고 Android 쪽 줄은 패키지명만 보인다', () async {
+    test('실행 화면에 콘솔 주소 · 할 일 · docs/setup.md 절이 있고 Android 쪽 줄은 '
+        '패키지명만 보인다', () async {
       final String clientId = buildClientId();
       final String clientSecret = buildClientSecret();
       final h = _Harness(root, <String?>[
