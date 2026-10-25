@@ -3580,6 +3580,17 @@ fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.js
 > - 그래서 SDK 를 올리면 하한을 그대로 두어도 일부 파일이 재포맷될 수 있다 — 재포맷은 `style:` 커밋으로 따로 둔다.
 > - `dart format --set-exit-if-changed` 를 analyze · test 와 동급 게이트로 두면(`.claude/rules/dart-format.md`) 이런 drift 가 누적되지 않는다.
 
+### ⑨ web · 데스크톱 대상 — `pubspec.yaml` 에서 꺼 둔다
+
+킷은 Android · iOS 앱만 만들므로 `pubspec.yaml` 의 `flutter: config:` 가 web · macOS · Linux · Windows 네 대상을 끈다.
+- 그래서 `fvm flutter devices` 에는 Android · iOS 기기만 보이고, 기기를 지정하지 않은 `fvm flutter run` 도 web · 데스크톱용 Flutter 파일을 내려받지 않는다.
+- `fvm flutter config --list` 는 전역 설정만 보여 이 네 줄을 반영하지 않는다 — 해석 우선순위는 ④ 다.
+
+web 이나 데스크톱 대상을 쓰려면 `pubspec.yaml` 의 `flutter: config:` 에서 그 대상의 줄(예: `enable-web: false`)을 지운다.
+- `test/infrastructure/pubspec_flutter_config_test.dart` 의 기대값(`_expectedFlutterConfig`)에서도 같은 줄을 지운다 — 지우지 않으면 그 시험이 실패한다.
+- 네 줄을 모두 지우면 `config:` 줄도 지운다.
+- 킷의 코드 · 설정 · 시험은 Android · iOS 만 다루므로, 그 대상의 플랫폼 디렉터리와 빌드 확인은 직접 한다.
+
 ## iOS 의존성 관리 (SPM)
 
 **iOS 네이티브 의존성을 다룰 때** 보는 절이다 — 이 킷의 iOS 네이티브 의존성 관리자는

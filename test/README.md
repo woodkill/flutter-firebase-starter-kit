@@ -14,7 +14,7 @@ test/
 ├── l10n/              # 다국어 문구(ARB) 검사
 ├── helpers/           # 여러 테스트가 함께 쓰는 하네스 · mock · 헬퍼
 ├── examples/          # 복사해 쓰는 예제 테스트
-├── infrastructure/    # Android 빌드 · Firebase · 스플래시 설정 계약
+├── infrastructure/    # Android 빌드 · Firebase · 스플래시 · 실행 대상 설정 계약
 ├── ios/               # iOS 프로젝트 설정 계약
 ├── release/           # 공개 문서 · 릴리스 도구 계약
 ├── docs/              # 사용자 문서 규칙 · 링크 · 절 순서 검사

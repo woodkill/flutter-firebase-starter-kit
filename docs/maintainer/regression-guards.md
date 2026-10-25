@@ -65,6 +65,14 @@
 | `ios/Runner.xcodeproj/project.pbxproj` 의 `IPHONEOS_DEPLOYMENT_TARGET` 12개가 모두 같은 값이고 하한 15.0 이상이다 | `test/ios/ios_deployment_target_consistency_test.dart` | 없음 — 시험 「Runner pbxproj 의 IPHONEOS_DEPLOYMENT_TARGET 이 전부 같은 값이다」 |
 | `ios/Podfile` 이 없다(SPM 만 쓴다 — SPM 을 지원하지 않는 플러그인이 들어오면 Flutter 가 CocoaPods 로 넘어가며 이 파일을 만든다) | `test/ios/ios_deployment_target_consistency_test.dart` | 없음 — 시험 「ios/Podfile 이 존재하지 않는다 (SPM 전용)」 |
 
+## 실행 대상
+
+| 동작 | 가드 시험 파일 | 시험 ID |
+|---|---|---|
+| `pubspec.yaml` 의 `flutter: config:` 는 `enable-web` · `enable-macos-desktop` · `enable-linux-desktop` · `enable-windows-desktop` 네 키만 `false` 로 둔다 — 다른 키(iOS SPM 스위치 · Android · iOS 대상)는 없다 | `test/infrastructure/pubspec_flutter_config_test.dart` | 없음 — 시험 「킷 pubspec 의 flutter: config: 는 web · 데스크톱 네 대상만 false 로 끈다」 |
+
+- web 이나 데스크톱 대상을 켜면 이 시험의 `_expectedFlutterConfig` 에서 그 줄을 지운다 — 가이드 「Flutter SDK 상향 (FVM)」 ⑨.
+
 ## Multi-Provider 인증
 
 | 동작 | 가드 시험 파일 | 시험 ID |
