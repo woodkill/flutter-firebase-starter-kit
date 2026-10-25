@@ -100,9 +100,13 @@ final class AppIconStep implements DeferrableStep {
   /// 결과 표 제목.
   static const String summaryTitle = 'provider 콘솔에 올릴 앱 아이콘';
 
-  /// 결과 표 끝의 올리는 법 안내.
-  static const String uploadGuide =
-      '브라우저의 파일 선택 창에서 ⌘⇧G 로 $iconsDirectory 경로를 붙여 넣거나 '
+  /// 결과 표 끝의 올리는 법 안내를 만든다 — [iconsPath] 는 아이콘 폴더의 절대
+  /// 경로이고 `~` 로 줄이지 않는다.
+  ///
+  /// 파일 선택 창의 ⌘⇧G 는 지금 연 폴더와 상관없이 절대 경로를 받는다. 실행
+  /// 기록은 이미 저장소 절대 경로를 남긴다.
+  static String buildUploadGuide(String iconsPath) =>
+      '브라우저의 파일 선택 창에서 ⌘⇧G 로 $iconsPath 경로를 붙여 넣거나 '
       '열린 Finder 창에서 끌어다 놓으세요';
 
   /// 만들다 만 아이콘을 지우지 못했을 때의 머리(뒤에 상대 경로 · [discardFailedHint]).
@@ -460,7 +464,7 @@ final class AppIconStep implements DeferrableStep {
       notes: <String>[
         for (final IconSpec spec in targets)
           if (buildIconNote(spec) case final String note) note,
-        uploadGuide,
+        buildUploadGuide(context.resolve(iconsDirectory)),
       ],
     );
     final CommandResult opened = await context.runner.stream(

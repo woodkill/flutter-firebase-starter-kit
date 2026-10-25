@@ -187,11 +187,15 @@ final class _Harness {
     List<String?> inputs, {
     this.enabled = allProviderTokens,
     this.flavor = Flavor.dev,
+    this.homeDirectory,
   }) : screen = ScriptedTerminal(inputs);
 
   final _Sandbox box;
   final Set<String> enabled;
   final Flavor flavor;
+
+  /// 주면 위저드 문맥의 홈 디렉터리로 쓴다 — 없으면 [_Sandbox.home].
+  final String? homeDirectory;
   final ScriptedTerminal screen;
   final FakeCommandRunner runner = FakeCommandRunner();
   final MemoryLogSink log = MemoryLogSink(Redactor());
@@ -255,7 +259,7 @@ final class _Harness {
       redactor: log.redactor,
       log: log,
       rest: FakeRestClient(),
-      homeDirectory: box.home,
+      homeDirectory: homeDirectory ?? box.home,
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     ),
@@ -333,7 +337,12 @@ void main() {
         '거쳐야 동의 화면에 보입니다',
       ),
     );
-    expect(h.output, contains('  · ${AppIconStep.uploadGuide}'));
+    expect(
+      h.output,
+      contains('  · ${AppIconStep.buildUploadGuide(box.iconsPath)}'),
+    );
+    expect(h.output, contains('⌘⇧G 로 ${box.iconsPath} 경로를'));
+    expect(h.output, isNot(contains('⌘⇧G 로 .setup/icons ')));
     expect(h.output, contains(allDoneIconLine));
     expect(h.output, contains(allDoneLine));
     expect(h.remainingLines, isEmpty);
@@ -1165,6 +1174,34 @@ void main() {
       hasLength(1),
     );
     expect(h.output, isNot(contains(retryOption)));
+  });
+
+  group('⌘⇧G 안내 줄 — 아이콘 폴더의 절대 경로', () {
+    test('안내 줄은 받은 경로를 그대로 넣는다', () {
+      expect(
+        AppIconStep.buildUploadGuide('/Users/kit-user/dev/my_app/.setup/icons'),
+        '브라우저의 파일 선택 창에서 ⌘⇧G 로 /Users/kit-user/dev/my_app/.setup/icons '
+        '경로를 붙여 넣거나 열린 Finder 창에서 끌어다 놓으세요',
+      );
+    });
+
+    test('저장소가 홈 아래여도 절대 경로를 ~ 로 줄이지 않는다', () async {
+      final String source = box.writeHomeFile('logo.png', buildFakeBytes(700));
+      final h = _Harness(box, <String?>[
+        '1',
+        source,
+      ], homeDirectory: box.base.path);
+      h.runner.on(buildProbeKey(source), buildProbeResult(source, 1024, 1024));
+      h
+        ..registerTargets('source.png', iconSpecs)
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.output, contains('⌘⇧G 로 ${box.iconsPath} 경로를'));
+      expect(h.output, isNot(contains('⌘⇧G 로 ~')));
+    });
   });
 
   group('T-20.1-ICON-09: flavor 공통 · 사본 여럿', () {
