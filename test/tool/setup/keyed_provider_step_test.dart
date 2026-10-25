@@ -1095,6 +1095,214 @@ void main() {
       expect(h.secretWrites, isEmpty);
     });
   });
+  group('Kakao — 입력한 네이티브 앱 키가 Secret Manager 의 것과 다르면 어드민 키를 '
+      '그대로 둘지 한 번 묻는다', () {
+    /// Secret Manager 의 옛 네이티브 앱 키.
+    final String oldNative = buildNativeKey('c');
+
+    /// 이번에 입력하는 네이티브 앱 키.
+    final String newNative = buildNativeKey('d');
+
+    /// Secret Manager 에 이미 있는 어드민 키.
+    final String storedAdmin = buildAdminKey('e');
+
+    /// 새로 입력하는 어드민 키.
+    final String newAdmin = buildAdminKey('f');
+
+    /// 서버가 받아들이지 않는 어드민 키.
+    final String badAdmin = buildAdminKey('9');
+
+    /// 질문 문구 · 키 값이 화면 · 기록에 남지 않았는지 센다.
+    void expectNoSecretValues(_Harness h) {
+      for (final text in <String>[h.output, h.log.text]) {
+        for (final value in <String>[
+          storedAdmin,
+          newAdmin,
+          badAdmin,
+          oldNative,
+        ]) {
+          expect(countText(text, value), 0);
+        }
+      }
+    }
+
+    test('그대로 둠 — 어드민 키를 묻지 않고 Secret Manager 의 값으로 확인하며 '
+        '어드민 키는 쓰지 않는다', () async {
+      final h = _Harness(root, <String?>['y', '1', newNative, '1']);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          ok('$oldNative\n'),
+          ok('$oldNative\n'),
+          ok('$newNative\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$storedAdmin\n')])
+        ..onSecretWrite(nativeSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.screen.asks, <String>[
+        stepConfirmQuestion,
+        consoleReadyQuestion,
+        KakaoStep.nativeAppKeyField.label,
+        KakaoStep.adminKeyAppQuestion,
+      ]);
+      expect(h.output, contains('  1) ${KakaoStep.adminKeyKeepOption}'));
+      expect(h.output, contains('  2) ${KakaoStep.adminKeyRenewOption}'));
+      expect(h.screen.secretAsks, isEmpty);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $storedAdmin']);
+      expect(h.secretWrites.map((FakeCall call) => call.key), <String>[
+        'firebase functions:secrets:set $nativeSecret --project $projectId --data-file -',
+      ]);
+      expect(h.secretWrites.single.stdinText, newNative);
+      expect(readConfigNativeKey(Flavor.dev), newNative);
+      expect(readXcconfigNativeKey(Flavor.dev), newNative);
+      expectNoSecretValues(h);
+    });
+
+    test('새로 입력 — 어드민 키를 숨김 입력으로 받아 서버 확인 뒤 Secret Manager 에 '
+        '쓴다', () async {
+      final h = _Harness(root, <String?>['y', '1', newNative, '2', newAdmin]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          ok('$oldNative\n'),
+          ok('$oldNative\n'),
+          ok('$newNative\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          ok('$storedAdmin\n'),
+          ok('$storedAdmin\n'),
+          ok('$newAdmin\n'),
+        ])
+        ..onSecretWrite(nativeSecret)
+        ..onSecretWrite(adminSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(countQuestions(h, KakaoStep.adminKeyAppQuestion), 1);
+      expect(h.screen.secretAsks, <String>[
+        '${KakaoStep.adminKeyField.label} $hiddenInputHint',
+      ]);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $newAdmin']);
+      expect(h.secretWrites.map((FakeCall call) => call.stdinText), <String>[
+        newNative,
+        newAdmin,
+      ]);
+      expect(h.secretWrites[1].key, contains(adminSecret));
+      expect(h.secretWrites[1].isOutputSensitive, isTrue);
+      expectNoSecretValues(h);
+    });
+
+    test('새로 입력 뒤 서버가 401 이면 어드민 키만 다시 묻는다', () async {
+      final h = _Harness(root, <String?>[
+        'y',
+        '1',
+        newNative,
+        '2',
+        badAdmin,
+        newAdmin,
+      ]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          ok('$oldNative\n'),
+          ok('$oldNative\n'),
+          ok('$newNative\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[
+          ok('$storedAdmin\n'),
+          ok('$storedAdmin\n'),
+          ok('$newAdmin\n'),
+        ])
+        ..onSecretWrite(nativeSecret)
+        ..onSecretWrite(adminSecret)
+        ..onAdminCheck(<RestResponse>[
+          const RestResponse(401, '{}'),
+          const RestResponse(200, '{}'),
+        ]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.adminCheckHeaders, <String>[
+        'KakaoAK $badAdmin',
+        'KakaoAK $newAdmin',
+      ]);
+      expect(h.screen.secretAsks, hasLength(2));
+      expect(countQuestions(h, KakaoStep.adminKeyAppQuestion), 1);
+      expect(
+        h.output,
+        contains('${KakaoStep.adminKeyMismatchMessage} — HTTP 401'),
+      );
+      expect(h.secretWrites.last.stdinText, newAdmin);
+      expectNoSecretValues(h);
+    });
+
+    test('질문 중 입력이 끝나면 아무것도 쓰지 않고 멈춘다', () async {
+      final String configBefore = File(
+        configPathOf(Flavor.dev),
+      ).readAsStringSync();
+      final h = _Harness(root, <String?>['y', '1', newNative]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[ok('$oldNative\n')])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$storedAdmin\n')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped, reason: h.output);
+      expect(h.screen.asks.last, KakaoStep.adminKeyAppQuestion);
+      expect(h.secretWrites, isEmpty);
+      expect(h.rest.externalRequests, isEmpty);
+      expect(File(configPathOf(Flavor.dev)).readAsStringSync(), configBefore);
+      expectNoSecretValues(h);
+    });
+
+    test('Secret Manager 의 네이티브 앱 키가 입력값과 같으면 묻지 않는다', () async {
+      final h = _Harness(root, <String?>['y', '1', newNative]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[ok('$newNative\n')])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$storedAdmin\n')])
+        ..onSecretWrite(nativeSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.screen.asks, <String>[
+        stepConfirmQuestion,
+        consoleReadyQuestion,
+        KakaoStep.nativeAppKeyField.label,
+      ]);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $storedAdmin']);
+      expectNoSecretValues(h);
+    });
+
+    test('Secret Manager 의 네이티브 앱 키가 unset 이면 묻지 않는다', () async {
+      final h = _Harness(root, <String?>['y', '1', newNative]);
+      h
+        ..onSecretReads(nativeSecret, <CommandResult>[
+          ok('$secretPlaceholderValue\n'),
+          ok('$secretPlaceholderValue\n'),
+          ok('$newNative\n'),
+        ])
+        ..onSecretReads(adminSecret, <CommandResult>[ok('$storedAdmin\n')])
+        ..onSecretWrite(nativeSecret)
+        ..onAdminCheck(<RestResponse>[const RestResponse(200, '{}')]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone, reason: h.output);
+      expect(h.screen.asks, <String>[
+        stepConfirmQuestion,
+        consoleReadyQuestion,
+        KakaoStep.nativeAppKeyField.label,
+      ]);
+      expect(h.adminCheckHeaders, <String>['KakaoAK $storedAdmin']);
+      expectNoSecretValues(h);
+    });
+  });
 }
 
 /// 맞춤 실행의 여러 값 불일치를 보려고 쓰는 둘째 느슨한 값 — config 에만 있다.

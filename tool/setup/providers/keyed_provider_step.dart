@@ -172,6 +172,33 @@ final class PairFailed extends PairCheck {
   final String reason;
 }
 
+/// Secret Manager 에 이미 있는 서버 전용 secret 을 그대로 둘지 묻는 질문 하나.
+///
+/// 문구는 라벨만 담는다 — 키 값은 질문 · 선택지에 넣지 않는다. 첫 선택지는
+/// 그대로 둠, 둘째 선택지는 새로 입력이다.
+final class StoredSecretQuestion {
+  /// 물을 [field] 와 질문 [question] · 선택지 [keepOption] · [renewOption] 으로
+  /// 만든다.
+  const StoredSecretQuestion({
+    required this.field,
+    required this.question,
+    required this.keepOption,
+    required this.renewOption,
+  });
+
+  /// 그대로 둘지 물을 서버 전용 secret 값.
+  final KeyField field;
+
+  /// 질문 문구(값 없음 · 라벨만).
+  final String question;
+
+  /// 1번 선택지 — Secret Manager 의 값을 그대로 둔다.
+  final String keepOption;
+
+  /// 2번 선택지 — 값을 새로 입력한다.
+  final String renewOption;
+}
+
 /// 콘솔에서 받은 키를 한 번 입력받아 모든 자리에 쓰는 로그인 수단 단계의 공통 뼈대.
 ///
 /// 검사 순서는 프로젝트 ID → config 값(자리표시가 아니고 형식에 맞음) → 다른
@@ -191,6 +218,8 @@ final class PairFailed extends PairCheck {
 /// 앱의 secret 과 새 키가 짝 확인 없이 기록되지 않게 한다. 기록은 config → xcconfig →
 /// Secret Manager(표준 입력) 순서다. 원격 자리가 있는 수단은 검사 끝에
 /// [findRemoteProblem] 으로 그 자리를 보고, 기록 끝에 [writeRemote] 로 쓴다.
+/// 입력 실행에서 [selectStoredSecretQuestions] 가 고른 서버 전용 secret 은 그대로
+/// 둘지 한 번 묻고, 새로 입력이면 그 값도 서버 확인 뒤 Secret Manager 에 쓴다.
 abstract class KeyedProviderStep implements Step {
   /// 하위 클래스만 만든다.
   KeyedProviderStep();
@@ -247,6 +276,18 @@ abstract class KeyedProviderStep implements Step {
   /// 받지 않는다).
   String? suggestValue(WizardContext context, KeyField field) => null;
 
+  /// 이번 입력 실행에서 그대로 둘지 물을 서버 전용 secret 의 질문을 고른다.
+  ///
+  /// [enteredValues] 는 이번 실행에서 입력받은 값만 담는다. [storedSecretValues]
+  /// 는 직전 검사가 Secret Manager 에서 읽은 실 값(secret 이름 → 값)이다 — 빈
+  /// 값과 [secretPlaceholderValue] 는 들어 있지 않고 메모리에만 있다. 기본은
+  /// 묻지 않는다. 실행은 이번에 묻지 않은 서버 전용 secret 의 질문만 돌려준
+  /// 순서대로 한 번씩 묻는다.
+  List<StoredSecretQuestion> selectStoredSecretQuestions(
+    Map<KeyField, String> enteredValues,
+    Map<String, String> storedSecretValues,
+  ) => const <StoredSecretQuestion>[];
+
   /// 파일 · Secret Manager 밖의 원격 자리(예: Firebase 로그인 수단 설정)가
   /// [values] 와 어긋나는지 본다 — 어긋나면 화면에 보일 자리 이름(값 없음), 맞으면
   /// null.
@@ -278,6 +319,7 @@ abstract class KeyedProviderStep implements Step {
   List<KeyField> _askFields = const <KeyField>[];
   Map<KeyField, String> _knownValues = const <KeyField, String>{};
   Map<KeyField, String> _serverSecretValues = const <KeyField, String>{};
+  Map<String, String> _storedSecretValues = const <String, String>{};
   String? _remoteProblem;
   List<KeyField> _xcconfigFixes = const <KeyField>[];
   Map<KeyField, List<String>> _secretWrites = const <KeyField, List<String>>{};
@@ -302,6 +344,7 @@ abstract class KeyedProviderStep implements Step {
     final askFields = <KeyField>[];
     final knownValues = <KeyField, String>{};
     final serverSecretValues = <KeyField, String>{};
+    final storedSecretValues = <String, String>{};
     final xcconfigFixes = <KeyField>[];
     final secretWrites = <KeyField, List<String>>{};
     final pending = <_Place>[];
@@ -374,6 +417,13 @@ abstract class KeyedProviderStep implements Step {
       for (final String name in field.secretNames) {
         secretCount++;
         final SecretRead read = await readSecret(context, name, projectId);
+        // 실 값은 질문 고르기에만 쓴다(메모리만) — readSecret 이 이미 가림 함수에
+        // 등록했다.
+        if (read case SecretFound(
+          :final String value,
+        ) when value.isNotEmpty && value != secretPlaceholderValue) {
+          storedSecretValues[name] = value;
+        }
         switch (read) {
           case SecretReadFailed(
             :final String reason,
@@ -419,6 +469,7 @@ abstract class KeyedProviderStep implements Step {
     _askFields = askFields;
     _knownValues = knownValues;
     _serverSecretValues = serverSecretValues;
+    _storedSecretValues = storedSecretValues;
     _xcconfigFixes = xcconfigFixes;
     _secretWrites = secretWrites;
     _places = pending;
@@ -537,6 +588,8 @@ abstract class KeyedProviderStep implements Step {
         if (value == null) return const Declined();
         values[field] = value;
       }
+      final StepOutcome? stopped = _askStoredSecretQuestions(context, values);
+      if (stopped != null) return stopped;
       final StepOutcome? rejected = await _verifyValues(context, values);
       if (rejected != null) return rejected;
     }
@@ -574,6 +627,53 @@ abstract class KeyedProviderStep implements Step {
       case PairOk() || PairNotAvailable():
         return await _writeValues(context, values);
     }
+  }
+
+  /// [selectStoredSecretQuestions] 가 고른 서버 전용 secret 을 그대로 둘지 묻는다
+  /// — 입력 끝이면 [Declined], 끝까지 물었으면 null.
+  ///
+  /// 이번에 묻지 않았고 검사가 Secret Manager 에서 읽은 값만 묻는다. 값은 질문에
+  /// 넣지 않는다. 새로 입력이면 그 값을 [values] 에 넣고 물을 값 · Secret Manager
+  /// 쓰기 자리에 더한다 — 기존 서버 확인 · 쓰기 경로를 그대로 탄다.
+  StepOutcome? _askStoredSecretQuestions(
+    WizardContext context,
+    Map<KeyField, String> values,
+  ) {
+    final enteredValues = <KeyField, String>{
+      for (final KeyField field in _askFields) field: values[field]!,
+    };
+    final List<StoredSecretQuestion> questions = selectStoredSecretQuestions(
+      enteredValues,
+      _storedSecretValues,
+    );
+    for (final question in questions) {
+      final KeyField field = question.field;
+      if (!_serverSecretValues.containsKey(field) ||
+          _askFields.contains(field)) {
+        continue;
+      }
+      final int? choice = context.terminal.choose(question.question, <String>[
+        question.keepOption,
+        question.renewOption,
+      ], defaultIndex: null);
+      if (choice == null) return const Declined();
+      if (choice == 0) continue;
+      final String? value = _askValue(context, field);
+      if (value == null) return const Declined();
+      values[field] = value;
+      // 상태 컬렉션은 const 일 수 있어 제자리 수정 대신 새 컬렉션을 넣는다.
+      _askFields = <KeyField>[..._askFields, field];
+      _secretWrites = <KeyField, List<String>>{
+        ..._secretWrites,
+        field: field.secretNames,
+      };
+      _serverSecretValues = <KeyField, String>{
+        for (final MapEntry<KeyField, String> entry
+            in _serverSecretValues.entries)
+          if (entry.key != field) entry.key: entry.value,
+      };
+    }
+    return null;
   }
 
   /// 서버 확인에 넘길 값 — 검사가 읽은 서버 전용 secret 값 위에 [values] 를

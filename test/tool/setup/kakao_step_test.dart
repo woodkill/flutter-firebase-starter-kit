@@ -536,4 +536,99 @@ void main() {
     expect(h.output, contains('  iOS 번들 ID'));
     expect(h.output, contains('  ${KakaoStep.keyHashRowLabel}'));
   });
+
+  group('어드민 키를 그대로 둘지 묻는 질문 — 고르는 조건 · 문구 원문', () {
+    /// 이번에 입력한 네이티브 앱 키.
+    final String enteredNative = buildNativeKey('1');
+
+    /// Secret Manager 의 다른 네이티브 앱 키.
+    final String storedNative = buildNativeKey('0');
+
+    /// Secret Manager 의 어드민 키.
+    final String storedAdmin = buildAdminKey('2');
+
+    /// [entered] · [stored] 로 Kakao 단계의 질문 고르기를 부른다.
+    List<StoredSecretQuestion> selectQuestions(
+      Map<KeyField, String> entered,
+      Map<String, String> stored,
+    ) => KakaoStep().selectStoredSecretQuestions(entered, stored);
+
+    test('입력한 네이티브 앱 키가 Secret Manager 의 것과 다르고 어드민 키가 있으면 '
+        '어드민 키 질문 하나를 고른다', () {
+      expect(
+        selectQuestions(
+          <KeyField, String>{KakaoStep.nativeAppKeyField: enteredNative},
+          <String, String>{
+            nativeSecret: storedNative,
+            adminSecret: storedAdmin,
+          },
+        ),
+        <StoredSecretQuestion>[KakaoStep.adminKeyStoredQuestion],
+      );
+    });
+
+    test('네이티브 앱 키를 묻지 않은 실행은 고르지 않는다', () {
+      expect(
+        selectQuestions(const <KeyField, String>{}, <String, String>{
+          nativeSecret: storedNative,
+          adminSecret: storedAdmin,
+        }),
+        isEmpty,
+      );
+    });
+
+    test('Secret Manager 의 네이티브 앱 키가 입력값과 같으면 고르지 않는다', () {
+      expect(
+        selectQuestions(
+          <KeyField, String>{KakaoStep.nativeAppKeyField: enteredNative},
+          <String, String>{
+            nativeSecret: enteredNative,
+            adminSecret: storedAdmin,
+          },
+        ),
+        isEmpty,
+      );
+    });
+
+    test('Secret Manager 에 네이티브 앱 키가 없으면 고르지 않는다', () {
+      expect(
+        selectQuestions(
+          <KeyField, String>{KakaoStep.nativeAppKeyField: enteredNative},
+          <String, String>{adminSecret: storedAdmin},
+        ),
+        isEmpty,
+      );
+    });
+
+    test('Secret Manager 에 어드민 키가 없으면 고르지 않는다', () {
+      expect(
+        selectQuestions(
+          <KeyField, String>{KakaoStep.nativeAppKeyField: enteredNative},
+          <String, String>{nativeSecret: storedNative},
+        ),
+        isEmpty,
+      );
+    });
+
+    test('질문 · 두 선택지 문구가 원문 그대로이고 질문 묶음이 그 문구를 쓴다', () {
+      expect(
+        KakaoStep.adminKeyAppQuestion,
+        '입력한 네이티브 앱 키가 Secret Manager 의 네이티브 앱 키와 다릅니다 — '
+        'Secret Manager 의 어드민 키가 입력한 키와 같은 Kakao 앱의 키인가요?',
+      );
+      expect(
+        KakaoStep.adminKeyKeepOption,
+        '네 — 같은 Kakao 앱입니다 · 어드민 키를 그대로 둡니다',
+      );
+      expect(
+        KakaoStep.adminKeyRenewOption,
+        '아니요 — 새 Kakao 앱입니다 · 어드민 키를 새로 입력합니다',
+      );
+      const StoredSecretQuestion question = KakaoStep.adminKeyStoredQuestion;
+      expect(question.field, KakaoStep.adminKeyField);
+      expect(question.question, KakaoStep.adminKeyAppQuestion);
+      expect(question.keepOption, KakaoStep.adminKeyKeepOption);
+      expect(question.renewOption, KakaoStep.adminKeyRenewOption);
+    });
+  });
 }

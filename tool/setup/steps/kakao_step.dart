@@ -13,7 +13,8 @@ import '../wizard.dart';
 /// 네이티브 앱 키는 보이는 입력으로 받아 형식만 검사한다(서버 확인 수단이 없다).
 /// 어드민 키는 숨김 입력으로 받아, 쓰기 전에 사용자 목록 조회 API 를 한 건만
 /// 불러 서버가 받아들이는지 확인한다 — 키는 헤더에만 싣고 화면에는 자리 이름만
-/// 보인다.
+/// 보인다. 입력한 네이티브 앱 키가 Secret Manager 의 것과 다르고 어드민 키가 이미
+/// 있으면 그 어드민 키를 그대로 둘지 묻는다.
 final class KakaoStep extends KeyedProviderStep {
   /// Kakao 로그인 단계를 만든다.
   KakaoStep();
@@ -47,6 +48,28 @@ final class KakaoStep extends KeyedProviderStep {
 
   /// 어드민 키가 틀렸을 때 보이는 문장.
   static const String adminKeyMismatchMessage = '어드민 키가 맞지 않습니다';
+
+  /// Secret Manager 의 어드민 키가 입력한 네이티브 앱 키와 같은 앱의 것인지 묻는
+  /// 질문 — 키 값은 넣지 않는다.
+  static const String adminKeyAppQuestion =
+      '입력한 네이티브 앱 키가 Secret Manager 의 네이티브 앱 키와 다릅니다 — '
+      'Secret Manager 의 어드민 키가 입력한 키와 같은 Kakao 앱의 키인가요?';
+
+  /// 어드민 키 질문의 그대로 둠 선택지.
+  static const String adminKeyKeepOption = '네 — 같은 Kakao 앱입니다 · 어드민 키를 그대로 둡니다';
+
+  /// 어드민 키 질문의 새로 입력 선택지.
+  static const String adminKeyRenewOption =
+      '아니요 — 새 Kakao 앱입니다 · 어드민 키를 새로 입력합니다';
+
+  /// Secret Manager 의 어드민 키를 그대로 둘지 묻는 질문 묶음.
+  static const StoredSecretQuestion adminKeyStoredQuestion =
+      StoredSecretQuestion(
+        field: adminKeyField,
+        question: adminKeyAppQuestion,
+        keepOption: adminKeyKeepOption,
+        renewOption: adminKeyRenewOption,
+      );
 
   /// 값 표의 Android 키 해시 행 라벨.
   static const String keyHashRowLabel = 'Android 키 해시';
@@ -126,6 +149,31 @@ final class KakaoStep extends KeyedProviderStep {
     '카카오 로그인 · OpenID Connect 켜기',
     '동의 항목에서 이메일을 받도록 설정 — ${formatDocReference(emailDocRef)}',
   ];
+
+  /// 이번에 입력한 네이티브 앱 키가 Secret Manager 의 네이티브 앱 키와 다르고
+  /// Secret Manager 에 어드민 키가 있을 때만 어드민 키 질문을 고른다.
+  ///
+  /// Kakao 에는 두 키가 같은 앱인지 서버로 가르는 API 가 없어 사용자에게 묻는다.
+  /// 같은 앱의 키를 다시 넣는 재실행은 묻지 않는다.
+  @override
+  List<StoredSecretQuestion> selectStoredSecretQuestions(
+    Map<KeyField, String> enteredValues,
+    Map<String, String> storedSecretValues,
+  ) {
+    final String? enteredNative = enteredValues[nativeAppKeyField];
+    final String? storedNative =
+        storedSecretValues[nativeAppKeyField.secretNames.single];
+    final bool hasStoredAdmin = storedSecretValues.containsKey(
+      adminKeyField.secretNames.single,
+    );
+    if (enteredNative == null ||
+        !hasStoredAdmin ||
+        storedNative == null ||
+        storedNative == enteredNative) {
+      return const <StoredSecretQuestion>[];
+    }
+    return const <StoredSecretQuestion>[adminKeyStoredQuestion];
+  }
 
   /// 어드민 키를 입력받았을 때만 서버로 확인한다.
   ///
