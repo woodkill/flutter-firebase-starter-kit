@@ -2316,7 +2316,8 @@ bash scripts/deploy_functions.sh dev --apply
 - 위저드 끝의 `release 빌드 전에 끝내야 할 일:` 목록을 비웠다.
   - 그 목록의 출시용 단계(Play Integrity · DeviceCheck · APNs 키)는 [알림(APNs) · App Check](setup.md#알림apns--app-check) 에서 끝낸다.
 - Android 는 release 서명 키를 만들어 연결했다 — [릴리스 서명(keystore)](#릴리스-서명keystore).
-- iOS 는 Team 을 정하고 크래시 기호를 올릴 앱을 맞췄다 — [iOS 서명](#ios-서명) · [크래시 기호 올리기](#크래시-기호-올리기).
+- iOS 는 Team 을 정했다 — [iOS 서명](#ios-서명).
+  - 크래시 기호는 빌드가 올린다 — [크래시 기호 올리기](#크래시-기호-올리기).
 
 ### 단계
 
@@ -2468,15 +2469,11 @@ release 빌드의 크래시 위치를 Crashlytics 에서 읽으려면 기호 파
 
 **iOS — dSYM.**
 - Runner target 의 빌드 단계 `FlutterFire: "flutterfire upload-crashlytics-symbols"` 가 빌드마다 dSYM 을 올린다.
-- 올리는 곳은 `firebase.json` 의 `flutter.platforms.ios.default` 항목(`projectId` · `appId`)의 앱이다.
-- 위저드는 이 줄에 내 값을 쓰지 않으므로 iOS release 빌드 전에 직접 맞춘다.
-
-1. `firebase.json` 의 `flutter.platforms.ios.default` 에서 `projectId` 를 그 flavor 의 Firebase 프로젝트 ID, `appId` 를 그 flavor 의 Firebase iOS 앱 ID 로 바꾼다.
-   - 값은 `ios/config/<flavor>/GoogleService-Info.plist` 의 `PROJECT_ID` · `GOOGLE_APP_ID` 이거나 Firebase 콘솔 프로젝트 설정의 내 앱 정보다.
-2. `uploadDebugSymbols` 는 `true` 그대로 둔다.
-3. 항목이 하나라 어느 flavor 를 빌드해도 같은 앱으로 올라간다.
-   - 출시 빌드 직전에 그 flavor 의 값으로 맞춘다.
-   - 킷 업데이트에서 이 줄이 충돌하면 내 값을 남긴다 — [사용자 소유 표면](#사용자-소유-표면) 6행.
+  - release 빌드는 Dart 코드의 기호(`App.framework.dSYM`)도 함께 올린다.
+- 올리는 곳은 빌드한 flavor 의 `ios/config/<flavor>/GoogleService-Info.plist` 에 적힌 Firebase iOS 앱(`GOOGLE_APP_ID`)이라 release 빌드 전에 바꿀 값이 없다.
+  - 빌드가 그 flavor 의 plist 를 앱에 넣고, 크래시도 같은 앱으로 보고된다.
+- 그 flavor 의 plist 가 아직 자리표시 값이면 dSYM 은 내 Firebase 앱에 올라가지 않는다.
+  - 그 flavor 의 위저드를 끝낸 뒤 빌드한다 — [stg · prod 설정](setup.md#stg--prod-설정).
 
 dSYM 이 없으면 Crashlytics 대시보드에 "Missing dSYM" 알림이 뜨고, 그 크래시는 dSYM 이 올라올 때까지 처리되지 않고 보류된다.
 - 빌드 로그의 `note: Crashlytics upload script = …` 줄은 업로드 스크립트를 찾았다는 뜻일 뿐 업로드가 성공했다는 표시가 아니다 — 확인은 아래 「확인 방법」 의 콘솔 화면으로 한다.
@@ -2524,7 +2521,9 @@ firebase crashlytics:symbols:upload --app=<Firebase Android 앱 ID> <split-debug
 - **release 빌드에서 회원탈퇴 같은 보호된 기능이 실패한다.**
   - [App Check 등록 확인](setup.md#app-check-등록-확인) 의 문제 해결을 따른다.
 - **Crashlytics 에 "Missing dSYM" 알림이 뜬다.**
-  - `firebase.json` 의 `flutter.platforms.ios.default` 가 그 flavor 의 프로젝트 ID · iOS 앱 ID 인지 본다 — 위 「크래시 기호 올리기」.
+  - dSYM 은 그 빌드의 flavor plist 앱으로 올라가 크래시가 보고되는 앱과 같으므로 따로 맞출 값은 없다 — 위 「크래시 기호 올리기」.
+  - 그 빌드의 로그에 `Validation succeeded. Symbol uploading will proceed in the background.` 줄이 있으면 업로드 단계가 업로드를 시작한 것이다(위 `note: …` 줄만으로는 알 수 없다).
+  - 그 줄이 없으면 업로드 단계가 올리지 않은 것이다 — 이 단계는 `firebase.json` 의 iOS 항목 `uploadDebugSymbols` 가 `true`(킷 값)일 때만 올린다.
   - 고친 뒤 iOS 빌드를 다시 만든다.
 
 ## 출시 전 점검
@@ -2832,7 +2831,7 @@ adb shell setprop debug.firebase.analytics.app .none.
 - iOS 는 Xcode → Product → Scheme → Edit Scheme → Run → Arguments 의 Arguments Passed On Launch 에 `-FIRDebugEnabled` 를 더한다.
 - 켠 뒤 Dev Tools 의 「Analytics 이벤트 전송」 을 누르면 왼쪽 메뉴 「애널리틱스」 → 「DebugView」 에 이벤트 `dev_tools_test_event` 가 나타난다.
 
-**출시 빌드:** release 빌드의 크래시 위치를 읽으려면 dSYM(iOS) · NDK 기호(Android)를 올린다 — [빌드 · 출시](#빌드--출시) 에 있다.
+**출시 빌드:** release 빌드의 크래시 위치를 읽는 기호 파일은 [크래시 기호 올리기](#크래시-기호-올리기) 에 있다 — iOS dSYM 은 빌드가 올린다.
 
 **문제 해결:**
 
