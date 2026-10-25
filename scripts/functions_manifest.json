@@ -4,7 +4,6 @@
     "unlinkCustomTokenProvider",
     "deleteUserAccount",
     "lookupSignInMethods",
-    "mirrorTermsAcceptanceSnapshot",
     "mirrorAccountEmail",
     "sendTestPush"
   ],

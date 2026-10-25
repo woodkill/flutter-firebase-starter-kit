@@ -532,7 +532,10 @@ void main() {
     expect(harness.runner.workingDirectories[deployKey], root);
     expect(harness.output, contains('  \$ $installKey'));
     expect(harness.output, contains('  \$ $deployKey'));
-    expect(harness.output, contains('DEPLOY OK dev functions=7 batches=1'));
+    expect(
+      harness.output,
+      contains('DEPLOY OK dev functions=${commonFunctions.length} batches=1'),
+    );
     expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
   });
 
