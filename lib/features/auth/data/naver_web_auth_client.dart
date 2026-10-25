@@ -223,7 +223,7 @@ class NaverWebAuthClient {
   /// 이 없어도 빈 문자열이 되지 않는다 — `isEmpty` 가드는 도달 불가였다. 대신
   /// 형태를 본다.
   /// - 파싱 실패 · scheme 부재 → false.
-  /// - `https` → host 가 있어야 한다. 매뉴얼 9단계 (6) Hosting bounce 대안은
+  /// - `https` → host 가 있어야 한다. Hosting bounce 대안(킷 미구현)은
   ///   https 페이지가 [callbackUrlScheme] 으로 재이동하므로 scheme 이 달라도
   ///   정상이다.
   /// - 그 밖의 custom scheme → [callbackUrlScheme] 과 같아야 한다. 다르면

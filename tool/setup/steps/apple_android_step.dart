@@ -73,7 +73,7 @@ final class AppleAndroidStep implements DeferrableStep {
       '(값 표 · 할 일을 보인 뒤 Services ID · .p8 파일 경로 · Key ID · Team ID 를 '
       '받아 Firebase Apple 코드 흐름 설정에 씁니다)';
 
-  /// 값 표 뒤의 할 일 줄 — 기능 · 개념 이름만 쓴다(화면 단계는 매뉴얼 절).
+  /// 값 표 뒤의 할 일 줄 — 기능 · 개념 이름만 쓴다(화면 단계는 docs/setup.md 「Apple 로그인 켜기」).
   static const List<String> todoLines = <String>[
     'Sign in with Apple 용 Services ID 만들기 · primary App ID(번들 ID) 연결',
     '그 Services ID 에 도메인 · Return URL 등록(값 표)',

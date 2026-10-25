@@ -11,8 +11,9 @@ import '../wizard.dart';
 /// xcconfig 의 같은 이름 변수에 쓴다.
 ///
 /// 값은 Google 로그인을 켠 뒤 다시 받은 설정 파일에서만 읽는다 — 사용자에게 묻지
-/// 않는다. 설정 파일에 값이 없거나 형식이 맞지 않으면 실행이 실패로 끝나고 매뉴얼
-/// 절을 가리킨다. `Info.plist` 의 URL scheme 은 이 xcconfig 변수를 읽는다.
+/// 않는다. 설정 파일에 값이 없거나 형식이 맞지 않으면 실행이 실패로 끝나고
+/// docs/setup.md 「Google 로그인 켜기」 를 가리킨다. `Info.plist` 의 URL scheme 은
+/// 이 xcconfig 변수를 읽는다.
 final class GoogleIosStep implements Step {
   /// Google iOS 쪽 단계를 만든다.
   GoogleIosStep();

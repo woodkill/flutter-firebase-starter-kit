@@ -156,7 +156,7 @@ final class FunctionsStep implements Step {
 
   /// [projectId] 에 [name] secret 을 자리표시 값으로 만드는 명령.
   ///
-  /// 값은 표준 입력으로만 넘기고, 화면 · 기록에는 매뉴얼과 같은 `printf … |`
+  /// 값은 표준 입력으로만 넘기고, 화면 · 기록에는 `printf … |`
   /// 표시형을 보인다. 출력은 민감 출력으로 실행한다.
   static Command buildSecretSetCommand(String name, String projectId) =>
       Command(

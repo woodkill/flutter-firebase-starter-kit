@@ -96,7 +96,7 @@
 		<string>$(NAVER_URL_SCHEME:default=unset.naver.$(PRODUCT_BUNDLE_IDENTIFIER))</string>
 		<!-- 갤러리 사진 선택 권한 문구 (Phase 17 D-15 — see ROADMAP.md).
 		     image_picker README 필수 키. 이 plist 에는 lproj 현지화가 없으므로
-		     영문 1문장이며, 현지화는 InfoPlist.strings 로 추가한다(매뉴얼 커스터마이징 포인트). -->
+		     영문 1문장이며, 현지화는 InfoPlist.strings 로 추가한다(docs/guide.md 「바꿀 수 있는 지점」 의 「사진 권한 문구 번역」 행). -->
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Choose a photo from your library to use as your profile photo.</string>
 		<key>CFBundleVersion</key>

@@ -30,7 +30,8 @@
 #   - kit: 빌드 결과 줄(`BUILD OK …`) · `env: EMAIL_APP_NAME="…"` · `env: EMAIL_BRAND_COLOR="…"` ·
 #     `env: EMAIL_LOGO_URL="…"` · `env: EMAIL_RESULT_PAGE_URL="https://<id>.web.app/"` 4줄 ·
 #     `command:` 2줄(`… --only hosting` → `… --only extensions` 순) ·
-#     `next:` 3줄(TTL → 함수 배포 → 확장 함수 invoker — 매뉴얼 「켜기」 ⑤ · ⑥ · ⑦ 순) ·
+#     `next:` 3줄(TTL → 함수 배포 → 확장 함수 invoker —
+#     docs/guide.md 「인증 메일 발송 모드 켜고 끄기」 「켜기」 ⑤ · ⑥ · ⑦ 순) ·
 #     --apply 때 `wrote: functions/.env.<id> …` 1줄(hosting 배포 성공 뒤)
 #   - brandColor 형식 오류: stderr `warn: …` 1줄(결과 페이지 빌드가 낸다) 뒤 기본 색(#673AB7)으로 계속
 #   - dry-run 마지막 줄: DRY-RUN OK <flavor> target=<대상> mode=kit (exit 0)
@@ -322,7 +323,8 @@ write_function_env() {
   echo "wrote: functions/.env.${PROJECT} (메일 env 4줄)"
 }
 
-# kit 다음 단계 3줄 — mail TTL · 메일 함수 배포 · 확장 함수 invoker(매뉴얼 「켜기」 ⑤ · ⑥ · ⑦ 순).
+# kit 다음 단계 3줄 — mail TTL · 메일 함수 배포 · 확장 함수 invoker
+# (docs/guide.md 「인증 메일 발송 모드 켜고 끄기」 「켜기」 ⑤ · ⑥ · ⑦ 순).
 # 셋째 줄은 출력만 한다(D-24) — `\$(` 는 사용자가 실행할 때 프로젝트 번호로 바뀐다.
 # PROJECT 는 위 형식 검사로 소문자 · 숫자 · 하이픈만 담아 붙여 넣어도 셸 해석이 바뀌지 않는다.
 print_kit_next() {

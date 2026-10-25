@@ -20,7 +20,7 @@ const String kNotificationChannelId = 'general';
 /// 부모) GoRoute 의 `routes` 안에 두고 이 목록에 경로 상수 1줄을 더한다 —
 /// 최상위에 두면 알림으로 열었을 때 「뒤로」 가 없고 홈 리스너가 트리에서
 /// 빠지므로 `test/core/router/app_router_nesting_test.dart` 의
-/// T-172-ROUTER-01 이 고치는 법과 함께 실패한다(매뉴얼 「홈 화면 바꾸기」 ④).
+/// T-172-ROUTER-01 이 고치는 법과 함께 실패한다(docs/guide.md 「홈 화면 바꾸기」 ④).
 /// 문자열 정확 일치로만 비교한다 — query · 경로 변수는 허용하지 않는다.
 ///
 /// Phase 17.1 D-06 — 계정 화면(앞 단계 상태 없이 열어도 안전 · 흐름 화면 아님).

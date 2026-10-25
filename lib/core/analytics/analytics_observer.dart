@@ -46,7 +46,7 @@ class _NoOpNavigatorObserver extends NavigatorObserver {
 /// 페이지(설정)도 Navigator 에 add 되고 그 페이지도 `didPush` 로 들어온다 —
 /// 알림 → 계정 = `settings` · `account` **2건**(순서 settings → account),
 /// 알림 → 설정 · 약관 = 1건. 대상 화면 1건만 남기는 커스텀 observer 는 두지
-/// 않는다(이 단일 발신 구조 유지 · 매뉴얼 「Analytics(GA4) screen name」).
+/// 않는다(이 단일 발신 구조 유지 · docs/guide.md 「FCM 알림」 의 「결과 스택」).
 @Riverpod(keepAlive: true)
 NavigatorObserver analyticsObserver(Ref ref) {
   final isInitialized = ref.watch(isFirebaseInitializedProvider);

@@ -124,7 +124,8 @@ class ProfilePhotoRepository {
   /// 회수된다(image_picker 1.2.3 `pickImage` 문서). 킷은 이를 회수하지 않아
   /// 사용자는 피드백 없이 「없음」 으로 돌아온다. 필요하면 계정 정보
   /// 화면(`AccountScreen`) 진입 때 `retrieveLostData()` 를 1회 확인해
-  /// `file != null` 이면 업로드를 이어간다 (매뉴얼 커스터마이징 포인트).
+  /// `file != null` 이면 업로드를 이어간다 (docs/guide.md 「바꿀 수 있는 지점」 의
+  /// 「사진 고르는 중 앱이 종료되면」 행).
   Future<Result<String?>> pickAndUpload(String uid) {
     return guardResult<String?>('profile_photo_repository_upload', () async {
       // D-41 — 자르기 없이 업로드 전 리사이즈만(가로 1024 px · JPEG 품질 85).

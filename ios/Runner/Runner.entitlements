@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<!-- Push Notifications capability (Phase 17 D-07 — see ROADMAP.md). Xcode 가 기입하는
-	     형식과 같다. 출시(App Store · TestFlight) 빌드는 production 으로 바꾼다(매뉴얼). -->
+	     형식과 같다. 출시(App Store · TestFlight) 빌드는 production 으로 바꾼다(docs/guide.md 「FCM 알림」). -->
 	<key>aps-environment</key>
 	<string>development</string>
 	<key>com.apple.developer.applesignin</key>

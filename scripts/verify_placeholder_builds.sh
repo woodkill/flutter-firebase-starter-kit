@@ -251,7 +251,8 @@ if [ "$PLATFORM" = "android" ]; then
 else
   # ── iOS ────────────────────────────────────────────────────────────────────
   # flavor xcconfig 는 Debug-<flavor>.xcconfig 가 #include 로 필수 참조하므로 파일 자체는 있어야 한다.
-  # 없을 때만 example 에서 만든다(매뉴얼 Initial Setup 의 cp 와 같은 동작, gitignored).
+  # 없을 때만 example 에서 만든다(설정 위저드 「사용자 설정 파일」 단계의 복사와 같은 동작 ·
+  # docs/setup.md 「위저드 실행」, gitignored).
   # 값은 파일이 아니라 환경변수 override 로 케이스 값을 강제한다.
   XCCONFIG="ios/Flutter/${FLAVOR}.xcconfig"
   XCCONFIG_EXAMPLE="ios/Flutter/${FLAVOR}.example.xcconfig"
