@@ -158,7 +158,6 @@
        - 상수를 남겼다면 `lib/core/router/app_routes.dart` 의 상수 3개와 1단계에 적은 상수 참조처(`app_routes_test.dart` · `auth_guard_test.dart` T-171-ROUTER-06 · 두 하네스의 데모 stub GoRoute · `home_body.dart` doc)만 남는다.
   5. Dev Tools 의 테스트 알림 버튼이 같이 사라진다.
      - 서버 함수 `sendTestPush` 까지 빼려면 `functions/src/index.ts` 의 `export {sendTestPush} …` 줄과 `functions/src/messaging/` · 그 시험 `functions/test/messaging/` 를 지우고, 배포 목록 `scripts/functions_manifest.json` 의 `common` 에서 `"sendTestPush"` 항목을 뺀다 — 배포 목록과 export 가 다르면 `cd functions && pnpm test` 의 배포 목록 시험이 실패한다.
-     - 공통 함수가 하나 줄었으므로 설정 위저드 시험 `test/tool/setup/functions_step_test.dart` T-19-FN-02 의 기대 `DEPLOY OK dev functions=7 batches=1` 의 `7` 을 `6` 으로 고친다.
      - 클라이언트 `lib/features/notifications/data/test_push_client.dart` 와 그 시험도 함께 지운 뒤 배포된 함수를 `firebase functions:delete sendTestPush --region <functionsRegion> --project <your-project-id>` 로 지운다(`--region` 은 `config/dev.json` 의 `functionsRegion` 값).
      - export 만 남기면 다음 배포가 함수를 다시 만든다.
 

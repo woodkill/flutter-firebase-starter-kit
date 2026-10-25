@@ -285,7 +285,7 @@ clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이
 | Naver | `naver` | `naverClientId` · `naverClientSecret` · `naverUrlScheme` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` · `NAVER_URL_SCHEME` | `naverCustomToken` · `naverWebCustomToken` · `linkNaverProvider` · `disconnectNaverProvider` | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | [Naver 로그인 켜기](#naver-로그인-켜기) |
 | LINE | `line` | `lineChannelId` | `LINE_CHANNEL_ID` | `lineCustomToken` · `linkLineProvider` · `disconnectLineProvider` | `LINE_CHANNEL_ID` · `LINE_CHANNEL_SECRET` | [LINE 로그인 켜기](#line-로그인-켜기) |
 
-공통 함수(`ping` · `unlinkCustomTokenProvider` · `deleteUserAccount` · `lookupSignInMethods` · `mirrorTermsAcceptanceSnapshot` · `mirrorAccountEmail` · `sendTestPush`)는 수단과 무관하게 늘 배포된다.
+공통 함수(`ping` · `unlinkCustomTokenProvider` · `deleteUserAccount` · `lookupSignInMethods` · `mirrorAccountEmail` · `sendTestPush`)는 수단과 무관하게 늘 배포된다.
 - 콘솔에 등록할 때 그 수단이 이메일을 주도록 함께 설정한다 — 수단별 설정은 [로그인 수단에서 이메일 받기](#로그인-수단에서-이메일-받기) 에 있다.
 
 provider 를 킷에 더하거나 빼는 일은 유지보수자 작업이라 이 문서에 절차가 없다 — 그 절차와 설계 이유는 [유지보수자 문서](maintainer/custom-token-provider-add-remove.md) 에 있다.

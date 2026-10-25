@@ -37,6 +37,7 @@
 ### Removed
 
 - `pubspec.yaml` `dev_dependencies` 의 `riverpod_lint` 줄을 뺀다. plugin 은 옵션 파일의 `plugins:` 로 받는다(프리셋이 선언한다).
+- 공통 함수 `mirrorTermsAcceptanceSnapshot` 을 뺀다. 킷 앱은 이 함수를 부르지 않는다 — 약관 동의는 앱이 Firestore 에 직접 기록하고, Kakao · Naver · LINE 로그인은 그 로그인 함수가 새 계정에 기록한다. 이미 배포한 프로젝트에서는 `firebase functions:delete mirrorTermsAcceptanceSnapshot --region <functionsRegion> --project <your-project-id>` 로 지운다(`--region` 은 `config/<flavor>.json` 의 `functionsRegion` 값) — `scripts/deploy_functions.sh` 는 배포 목록(`scripts/functions_manifest.json`)의 함수만 배포하므로 이 함수를 저절로 지우지 않고, 남겨 둬도 앱 동작은 같다. 바뀐 파일은 `functions/src/` · `functions/test/` · `scripts/functions_manifest.json` 이고 merge 로 끝난다. `firestore.rules` 는 `users` 규칙 위 주석 두 줄만 바뀌므로 그 주석을 고치지 않았다면 merge 로 끝난다 — `docs/guide.md` 「킷 업데이트 반영」 사용자 소유 표면 표 25행.
 
 ## [1.0.0-rc.3] - 2026-10-14
 
