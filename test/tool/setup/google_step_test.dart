@@ -87,7 +87,8 @@ RestResponse buildShaList(List<(String, String)> hashes) => RestResponse(
 
 /// 조직 경고 줄 원문.
 const String organizationWarningText =
-    '조직 밖 사용자가 Google 로그인을 하려면 동의 화면을 외부로 바꿔야 합니다 — '
+    '조직 밖 사용자가 Google 로그인을 하려면 「Google 인증 플랫폼」 → 「대상」 의 '
+    '「사용자 유형」 을 「외부」 로 바꿔야 합니다 — '
     'docs/setup.md 「Google 로그인 켜기」';
 
 /// 실행 시점에 조립하는 가짜 Web client ID.

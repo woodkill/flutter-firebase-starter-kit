@@ -95,11 +95,11 @@ final class FacebookStep extends KeyedProviderStep {
   /// 읽지 못한 값 자리.
   static const String unreadableValue = '(읽지 못했습니다)';
 
-  /// 값 표의 Android 클래스 이름 행 라벨 — Meta 콘솔 Android 플랫폼에 패키지명 ·
-  /// 키 해시와 함께 등록하는 Activity 클래스 이름이다.
-  static const String classNameRowLabel = 'Android 클래스 이름';
+  /// 값 표의 Android 기본 액티비티 클래스 이름 행 라벨 — Meta 콘솔 Android
+  /// 플랫폼에 패키지명 · 키 해시와 함께 등록하는 Activity 클래스 이름이다.
+  static const String classNameRowLabel = 'Android 기본 액티비티 클래스 이름';
 
-  /// Android 클래스 이름의 Activity 이름 — Gradle namespace 뒤에 붙는다.
+  /// Android 기본 액티비티 클래스 이름의 Activity 이름 — Gradle namespace 뒤에 붙는다.
   static const String mainActivityName = 'MainActivity';
 
   /// Gradle 의 `namespace = "…"` 줄 — group 1 = namespace.
@@ -109,9 +109,9 @@ final class FacebookStep extends KeyedProviderStep {
   static String buildRedirectUri(String projectId) =>
       'https://$projectId.firebaseapp.com/__/auth/handler';
 
-  /// [projectRoot] 의 Gradle namespace 로 값 표의 Android 클래스 이름
-  /// (`<namespace>.MainActivity`)을 만든다 — 파일이 없거나 namespace 줄이 없으면
-  /// null.
+  /// [projectRoot] 의 Gradle namespace 로 값 표의
+  /// Android 기본 액티비티 클래스 이름(`<namespace>.MainActivity`)을 만든다 —
+  /// 파일이 없거나 namespace 줄이 없으면 null.
   ///
   /// flavor 접미사는 붙이지 않는다(Activity 클래스는 flavor 와 무관하다).
   static String? readMainActivityClass(String projectRoot) {
@@ -192,7 +192,7 @@ final class FacebookStep extends KeyedProviderStep {
     appSecretField,
   ];
 
-  /// 번들 ID · 패키지명 · 클래스 이름 · 이번 실행에서 계산한 Android 키 해시 ·
+  /// 번들 ID · 패키지명 · 기본 액티비티 클래스 이름 · 이번 실행에서 계산한 Android 키 해시 ·
   /// OAuth redirect URI 행을 만든다.
   ///
   /// 키 해시 행은 세션에 담긴 지문만 읽는다(keytool 을 부르지 않는다) — 계산했으면
@@ -238,7 +238,7 @@ final class FacebookStep extends KeyedProviderStep {
   @override
   List<String> get todoLines => <String>[
     '앱 만들기 · Facebook 로그인 사용 사례 추가',
-    'Android 플랫폼에 패키지명 · 클래스 이름 · 키 해시, iOS 플랫폼에 번들 ID 등록',
+    'Android 플랫폼에 패키지명 · 기본 액티비티 클래스 이름 · 키 해시, iOS 플랫폼에 번들 ID 등록',
     'Facebook 로그인 설정의 OAuth redirect URI 에 위 주소 등록',
     '이메일 권한 받기 — ${formatDocReference(emailDocRef)}',
     '개발 모드 앱은 앱 역할이 있는 계정만 로그인할 수 있습니다',

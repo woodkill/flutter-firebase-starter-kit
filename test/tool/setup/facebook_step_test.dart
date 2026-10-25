@@ -374,7 +374,7 @@ void main() {
         <String, String>{
           'iOS 번들 ID': '$bundleBase.dev',
           'Android 패키지명': '$applicationId.dev',
-          'Android 클래스 이름': '$gradleNamespace.MainActivity',
+          'Android 기본 액티비티 클래스 이름': '$gradleNamespace.MainActivity',
           KakaoStep.keyHashRowLabel: fakeKeyHash,
           FacebookStep.redirectUriRowLabel:
               'https://$projectId.firebaseapp.com/__/auth/handler',
