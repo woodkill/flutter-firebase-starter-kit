@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.4] - 2026-10-25
+
 ### 사용자 조치
 
 - merge 뒤 `fvm flutter pub get` 을 실행한다. woody_lints 2.0.0 이 새 규칙을 켜므로, 킷이 고치지 않은 내 코드에 info 진단이 생겨 `fvm flutter analyze` 가 실패할 수 있다. `fvm dart fix --apply` 로 고칠 수 있는 것을 고치고 나머지는 손으로 고친다. 규칙을 끄려면 `analysis_options.yaml` 의 `linter: rules:` 에 `<규칙>: false` 를 적는다. 내 무시 주석에는 바로 윗줄에 이유 주석이 있어야 한다(`document_ignores`) — [정적 분석 — woody_lints · riverpod_lint](docs/guide.md#정적-분석--woody_lints--riverpod_lint).
@@ -110,7 +112,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.3...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.4...HEAD
+[1.0.0-rc.4]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.2
 [1.0.0-rc.1]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.1
