@@ -80,9 +80,7 @@ bool isOptionLineValid(String source, ({String name, String? value}) option) {
 }
 
 void main() {
-  final Object skip = skipUnlessPlanningDocsExist(const <String>[
-    '.planning/ROADMAP.md',
-  ]);
+  final Object skip = skipUnlessMaintainerTree();
 
   test('T-20-DOCS-04: 빠른 시작에 --providers · --flavor stg 줄이 하나씩 있다', () {
     final String section = extractQuickStart(readTrackedFile(_readmePath));

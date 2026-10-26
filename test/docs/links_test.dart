@@ -28,7 +28,6 @@ const String _excludePath = '.planning/release/mirror-exclude-paths.txt';
 
 /// 유지보수자 트리에서만 도는 검사의 skip 값이다.
 final Object _skipMaintainer = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
   _excludePath,
 ]);
 

@@ -22,9 +22,7 @@ import '../helpers/source_text.dart';
 import '../helpers/user_docs.dart';
 
 /// 유지보수자 트리에서만 도는 내용 검사의 skip 값이다.
-final Object _skipMaintainer = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
-]);
+final Object _skipMaintainer = skipUnlessMaintainerTree();
 
 /// 절 템플릿 표지 이름 — 소절은 이 순서를 지킨다.
 const List<String> _templateLabels = <String>[

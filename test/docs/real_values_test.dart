@@ -76,11 +76,9 @@ List<String> _realConfigPaths(String flavor) => <String>[
   'ios/Flutter/$flavor.xcconfig',
 ];
 
-/// 실 값 대조의 skip 값 — 비공개 작업 일지와 실 설정 파일 여섯이 다 있어야 돈다.
+/// 실 값 대조의 skip 값 — 유지보수자 트리이고 실 설정 파일 여섯이 다 있어야 돈다.
 Object _skipUnlessRealConfigExists() {
-  final Object planning = skipUnlessPlanningDocsExist(<String>[
-    '.planning/ROADMAP.md',
-  ]);
+  final Object planning = skipUnlessMaintainerTree();
   if (planning != false) {
     return planning;
   }
@@ -279,7 +277,7 @@ void main() {
         ...findShapeHits(path, readTrackedFile(path)),
     ];
     expect(hits, isEmpty, reason: '값 모양이 대상 파일에 있다(파일:줄 — 모양 이름)');
-  }, skip: skipUnlessPlanningDocsExist(<String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 
   test('T-21-REAL-03: 실 값 차집합 · 모양 검사 표본', () {
     // 차집합: 예시와 같은 값 · 빈 값 · 자리표시 · 5자 값 · 이름 바꾸기 기본값은 빠지고,

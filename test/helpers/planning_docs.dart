@@ -1,12 +1,22 @@
 // 비공개 작업 일지를 읽는 유지보수자 검사의 skip 사유 헬퍼 (Phase 17.4 D-08 — see
 // ROADMAP.md).
 //
-// 공개 mirror 에는 비공개 작업 일지 디렉터리(`.planning/`)가 없다. 그것을 읽는
-// 유지보수자 검사는 공개 트리에서 건너뛰고, 파일이 있는 private 트리에서는 지금처럼
-// 검사한다. `test(..., skip: ...)` 의 `skip:` 인자는 `bool` 또는 사유 `String` 을
-// 받는다 — 사유 문자열이면 flutter_test 가 그 사유를 출력하며 건너뛴다(`~N` 집계).
+// 공개 mirror 에는 비공개 작업 일지 디렉터리(`.planning/`)가 없고, 킷을 받은 저장소에는
+// 자기 작업 일지(`.planning/ROADMAP.md` 등)가 있을 수 있다. 유지보수자 검사는 킷 비공개
+// 트리에만 있는 발행 규칙 파일([kMaintainerTreeMarker])로 판정해 그 밖의 트리에서는
+// 건너뛰고, 킷 비공개 트리에서는 지금처럼 검사한다. `test(..., skip: ...)` 의 `skip:`
+// 인자는 `bool` 또는 사유 `String` 을 받는다 — 사유 문자열이면 flutter_test 가 그
+// 사유를 출력하며 건너뛴다(`~N` 집계).
 
 import 'dart:io';
+
+/// 유지보수자 트리를 판정하는 표지 파일 — 킷 발행 규칙 파일(공개 mirror 제외 경로 목록)이다.
+///
+/// 킷 비공개 트리에만 있는 발행 규칙 파일로 판정한다 — 공개 mirror 에는 `.planning/` 이
+/// 없고, GSD 를 쓰는 킷 사용자 저장소에는 자기 `.planning/ROADMAP.md` 가 있을 수 있다.
+/// 그래서 작업 일지 파일이 아니라 이 파일이 있을 때만 유지보수자 검사를 돌린다.
+const String kMaintainerTreeMarker =
+    '.planning/release/mirror-exclude-paths.txt';
 
 /// [paths] 가 전부 있으면 `false`, 하나라도 없으면 건너뛸 사유 문자열을 돌려준다.
 ///
@@ -22,15 +32,15 @@ Object skipUnlessPlanningDocsExist(List<String> paths) {
   }
   for (final path in paths) {
     if (!File(path).existsSync()) {
-      return '비공개 작업 일지($path)가 없는 트리(공개 mirror) — 유지보수자 검사 건너뜀';
+      return '유지보수자 파일($path)이 없는 트리(공개 mirror · 킷을 받은 저장소) — 유지보수자 검사 건너뜀';
     }
   }
   return false;
 }
 
-/// 유지보수자 트리(비공개 작업 일지가 있는 트리)에서만 도는 검사의 `skip:` 값을 돌려준다.
+/// 유지보수자 트리(킷 발행 규칙 파일이 있는 트리)에서만 도는 검사의 `skip:` 값을 돌려준다.
 ///
-/// 작업 일지의 대표 파일 하나로 [skipUnlessPlanningDocsExist] 를 부른 결과와 같다 — 시험
-/// 본문에 작업 일지 경로를 적지 않고 유지보수자 전용 검사를 표시할 때 쓴다.
+/// [kMaintainerTreeMarker] 하나로 [skipUnlessPlanningDocsExist] 를 부른 결과와 같다 —
+/// 시험 본문에 작업 일지 경로를 적지 않고 유지보수자 전용 검사를 표시할 때 쓴다.
 Object skipUnlessMaintainerTree() =>
-    skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']);
+    skipUnlessPlanningDocsExist(const <String>[kMaintainerTreeMarker]);

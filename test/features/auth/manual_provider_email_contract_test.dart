@@ -243,5 +243,5 @@ void main() {
         reason: '두 가이드에 카카오계정 이메일을 비즈앱 의무 없음으로 적은 표 행이 있다',
       );
     });
-  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 }

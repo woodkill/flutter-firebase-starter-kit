@@ -311,7 +311,7 @@ void main() {
       },
       // 사용자는 Gradle · AGP · KGP 를 올리는 것이 정상 절차라 값이 바뀐다 — 킷의 값을
       // 적은 표이므로 유지보수자 트리에서만 돈다.
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+      skip: skipUnlessMaintainerTree(),
     );
 
     test(
@@ -359,7 +359,7 @@ void main() {
       },
       // 사용자는 「내장 Kotlin 켜기」 · 「새 DSL 켜기」 로 이 줄들을 바꾸는 것이 정상
       // 절차다 — 킷의 줄을 적은 표이므로 유지보수자 트리에서만 돈다.
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+      skip: skipUnlessMaintainerTree(),
     );
 
     test(
@@ -620,7 +620,7 @@ void main() {
       },
       // 사용자는 flutter_line_sdk 를 올리거나 LINE 핀을 올리는 것이 정상 절차다
       // (SPM ② 「상향 절차」) — 킷의 값을 적은 안내이므로 유지보수자 트리에서만 돈다.
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+      skip: skipUnlessMaintainerTree(),
     );
   });
 }

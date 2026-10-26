@@ -2,7 +2,8 @@
 // see ROADMAP.md).
 //
 // 두 트리 모두에서 돈다. `.planning/ROADMAP.md` 가 없는 작업 디렉터리에서 phase 참조 lint 가
-// [SKIP] 으로 통과하는지, skip 사유 헬퍼가 존재 · 부재 · 빈 목록을 구분하는지 확인한다.
+// [SKIP] 으로 통과하는지, skip 사유 헬퍼가 존재 · 부재 · 빈 목록을 구분하는지, 유지보수자
+// 트리 판정이 킷 발행 규칙 파일에 묶여 있는지 확인한다.
 
 import 'dart:io';
 
@@ -55,6 +56,28 @@ void main() {
           () => skipUnlessPlanningDocsExist(<String>[]),
           throwsArgumentError,
         );
+      },
+    );
+
+    test(
+      'T-174-SKIP-03: skipUnlessMaintainerTree — 킷 발행 규칙 파일(kMaintainerTreeMarker)로 판정한다',
+      () {
+        expect(
+          kMaintainerTreeMarker,
+          '.planning/release/mirror-exclude-paths.txt',
+        );
+
+        final Object skip = skipUnlessMaintainerTree();
+        if (File(kMaintainerTreeMarker).existsSync()) {
+          expect(skip, isFalse, reason: '발행 규칙 파일이 있으면 유지보수자 검사를 돌린다');
+        } else {
+          expect(skip, isA<String>());
+          expect(
+            skip as String,
+            contains(kMaintainerTreeMarker),
+            reason: '사유에 판정 표지 경로가 들어가야 한다',
+          );
+        }
       },
     );
   });

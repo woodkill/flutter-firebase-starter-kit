@@ -70,7 +70,7 @@ void main() {
       },
       // 사용자 저장소에서는 Xcode 의 Team 선택이 pbxproj 에 값을 써 넣는다 —
       // 킷 발행 위생 검사라 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+      skip: skipUnlessMaintainerTree(),
     );
 
     test('T-174-TEAM-02: example xcconfig 3 flavor 에 빈 자리표시 1줄 · 값 0', () {

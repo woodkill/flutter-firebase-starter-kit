@@ -23,9 +23,7 @@ import '../helpers/planning_docs.dart';
 import '../helpers/source_text.dart';
 
 /// 유지보수자 트리에서만 도는 내용 검사의 skip 값이다.
-final Object _skipMaintainer = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
-]);
+final Object _skipMaintainer = skipUnlessMaintainerTree();
 
 /// 꼴을 세는 문서 — 이 셋뿐이다.
 const List<String> _shapeDocPaths = <String>[

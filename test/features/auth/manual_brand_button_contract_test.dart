@@ -31,8 +31,8 @@ const String _widgetPath =
 /// 저장소 `.gitignore` 경로.
 const String _gitignorePath = '.gitignore';
 
-/// 유지보수자 트리에만 있는 파일 — 이 파일이 없는 트리에서는 02 를 건너뛴다.
-const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
+/// 킷 발행 규칙 파일이 있는 트리(유지보수자 트리)에서만 02 를 돌린다.
+const List<String> _maintainerOnlyDocs = <String>[kMaintainerTreeMarker];
 
 /// guide.md 본문에서 `kBrand…` 상수 이름 토큰을 찾는 정규식.
 final RegExp _guideConstantPattern = RegExp(r'\bkBrand[A-Z][A-Za-z0-9]*\b');

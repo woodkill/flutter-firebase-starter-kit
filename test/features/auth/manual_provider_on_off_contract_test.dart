@@ -493,5 +493,5 @@ void main() {
         // 그 줄은 대조하지 않는다.
       },
     );
-  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 }

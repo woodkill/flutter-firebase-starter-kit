@@ -615,7 +615,7 @@ void main() {
       },
       // 사용자는 README 를 내 앱 소개로 바꾼다 — 킷 발행 위생 검사라
       // 비공개 작업 일지가 있는 유지보수자 트리에서만 돈다.
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
+      skip: skipUnlessMaintainerTree(),
     );
 
     test('T-174-DOCS-06: 설정 안내 「위저드 실행」 머리가 template 기준이다', () {

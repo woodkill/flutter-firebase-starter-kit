@@ -23,9 +23,7 @@ import '../helpers/source_text.dart';
 import '../helpers/user_docs.dart';
 
 /// 유지보수자 트리에서만 도는 내용 검사의 skip 값이다.
-final Object _skipMaintainer = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
-]);
+final Object _skipMaintainer = skipUnlessMaintainerTree();
 
 /// 대상 목록이 반드시 담아야 하는 사용자 md 다(예시 파일은 [kUserExampleFiles]).
 const List<String> _requiredUserDocs = <String>[

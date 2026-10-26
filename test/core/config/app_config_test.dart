@@ -428,22 +428,18 @@ void main() {
 
     // 사용자가 설정 위저드로 리전을 바꾸면 Dart 기본값이 바뀌고 example 은 킷
     // 값 그대로라, 이 단언은 킷 저장소에서만 의미가 있다.
-    test(
-      'example 의 functionsRegion 은 킷 기본 리전이다(유지보수자 트리)',
-      () {
-        for (final flavor in const <String>['dev', 'stg', 'prod']) {
-          final file = File('config/$flavor.example.json');
-          final json =
-              jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
-          expect(
-            json['functionsRegion'],
-            AppConfig.defaultFunctionsRegion,
-            reason: '$flavor.example.json 은 킷 기본 리전을 그대로 보여야 한다',
-          );
-        }
-      },
-      skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']),
-    );
+    test('example 의 functionsRegion 은 킷 기본 리전이다(유지보수자 트리)', () {
+      for (final flavor in const <String>['dev', 'stg', 'prod']) {
+        final file = File('config/$flavor.example.json');
+        final json =
+            jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+        expect(
+          json['functionsRegion'],
+          AppConfig.defaultFunctionsRegion,
+          reason: '$flavor.example.json 은 킷 기본 리전을 그대로 보여야 한다',
+        );
+      }
+    }, skip: skipUnlessMaintainerTree());
 
     test('firebase_providers.dart 가 region 을 하드코딩하지 않는다 (소스 계약)', () {
       final source = File(

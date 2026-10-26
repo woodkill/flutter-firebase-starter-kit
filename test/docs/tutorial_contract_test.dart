@@ -78,13 +78,10 @@ final RegExp _kitImportPattern = RegExp(
 const String _tutorialFeaturePrefix = 'features/memos/';
 
 /// 가이드 본문을 읽는 검사의 skip 값 — 유지보수자 트리에서만 돈다.
-final Object _skipMaintainer = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
-]);
+final Object _skipMaintainer = skipUnlessMaintainerTree();
 
 /// 공개 제외 목록까지 읽는 검사의 skip 값.
 final Object _skipMaintainerWithExcludes = skipUnlessPlanningDocsExist(<String>[
-  '.planning/ROADMAP.md',
   _excludePath,
 ]);
 

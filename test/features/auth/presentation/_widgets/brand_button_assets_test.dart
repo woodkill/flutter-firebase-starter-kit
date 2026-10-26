@@ -178,8 +178,8 @@ const List<String> _fontAssetFiles = <String>[
 /// 앱이 `fontFamily` 로 쓰는 family 이름 — pubspec 이 선언해야 한다.
 const List<String> _bundledFontFamilies = <String>['Roboto', _gsansFamily];
 
-/// 유지보수자 트리에만 있는 파일 — 이 파일이 없는 트리에서는 집합 대조를 건너뛴다.
-const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
+/// 킷 발행 규칙 파일이 있는 트리(유지보수자 트리)에서만 집합 대조를 돌린다.
+const List<String> _maintainerOnlyDocs = <String>[kMaintainerTreeMarker];
 
 /// 한 번 찍은 그림의 크기와 RGBA 바이트.
 typedef _Raster = ({int width, int height, Uint8List rgba});

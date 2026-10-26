@@ -122,7 +122,7 @@ void main() {
     // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
     debugPrintSynchronously('README 절 ${headings.length}개: $headings');
     expect(headings, _expectedHeadings);
-  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 
   test('T-21-README-02: 들어 있는 것이 로그인 수단 여섯과 세 언어를 말한다', () {
     final List<String> names = collectDisplayNames(
@@ -150,7 +150,7 @@ void main() {
     }
     // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
     debugPrintSynchronously('들어 있는 것: 로그인 수단 $names · 언어 $codes');
-  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 
   test('T-21-README-03: 전제가 FVM · dev Firebase · 켜고 끄기 · 패키지명을 담는다', () {
     final String prerequisites = sliceMarkdownSection(
@@ -165,5 +165,5 @@ void main() {
     // 결과 한 줄 — 여러 파일을 함께 돌려도 시험 로그에 이 시험 이름이 남는다.
     debugPrintSynchronously('전제: 빠진 글자 ${missing.length}개');
     expect(missing, isEmpty, reason: '전제 절에 빠진 글자가 있다');
-  }, skip: skipUnlessPlanningDocsExist(const <String>['.planning/ROADMAP.md']));
+  }, skip: skipUnlessMaintainerTree());
 }

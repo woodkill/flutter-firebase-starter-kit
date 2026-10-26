@@ -58,8 +58,8 @@ const String _guidePath = 'docs/guide.md';
 /// 설정 문서 경로 — 설정 키 표(`firebaseWebApiKey` 등의 행)가 있다.
 const String _setupPath = 'docs/setup.md';
 
-/// 이 경로가 있는 트리(유지보수자 트리)에서만 최상위 group 을 돌린다.
-const List<String> _maintainerOnlyDocs = <String>['.planning/ROADMAP.md'];
+/// 킷 발행 규칙 파일이 있는 트리(유지보수자 트리)에서만 최상위 group 을 돌린다.
+const List<String> _maintainerOnlyDocs = <String>[kMaintainerTreeMarker];
 
 /// CHANGELOG 경로(킷 판별 변경 사항 — 옛 전제 문구 0 단언 대상).
 const String _changelogPath = 'CHANGELOG.md';
