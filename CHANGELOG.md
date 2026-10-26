@@ -14,6 +14,14 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.5] - 2026-10-27
+
+### Fixed
+
+- 킷 유지보수 문서와 같은 경로에 자기 작업 문서를 둔 저장소에서 킷 유지보수용 시험(문서 금지 패턴 · 문서 꼴 · 문서와 코드 대조 등)이 켜져 내 문서 때문에 실패하던 문제를 고친다. 이 시험들은 킷 저장소에만 있는 발행 규칙 파일이 있을 때만 돌고, 킷을 받은 저장소에서는 늘 건너뛴다(테스트 결과의 `~N`). 바뀐 파일은 `test/helpers/planning_docs.dart` 와 그 헬퍼를 쓰는 시험 파일이다.
+- 로그인 · 가입 화면과 로그인 안내 시트의 다국어 문구를 원문 그대로 고정하는 시험(`test/l10n/email_relegation_arb_verbatim_test.dart`)이 킷 저장소에서만 돈다. `lib/l10n/app_*.arb` 의 그 문구를 바꾼 저장소에서는 이 시험이 실패하지 않고 건너뛴다.
+- 온보딩 화면 시험(`test/features/onboarding/onboarding_screen_test.dart`)이 슬라이드 1 · 2 의 제목 · 본문을 다국어 문구(`AppLocalizations`)에서 읽고 슬라이드 아이콘을 화면에서 읽는다. `lib/l10n/app_*.arb` 의 온보딩 문구나 `lib/features/onboarding/presentation/onboarding_screen.dart` 의 슬라이드 아이콘을 바꿔도 이 시험은 고치지 않아도 된다.
+
 ## [1.0.0-rc.4] - 2026-10-25
 
 ### 사용자 조치
@@ -112,7 +120,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.5...HEAD
+[1.0.0-rc.5]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.4
 [1.0.0-rc.3]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.3
 [1.0.0-rc.2]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.2
