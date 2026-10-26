@@ -15,6 +15,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/primary_cta.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_indicator.dart';
+import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_slide.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_screen.dart';
@@ -248,7 +249,10 @@ void main() {
           mockCrashlytics: mockCrashlytics,
         );
 
-        expect(find.text('Get started quickly'), findsOneWidget);
+        expect(
+          find.text(_resolveL10n(tester).onboardingSlide1Title),
+          findsOneWidget,
+        );
         expect(find.text('Skip'), findsOneWidget);
         expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
       },
@@ -265,7 +269,10 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Next'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Kept safe and sound'), findsOneWidget);
+      expect(
+        find.text(_resolveL10n(tester).onboardingSlide2Title),
+        findsOneWidget,
+      );
     });
 
     testWidgets('Test 3: 마지막 슬라이드 진입 → "Skip" 숨김 + 체크박스 그룹 표시 + '
@@ -719,7 +726,9 @@ void main() {
           await tester.pumpAndSettle();
 
           final page = tester.getRect(find.byType(PageView));
-          final body = tester.getRect(find.text(slide.body));
+          final body = tester.getRect(
+            find.text(slide.body(_resolveL10n(tester))),
+          );
           expect(
             body.bottom,
             lessThanOrEqualTo(page.bottom + 0.5),
@@ -778,18 +787,24 @@ void main() {
         final semantics = tester.ensureSemantics();
         await pumpScreen(tester);
         await _goToSlide(tester, slide.index);
+        final l10n = _resolveL10n(tester);
+        final title = slide.title(l10n);
 
         final page = tester.getRect(find.byType(PageView));
+        // 아이콘 = 제목이 든 OnboardingSlide 가 화면에서 그리는 값.
+        final slideFinder = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(OnboardingSlide),
+        );
+        expect(slideFinder, findsOneWidget, reason: '$where: 제목이 든 슬라이드 1개');
+        final icon = tester.widget<OnboardingSlide>(slideFinder).icon;
         // 배지 = 아이콘의 가장 가까운 Container 조상.
         final badge = tester.getRect(
           find
-              .ancestor(
-                of: find.byIcon(slide.icon),
-                matching: find.byType(Container),
-              )
+              .ancestor(of: find.byIcon(icon), matching: find.byType(Container))
               .first,
         );
-        final body = tester.getRect(find.text(slide.body));
+        final body = tester.getRect(find.text(slide.body(l10n)));
         final topGap = badge.top - page.top;
         final bottomGap = page.bottom - body.bottom;
         expect(
@@ -798,13 +813,13 @@ void main() {
           reason: '$where: 위 여백 $topGap · 아래 여백 $bottomGap — 세로 중앙',
         );
 
-        final titleBefore = tester.getRect(find.text(slide.title));
+        final titleBefore = tester.getRect(find.text(title));
         await tester.dragFrom(
           tester.getCenter(find.byType(PageView)),
           const Offset(0, -300),
         );
         await tester.pumpAndSettle();
-        final titleAfter = tester.getRect(find.text(slide.title));
+        final titleAfter = tester.getRect(find.text(title));
         expect(
           (titleAfter.top - titleBefore.top).abs(),
           lessThanOrEqualTo(0.5),
@@ -816,7 +831,7 @@ void main() {
           reason: '$where: 세로 드래그 뒤 제목 left 불변',
         );
 
-        final labelPattern = RegExp('^${RegExp.escape(slide.title)}\\. ');
+        final labelPattern = RegExp('^${RegExp.escape(title)}\\. ');
         expect(
           find.bySemanticsLabel(labelPattern),
           findsWidgets,
@@ -863,24 +878,34 @@ void main() {
   });
 }
 
-/// 가로 모드 테스트가 다루는 슬라이드 1·2 명세 (index · 아이콘 · en 문구).
-typedef _SlideSpec = ({int index, IconData icon, String title, String body});
+/// 가로 모드 테스트가 다루는 슬라이드 1·2 명세 (index · 제목 · 본문 조회 함수).
+///
+/// 문구는 harness locale 의 [AppLocalizations] 에서, 아이콘은 화면의
+/// [OnboardingSlide] 에서 읽는다 — ARB 문구나 슬라이드 아이콘을 바꿔도 이 명세는
+/// 고치지 않는다.
+typedef _SlideSpec = ({
+  int index,
+  String Function(AppLocalizations) title,
+  String Function(AppLocalizations) body,
+});
 
-/// 슬라이드 1·2 — harness locale 이 `en` 이라 영어 문구를 쓴다.
-const _slideSpecs = <_SlideSpec>[
+/// 슬라이드 1·2 — 제목 · 본문을 l10n getter 로 조회한다.
+final _slideSpecs = <_SlideSpec>[
   (
     index: 0,
-    icon: Icons.rocket_launch,
-    title: 'Get started quickly',
-    body: 'Explore core features without creating an account.',
+    title: (l10n) => l10n.onboardingSlide1Title,
+    body: (l10n) => l10n.onboardingSlide1Body,
   ),
   (
     index: 1,
-    icon: Icons.security,
-    title: 'Kept safe and sound',
-    body: 'Sign in when you need more, and your data carries over.',
+    title: (l10n) => l10n.onboardingSlide2Title,
+    body: (l10n) => l10n.onboardingSlide2Body,
   ),
 ];
+
+/// 온보딩 화면 context 의 [AppLocalizations] 를 돌려준다 — harness locale 문구 조회용.
+AppLocalizations _resolveL10n(WidgetTester tester) =>
+    AppLocalizations.of(tester.element(find.byType(OnboardingScreen)));
 
 /// 가로 모드 논리 크기 (dp).
 const _landscapeSizes = <Size>[
