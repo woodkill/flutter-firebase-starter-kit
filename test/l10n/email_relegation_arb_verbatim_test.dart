@@ -2,7 +2,8 @@
 //
 // **책임 범위:** Phase 16.1 이 렌더하는 앱 chrome 문자열 14 key 의 ko/en/ja
 // verbatim 고정. SC 5 「신규 ARB key 0」 계약의 회귀 가드이며, locale 하나만
-// 갱신하는 부분 번역과 문구 drift 를 CI 에서 잡는다.
+// 갱신하는 부분 번역과 문구 drift 를 CI 에서 잡는다. 킷 트리(발행 규칙 파일이 있는
+// 트리)에서만 돈다 — ARB 는 킷 사용자 소유 표면이라 문구를 바꾼 저장소에서는 건너뛴다.
 //
 // **책임 밖:** provider brand 라벨(소셜 로그인 버튼 라벨 · 계정 표시용 provider
 // 라벨) 은 이 파일이 다루지 않는다. 그 매트릭스의 유일 진실원은
@@ -13,6 +14,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/planning_docs.dart';
 
 /// Phase 16.1 의 4 surface (A `/login` chooser · B `/login/email` ·
 /// C `/signup` · D `LoginPromptSheet`) 가 렌더하는 문자열 화이트리스트.
@@ -184,5 +187,5 @@ void main() {
         );
       }
     });
-  });
+  }, skip: skipUnlessMaintainerTree());
 }
