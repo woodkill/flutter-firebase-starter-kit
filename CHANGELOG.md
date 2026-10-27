@@ -17,6 +17,7 @@
 ### Fixed
 
 - 설정 위저드 시험 `test/tool/setup/identity_step_test.dart` 가 저장소의 stg 자리표시 `android/app/src/stg/google-services.json` 을 복사하지 않고 시험 안에서 만든다. 위저드로 앱 ID 를 바꾼 저장소에서도 이 시험이 통과한다. 바뀐 파일은 그 시험 파일 하나이고 merge 로 끝난다.
+- 온보딩 화면 시험(`test/features/onboarding/onboarding_screen_test.dart`)이 마지막 슬라이드의 약관 체크박스를 누르기 전에 그 체크박스를 화면 안으로 스크롤한다. 3장 제목 · 본문(`lib/l10n/app_*.arb` 의 `onboardingSlide3Title` · `onboardingSlide3Body`)을 킷 문구보다 길게 바꾼 저장소에서도 이 시험이 통과한다 — 1.0.0-rc.5 의 온보딩 화면 시험 항목에 적은 「이 시험은 고치지 않아도 된다」 는 3장 문구를 길게 바꾼 경우에는 맞지 않았다. 바뀐 파일은 그 시험 파일 하나이고, 그 파일을 고치지 않았다면 merge 로 끝난다.
 
 ## [1.0.0-rc.5] - 2026-10-27
 

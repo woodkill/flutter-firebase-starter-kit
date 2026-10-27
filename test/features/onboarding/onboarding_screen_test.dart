@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_
 import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -136,6 +138,51 @@ class _FailingMirrorTermsNotifier extends _RecordingTermsNotifier {
   }
 }
 
+/// 킷 3장 제목보다 훨씬 긴 영어 제목.
+const _longSlide3Title =
+    'A much longer headline that a project might write for its own app, '
+    'long enough to wrap onto several lines';
+
+/// 킷 3장 본문보다 훨씬 긴 영어 본문.
+const _longSlide3Body =
+    'This deliberately long body stands in for the copy a project writes '
+    'for its own app on the last slide. It wraps onto many lines so that '
+    'the terms checkboxes below it start outside the first screen of the '
+    'test surface. A test that taps them must scroll them into view first, '
+    'exactly as a person would scroll down before ticking the boxes. The '
+    'text keeps going for a while longer so that the layout is clearly '
+    'taller than the screen, whatever the font size or padding may be.';
+
+/// 3장 제목 · 본문만 킷보다 훨씬 긴 영어 문구로 바꾸고 나머지는
+/// [AppLocalizationsEn] 그대로 쓰는 앱 문구.
+///
+/// 프로젝트가 3장 문구를 길게 바꾼 경우를 흉내 낸다.
+class _LongSlide3Localizations extends AppLocalizationsEn {
+  @override
+  String get onboardingSlide3Title => _longSlide3Title;
+
+  @override
+  String get onboardingSlide3Body => _longSlide3Body;
+}
+
+/// [_LongSlide3Localizations] 를 영어 locale 에 내주는 앱 문구 delegate.
+class _LongSlide3LocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  /// 상태 없는 delegate 를 만든다.
+  const _LongSlide3LocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) => locale.languageCode == 'en';
+
+  /// 첫 프레임부터 문구가 있도록 동기로 완료한다.
+  @override
+  Future<AppLocalizations> load(Locale locale) =>
+      SynchronousFuture<AppLocalizations>(_LongSlide3Localizations());
+
+  @override
+  bool shouldReload(_LongSlide3LocalizationsDelegate old) => false;
+}
+
 GoRouter _buildRouter() {
   return GoRouter(
     initialLocation: AppRoutes.onboarding,
@@ -171,6 +218,10 @@ GoRouter _buildRouter() {
 /// 상태다. `false` 는 stg/prod placeholder / `firebase-configure.sh` 실행 전
 /// dev 의 **기본 상태** 로, `_handleCta` 가 `firebaseAuthProvider` 를 읽지
 /// 않고 익명 사인인도 건너뛰어야 한다.
+///
+/// [appLocalizationsDelegate] 는 앱 문구 delegate 이고 기본값은 ARB 에서 만든
+/// [AppLocalizations.delegate] 다. 3장 문구가 길어도 흐름이 통과하는지 보는
+/// 시험만 긴 문구 delegate 를 넣는다.
 Future<void> _pumpOnboarding(
   WidgetTester tester, {
   required _MockAuthRepository mockRepo,
@@ -179,6 +230,8 @@ Future<void> _pumpOnboarding(
   fb.FirebaseAuth? auth,
   TermsNotifier? termsOverride,
   bool isFirebaseInitialized = true,
+  LocalizationsDelegate<AppLocalizations> appLocalizationsDelegate =
+      AppLocalizations.delegate,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final router = _buildRouter();
@@ -196,8 +249,8 @@ Future<void> _pumpOnboarding(
       child: MaterialApp.router(
         theme: AppTheme.light(),
         locale: const Locale('en'),
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
+        localizationsDelegates: [
+          appLocalizationsDelegate,
           GlobalMaterialLocalizations.delegate,
           GlobalWidgetsLocalizations.delegate,
           GlobalCupertinoLocalizations.delegate,
@@ -344,8 +397,10 @@ void main() {
       // index 0=AcceptAll, 1=Service, 2=Privacy, 3=Marketing
       // 마지막 슬라이드는 SingleChildScrollView 안 → CheckboxListTile finder OK
       final tiles = find.byType(CheckboxListTile);
+      await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
+      await tester.ensureVisible(tiles.at(2));
       await tester.tap(tiles.at(2)); // privacy
       await tester.pump();
 
@@ -451,8 +506,10 @@ void main() {
 
       // 필수 2개 체크.
       final tiles = find.byType(CheckboxListTile);
+      await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
+      await tester.ensureVisible(tiles.at(2));
       await tester.tap(tiles.at(2)); // privacy
       await tester.pump();
 
@@ -515,8 +572,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final tiles = find.byType(CheckboxListTile);
+      await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1));
       await tester.pump();
+      await tester.ensureVisible(tiles.at(2));
       await tester.tap(tiles.at(2));
       await tester.pump();
 
@@ -551,8 +610,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final tiles = find.byType(CheckboxListTile);
+      await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
+      await tester.ensureVisible(tiles.at(2));
       await tester.tap(tiles.at(2)); // privacy
       await tester.pump();
 
@@ -694,6 +755,37 @@ void main() {
         indicator.count,
         (pageView.childrenDelegate as SliverChildListDelegate).children.length,
       );
+    });
+
+    testWidgets('Test 13: 3장 문구가 길어 약관 체크박스가 첫 화면 밖이어도 필수 2개 '
+        '체크 → "Get started" 로 홈 진행', (tester) async {
+      // 3장 문구가 길면 체크박스가 첫 화면 밖으로 밀려, 공용 헬퍼가 누르기 전에
+      // 스크롤해야 홈으로 간다. 화면 밖 여부 같은 레이아웃 단언은 두지 않는다 —
+      // 3장 모양을 바꾼 저장소에서 이 시험 자체가 깨지지 않게 하기 위해서다.
+      when(
+        () => mockRepo.signInAnonymously(),
+      ).thenAnswer((_) async => Result<User>.success(_stubUser()));
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
+
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+        appLocalizationsDelegate: const _LongSlide3LocalizationsDelegate(),
+      );
+
+      await _goToLastSlideAndCheckRequired(tester);
+
+      final cta = find.widgetWithText(FilledButton, 'Get started');
+      expect(tester.widget<FilledButton>(cta).onPressed, isNotNull);
+      await tester.tap(cta);
+      await tester.pumpAndSettle();
+
+      verify(() => mockRepo.signInAnonymously()).called(1);
+      expect(find.text('HOME'), findsOneWidget);
     });
   });
 
@@ -934,6 +1026,8 @@ Future<void> _goToSlide(WidgetTester tester, int index) async {
 }
 
 /// 마지막 슬라이드로 이동해 필수 2개를 체크한다 (테스트 공용 단계).
+///
+/// 3장 문구가 길면 체크박스가 첫 화면 밖에 있으므로, 누르기 전에 화면 안으로 스크롤한다.
 Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
   await tester.tap(find.widgetWithText(FilledButton, 'Next'));
   await tester.pumpAndSettle();
@@ -941,8 +1035,10 @@ Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
   await tester.pumpAndSettle();
 
   final tiles = find.byType(CheckboxListTile);
+  await tester.ensureVisible(tiles.at(1));
   await tester.tap(tiles.at(1)); // service
   await tester.pump();
+  await tester.ensureVisible(tiles.at(2));
   await tester.tap(tiles.at(2)); // privacy
   await tester.pump();
 }
