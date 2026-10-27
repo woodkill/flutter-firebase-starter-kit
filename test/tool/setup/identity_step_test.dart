@@ -45,6 +45,33 @@ String buildConfigureScript({
     'IOS_BUNDLE_ID_PREFIX="$iosBundleIdPrefix"\n'
     'ANDROID_PACKAGE_PREFIX="$androidPackagePrefix"\n';
 
+/// [root] 아래 [relativePath] 에 [content] 를 쓴다 — 상위 디렉터리는 만든다.
+void writeFixtureFile(String root, String relativePath, String content) {
+  File('$root/$relativePath')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(content);
+}
+
+/// 킷 앱 ID 를 담은 stg 자리표시 `google-services.json` 의 최소 본문을 만든다.
+///
+/// 저장소의 stg 자리표시 파일 값과 무관하다 — 위저드로 앱 ID 를 바꾼 저장소에서도
+/// 같은 본문이다. `package_name` 줄은 이름 바꾸기가 찾는 옛 값과 글자 그대로 같다.
+String buildStgPlaceholderJson() =>
+    '{\n'
+    '  "project_info": {\n'
+    '    "project_id": "placeholder-stg"\n'
+    '  },\n'
+    '  "client": [\n'
+    '    {\n'
+    '      "client_info": {\n'
+    '        "android_client_info": {\n'
+    '          "package_name": "${rename.currentAndroidPackage}.stg"\n'
+    '        }\n'
+    '      }\n'
+    '    }\n'
+    '  ]\n'
+    '}\n';
+
 /// [root] 아래에 앱 정체성 단계가 읽고 고치는 파일 fixture 를 쓴다.
 ///
 /// 사용자 설정 파일은 추적되는 example 을 복사해 만든다. [applicationId] 가 킷
@@ -54,12 +81,6 @@ void writeIdentityFixture(
   String root, {
   String applicationId = rename.currentAndroidPackage,
 }) {
-  void writeFile(String relativePath, String content) {
-    File('$root/$relativePath')
-      ..parent.createSync(recursive: true)
-      ..writeAsStringSync(content);
-  }
-
   final isKitDefault = applicationId == rename.currentAndroidPackage;
   final String iosBundleIdPrefix = isKitDefault
       ? rename.currentIosBundleId
@@ -72,7 +93,8 @@ void writeIdentityFixture(
     kitKotlin.deleteSync(recursive: true);
   }
 
-  writeFile(
+  writeFixtureFile(
+    root,
     IdentityStep.gradlePath,
     'android {\n'
     '    namespace = "$applicationId"\n'
@@ -82,15 +104,18 @@ void writeIdentityFixture(
     '    }\n'
     '}\n',
   );
-  writeFile(
+  writeFixtureFile(
+    root,
     '$kotlinDir/MainActivity.kt',
     'package $applicationId\n\nclass MainActivity\n',
   );
-  writeFile(
+  writeFixtureFile(
+    root,
     'ios/Runner.xcodeproj/project.pbxproj',
     'PRODUCT_BUNDLE_IDENTIFIER = $iosBundleIdPrefix.dev;\n',
   );
-  writeFile(
+  writeFixtureFile(
+    root,
     'scripts/firebase-configure.sh',
     buildConfigureScript(
       iosBundleIdPrefix: iosBundleIdPrefix,
@@ -622,12 +647,9 @@ void main() {
         'DISPLAY_NAME',
         'My App Dev',
       );
-      // 추적 placeholder 원본은 킷 앱 ID 를 담는다 — 6번 쓰기 전에 끊긴 모양.
-      File(stgPlaceholder).copySync(
-        (File(
-          '$root/$stgPlaceholder',
-        )..parent.createSync(recursive: true)).path,
-      );
+      // 킷 앱 ID 를 담은 stg 자리표시를 시험 안에서 만든다 — 6번 쓰기 전에 끊긴
+      // 모양(저장소 파일 값과 무관).
+      writeFixtureFile(root, stgPlaceholder, buildStgPlaceholderJson());
       expect(
         readFile(stgPlaceholder),
         contains('"package_name": "${rename.currentAndroidPackage}.stg"'),
@@ -765,11 +787,7 @@ void main() {
         'DISPLAY_NAME',
         'My App Dev',
       );
-      File(stgPlaceholder).copySync(
-        (File(
-          '$root/$stgPlaceholder',
-        )..parent.createSync(recursive: true)).path,
-      );
+      writeFixtureFile(root, stgPlaceholder, buildStgPlaceholderJson());
     }
 
     test('T-19-ID-15 상수가 앱 ID 와 같으면 잔여가 있어도 ✓', () async {
