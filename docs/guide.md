@@ -3035,8 +3035,12 @@ git add <파일>
 
 **규칙 3 — 데모를 지웠다면 매번 같은 조치.**
 - [홈 화면 바꾸기](#홈-화면-바꾸기) 의 ③ 「지우는 법」 으로 데모를 지웠다면, 킷이 데모 파일을 고친 판마다 규칙 1 의 충돌이 난다.
-- 같은 `git rm <파일>` 로 풀고, 코드는 고칠 것이 없다.
-- 충돌이 날 데모 파일은 그 판 CHANGELOG 절의 `### 사용자 조치` 에 적힌다.
+- 데모 파일(`lib/features/demo/` · `test/features/demo/`)은 같은 `git rm <파일>` 로 푼다.
+- ③ 에서 일부를 지우거나 고친 테스트는 킷이 그 자리의 줄을 고친 판마다 `CONFLICT (content)` 가 난다.
+  - 킷 쪽(`=======` 와 `>>>>>>>` 사이)이 ③ 에서 지운 자리의 줄뿐인 충돌 블록은 `<<<<<<<` 와 `=======` 사이의 내 쪽(지운 상태)만 남기고 표시 줄 셋과 킷 쪽 줄을 지운다.
+  - 그 밖의 충돌 블록은 규칙 2 처럼 직접 합치되, ③ 에서 지운 줄은 다시 넣지 않는다.
+  - 충돌 블록을 모두 풀었으면 `git add <파일>` 한다.
+- 충돌이 날 데모 파일 · 테스트는 그 판 CHANGELOG 절의 `### 사용자 조치` 에 적힌다.
 
 **규칙 4 — skip-worktree 파일 때문에 merge 가 시작되지 않는다.**
 - `scripts/firebase-configure.sh` 는 실 값으로 덮어쓴 저장소 파일(dev 는 `lib/core/firebase/firebase_options_dev.dart` · `ios/config/dev/GoogleService-Info.plist`)에 `--skip-worktree` 를 걸어 git 이 그 변경을 보지 않게 한다.
@@ -3134,7 +3138,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
-| 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 규칙 1(`git rm`) · 「데모를 지웠다면」 규칙 3 |
+| 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 데모 파일은 규칙 1(`git rm`) · 고친 테스트는 「데모를 지웠다면」 규칙 3 대로 충돌 블록을 푼다 |
 | 21 | `lib/core/theme/` 토큰 (브랜드 색은 `config/*.json` 의 `brandColor`) | 테마 토큰 | 중간 | 내 값 |
 | 22 | `android/app/src/main/res/drawable/ic_notification.xml` · `values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor` | 알림 아이콘 · 색 | 낮음 | 내 값 |
 | 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 |
