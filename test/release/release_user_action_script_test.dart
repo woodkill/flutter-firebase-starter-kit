@@ -9,7 +9,17 @@
 // 대조 · 추적 파일 양성 대조)은 유지보수자 트리에서만 돈다. 나머지는 fixture 로 어디서나 돈다.
 //
 // 시험 ID:
+//   T-174-UA-01  라이브 표의 낮음 행 집합 = 스크립트 행 집합 · 기록 행은 낮음 아님(유지보수자 트리)
+//   T-174-UA-02  낮음 경로 꼴마다 추적 파일 양성 대조 1개 이상(유지보수자 트리)
+//   T-174-UA-03  패턴 블록 꼴 · 행 집합 · fixture 표본 대조
 //   T-174-UA-04  판정 none · 출력 순서 · 작업 일지 디렉터리 제외 · 읽기 전용
+//   T-174-UA-05  낮음 행 파일 변경 → review · 하위 디렉터리에서 돌려도 같은 출력
+//   T-174-UA-06  기록 행 파일 변경 → OTHER_ROW_HIT 만 · 판정 none
+//   T-174-UA-07  표의 낮음 행이 중간으로 바뀜 → exit 3 table
+//   T-174-UA-08  표의 중간 행이 낮음으로 바뀜 → exit 3 table
+//   T-174-UA-09  낮음 행 파일이 TARGET 에 없음 → exit 3 control
+//   T-174-UA-10  인자 수 · 빈 인자 → exit 2 · stderr usage · stdout 빈 출력
+//   T-174-UA-11  풀 수 없는 커밋 이름 → exit 3 git
 //
 // **값 모양 리터럴을 두지 않는다** — fixture 파일 내용은 짧은 평문 한 줄이다. 이 파일도 공개
 // 이력에 들어가 같은 스캔을 거친다.
@@ -17,6 +27,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/planning_docs.dart';
+import '../helpers/source_text.dart';
 
 /// 판정 스크립트의 저장소 루트 기준 경로.
 const String _scriptRel = 'scripts/release_user_action.sh';
@@ -26,6 +39,22 @@ const String _fixedDate = '2026-01-01T00:00:00+0000';
 
 /// 사용자 소유 표면 표의 `낮음` 행 번호 — 스크립트 `LOW_PATTERNS` 의 행 집합과 같다.
 const Set<int> _lowRows = <int>{3, 5, 8, 14, 15, 16, 22, 28};
+
+/// 표의 기록만 하는 행 번호 — 스크립트 `INFO_PATTERNS` 의 행 집합과 같다.
+const Set<int> _infoRows = <int>{7, 10, 23, 24, 32};
+
+/// 라이브 표가 든 사용자 가이드 경로.
+const String _guidePath = 'docs/guide.md';
+
+/// 표의 절 제목(정확한 줄).
+const String _sectionHeading = '### 사용자 소유 표면';
+
+/// 표 머리(정확한 줄).
+const String _tableHeader = '| # | 파일 | 사용자가 바꾸는 것 | 킷이 고칠 가능성 | 충돌 시 조치 |';
+
+/// 판정 스크립트의 usage 첫 줄.
+const String _usageLine =
+    'usage: bash scripts/release_user_action.sh <BASE> <TARGET>';
 
 /// fixture 표의 데이터 행 수.
 const int _fixtureRowCount = 32;
@@ -66,6 +95,59 @@ const String _workLogNote = '$_workLogDir/notes.md';
 /// 스크립트가 있으면 `false`, 없으면 건너뛸 사유를 돌려준다.
 Object _skipUnlessScript() =>
     File(_scriptRel).existsSync() ? false : '$_scriptRel 이 없는 사본 — 건너뜀';
+
+/// 유지보수자 트리에서만 도는 표 대조 시험의 `skip:` 값을 돌려준다.
+///
+/// 스크립트가 없는 사본이면 그 사유를, 있으면 유지보수자 트리 판정 결과를 돌려준다.
+Object _skipUnlessMaintainerScript() => File(_scriptRel).existsSync()
+    ? skipUnlessMaintainerTree()
+    : _skipUnlessScript();
+
+/// 스크립트 문자열 [script] 에서 heredoc 블록 [name] 을 (행 번호 · 정규식) 목록으로 읽는다.
+///
+/// 줄 전체가 `<name>=$(cat <<'<name>_END'` 인 줄과 `<name>_END` 인 줄이 정확히 하나씩 있어야
+/// 하고, 사이 줄은 전부 `<행 번호> <ERE>` 꼴이어야 한다. 스크립트의 ERE 는 `^ $ ( | ) [^/] .* \.
+/// ?` 만 쓰므로 Dart [RegExp] 로 그대로 써도 뜻이 같다.
+List<(int, RegExp)> _readPatternBlock(String script, String name) {
+  final List<String> lines = script.split('\n');
+  final open = "$name=\$(cat <<'${name}_END'";
+  final close = '${name}_END';
+  expect(
+    lines.where((String l) => l == open),
+    hasLength(1),
+    reason: '$name 블록 여는 줄은 하나여야 한다',
+  );
+  expect(
+    lines.where((String l) => l == close),
+    hasLength(1),
+    reason: '$name 블록 닫는 줄은 하나여야 한다',
+  );
+  final int start = lines.indexOf(open);
+  final int end = lines.indexOf(close);
+  expect(end, greaterThan(start + 1), reason: '$name 블록이 비어 있다');
+  final entry = RegExp(r'^(\d+) (\S+)$');
+  final patterns = <(int, RegExp)>[];
+  for (final String line in lines.sublist(start + 1, end)) {
+    final RegExpMatch? match = entry.firstMatch(line);
+    if (match == null) {
+      fail('$name 블록 줄이 <행 번호> <ERE> 꼴이 아니다: $line');
+    }
+    patterns.add((int.parse(match.group(1)!), RegExp(match.group(2)!)));
+  }
+  return patterns;
+}
+
+/// 판정 스크립트의 `LOW_PATTERNS` 블록을 읽는다.
+List<(int, RegExp)> _readLowPatterns() =>
+    _readPatternBlock(readTrackedFile(_scriptRel), 'LOW_PATTERNS');
+
+/// 판정 스크립트의 `INFO_PATTERNS` 블록을 읽는다.
+List<(int, RegExp)> _readInfoPatterns() =>
+    _readPatternBlock(readTrackedFile(_scriptRel), 'INFO_PATTERNS');
+
+/// 패턴 목록 [patterns] 의 행 번호 집합을 돌려준다.
+Set<int> _collectRows(List<(int, RegExp)> patterns) =>
+    patterns.map(((int, RegExp) p) => p.$1).toSet();
 
 /// 설정 · 훅 · 서명 · 날짜를 고정한 git 환경을 돌려준다.
 Map<String, String> _gitEnv() => <String, String>{
@@ -239,7 +321,129 @@ List<String> _outLines(ProcessResult result) =>
 List<String> _selectLines(List<String> lines, String prefix) =>
     lines.where((String line) => line.startsWith(prefix)).toList();
 
+/// fixture 의 기본 커밋 위에 [edit] 를 적용한 커밋을 만들고 (base · target) 해시를 돌려준다.
+(String, String) _commitBaseAndTarget(_Fixture fixture, void Function() edit) {
+  final String base = _commitBase(fixture);
+  edit();
+  return (base, fixture.commitAll('target'));
+}
+
+/// 표 실패(exit 3 · `LOW_ROW_FAIL table:`)를 단언한다.
+void _expectTableFail(ProcessResult result) {
+  final List<String> lines = _outLines(result);
+  expect(result.exitCode, 3, reason: 'stdout: ${result.stdout}');
+  expect(lines.last, startsWith('LOW_ROW_FAIL table:'));
+  expect(_selectLines(lines, 'USER_ACTION_VERDICT'), isEmpty);
+}
+
 void main() {
+  test('T-174-UA-01: 라이브 표의 낮음 행 집합이 스크립트 행 집합과 같고 기록 행은 낮음이 아니다', () {
+    final String guide = readTrackedFile(_guidePath);
+    final String section = sliceMarkdownSection(
+      guide,
+      _sectionHeading,
+      maxLevel: 3,
+    );
+    expect(
+      section,
+      isNotEmpty,
+      reason: '$_guidePath 에 「$_sectionHeading」 절이 없다',
+    );
+    final List<String> table = collectTableLines(section, _tableHeader);
+    final List<String> rows = table.length > 2 ? table.sublist(2) : <String>[];
+    expect(rows, isNotEmpty, reason: '「$_sectionHeading」 표에 데이터 행이 없다');
+
+    final grades = <int, String>{};
+    for (final row in rows) {
+      final List<String> cells = row.split('|');
+      expect(cells.length, greaterThan(5), reason: '표 행 꼴: $row');
+      grades[int.parse(cells[1].trim())] = cells[4].trim();
+    }
+    final Set<int> tableLowRows = grades.entries
+        .where((MapEntry<int, String> e) => e.value.startsWith('낮음'))
+        .map((MapEntry<int, String> e) => e.key)
+        .toSet();
+    const reason = '표가 바뀌었으면 스크립트 경로 꼴 · 이 시험을 함께 고친다';
+
+    expect(
+      tableLowRows,
+      _collectRows(_readLowPatterns()),
+      reason: '표의 낮음 행 ≠ LOW_PATTERNS 행 — $reason',
+    );
+    for (final int row in _collectRows(_readInfoPatterns())) {
+      expect(
+        grades.containsKey(row),
+        isTrue,
+        reason: 'INFO_PATTERNS 행 $row 이 표에 없다 — $reason',
+      );
+      expect(
+        grades[row]!.startsWith('낮음'),
+        isFalse,
+        reason: 'INFO_PATTERNS 행 $row 이 낮음이다 — $reason',
+      );
+    }
+  }, skip: _skipUnlessMaintainerScript());
+
+  test('T-174-UA-02: 낮음 경로 꼴마다 추적 파일이 1개 이상 걸린다', () {
+    final ProcessResult result = Process.runSync('git', <String>[
+      '-c',
+      'core.quotePath=false',
+      'ls-files',
+    ]);
+    expect(result.exitCode, 0, reason: 'git ls-files 실패: ${result.stderr}');
+    final List<String> tracked = (result.stdout as String)
+        .split('\n')
+        .where((String l) => l.isNotEmpty)
+        .toList();
+    expect(tracked, isNotEmpty);
+    for (final (int row, RegExp pattern) in _readLowPatterns()) {
+      expect(
+        tracked.any(pattern.hasMatch),
+        isTrue,
+        reason: '행 $row 꼴 ${pattern.pattern} 이 추적 파일을 하나도 잡지 않는다',
+      );
+    }
+  }, skip: _skipUnlessMaintainerScript());
+
+  test('T-174-UA-03: 패턴 블록 꼴 · 행 집합 · fixture 표본이 스크립트와 맞는다', () {
+    final List<(int, RegExp)> low = _readLowPatterns();
+    final List<(int, RegExp)> info = _readInfoPatterns();
+    expect(low, hasLength(17));
+    expect(_collectRows(low), _lowRows);
+    expect(info, hasLength(5));
+    expect(_collectRows(info), _infoRows);
+
+    for (final (int row, RegExp pattern) in low) {
+      expect(
+        _lowSamples.any(
+          ((int, String) s) => s.$1 == row && pattern.hasMatch(s.$2),
+        ),
+        isTrue,
+        reason: '행 $row 꼴 ${pattern.pattern} 에 걸리는 fixture 표본이 없다',
+      );
+    }
+    for (final (int row, String path) in _lowSamples) {
+      expect(
+        low.any(((int, RegExp) p) => p.$1 == row && p.$2.hasMatch(path)),
+        isTrue,
+        reason: 'fixture 표본 $path 이 행 $row 꼴에 걸리지 않는다',
+      );
+    }
+    final (int infoRow, String infoPath) = _infoSample;
+    expect(
+      info.any(((int, RegExp) p) => p.$1 == infoRow && p.$2.hasMatch(infoPath)),
+      isTrue,
+    );
+    expect(low.any(((int, RegExp) p) => p.$2.hasMatch(infoPath)), isFalse);
+    expect(
+      <(int, RegExp)>[
+        ...low,
+        ...info,
+      ].any(((int, RegExp) p) => p.$2.hasMatch(_plainPath)),
+      isFalse,
+    );
+  }, skip: _skipUnlessScript());
+
   test('T-174-UA-04: 낮음 행 밖 변경만 있으면 none · 출력 순서 · 작업 일지 제외 · 읽기 전용', () {
     final fixture = _Fixture.create();
     addTearDown(fixture.dispose);
@@ -273,5 +477,146 @@ void main() {
       isEmpty,
       reason: '스크립트는 fixture 트리를 바꾸지 않는다',
     );
+  }, skip: _skipUnlessScript());
+
+  test('T-174-UA-05: 낮음 행 파일 변경이면 review · 하위 디렉터리에서도 같은 출력', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    const entitlements = 'ios/Runner/Runner.entitlements';
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.writeFiles(<String, String>{entitlements: 'changed\n'}),
+    );
+
+    final ProcessResult result = _runTool(fixture.dir, <String>[base, target]);
+    final List<String> lines = _outLines(result);
+
+    expect(result.exitCode, 0, reason: 'stdout: ${result.stdout}');
+    expect(_selectLines(lines, 'LOW_ROW_HIT '), <String>[
+      'LOW_ROW_HIT row=28 $entitlements',
+    ]);
+    expect(lines.where((String l) => l == 'LOW_ROW_HITS 1'), hasLength(1));
+    expect(lines.last, 'USER_ACTION_VERDICT review low_hits=1');
+
+    final ProcessResult nested = _runTool('${fixture.dir}/lib', <String>[
+      base,
+      target,
+    ]);
+    expect(nested.exitCode, 0);
+    expect(nested.stdout, result.stdout, reason: 'pathspec 은 저장소 루트 기준이다');
+  }, skip: _skipUnlessScript());
+
+  test('T-174-UA-06: 기록 행 파일만 바뀌면 OTHER_ROW_HIT 만 나오고 판정은 none', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (int infoRow, String infoPath) = _infoSample;
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.writeFiles(<String, String>{infoPath: 'changed\n'}),
+    );
+
+    final ProcessResult result = _runTool(fixture.dir, <String>[base, target]);
+    final List<String> lines = _outLines(result);
+
+    expect(result.exitCode, 0, reason: 'stdout: ${result.stdout}');
+    expect(_selectLines(lines, 'OTHER_ROW_HIT '), <String>[
+      'OTHER_ROW_HIT row=$infoRow $infoPath',
+    ]);
+    expect(_selectLines(lines, 'LOW_ROW_HIT '), isEmpty);
+    expect(lines.last, 'USER_ACTION_VERDICT none low_hits=0');
+  }, skip: _skipUnlessScript());
+
+  test('T-174-UA-07: 표의 낮음 행이 중간으로 바뀌면 exit 3 table', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.writeFiles(<String, String>{
+        'docs/guide.md': _buildGuide(grades: <int, String>{22: '중간'}),
+      }),
+    );
+
+    _expectTableFail(_runTool(fixture.dir, <String>[base, target]));
+  }, skip: _skipUnlessScript());
+
+  test('T-174-UA-08: 표의 중간 · 높음 행이 낮음으로 바뀌면 exit 3 table', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.writeFiles(<String, String>{
+        'docs/guide.md': _buildGuide(grades: <int, String>{7: '낮음'}),
+      }),
+    );
+
+    _expectTableFail(_runTool(fixture.dir, <String>[base, target]));
+  }, skip: _skipUnlessScript());
+
+  test('T-174-UA-09: 낮음 행 파일이 TARGET 에 없으면 exit 3 control', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.deleteFiles(<String>['.firebaserc']),
+    );
+
+    final ProcessResult result = _runTool(fixture.dir, <String>[base, target]);
+    final List<String> lines = _outLines(result);
+
+    expect(result.exitCode, 3, reason: 'stdout: ${result.stdout}');
+    expect(lines.last, startsWith('LOW_ROW_FAIL control: row=5 '));
+    expect(_selectLines(lines, 'USER_ACTION_VERDICT'), isEmpty);
+  }, skip: _skipUnlessScript());
+
+  test(
+    'T-174-UA-10: 인자 수가 2가 아니거나 빈 인자면 exit 2 · stderr usage · stdout 빈 출력',
+    () {
+      final fixture = _Fixture.create();
+      addTearDown(fixture.dispose);
+      final (String base, String target) = _commitBaseAndTarget(
+        fixture,
+        () => fixture.writeFiles(<String, String>{_plainPath: 'changed\n'}),
+      );
+      final cases = <List<String>>[
+        <String>[],
+        <String>[base],
+        <String>[base, target, target],
+        <String>['', target],
+        <String>[base, ''],
+      ];
+
+      for (final args in cases) {
+        final ProcessResult result = _runTool(fixture.dir, args);
+        expect(result.exitCode, 2, reason: '인자 $args');
+        expect(result.stdout, '', reason: '인자 $args');
+        expect(result.stderr as String, contains(_usageLine));
+      }
+    },
+    skip: _skipUnlessScript(),
+  );
+
+  test('T-174-UA-11: 풀 수 없는 커밋 이름이면 exit 3 git', () {
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () => fixture.writeFiles(<String, String>{_plainPath: 'changed\n'}),
+    );
+
+    final ProcessResult badBase = _runTool(fixture.dir, <String>[
+      'no-such-ref',
+      target,
+    ]);
+    expect(badBase.exitCode, 3, reason: 'stdout: ${badBase.stdout}');
+    expect(_outLines(badBase).last, startsWith('LOW_ROW_FAIL git:'));
+
+    final ProcessResult badTarget = _runTool(fixture.dir, <String>[
+      base,
+      'no-such-ref',
+    ]);
+    final List<String> lines = _outLines(badTarget);
+    expect(badTarget.exitCode, 3, reason: 'stdout: ${badTarget.stdout}');
+    expect(lines.first, 'BASE $base');
+    expect(lines.last, startsWith('LOW_ROW_FAIL git:'));
   }, skip: _skipUnlessScript());
 }
