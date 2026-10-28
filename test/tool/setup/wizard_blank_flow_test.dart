@@ -865,6 +865,7 @@ void _registerAppSteps(_Run run, {List<CommandResult>? configureResults}) {
                 <String, Object?>{
                   'id': function,
                   'region': region,
+                  'callableTrigger': <String, Object?>{},
                   'runServiceId': function,
                 },
             ],

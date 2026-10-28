@@ -553,6 +553,7 @@ CommandResult buildFunctionsListResult({
         <String, Object?>{
           'id': function,
           'region': region,
+          'callableTrigger': <String, Object?>{},
           'runServiceId': buildServiceId(function),
         },
     ],

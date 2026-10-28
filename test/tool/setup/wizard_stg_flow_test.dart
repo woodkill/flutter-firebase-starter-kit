@@ -1011,6 +1011,7 @@ void _registerAppSteps(_Run run, {required bool isResumed}) {
                 <String, Object?>{
                   'id': function,
                   'region': region,
+                  'callableTrigger': <String, Object?>{},
                   'runServiceId': function,
                 },
             ],

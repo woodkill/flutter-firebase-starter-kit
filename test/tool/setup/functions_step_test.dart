@@ -281,27 +281,50 @@ CommandResult buildSecretsList(Iterable<String> names) => CommandResult(
   '',
 );
 
-/// `firebase functions:list --json` 성공 출력을 만든다.
-CommandResult buildFunctionsList(Iterable<String> functionIds) => CommandResult(
-  0,
-  jsonEncode(<String, Object?>{
-    'status': 'success',
-    'result': <Object?>[
-      for (final String id in functionIds)
-        <String, Object?>{
-          'id': id,
-          'project': projectId,
-          'region': region,
-          'platform': 'gcfv2',
-          'entryPoint': id,
-          'runtime': 'nodejs22',
-          'httpsTrigger': <String, Object?>{},
-          'runServiceId': buildServiceId(id),
-        },
-    ],
-  }),
-  '',
-);
+/// 1세대 Auth 삭제 트리거(`functions.auth.user().onDelete`)의 `eventTrigger` 모양.
+const Map<String, Object?> authDeleteTrigger = <String, Object?>{
+  'eventType': 'providers/firebase.auth/eventTypes/user.delete',
+  'eventFilters': <String, Object?>{'resource': 'projects/$projectId'},
+  'retry': false,
+};
+
+/// `functions:list --json` 항목 하나를 만든다 — 기본값은 실제 onCall 함수
+/// 모양(2세대 · `callableTrigger: {}` · Cloud Run 서비스 있음 · 상태 없음)이다.
+///
+/// [triggerKey] 가 빈 문자열이면 트리거 키를 넣지 않는다.
+Map<String, Object?> buildListedFunction(
+  String id, {
+  String platform = 'gcfv2',
+  String triggerKey = 'callableTrigger',
+  Map<String, Object?> trigger = const <String, Object?>{},
+  bool hasRunService = true,
+  String? state,
+}) => <String, Object?>{
+  'id': id,
+  'project': projectId,
+  'region': region,
+  'platform': platform,
+  'entryPoint': id,
+  'runtime': 'nodejs22',
+  if (triggerKey.isNotEmpty) triggerKey: trigger,
+  if (hasRunService) 'runServiceId': buildServiceId(id),
+  'state': ?state,
+};
+
+/// [items] 를 담은 `firebase functions:list --json` 성공 출력을 만든다.
+CommandResult buildFunctionsListOf(Iterable<Map<String, Object?>> items) =>
+    CommandResult(
+      0,
+      jsonEncode(<String, Object?>{
+        'status': 'success',
+        'result': <Object?>[...items],
+      }),
+      '',
+    );
+
+/// `firebase functions:list --json` 성공 출력을 만든다(함수마다 실제 onCall 모양).
+CommandResult buildFunctionsList(Iterable<String> functionIds) =>
+    buildFunctionsListOf(functionIds.map(buildListedFunction));
 
 /// 공통 함수(secret 없음) 뒤에 [providerSecretsFixturePath] 의 함수를 이어 붙인
 /// `functions:list --json` 출력을 만든다.
@@ -1703,4 +1726,451 @@ void main() {
       }
     },
   );
+
+  /// 함수 목록 파일의 `common` 끝에 [name] 을 더해 쓴다 — 이미 있으면 그대로 두고,
+  /// 다른 키는 바꾸지 않는다.
+  void writeManifestWithExtraCommon(String name) {
+    final manifest =
+        jsonDecode(
+              File('$root/${FunctionsStep.manifestPath}').readAsStringSync(),
+            )!
+            as Map<String, Object?>;
+    final common = manifest[FunctionsStep.manifestCommonKey]! as List<Object?>;
+    writeFixture(
+      FunctionsStep.manifestPath,
+      jsonEncode(<String, Object?>{
+        ...manifest,
+        FunctionsStep.manifestCommonKey: <Object?>[
+          ...common,
+          if (!common.contains(name)) name,
+        ],
+      }),
+    );
+  }
+
+  /// 공통 함수 가운데 [background] 를 뺀 것 — 앱이 부르는 함수로 목록에 싣는다.
+  List<String> listAppFunctions(String background) =>
+      commonFunctions.where((String name) => name != background).toList();
+
+  test('T-19-FN-13: 상세 파서가 트리거 종류 · platform · state · runServiceId 를 '
+      '읽고 기존 표는 그 파생이다', () {
+    final CommandResult listed = buildFunctionsListOf(<Map<String, Object?>>[
+      buildListedFunction('callableActive', state: 'ACTIVE'),
+      buildListedFunction('httpsNoState', triggerKey: 'httpsTrigger'),
+      buildListedFunction(
+        'eventV1',
+        platform: 'gcfv1',
+        triggerKey: 'eventTrigger',
+        trigger: authDeleteTrigger,
+        hasRunService: false,
+        state: 'ACTIVE',
+      ),
+      buildListedFunction(
+        'eventV2',
+        triggerKey: 'eventTrigger',
+        trigger: const <String, Object?>{
+          'eventType': 'google.cloud.firestore.document.v1.written',
+        },
+      ),
+      buildListedFunction(
+        'scheduled',
+        triggerKey: 'scheduleTrigger',
+        trigger: const <String, Object?>{'schedule': 'every 5 minutes'},
+      ),
+      buildListedFunction('queued', triggerKey: 'taskQueueTrigger'),
+      buildListedFunction(
+        'blocking',
+        triggerKey: 'blockingTrigger',
+        trigger: const <String, Object?>{
+          'eventType': 'providers/cloud.auth/eventTypes/user.beforeCreate',
+        },
+      ),
+      buildListedFunction('connector', triggerKey: 'dataConnectGraphqlTrigger'),
+      buildListedFunction('noTrigger', triggerKey: ''),
+      buildListedFunction(
+        'callableV1',
+        platform: 'gcfv1',
+        hasRunService: false,
+        state: 'UNKONWN',
+      ),
+      <String, Object?>{
+        ...buildListedFunction('emptyService'),
+        'runServiceId': '',
+      },
+      <String, Object?>{
+        ...buildListedFunction('otherRegion'),
+        'region': 'us-central1',
+      },
+      <String, Object?>{...buildListedFunction('numericId'), 'id': 7},
+    ]);
+
+    expect(
+      FunctionsStep.parseDeployedFunctionDetails(listed, region),
+      <String, DeployedFunction>{
+        'callableActive': (
+          triggerKind: DeployedTriggerKind.callable,
+          platform: 'gcfv2',
+          state: 'ACTIVE',
+          runServiceId: 'callableactive',
+        ),
+        'httpsNoState': (
+          triggerKind: DeployedTriggerKind.https,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'httpsnostate',
+        ),
+        'eventV1': (
+          triggerKind: DeployedTriggerKind.event,
+          platform: 'gcfv1',
+          state: 'ACTIVE',
+          runServiceId: null,
+        ),
+        'eventV2': (
+          triggerKind: DeployedTriggerKind.event,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'eventv2',
+        ),
+        'scheduled': (
+          triggerKind: DeployedTriggerKind.other,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'scheduled',
+        ),
+        'queued': (
+          triggerKind: DeployedTriggerKind.other,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'queued',
+        ),
+        'blocking': (
+          triggerKind: DeployedTriggerKind.other,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'blocking',
+        ),
+        'connector': (
+          triggerKind: DeployedTriggerKind.other,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'connector',
+        ),
+        'noTrigger': (
+          triggerKind: DeployedTriggerKind.other,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: 'notrigger',
+        ),
+        'callableV1': (
+          triggerKind: DeployedTriggerKind.callable,
+          platform: 'gcfv1',
+          state: 'UNKONWN',
+          runServiceId: null,
+        ),
+        'emptyService': (
+          triggerKind: DeployedTriggerKind.callable,
+          platform: 'gcfv2',
+          state: null,
+          runServiceId: '',
+        ),
+      },
+    );
+    expect(
+      FunctionsStep.parseDeployedFunctions(listed, region),
+      <String, String?>{
+        'callableActive': 'callableactive',
+        'httpsNoState': 'httpsnostate',
+        'eventV1': null,
+        'eventV2': 'eventv2',
+        'scheduled': 'scheduled',
+        'queued': 'queued',
+        'blocking': 'blocking',
+        'connector': 'connector',
+        'noTrigger': 'notrigger',
+        'callableV1': null,
+        'emptyService': '',
+      },
+    );
+    for (final broken in const <CommandResult>[
+      CommandResult(1, '', 'ERROR'),
+      CommandResult(0, 'not json', ''),
+      CommandResult(0, '{"status":"success","result":{}}', ''),
+    ]) {
+      expect(
+        FunctionsStep.parseDeployedFunctionDetails(broken, region),
+        isNull,
+        reason: broken.stdout,
+      );
+      expect(
+        FunctionsStep.parseDeployedFunctions(broken, region),
+        isNull,
+        reason: broken.stdout,
+      );
+    }
+    expect(
+      DeployedTriggerKind.values.where(
+        (DeployedTriggerKind kind) => kind.isCalledByApp,
+      ),
+      <DeployedTriggerKind>[
+        DeployedTriggerKind.callable,
+        DeployedTriggerKind.https,
+      ],
+    );
+  });
+
+  /// 1세대 Auth 삭제 트리거 함수 `onUserDeleted` 의 목록 항목.
+  Map<String, Object?> buildUserDeletedFunction(String state) =>
+      buildListedFunction(
+        'onUserDeleted',
+        platform: 'gcfv1',
+        triggerKey: 'eventTrigger',
+        trigger: authDeleteTrigger,
+        hasRunService: false,
+        state: state,
+      );
+
+  test('T-19-FN-14: common 에 1세대 이벤트 트리거를 더한 저장소에서 ✓ · 그 함수 IAM '
+      '0 · 바인딩 0', () async {
+    writeModulesMarker();
+    writeManifestWithExtraCommon('onUserDeleted');
+    final List<String> appFunctions = listAppFunctions('onUserDeleted');
+    final harness = _Harness(root, const <String?>[]);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildFunctionsListOf(<Map<String, Object?>>[
+          ...appFunctions.map(buildListedFunction),
+          buildUserDeletedFunction('ACTIVE'),
+        ]),
+      );
+    registerPublicPolicies(harness.fake, appFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+    expect(
+      harness.output,
+      contains('앱이 부르는 함수 ${appFunctions.length}개 · 백그라운드 함수 1개는 배포만 확인'),
+    );
+    expect(
+      harness.fake.calls.where(
+        (FakeCall call) => call.key.contains('onuserdeleted'),
+      ),
+      isEmpty,
+    );
+    expect(countBindings(harness.fake), 0);
+    expect(harness.fake.countMode(RunMode.stream), 0);
+  });
+
+  test('T-19-FN-15: 2세대 이벤트 트리거는 Cloud Run 서비스가 있어도 IAM 읽기 0 · '
+      '바인딩 0', () async {
+    writeModulesMarker();
+    writeManifestWithExtraCommon('onProfileWritten');
+    final List<String> appFunctions = listAppFunctions('onProfileWritten');
+    final harness = _Harness(root, const <String?>[]);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildFunctionsListOf(<Map<String, Object?>>[
+          ...appFunctions.map(buildListedFunction),
+          buildListedFunction(
+            'onProfileWritten',
+            triggerKey: 'eventTrigger',
+            trigger: const <String, Object?>{
+              'eventType': 'google.cloud.firestore.document.v1.written',
+            },
+          ),
+        ]),
+      );
+    registerPublicPolicies(harness.fake, appFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(
+      harness.fake.countCalls(
+        RunMode.capture,
+        buildIamKey(buildServiceId('onProfileWritten')),
+      ),
+      0,
+    );
+    expect(countBindings(harness.fake), 0);
+  });
+
+  test('T-19-FN-16: 목록에 있어도 상태가 ACTIVE 가 아니면(1세대 UNKONWN) 다시 '
+      '배포한다', () async {
+    writeModulesMarker();
+    writeManifestWithExtraCommon('onUserDeleted');
+    final List<String> appFunctions = listAppFunctions('onUserDeleted');
+
+    /// 공통 함수와 상태가 [state] 인 `onUserDeleted` 의 목록.
+    CommandResult buildListWith(String state) =>
+        buildFunctionsListOf(<Map<String, Object?>>[
+          ...appFunctions.map(buildListedFunction),
+          buildUserDeletedFunction(state),
+        ]);
+
+    final harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildListWith('UNKONWN'))
+      ..on(functionsListKey, buildListWith('UNKONWN'))
+      ..on(functionsListKey, buildListWith('ACTIVE'))
+      ..on(
+        deployKey,
+        buildDeployOutput(<String>[...appFunctions, 'onUserDeleted']),
+      );
+    registerPublicPolicies(harness.fake, appFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(
+      readChecklistReason(harness.output),
+      contains('onUserDeleted(상태 UNKONWN)'),
+    );
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+  });
+
+  test('T-19-FN-17: 빌드 실패 뒤 다시 시도는 상태 UNKNOWN · 서비스 없는 목록을 다시 '
+      '배포해 ✓ 로 끝난다', () async {
+    writeModulesMarker();
+    final harness = _Harness(root, const <String?>['y', '1']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(
+        functionsListKey,
+        buildFunctionsListOf(
+          commonFunctions.map(
+            (String id) =>
+                buildListedFunction(id, hasRunService: false, state: 'UNKNOWN'),
+          ),
+        ),
+      )
+      ..on(functionsListKey, buildFunctionsList(commonFunctions))
+      ..on(
+        deployKey,
+        buildDeployOutput(
+          commonFunctions,
+          exitCode: 1,
+          lastLine: 'Error: There was an error deploying functions',
+          stderr: '$batchFailLine\n',
+        ),
+      )
+      ..on(deployKey, buildDeployOutput(commonFunctions));
+    registerPublicPolicies(harness.fake, commonFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 2);
+    expect(harness.output, contains('  ✓ ${FunctionsStep.stepTitle} — '));
+    expect(
+      harness.output,
+      isNot(
+        contains(
+          FunctionsStep.buildNoRunServiceReason(commonFunctions.first, 'gcfv2'),
+        ),
+      ),
+    );
+  });
+
+  /// 공통 함수 첫째만 [first] 항목으로 바꾼 목록.
+  CommandResult buildListWithFirst(Map<String, Object?> first) =>
+      buildFunctionsListOf(<Map<String, Object?>>[
+        first,
+        ...commonFunctions.skip(1).map(buildListedFunction),
+      ]);
+
+  test('T-19-FN-18: 앱이 부르는 2세대 함수에 Cloud Run 서비스가 없으면 다시 배포한다', () async {
+    writeModulesMarker();
+    final String first = commonFunctions.first;
+    final CommandResult missing = buildListWithFirst(
+      buildListedFunction(first, hasRunService: false, state: 'ACTIVE'),
+    );
+    final harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, missing)
+      ..on(functionsListKey, missing)
+      ..on(functionsListKey, buildFunctionsList(commonFunctions))
+      ..on(deployKey, buildDeployOutput(commonFunctions));
+    registerPublicPolicies(harness.fake, commonFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(
+      readChecklistReason(harness.output),
+      contains('$first(Cloud Run 서비스 없음)'),
+    );
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+  });
+
+  test('T-19-FN-19: 앱이 부르는 함수가 2세대가 아니라 서비스가 없으면 확인할 수 없음 '
+      '· 배포 0 · IAM 0', () async {
+    writeModulesMarker();
+    final String first = commonFunctions.first;
+    final harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildListWithFirst(
+          buildListedFunction(
+            first,
+            platform: 'gcfv1',
+            hasRunService: false,
+            state: 'ACTIVE',
+          ),
+        ),
+      );
+    registerPublicPolicies(harness.fake, commonFunctions);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    expect(
+      readChecklistReason(harness.output),
+      FunctionsStep.buildNoRunServiceReason(first, 'gcfv1'),
+    );
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 0);
+    expect(
+      harness.fake.countCalls(
+        RunMode.capture,
+        buildIamKey(buildServiceId(first)),
+      ),
+      0,
+    );
+  });
+
+  test('T-19-FN-20: httpsTrigger 함수도 앱이 부르는 함수라 공개 호출을 붙인다', () async {
+    writeModulesMarker();
+    final String first = commonFunctions.first;
+    final String service = buildServiceId(first);
+    final harness = _Harness(root, const <String?>['y']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(
+        functionsListKey,
+        buildListWithFirst(
+          buildListedFunction(first, triggerKey: 'httpsTrigger'),
+        ),
+      )
+      ..on(buildIamKey(service), privatePolicy)
+      ..on(buildIamKey(service), privatePolicy)
+      ..on(buildIamKey(service), publicPolicy)
+      ..on(buildBindKey(service), _ok);
+    registerPublicPolicies(harness.fake, commonFunctions.skip(1).toList());
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitDone, reason: harness.output);
+    expect(harness.fake.countCalls(RunMode.stream, buildBindKey(service)), 1);
+  });
 }

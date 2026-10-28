@@ -16,14 +16,46 @@ import 'firestore_step.dart';
 /// 배포된 함수가 쓰는 secret 하나 — Secret Manager 이름과 배포 때 고정된 버전.
 typedef DeployedSecret = ({String secret, String version});
 
+/// 배포된 함수의 트리거 종류 — `functions:list --json` 항목의 트리거 키로 정한다.
+enum DeployedTriggerKind {
+  /// `callableTrigger` — 앱이 부르는 onCall 함수.
+  callable,
+
+  /// `httpsTrigger` — 앱이 부르는 onRequest 함수.
+  https,
+
+  /// `eventTrigger` — Auth · Firestore 같은 이벤트로 도는 백그라운드 함수.
+  event,
+
+  /// 그 밖의 트리거(스케줄 · 작업 큐 · 차단 · Data Connect)이거나 트리거 키가 없는
+  /// 함수 — 백그라운드 함수로 본다.
+  other;
+
+  /// 앱이 직접 부르는 함수(공개 호출 확인 대상)면 true.
+  bool get isCalledByApp =>
+      this == DeployedTriggerKind.callable || this == DeployedTriggerKind.https;
+}
+
+/// 배포된 함수 하나의 상세 — 트리거 종류 · platform(`gcfv1` · `gcfv2` 등) · 배포
+/// 상태 · Cloud Run 서비스 이름(값이 문자열이 아니면 null).
+typedef DeployedFunction = ({
+  DeployedTriggerKind triggerKind,
+  String? platform,
+  String? state,
+  String? runServiceId,
+});
+
 /// Cloud Functions 단계 — 의존성을 설치하고, 코드가 선언한 secret 가운데 없는
 /// 것만 자리표시 값으로 만든 뒤 저장소의 배포 스크립트로 함수를 배포하고, 앱이
 /// 함수를 부를 수 있게 공개 호출(invoker)까지 확인한다.
 ///
 /// 검사는 의존성 설치 표시 파일([modulesMarkerPath]) · 선언된 secret 전부 존재 ·
 /// [manifestPath] 의 공통 함수와 켠 로그인 수단([enabledProviders])의 함수 전부
-/// 배포 · 그 함수들의 Cloud Run 서비스 IAM 에
-/// [invokerRole] + [invokerMember] 순서로 본다. 의존성 · secret 이 빠졌으면 함수
+/// 배포 · 그 가운데 앱이 부르는 함수([DeployedTriggerKind.isCalledByApp])의 Cloud
+/// Run 서비스 IAM 에 [invokerRole] + [invokerMember] 순서로 본다. 이벤트 · 스케줄
+/// 같은 백그라운드 함수는 배포됐는지만 본다. 함수 목록에 이름이 있어도 상태가
+/// [activeState] 가 아니거나, 앱이 부르는 2세대 함수에 Cloud Run 서비스가 없으면
+/// 배포가 끝나지 않은 것으로 보고 다시 배포한다. 의존성 · secret 이 빠졌으면 함수
 /// 목록을, 함수가 빠졌으면 IAM 을 읽지 않는다. 켠 로그인 수단의 함수는 공개 호출
 /// 전에 배포 때 고정된 secret 버전을 Secret Manager 최신 버전과 비교해, 옛 버전을
 /// 쓰는 함수가 있으면 다시 배포한다(배포가 최신 버전을 잡는다) — 최신 버전을 읽지
@@ -44,8 +76,8 @@ typedef DeployedSecret = ({String secret, String version});
 final class FunctionsStep implements Step {
   /// Cloud Functions 단계를 만든다.
   ///
-  /// [enabledProviders] 는 켠 로그인 수단 토큰이고, 그 수단의 함수까지 배포 ·
-  /// 공개 호출 확인 대상에 더한다. [providerStepIds] 는 켠 로그인 수단 단계의
+  /// [enabledProviders] 는 켠 로그인 수단 토큰이고, 그 수단의 함수까지 배포
+  /// 대상에 더한다(공개 호출은 그 가운데 앱이 부르는 함수만 확인한다). [providerStepIds] 는 켠 로그인 수단 단계의
   /// id 로, 그 단계가 모두 끝나야 이 단계를 검사한다.
   FunctionsStep({
     Set<String> enabledProviders = const <String>{},
@@ -102,6 +134,17 @@ final class FunctionsStep implements Step {
 
   /// 공개 호출 주체 — 로그인하지 않은 호출자 전부.
   static const String invokerMember = 'allUsers';
+
+  /// 함수 목록의 배포 완료 상태 — 상태가 이 값이 아닌 문자열이면 다시 배포한다.
+  static const String activeState = 'ACTIVE';
+
+  /// 함수 목록의 2세대 함수 platform 값.
+  static const String secondGenPlatform = 'gcfv2';
+
+  // 함수 목록 항목의 트리거 키 — 앞 둘만 앱이 부르는 함수다.
+  static const String _callableTriggerKey = 'callableTrigger';
+  static const String _httpsTriggerKey = 'httpsTrigger';
+  static const String _eventTriggerKey = 'eventTrigger';
 
   /// Firebase CLI 가 함수 공개 호출 설정에 실패했을 때 배포 출력에 쓰는 문장.
   static const String invokerBlockedMarker =
@@ -204,11 +247,12 @@ final class FunctionsStep implements Step {
   /// 켠 로그인 수단 [enabledTokens] 밖의 수단(표 순서)마다 함수 목록 파일의 함수
   /// 가운데 [deployed] 에 있는 것을 모은다(함수 목록 파일 순서).
   ///
-  /// 함수 목록 파일에서 읽지 못한 수단은 건너뛴다.
+  /// 함수 목록 파일에서 읽지 못한 수단은 건너뛴다. [deployed] 는 배포된 함수
+  /// 이름을 키로 하는 표이고 키만 본다.
   static List<String> findLeftoverFunctions(
     String projectRoot,
     Set<String> enabledTokens,
-    Map<String, String?> deployed,
+    Map<String, Object?> deployed,
   ) => <String>[
     for (final ProviderEntry entry in providerCatalog)
       if (!enabledTokens.contains(entry.token))
@@ -363,7 +407,8 @@ final class FunctionsStep implements Step {
   String _reason = '';
   String _projectId = '';
   String _region = '';
-  // 배포 · 공개 호출 확인 대상 — 공통 함수 뒤에 켠 로그인 수단의 함수.
+  // 배포 대상 — 공통 함수 뒤에 켠 로그인 수단의 함수. 공개 호출은 그 가운데 앱이
+  // 부르는 함수만 확인한다.
   List<String> _targets = const <String>[];
   bool _isModuleMissing = false;
   List<String> _missingSecrets = const <String>[];
@@ -467,24 +512,21 @@ final class FunctionsStep implements Step {
     final CommandResult functions = await context.runner.capture(
       buildFunctionsListCommand(projectId),
     );
-    final Map<String, String?>? deployed = parseDeployedFunctions(
+    final Map<String, DeployedFunction>? details = parseDeployedFunctionDetails(
       functions,
       region,
     );
-    if (deployed == null) {
+    if (details == null) {
       return _mark(
         _FunctionsMode.deploy,
         '배포된 함수 목록을 읽지 못했습니다 — ${_describeListFailure(functions)}',
       );
     }
-    final notDeployed = <String>[
-      for (final String name in _targets)
-        if (!deployed.containsKey(name)) name,
-    ];
-    if (notDeployed.isNotEmpty) {
+    final List<String> undeployed = _findUndeployed(details);
+    if (undeployed.isNotEmpty) {
       return _mark(
         _FunctionsMode.deploy,
-        '배포되지 않은 함수가 있습니다 (${notDeployed.join(' · ')})',
+        '배포되지 않은 함수가 있습니다 (${undeployed.join(' · ')})',
       );
     }
 
@@ -497,20 +539,31 @@ final class FunctionsStep implements Step {
 
     final CheckResult? invokerProblem = await _inspectInvokers(
       context,
-      deployed,
+      details,
     );
     if (invokerProblem != null) return invokerProblem;
     _mode = _FunctionsMode.done;
+    final int appCalledCount = _targets
+        .where(
+          (String name) => details[name]?.triggerKind.isCalledByApp ?? false,
+        )
+        .length;
+    final int backgroundCount = _targets.length - appCalledCount;
+    // 백그라운드 함수가 있을 때만 무엇을 확인했는지 나눠 보인다.
+    final invokerVerdict = backgroundCount == 0
+        ? '공개 호출 확인'
+        : '공개 호출 확인(앱이 부르는 함수 $appCalledCount개 · 백그라운드 함수 '
+              '$backgroundCount개는 배포만 확인)';
     final verdict = providerFunctions.isEmpty
         ? '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 배포 · '
-              '공개 호출 확인'
+              '$invokerVerdict'
         : '의존성 · secret ${declared.length}개 · 공통 함수 ${common.length}개 · '
-              '로그인 수단 함수 ${providerFunctions.length}개 배포 · 공개 호출 확인';
+              '로그인 수단 함수 ${providerFunctions.length}개 배포 · $invokerVerdict';
     // 꺼진 로그인 수단의 함수가 배포된 채 남아 있으면 지우는 명령을 정보로만 붙인다.
     final List<String> leftover = findLeftoverFunctions(
       context.projectRoot,
       _enabledProviders.toSet(),
-      deployed,
+      details,
     );
     if (leftover.isEmpty) return Done(verdict);
     return Done('$verdict · ${buildLeftoverInfo(leftover, region, projectId)}');
@@ -527,7 +580,7 @@ final class FunctionsStep implements Step {
       buildDeployCommand(flavor: context.flavor).render(),
       '(배포 대상은 $manifestPath 의 공통 함수와 ${context.paths.json} 의 enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
       '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
-      '(배포 뒤 공개 호출($invokerMember · $invokerRole)이 빠진 공통 함수가 있으면 붙입니다 — 조직 정책이 막으면 안내합니다)',
+      '(배포 뒤 앱이 부르는 함수(onCall · onRequest)에 공개 호출($invokerMember · $invokerRole)이 빠졌으면 붙입니다 — 백그라운드 함수는 배포만 확인하고, 조직 정책이 막으면 안내합니다)',
     ],
     _FunctionsMode.redeploy => <String>[
       buildDeployCommand(flavor: context.flavor).render(),
@@ -636,21 +689,22 @@ final class FunctionsStep implements Step {
     return judged;
   }
 
-  /// 배포 뒤 대상 함수의 공개 호출을 다시 읽어 빠진 서비스에만 붙인다.
+  /// 배포 뒤 앱이 부르는 함수의 공개 호출을 다시 읽어 빠진 서비스에만 붙인다.
   ///
-  /// 목록 · 정책을 읽지 못하면 그대로 끝내고 실행 뒤 재검사가 사유를 보인다.
+  /// 목록 · 정책을 읽지 못하거나 배포가 끝나지 않은 함수가 있으면 그대로 끝내고
+  /// 실행 뒤 재검사가 사유를 보인다(배포가 끝나지 않았으면 다시 배포 판정이다).
   Future<StepOutcome> _bindAfterDeploy(WizardContext context) async {
     final CommandResult functions = await context.runner.capture(
       buildFunctionsListCommand(_projectId),
     );
-    final Map<String, String?>? deployed = parseDeployedFunctions(
+    final Map<String, DeployedFunction>? details = parseDeployedFunctionDetails(
       functions,
       _region,
     );
-    if (deployed == null || !_targets.every(deployed.containsKey)) {
+    if (details == null || _findUndeployed(details).isNotEmpty) {
       return const Applied();
     }
-    await _inspectInvokers(context, deployed);
+    await _inspectInvokers(context, details);
     if (_mode != _FunctionsMode.bind) return const Applied();
     return await _applyBindings(context);
   }
@@ -735,23 +789,27 @@ final class FunctionsStep implements Step {
     return number == null || number < latest;
   }
 
-  /// 대상 함수들의 Cloud Run 서비스 IAM 을 읽어 공개 호출이 빠진 것을 찾는다.
+  /// 대상 함수 가운데 앱이 부르는 함수의 Cloud Run 서비스 IAM 을 읽어 공개
+  /// 호출이 빠진 것을 찾는다.
   ///
   /// 모두 있으면 null, 아니면 판정을 두고 할 일 결과를 돌려준다. 서비스 이름은
-  /// 함수 목록의 `runServiceId` 를 그대로 쓴다.
+  /// 함수 목록의 `runServiceId` 를 그대로 쓰고, 서비스가 없으면(2세대가 아님)
+  /// [buildNoRunServiceReason] 사유로 확인할 수 없음이다. 백그라운드 함수는 IAM 을
+  /// 읽지 않는다.
   Future<CheckResult?> _inspectInvokers(
     WizardContext context,
-    Map<String, String?> deployed,
+    Map<String, DeployedFunction> details,
   ) async {
     final lackingNames = <String>[];
     final lackingServices = <String>[];
     for (final String name in _targets) {
-      final String? service = deployed[name];
+      final DeployedFunction? function = details[name];
+      if (function == null || !function.triggerKind.isCalledByApp) continue;
+      final String? service = function.runServiceId;
       if (service == null || service.isEmpty) {
         return _mark(
           _FunctionsMode.unverifiable,
-          '$name 의 Cloud Run 서비스 이름을 읽지 못해 공개 호출을 확인할 수 없습니다 — '
-          '2세대(v2) 함수로 배포됐는지 확인하세요',
+          buildNoRunServiceReason(name, function.platform),
         );
       }
       final CommandResult policy = await context.runner.capture(
@@ -777,6 +835,42 @@ final class FunctionsStep implements Step {
       '공개 호출이 막힌 함수가 있습니다 (${lackingNames.join(' · ')})',
     );
   }
+
+  /// 앱이 부르는 함수 [name] 에 Cloud Run 서비스가 없어 공개 호출을 확인할 수
+  /// 없을 때의 사유를 만든다.
+  ///
+  /// [platform] 은 함수 목록의 `platform` 값(없으면 「없음」)이다.
+  static String buildNoRunServiceReason(String name, String? platform) =>
+      '$name 함수는 Cloud Run 서비스가 없는 함수(platform ${platform ?? '없음'})라 '
+      '공개 호출을 확인할 수 없습니다 — 앱이 부르는 함수는 '
+      '2세대(firebase-functions/v2 의 onCall · onRequest)로 만드세요';
+
+  /// 대상 함수 [name] 의 상세 [function] 이 배포가 끝나지 않았으면 사유 라벨을,
+  /// 끝났으면 null 을 돌려준다.
+  ///
+  /// 목록에 없으면 이름만, 상태가 [activeState] 가 아닌 문자열이면 그 상태를,
+  /// 앱이 부르는 2세대 함수에 Cloud Run 서비스가 없으면 그 사실을 붙인다. 상태가
+  /// 없으면 배포된 것으로 본다 — firebase-tools 는 상태가 있을 때만 싣는다.
+  static String? _describeUndeployed(String name, DeployedFunction? function) {
+    if (function == null) return name;
+    final String? state = function.state;
+    if (state != null && state != activeState) return '$name(상태 $state)';
+    final String? service = function.runServiceId;
+    final bool isServiceMissing = service == null || service.isEmpty;
+    if (function.triggerKind.isCalledByApp &&
+        function.platform == secondGenPlatform &&
+        isServiceMissing) {
+      return '$name(Cloud Run 서비스 없음)';
+    }
+    return null;
+  }
+
+  /// 대상 함수 가운데 배포가 끝나지 않은 것의 사유 라벨을 대상 순서로 모은다.
+  List<String> _findUndeployed(Map<String, DeployedFunction> details) =>
+      <String>[
+        for (final String name in _targets)
+          ?_describeUndeployed(name, details[name]),
+      ];
 
   /// [flavor] 배포 스크립트 결과를 종료 코드와 마지막 줄 계약으로 판정한다.
   static StepOutcome judgeDeployResult(
@@ -811,21 +905,56 @@ final class FunctionsStep implements Step {
   ///
   /// 함수 이름 → Cloud Run 서비스 이름(`runServiceId`, 없으면 null). 실패 · 모양이
   /// 다르면 null.
+  ///
+  /// 상세 파서([parseDeployedFunctionDetails])에서 파생한다.
   static Map<String, String?>? parseDeployedFunctions(
+    CommandResult result,
+    String region,
+  ) => parseDeployedFunctionDetails(result, region)?.map(
+    (String name, DeployedFunction function) =>
+        MapEntry<String, String?>(name, function.runServiceId),
+  );
+
+  /// `firebase functions:list --json` 결과에서 [region] 의 함수마다 상세를 모은다.
+  ///
+  /// 함수 이름 → 트리거 종류(트리거 키 `callableTrigger` · `httpsTrigger` ·
+  /// `eventTrigger` 순서, 그 밖은 [DeployedTriggerKind.other]) · `platform` ·
+  /// `state` · `runServiceId`(값이 문자열일 때만, 아니면 null). 실패 · 모양이
+  /// 다르면 null.
+  static Map<String, DeployedFunction>? parseDeployedFunctionDetails(
     CommandResult result,
     String region,
   ) {
     final List<Object?>? items = _decodeFunctionItems(result);
     if (items == null) return null;
-    return <String, String?>{
+    return <String, DeployedFunction>{
       for (final Object? item in items)
         if (item is Map<String, Object?> &&
             item['id'] is String &&
             item['region'] == region)
-          item['id']! as String: item['runServiceId'] is String
-              ? item['runServiceId']! as String
-              : null,
+          item['id']! as String: (
+            triggerKind: _readTriggerKind(item),
+            platform: _readStringField(item, 'platform'),
+            state: _readStringField(item, 'state'),
+            runServiceId: _readStringField(item, 'runServiceId'),
+          ),
     };
+  }
+
+  /// 함수 목록 항목 [item] 의 트리거 키(own-property)로 트리거 종류를 정한다.
+  static DeployedTriggerKind _readTriggerKind(Map<String, Object?> item) {
+    if (item.containsKey(_callableTriggerKey)) {
+      return DeployedTriggerKind.callable;
+    }
+    if (item.containsKey(_httpsTriggerKey)) return DeployedTriggerKind.https;
+    if (item.containsKey(_eventTriggerKey)) return DeployedTriggerKind.event;
+    return DeployedTriggerKind.other;
+  }
+
+  /// 함수 목록 항목 [item] 의 [key] 값이 문자열이면 그 값, 아니면 null.
+  static String? _readStringField(Map<String, Object?> item, String key) {
+    final Object? value = item[key];
+    return value is String ? value : null;
   }
 
   /// `firebase functions:list --json` 결과에서 [region] 의 함수마다 쓰는 secret 과
@@ -949,13 +1078,14 @@ enum _FunctionsMode {
   /// 켠 로그인 수단 함수가 옛 secret 버전을 써서 다시 배포해야 한다.
   redeploy,
 
-  /// 배포된 공통 함수 가운데 공개 호출이 빠진 서비스가 있다.
+  /// 배포된 함수 가운데 앱이 부르는 함수의 공개 호출이 빠진 서비스가 있다.
   bind,
 
   /// secret 목록 · IAM 정책을 읽지 못했다.
   listFailed,
 
-  /// 함수의 Cloud Run 서비스 이름이 없어 공개 호출을 확인할 수 없다.
+  /// 앱이 부르는 함수에 Cloud Run 서비스가 없어(2세대가 아님) 공개 호출을 확인할
+  /// 수 없다.
   unverifiable,
 
   /// 프로젝트 ID · 리전 · 함수 목록 파일 · secret 선언을 읽지 못했다.
