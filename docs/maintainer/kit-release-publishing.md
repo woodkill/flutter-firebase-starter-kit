@@ -121,6 +121,13 @@ bash scripts/publish_kit.sh release --apply # GitHub Release 생성
 1. `CHANGELOG.md` 의 `## [Unreleased]` 아래 내용을 새 절 `## [<ver>] - YYYY-MM-DD` 로 옮기고,
    빈 `## [Unreleased]` 를 그 위에 남긴다. 사용자가 손봐야 하는 판이면 그 절 맨 앞에
    `### 사용자 조치` 를 둔다.
+   - 사용자 조치가 필요한 판인지는 컷 커밋 전에 저장소 루트에서 아래 명령으로 판정한다(원격을 보지 않고 파일을 쓰지 않는다).
+   - BASE 는 직전 컷(마지막으로 `KIT_VERSION` 을 바꾼 커밋)이고 TARGET 은 지금 `HEAD` 다.
+
+   ```bash
+   bash scripts/release_user_action.sh "$(git log -1 --format=%H -- KIT_VERSION)" HEAD
+   ```
+
 2. 파일 맨 아래 비교 링크 2줄을 갱신한다:
    `[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v<ver>...HEAD` ·
    `[<ver>]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v<ver>`.
