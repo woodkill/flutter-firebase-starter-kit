@@ -17,8 +17,13 @@
 - **`TODO` 주석:** 같은 줄에 `ROADMAP.md` 또는 `.planning/todos/pending/` 인용이 있어야
   한다. 인용이 없는 `TODO` 는 실패다.
 - **결과:** 어긋나면 `[FAIL] <파일>:<줄> — …` 줄을 내고 exit 1, 모두 맞으면 `[PASS]` 를
-  낸다. `.planning/ROADMAP.md` 가 없는 트리(킷 사용자 저장소 · 공개본)에서는 `[SKIP]` 을
-  내고 exit 0 이라, 공개본에서 hook 을 켜도 커밋이 막히지 않는다.
+  낸다.
+- **건너뛰기:** 킷 발행 규칙 파일(`.planning/release/mirror-exclude-paths.txt`)이나
+  `.planning/ROADMAP.md` 가 없는 트리에서는 처음 없는 경로를 적은 `[SKIP]` 줄을 내고
+  exit 0 이다. 발행 규칙 파일은 킷 비공개 트리에만 있어서, 자기 `.planning/ROADMAP.md` 를 둔
+  킷 사용자 저장소도 `.planning/` 이 없는 공개본도 건너뛴다 — 어느 쪽에서 hook 을 켜도
+  커밋이 막히지 않는다. 판정 파일은 시험 헬퍼 `test/helpers/planning_docs.dart` 의
+  `kMaintainerTreeMarker` 와 같다.
 
 CI 는 두지 않고 git pre-commit hook 의 가드 4 로만 돌린다(hook 은 선택이다). 켜는 법은
 [Git Hooks 활성화 (선택)](../guide.md#git-hooks-활성화-선택) 에 있다.

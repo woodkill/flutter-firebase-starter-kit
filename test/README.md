@@ -39,7 +39,7 @@ test/
 | ① 앱 코드 테스트 | `core` · `features` · `shared` · `l10n` | `lib` 코드의 동작 · 화면 · 다국어 문구 | `lib` 파일을 바꾸면 같은 경로의 테스트를 함께 고치고, 지우면 함께 지운다. 화면이 바뀌어 golden 이 실패하면 「golden 갱신」 절차를 따른다. |
 | ② 설정 · 빌드 계약 테스트 | `infrastructure` · `ios` · `release` · `bin` | 설정 파일 · 빌드 스크립트 · 공개 문서에 꼭 있어야 할 값 | 설정을 일부러 바꿨다면 실패 메시지가 가리키는 기대값을 새 값으로 고친다. 그 설정을 더는 쓰지 않으면 해당 테스트도 지운다. |
 | ③ 문서 대조 테스트 | 여러 디렉터리 — `docs/setup.md` · `docs/guide.md` 를 읽는 테스트 | 가이드의 명령 · 표가 실제 파일과 같은지 | 가이드 절을 고치거나 지우면 함께 고친다. 실패하면 가이드 문장과 실제 파일 중 틀린 쪽을 고친다. |
-| ④ 유지보수자 전용 | 여러 디렉터리 — `skipUnlessPlanningDocsExist` 를 쓰는 테스트 | 킷 유지보수 문서와 코드의 일치 | 킷을 받은 저장소에는 그 문서가 없어 늘 건너뛴다. 테스트 결과의 `~N`(건너뛴 수)은 정상이다. 그대로 둔다. |
+| ④ 유지보수자 전용 | 여러 디렉터리 — `skipUnlessMaintainerTree` · `skipUnlessPlanningDocsExist` 를 쓰는 테스트 | 킷 유지보수 문서와 코드의 일치 | 킷 저장소에만 있는 발행 규칙 파일 · 유지보수 문서가 있을 때만 돈다. 킷을 받은 저장소에서는 자기 작업 문서가 있어도 건너뛴다. 테스트 결과의 `~N`(건너뛴 수)은 정상이다. 그대로 둔다. |
 
 ## 이름 짓기
 
@@ -126,8 +126,9 @@ final repository = buildAuthRepository(auth: mockAuth);
 - `test/helpers/route_tree.dart` — 하위 라우트까지 전체 경로로 `GoRoute` 를 찾는 헬퍼.
 - `test/helpers/source_text.dart` — 소스 · 문서를 문자열로 읽어 세는 헬퍼와 사용자 문서
   금지 패턴(`kUserDocForbiddenPatternSource`).
-- `test/helpers/planning_docs.dart` — 킷 유지보수 문서가 없는 저장소에서 테스트를 건너뛰게
-  하는 `skipUnlessPlanningDocsExist`.
+- `test/helpers/planning_docs.dart` — 킷 저장소에서만 도는 테스트를 그 밖의 저장소에서
+  건너뛰게 하는 `skipUnlessMaintainerTree`(킷 발행 규칙 파일 `kMaintainerTreeMarker` 로
+  판정) · `skipUnlessPlanningDocsExist`(적은 유지보수 문서가 하나라도 없으면 건너뜀).
 - `test/helpers/brand_button_text_scale.dart` — 큰 글자 · 좁은 화면에서 소셜 로그인 버튼
   라벨을 재는 헬퍼.
 
