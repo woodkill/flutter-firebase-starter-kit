@@ -49,10 +49,8 @@ void main() {
       await tester.pumpWidget(_wrap(TermsType.service));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Place your terms content here'),
-        findsOneWidget,
-      );
+      final en = lookupAppLocalizations(const Locale('en'));
+      expect(find.text(en.termsDetailPlaceholder), findsOneWidget);
     });
   });
 }

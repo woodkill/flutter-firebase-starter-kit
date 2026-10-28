@@ -468,6 +468,7 @@ void main() {
     testWidgets('T-17-NOTIF-12: 꺼짐 고정 override — 알림 섹션(꺼짐)이 일반 '
         '섹션(언어 행) 아래 · 개발자 위', (tester) async {
       final en = lookupAppLocalizations(const Locale('en'));
+      _useViewport(tester, const Size(800, 2000));
       await _pumpSettingsScreen(
         tester,
         user: _testUser(
@@ -773,13 +774,14 @@ void main() {
             expect(value.maxLines, isNull, reason: '$label 값');
             expect(value.overflow, isNull, reason: '$label 값');
           }
+          if (!isAnonymous) {
+            await _scrollTo(tester, find.byType(NotificationsSection));
+            expect(find.byType(NotificationsSection), findsOneWidget);
+          }
           // 데모 행(말단)까지 그려도 넘침 0 — ja 데모 행 · en 알림 행 포함.
           await _scrollTo(tester, find.text(l10n.demoScreenTitle));
           final demoSubtitle = _rowValueText(tester, l10n.demoScreenTitle);
           expect(demoSubtitle.maxLines, isNull);
-          if (!isAnonymous) {
-            expect(find.byType(NotificationsSection), findsOneWidget);
-          }
           expect(tester.takeException(), isNull);
         });
       }
@@ -820,6 +822,7 @@ void main() {
 
     testWidgets('T-171-SETTINGS-01: 게스트 — 로그인 · 가입 행 · 일반(테마 · 언어) · '
         '개발자 데모 행 · 알림 · 계정 블록 0 (D-07)', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
       await _pumpGuestSettings(tester);
 
       expect(find.text(ko.settingsGuestLabel), findsOneWidget);
