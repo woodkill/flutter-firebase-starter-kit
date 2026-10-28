@@ -5,7 +5,7 @@
 // 변수의 뜻은 dev 예시(ios/Flutter/dev.example.xcconfig)와 같고, 값은 stg 의 Firebase 프로젝트 · 콘솔 앱에서 받는다.
 // 앱 ID · 표시 이름 — 「앱 정체성」 단계가 복사본에서 맞춘다.
 PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.stg
-DISPLAY_NAME = FSK Stg
+DISPLAY_NAME = StarterKit Stg
 FLAVOR = stg
 // Google 로그인 URL scheme — Google 을 켜면 「Google — iOS 쪽」 단계가 stg 의 iOS 설정 파일 값을 쓴다
 // (docs/setup.md 「Google 로그인 켜기」).

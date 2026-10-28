@@ -5,10 +5,14 @@
 // 이 dart-define `appName` 을 manifest placeholder 로 넘기고 application label 이
 // 그 placeholder 를 쓴다. iOS 는 Info.plist 의 `CFBundleDisplayName` 이 flavor
 // xcconfig 의 `DISPLAY_NAME` 빌드 변수를 쓴다. 어느 한 곳이라도 리터럴로 돌아가면
-// 위저드에 넣은 이름이 홈 화면에 닿지 않는다.
+// 위저드에 넣은 이름이 홈 화면에 닿지 않는다. 예시 파일 두 곳의 기본 표시 이름이
+// 서로 다르면 위저드 「앱 정체성」 단계 전에 빌드한 앱의 Android · iOS 런처 이름이
+// 갈린다.
 //
 // 주석을 걷어낸 뒤 본다 — 설명 주석이 값 문자열을 언급하면 단언이 공허하게 참이
 // 되기 때문이다(`test/helpers/source_text.dart` 머리 주석).
+
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -133,5 +137,41 @@ void main() {
         }
       },
     );
+
+    test('예시 xcconfig 셋의 DISPLAY_NAME 은 같은 flavor 예시 json 의 appName 과 같다', () {
+      final displayNameValue = RegExp(
+        r'^DISPLAY_NAME[ \t]*=[ \t]*(.*?)[ \t]*$',
+        multiLine: true,
+      );
+      for (final flavor in _flavors) {
+        final String xcconfig = stripSlashComments(
+          readTrackedFile('ios/Flutter/$flavor.example.xcconfig'),
+        );
+        final String? displayName = displayNameValue
+            .firstMatch(xcconfig)
+            ?.group(1);
+        final Object? config = jsonDecode(
+          readTrackedFile('config/$flavor.example.json'),
+        );
+        final Object? appName = config is Map<String, Object?>
+            ? config['appName']
+            : null;
+        expect(
+          displayName,
+          isNotNull,
+          reason: '$flavor 예시 xcconfig 에 DISPLAY_NAME 줄이 있어야 한다',
+        );
+        expect(
+          appName,
+          isA<String>(),
+          reason: '$flavor 예시 json 에 문자열 appName 이 있어야 한다',
+        );
+        expect(
+          displayName,
+          appName,
+          reason: '$flavor 예시의 DISPLAY_NAME 과 appName 이 다르면 런처 이름이 갈린다',
+        );
+      }
+    });
   });
 }

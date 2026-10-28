@@ -610,7 +610,7 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
     String xcconfigContent(String flavor, String bundleId) => [
       '// $flavor flavor 공통 변수 (예: com.slimpumpkin.flutterStarterKit)',
       'PRODUCT_BUNDLE_IDENTIFIER = $bundleId${flavorSuffixes[flavor]}',
-      'DISPLAY_NAME = FSK $flavor',
+      'DISPLAY_NAME = StarterKit $flavor',
       'REVERSED_CLIENT_ID = com.googleusercontent.apps.EXAMPLE',
       'DEVELOPMENT_TEAM =',
       '',
@@ -683,11 +683,11 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       // 바꾸지 않는다.
       userXcconfig('dev').writeAsStringSync(
         'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.dev \t\n'
-        'DISPLAY_NAME = FSK dev\n',
+        'DISPLAY_NAME = StarterKit dev\n',
       );
       userXcconfig('stg').writeAsStringSync(
         'PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit.stg  \r\n'
-        'DISPLAY_NAME = FSK stg\r\n',
+        'DISPLAY_NAME = StarterKit stg\r\n',
       );
 
       final changes = collectChanges(tempDir.path, 'com.example', 'my_app');
@@ -696,12 +696,12 @@ PRODUCT_BUNDLE_IDENTIFIER = com.slimpumpkin.flutterStarterKit;
       expect(
         userXcconfig('dev').readAsStringSync(),
         'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.dev \t\n'
-        'DISPLAY_NAME = FSK dev\n',
+        'DISPLAY_NAME = StarterKit dev\n',
       );
       expect(
         userXcconfig('stg').readAsStringSync(),
         'PRODUCT_BUNDLE_IDENTIFIER = com.example.myApp.stg  \r\n'
-        'DISPLAY_NAME = FSK stg\r\n',
+        'DISPLAY_NAME = StarterKit stg\r\n',
       );
     });
 

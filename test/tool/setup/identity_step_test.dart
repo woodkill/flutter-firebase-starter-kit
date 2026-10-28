@@ -489,6 +489,54 @@ void main() {
     });
   });
 
+  test(
+    'T-19-ID-17 appName 만 바뀌고 DISPLAY_NAME 이 example 값이면 표시 이름을 묻고 두 곳에 쓴다',
+    () async {
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        'My App Dev',
+      );
+      // fixture 확인 — appName 은 킷 이름으로 시작하지 않고, 사용자 xcconfig 의
+      // DISPLAY_NAME 은 저장소 example 값 그대로다(두 번째 판정만 기본값을 가른다).
+      expect('My App Dev'.startsWith(rename.currentAppName), isFalse);
+      final String? exampleDisplayName = readXcconfigValue(
+        UserFilesStep.xcconfigExamplePath,
+        'DISPLAY_NAME',
+      );
+      expect(exampleDisplayName, isNotNull);
+      expect(
+        readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'DISPLAY_NAME',
+        ),
+        exampleDisplayName,
+      );
+      final terminal = ScriptedTerminal(const <String?>['y', 'Acme Studio']);
+
+      final int code = await runIdentityStep(FakeCommandRunner(), terminal);
+
+      expect(code, wizardExitDone);
+      expect(terminal.output.toString(), contains('표시 이름이 킷 기본값입니다'));
+      expect(terminal.asks, <String>[
+        stepConfirmQuestion,
+        IdentityStep.displayNameQuestion,
+      ]);
+      expect(
+        readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+        'Acme Studio',
+      );
+      expect(
+        readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'DISPLAY_NAME',
+        ),
+        'Acme Studio',
+      );
+    },
+  );
+
   group('T-19-ID-16 표시 이름은 이미 바뀌고 사용자 xcconfig 번들 ID 만 킷 값', () {
     const stgUserPath = 'ios/Flutter/stg.xcconfig';
     const prodUserPath = 'ios/Flutter/prod.xcconfig';

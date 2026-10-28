@@ -228,11 +228,14 @@ void main() {
     final xcconfigPath = '${tempDir.path}/dev.xcconfig';
     File(trackedXcconfigExample).copySync(xcconfigPath);
     final String xcconfigOriginal = File(xcconfigPath).readAsStringSync();
+    // 기대값은 example 의 표시 이름 글자와 무관하게 DISPLAY_NAME 줄만 바꿔 만든다.
+    final displayNameLine = RegExp(r'^DISPLAY_NAME = .*$', multiLine: true);
+    expect(displayNameLine.allMatches(xcconfigOriginal), hasLength(1));
     replaceXcconfigValue(xcconfigPath, 'DISPLAY_NAME', 'My App Dev');
     expect(
       File(xcconfigPath).readAsStringSync(),
       xcconfigOriginal.replaceFirst(
-        'DISPLAY_NAME = FSK Dev',
+        displayNameLine,
         'DISPLAY_NAME = My App Dev',
       ),
     );
