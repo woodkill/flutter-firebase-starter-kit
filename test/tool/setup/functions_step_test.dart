@@ -107,6 +107,11 @@ const String cleanupKey =
 const String invokerBlockedFixturePath =
     'test/tool/setup/fixtures/deploy_invoker_blocked.txt';
 
+/// firebase-tools 원문 모양 fixture — 함수 빌드 계정에 역할이 없어 빌드가 실패한
+/// 배포 출력(정리 정책 줄 · 묶음 실패 줄 포함 · 가짜 값).
+const String buildAccountFixturePath =
+    'test/tool/setup/fixtures/deploy_build_service_account.txt';
+
 /// `functions:list --json` 원문 모양 fixture — 로그인 수단 함수 · 확장 함수가 쓰는
 /// secret 과 배포 때 고정된 버전(모두 `1`)이 든 함수 목록(가짜 프로젝트).
 const String providerSecretsFixturePath =
@@ -732,12 +737,12 @@ void main() {
     expect(realLog.lines, isNot(contains('[stdout] unset')));
   });
 
-  /// fixture 원문을 배포 스크립트 결과로 만든다 — `FAIL:` 줄은 표준 오류, 나머지는
-  /// 표준 출력이다.
-  CommandResult buildFixtureDeployResult() {
-    final List<String> lines = File(
-      invokerBlockedFixturePath,
-    ).readAsLinesSync();
+  /// fixture [path] 원문을 배포 스크립트 결과로 만든다 — `FAIL:` 줄은 표준 오류,
+  /// 나머지는 표준 출력이다.
+  CommandResult buildFixtureDeployResult([
+    String path = invokerBlockedFixturePath,
+  ]) {
+    final List<String> lines = File(path).readAsLinesSync();
     return CommandResult(
       1,
       lines.where((String line) => !line.startsWith('FAIL:')).join('\n'),
@@ -2172,5 +2177,243 @@ void main() {
 
     expect(code, wizardExitDone, reason: harness.output);
     expect(harness.fake.countCalls(RunMode.stream, buildBindKey(service)), 1);
+  });
+
+  /// 빌드 계정 fixture 의 빌드 실패 줄(셋째 줄).
+  String readBuildAccountErrorLine() =>
+      File(buildAccountFixturePath).readAsLinesSync()[2];
+
+  /// 위저드가 프로젝트 역할 · 조직 정책 · API 를 바꾸는 명령을 실행한 호출.
+  Iterable<FakeCall> findProjectPolicyCalls(FakeCommandRunner fake) =>
+      fake.calls.where(
+        (FakeCall call) =>
+            call.key.startsWith('gcloud projects ') ||
+            call.key.startsWith('gcloud org-policies ') ||
+            call.key.startsWith('gcloud services '),
+      );
+
+  test('T-19-FN-21: 배포 출력에 빌드 계정 역할 없음이 있으면 정리 정책 재시도 없이 '
+      '원인과 역할 명령을 보이고, 위저드는 역할 · 정책을 바꾸지 않는다', () async {
+    writeModulesMarker();
+    final harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(deployKey, buildFixtureDeployResult(buildAccountFixturePath));
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    final String output = harness.output;
+    final String summary = FunctionsStep.buildComputeAccountFailureSummary(
+      projectId,
+    );
+    final String errorLine = readBuildAccountErrorLine();
+    expect(output, contains(summary));
+    expect(output.indexOf(summary), greaterThan(output.lastIndexOf(errorLine)));
+    expect(
+      output.indexOf(summary),
+      greaterThan(output.lastIndexOf(batchFailLine)),
+    );
+    expect(countText(output, errorLine), 1);
+    for (final String role in FunctionsStep.computeAccountRoles) {
+      expect(countText(output, role), greaterThanOrEqualTo(1), reason: role);
+    }
+    expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 0);
+    expect(output, isNot(contains(FunctionsStep.cleanupPolicyNotice)));
+    expect(harness.fake.countCalls(RunMode.stream, deployKey), 1);
+    expect(findProjectPolicyCalls(harness.fake), isEmpty);
+    expect(output, isNot(contains(FunctionsStep.orgPolicyGuidance)));
+  });
+
+  test('T-19-FN-22: 정리 정책 재시도 뒤 둘째 배포가 빌드 계정 역할 없음이면 그 '
+      '안내로 멈춘다', () async {
+    writeModulesMarker();
+    final harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(
+        deployKey,
+        buildDeployOutput(
+          commonFunctions,
+          exitCode: 1,
+          lastLine: cleanupPolicyErrorLine,
+          stderr: '$batchFailLine\n',
+        ),
+      )
+      ..on(
+        deployKey,
+        buildDeployOutput(
+          commonFunctions,
+          exitCode: 1,
+          lastLine: readBuildAccountErrorLine(),
+          stderr: '$batchFailLine\n',
+        ),
+      )
+      ..on(cleanupKey, _ok);
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    final List<String> streamed = harness.fake.calls
+        .where((FakeCall call) => call.mode == RunMode.stream)
+        .map((FakeCall call) => call.key)
+        .toList();
+    expect(streamed, <String>[deployKey, cleanupKey, deployKey]);
+    expect(
+      harness.output,
+      contains(FunctionsStep.buildComputeAccountFailureSummary(projectId)),
+    );
+  });
+
+  test('T-19-FN-23: 공개 호출 차단과 빌드 계정 역할 없음이 함께 나오면 공개 호출 '
+      '차단 안내가 먼저다', () async {
+    writeModulesMarker();
+    final harness = _Harness(root, const <String?>['y', '2']);
+    harness.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(
+        deployKey,
+        buildDeployOutput(
+          commonFunctions,
+          exitCode: 1,
+          lastLine:
+              '${readBuildAccountErrorLine()}\n'
+              'Unable to set the invoker for the IAM policy on the following '
+              'functions:\n\tping($region)',
+          stderr: '$batchFailLine\n',
+        ),
+      );
+
+    final int code = await harness.run();
+
+    expect(code, wizardExitStopped);
+    expect(
+      harness.output,
+      contains(FunctionsStep.buildOrgPolicyFailureSummary(projectId)),
+    );
+    expect(
+      harness.output,
+      isNot(contains(FunctionsStep.computeAccountGuidance)),
+    );
+    expect(harness.fake.countCalls(RunMode.stream, cleanupKey), 0);
+  });
+
+  test('T-19-FN-24: 빌드 계정 fixture 에 이메일 · 실제 프로젝트 ID · 번호 모양 '
+      '문자열이 없다', () {
+    final String fixture = File(buildAccountFixturePath).readAsStringSync();
+
+    expect(
+      RegExp(
+        r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}',
+      ).hasMatch(fixture),
+      isFalse,
+    );
+    expect(fixture, isNot(contains('slimpumpkin')));
+    expect(
+      <String>{
+        for (final RegExpMatch match in RegExp(
+          r'--project (\S+)',
+        ).allMatches(fixture))
+          match.group(1)!,
+      },
+      <String>{projectId},
+    );
+    expect(
+      <String>{
+        for (final RegExpMatch match in RegExp(
+          'project=([0-9]+)',
+        ).allMatches(fixture))
+          match.group(1)!,
+      },
+      <String>{'000000000000'},
+    );
+    expect(
+      countText(fixture, 'missing permission on the build service account'),
+      1,
+    );
+    expect(countText(fixture, 'could not set up cleanup policy'), 1);
+    expect(countText(fixture, '\tping($region)'), 1);
+  });
+
+  test('T-19-FN-25: 조직 정책 안내 뒤에 관리자 예외 명령 · 문서 주소가 순서대로 '
+      '나오고, 위저드는 실행하지 않는다', () async {
+    final String summary = FunctionsStep.buildOrgPolicyFailureSummary(
+      projectId,
+    );
+    final List<String> commands = FunctionsStep.buildOrgPolicyExceptionCommands(
+      projectId,
+    );
+
+    /// [output] 에 요약 전체가 있고 조각이 순서대로 나오는지 단언한다.
+    void expectOrderedSummary(String output, String label) {
+      expect(output, contains(summary), reason: label);
+      var previous = output.indexOf(FunctionsStep.orgPolicyGuidance);
+      expect(previous, greaterThanOrEqualTo(0), reason: label);
+      for (final piece in <String>[
+        FunctionsStep.orgPolicyAdminLead,
+        ...commands,
+        FunctionsStep.orgPolicyDocUrl,
+      ]) {
+        final int index = output.indexOf(piece, previous);
+        expect(index, greaterThan(previous), reason: '$label · $piece');
+        previous = index;
+      }
+    }
+
+    // (a) 배포 출력의 공개 호출 차단.
+    writeModulesMarker();
+    final deployed = _Harness(root, const <String?>['y', '2']);
+    deployed.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(const <String>[]))
+      ..on(deployKey, buildFixtureDeployResult());
+    expect(await deployed.run(), wizardExitStopped);
+    expectOrderedSummary(deployed.output, 'deploy');
+    expect(findProjectPolicyCalls(deployed.fake), isEmpty);
+
+    // (b) 공개 호출 추가의 permitted customer 거절.
+    final String rejected = buildServiceId(commonFunctions.first);
+    final bound = _Harness(root, const <String?>['y', '2']);
+    bound.fake
+      ..on(secretsListKey, buildSecretsList(declaredSecrets))
+      ..on(functionsListKey, buildFunctionsList(commonFunctions))
+      ..on(
+        buildBindKey(rejected),
+        const CommandResult(1, '', '$permittedCustomerErrorLine\n'),
+      );
+    for (final id in commonFunctions) {
+      final String service = buildServiceId(id);
+      bound.fake.on(
+        buildIamKey(service),
+        service == rejected ? emptyPolicy : publicPolicy,
+      );
+    }
+    expect(await bound.run(), wizardExitStopped);
+    expectOrderedSummary(bound.output, 'bind');
+    expect(findProjectPolicyCalls(bound.fake), isEmpty);
+
+    // (c) 명령 꼴.
+    expect(
+      commands[2],
+      'gcloud org-policies set-policy allowed-policy-member-domains.yaml',
+    );
+    expect(
+      commands[1],
+      contains('projects/$projectId/policies/iam.allowedPolicyMemberDomains'),
+    );
+    expect(commands[1], contains('allowAll: true'));
+
+    // (d) 규칙에 맞지 않는 프로젝트 ID 는 명령에 넣지 않는다.
+    const unsafeId = 'bad id; rm -rf ~';
+    for (final text in <String>[
+      FunctionsStep.buildOrgPolicyFailureSummary(unsafeId),
+      FunctionsStep.buildComputeAccountFailureSummary(unsafeId),
+    ]) {
+      expect(text, contains('<your-project-id>'));
+      expect(text, isNot(contains('rm -rf')));
+    }
   });
 }

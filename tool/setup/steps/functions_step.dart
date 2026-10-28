@@ -11,6 +11,7 @@ import '../secret_store.dart';
 import '../step.dart';
 import '../wizard.dart';
 import 'billing_step.dart';
+import 'firebase_project_step.dart';
 import 'firestore_step.dart';
 
 /// 배포된 함수가 쓰는 secret 하나 — Secret Manager 이름과 배포 때 고정된 버전.
@@ -65,7 +66,11 @@ typedef DeployedFunction = ({
 /// 따로 계산하지 않는다.
 ///
 /// 조직 정책이 공개 호출을 막으면([invokerBlockedMarker] · [isOrgPolicyRejection])
-/// 원문 뒤에 [orgPolicyGuidance] 를 보이고 IAM 정책을 우회하려 하지 않는다.
+/// 원문 뒤에 [orgPolicyGuidance] 와 조직 정책 관리자가 칠 예외 명령
+/// ([buildOrgPolicyFailureSummary])을 보이고 IAM 정책을 우회하려 하지 않는다.
+/// 함수 빌드 계정에 역할이 없어 빌드가 실패하면([buildServiceAccountMarker]) 원인과
+/// 역할을 붙이는 명령([buildComputeAccountFailureSummary])을 보인다. 위저드는
+/// 프로젝트 수준 역할 · 조직 정책을 바꾸지 않는다.
 ///
 /// 꺼진 로그인 수단의 함수가 배포된 채 남아 있으면 끝남 줄에 개수와 지우는
 /// 명령([buildLeftoverInfo])을 정보로만 붙이고 묻지 않는다.
@@ -171,14 +176,107 @@ final class FunctionsStep implements Step {
   static const String orgPolicyDocUrl =
       'https://cloud.google.com/organization-policy/restrict-domains';
 
+  /// 조직 정책 관리자가 이 프로젝트에만 예외를 둘 수 있다는 안내.
+  static const String orgPolicyAdminLead =
+      '조직 정책 관리자(roles/orgpolicy.policyAdmin)라면 아래 명령으로 이 '
+      '프로젝트에만 예외를 둘 수 있습니다 — 이 프로젝트는 조직 밖 계정(allUsers '
+      '포함)에도 역할을 줄 수 있게 되고, 반영까지 최대 15분 걸립니다.';
+
+  /// 조직 정책 예외 명령이 쓰는 정책 파일 이름(사용자의 현재 디렉터리).
+  static const String orgPolicyFileName = 'allowed-policy-member-domains.yaml';
+
+  /// Cloud Functions 빌드가 함수 빌드 계정의 역할 없음으로 실패했을 때 배포
+  /// 출력에 쓰는 문장 조각.
+  static const String buildServiceAccountMarker =
+      'missing permission on the build service account';
+
+  /// 함수 빌드 계정 역할 없음 문제 해결 공식 문서.
+  static const String buildServiceAccountDocUrl =
+      'https://cloud.google.com/functions/docs/troubleshooting#build-service-account';
+
+  /// 함수 빌드 계정(기본 Compute 서비스 계정)에 붙이는 역할 — 빌드 · 이미지 저장 ·
+  /// 로그 · 함수 실행(Firestore · Auth · FCM · 이벤트 수신)에 쓴다.
+  static const List<String> computeAccountRoles = <String>[
+    'roles/cloudbuild.builds.builder',
+    'roles/artifactregistry.writer',
+    'roles/logging.logWriter',
+    'roles/datastore.user',
+    'roles/firebaseauth.admin',
+    'roles/firebasecloudmessaging.admin',
+    'roles/eventarc.eventReceiver',
+  ];
+
+  /// 함수 빌드 계정에 역할이 없어 빌드가 실패했을 때의 안내.
+  static const String computeAccountGuidance =
+      '함수 빌드 계정에 역할이 없어 빌드가 실패했습니다. 2세대 함수는 기본 Compute '
+      '서비스 계정(<프로젝트 번호>-compute@developer.gserviceaccount.com)으로 '
+      '빌드 · 실행하는데, 조직 정책 '
+      'iam.automaticIamGrantsForDefaultServiceAccounts 가 걸린 프로젝트는 이 '
+      '계정에 역할이 자동으로 붙지 않습니다. 프로젝트 IAM 을 바꿀 수 있는 계정(예: '
+      '프로젝트 소유자)으로 아래 명령을 실행해 이 계정에 역할을 붙이고, 몇 분 뒤 '
+      '같은 명령을 다시 실행하면 빌드가 실패한 함수를 다시 배포합니다.';
+
   /// 정리 정책을 만들고 한 번 더 배포하기 전에 보이는 줄.
   static const String cleanupPolicyNotice =
       '  함수는 배포됐지만 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 '
       '끝났습니다 — 정책을 만들고 한 번 더 배포합니다.';
 
-  /// 조직 정책 안내를 실패 요약으로 쓸 때의 문장(문서 링크 포함).
-  static const String orgPolicyFailureSummary =
-      '$orgPolicyGuidance\n    $orgPolicyDocUrl';
+  /// 함수 빌드 계정에 [computeAccountRoles] 를 붙이는 명령(사용자가 칠 한 줄)을
+  /// 만든다.
+  ///
+  /// 프로젝트 번호는 명령 안에서 `gcloud projects describe` 로 구한다 — 위저드는
+  /// 이 명령을 실행하지 않는다. [projectId] 가 프로젝트 ID 규칙에 맞지 않으면
+  /// `<your-project-id>` 를 쓴다.
+  static String buildComputeAccountGrantCommand(String projectId) {
+    final String id = _resolveDisplayProjectId(projectId);
+    return 'N="\$(gcloud projects describe $id '
+        "--format='value(projectNumber)')\" && "
+        'for R in ${computeAccountRoles.join(' ')}; do '
+        'gcloud projects add-iam-policy-binding $id '
+        r'--member="serviceAccount:${N}-compute@developer.gserviceaccount.com" '
+        r'--role="$R" --condition=None --quiet --format=none; done';
+  }
+
+  /// 함수 빌드 계정 역할 없음 실패 요약 — 안내 · 역할을 붙이는 명령 · 문서 주소.
+  static String buildComputeAccountFailureSummary(String projectId) => <String>[
+    computeAccountGuidance,
+    buildComputeAccountGrantCommand(projectId),
+    buildServiceAccountDocUrl,
+  ].join('\n    ');
+
+  /// 조직 정책 관리자가 이 프로젝트에만 공개 호출 예외를 두는 명령 세 줄을
+  /// 만든다 — API 켜기 · 정책 파일 쓰기 · 정책 적용.
+  ///
+  /// 위저드는 이 명령을 실행하지 않는다. [projectId] 가 프로젝트 ID 규칙에 맞지
+  /// 않으면 `<your-project-id>` 를 쓴다.
+  static List<String> buildOrgPolicyExceptionCommands(String projectId) {
+    final String id = _resolveDisplayProjectId(projectId);
+    // 화면의 `\n` 은 printf 가 줄바꿈으로 바꾸는 두 글자다.
+    const policySpec = r'\nspec:\n  rules:\n  - allowAll: true\n';
+    const policyName = 'iam.allowedPolicyMemberDomains';
+    final writePolicy =
+        "printf 'name: projects/$id/policies/$policyName$policySpec' > "
+        '$orgPolicyFileName';
+    return <String>[
+      'gcloud services enable orgpolicy.googleapis.com --project $id',
+      writePolicy,
+      'gcloud org-policies set-policy $orgPolicyFileName',
+    ];
+  }
+
+  /// 조직 정책 실패 요약 — 안내 · 관리자 안내 · 예외 명령 · 문서 주소.
+  static String buildOrgPolicyFailureSummary(String projectId) => <String>[
+    orgPolicyGuidance,
+    orgPolicyAdminLead,
+    ...buildOrgPolicyExceptionCommands(projectId),
+    orgPolicyDocUrl,
+  ].join('\n    ');
+
+  /// 사용자에게 보이는 명령에 넣을 프로젝트 ID — 규칙에 맞지 않으면 자리표시.
+  static String _resolveDisplayProjectId(String projectId) =>
+      FirebaseProjectStep.isValidProjectId(projectId)
+      ? projectId
+      : '<your-project-id>';
 
   /// 저장소 루트 [workingDirectory] 에서 Functions 의존성을 설치하는 명령 —
   /// 커밋된 lockfile 그대로 설치한다.
@@ -581,6 +679,7 @@ final class FunctionsStep implements Step {
       '(배포 대상은 $manifestPath 의 공통 함수와 ${context.paths.json} 의 enabledAuthProviders 가 켠 로그인 수단의 함수입니다)',
       '(함수는 배포됐는데 컨테이너 이미지 정리 정책이 없어 배포 명령이 실패로 끝나면 정책을 만들고(보관 기간은 Firebase CLI 기본값) 한 번 더 배포합니다)',
       '(배포 뒤 앱이 부르는 함수(onCall · onRequest)에 공개 호출($invokerMember · $invokerRole)이 빠졌으면 붙입니다 — 백그라운드 함수는 배포만 확인하고, 조직 정책이 막으면 안내합니다)',
+      '(함수 빌드 계정(기본 Compute 서비스 계정)에 역할이 없어 빌드가 실패하면 원인과 역할을 붙이는 명령을 보입니다 — 프로젝트 수준 역할은 바꾸지 않습니다)',
     ],
     _FunctionsMode.redeploy => <String>[
       buildDeployCommand(flavor: context.flavor).render(),
@@ -646,10 +745,13 @@ final class FunctionsStep implements Step {
 
   /// 배포 스크립트를 실행하고 결과를 분류한다.
   ///
-  /// 출력에 공개 호출 설정 실패([invokerBlockedMarker])가 있으면 조직 정책 안내로
-  /// 끝낸다 — 원문은 실행 중에 이미 화면에 흘렀으므로 안내만 뒤에 보인다. 그 밖에
+  /// 출력에 공개 호출 설정 실패([invokerBlockedMarker])가 있으면 조직 정책 안내와
+  /// 관리자 예외 명령으로 끝낸다 — 원문은 실행 중에 이미 화면에 흘렀으므로 안내만
+  /// 뒤에 보인다. 함수 빌드 계정 역할 없음([buildServiceAccountMarker])이면 원인과
+  /// 역할을 붙이는 명령으로 끝낸다(정리 정책 줄이 함께 나와도 먼저 본다). 그 밖에
   /// 정리 정책 실패([cleanupPolicyMarker])면 [isCleanupRetryAllowed] 일 때 한 번만
-  /// 정책을 만들고 다시 배포한다.
+  /// 정책을 만들고 다시 배포한다. 위저드는 프로젝트 수준 역할 · 조직 정책을 바꾸지
+  /// 않는다.
   Future<StepOutcome> _runDeploy(
     WizardContext context, {
     required bool isCleanupRetryAllowed,
@@ -667,7 +769,10 @@ final class FunctionsStep implements Step {
     if (judged is! Failed) return judged;
     final output = '${result.stdout}\n${result.stderr}';
     if (output.contains(invokerBlockedMarker)) {
-      return const Failed(orgPolicyFailureSummary);
+      return Failed(buildOrgPolicyFailureSummary(_projectId));
+    }
+    if (output.contains(buildServiceAccountMarker)) {
+      return Failed(buildComputeAccountFailureSummary(_projectId));
     }
     if (isCleanupRetryAllowed && output.contains(cleanupPolicyMarker)) {
       context.terminal.writeLine(cleanupPolicyNotice);
@@ -720,7 +825,7 @@ final class FunctionsStep implements Step {
       );
       if (result.isSuccess) continue;
       if (isOrgPolicyRejection(result)) {
-        return const Failed(orgPolicyFailureSummary);
+        return Failed(buildOrgPolicyFailureSummary(_projectId));
       }
       return Failed(
         '$service 서비스에 공개 호출을 붙이지 못했습니다 (종료 코드 ${result.exitCode})',
