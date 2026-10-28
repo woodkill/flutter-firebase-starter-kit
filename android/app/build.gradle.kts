@@ -106,6 +106,13 @@ android {
         val naverUrlScheme = dartDefines["naverUrlScheme"] ?: ""
         manifestPlaceholders["naverWebCallbackScheme"] =
             if (naverUrlScheme.isEmpty()) "unset.naver.web" else naverUrlScheme
+
+        // 홈 화면 런처 이름 — AndroidManifest.xml 의 application label 이 이
+        // placeholder 를 쓴다. 값은 config json 의 appName 이고, 설정 위저드
+        // 「앱 정체성」 단계가 iOS xcconfig 의 DISPLAY_NAME 과 같은 값으로 쓴다.
+        // dart-define 없이 빌드하면 아래 기본 이름이 들어가 manifest 병합이
+        // 멈추지 않는다.
+        manifestPlaceholders["appName"] = dartDefines["appName"] ?: "flutter_starter_kit"
     }
 
     flavorDimensions += "environment"
