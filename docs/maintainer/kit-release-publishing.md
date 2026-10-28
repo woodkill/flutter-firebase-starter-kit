@@ -128,6 +128,12 @@ bash scripts/publish_kit.sh release --apply # GitHub Release 생성
    bash scripts/release_user_action.sh "$(git log -1 --format=%H -- KIT_VERSION)" HEAD
    ```
 
+   - 마지막 줄이 `USER_ACTION_VERDICT none low_hits=0` 이면 `### 사용자 조치` 를 두지 않는다.
+   - `USER_ACTION_VERDICT review low_hits=<N>` 이면 `LOW_ROW_HIT row=<행> <경로>` 줄마다 그 변경을 읽고 사용자가 merge 뒤 손봐야 하는지 정한다 — 걸린 줄은 후보이고 그것만으로 MAJOR 판이 되지는 않는다.
+   - `OTHER_ROW_HIT row=<행> <경로>` 줄은 표의 `중간` · `높음` 행 파일이다 — 이 줄만 있으면 MAJOR 판이 아니고 그 행의 「충돌 시 조치」 칸대로 merge 로 끝난다.
+   - exit 3 과 `LOW_ROW_FAIL <종류>: <사유>` 줄로 끝나면 판정을 멈춘다 — 종류가 `table` 이면 `docs/guide.md` 「사용자 소유 표면」 표의 `낮음` 행이, `control` 이면 `낮음` 행 파일의 위치가 스크립트의 경로 꼴과 어긋난 것이므로 스크립트의 `LOW_PATTERNS` · `INFO_PATTERNS` 와 `test/release/release_user_action_script_test.dart` 를 표에 맞춰 먼저 고치고, `git` 이면 인자를 확인한다.
+   - 이 명령이 보는 것은 `낮음` 파일 기준 하나다 — CHANGELOG 판 번호 규칙의 나머지 MAJOR 기준(「충돌 시 조치」 칸 밖의 손질 · 콘솔 재설정 · 데이터 마이그레이션)은 변경 내용을 읽고 사람이 정한다.
+
 2. 파일 맨 아래 비교 링크 2줄을 갱신한다:
    `[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v<ver>...HEAD` ·
    `[<ver>]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v<ver>`.
