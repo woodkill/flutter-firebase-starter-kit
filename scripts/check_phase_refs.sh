@@ -8,20 +8,30 @@
 #
 # starter-kit 정책: 외부 lint framework / GitHub Actions 미도입 (D-39 단순성).
 # git pre-commit hook 으로만 강제 — 활성화는 사용자 선택 (docs/guide.md 「Git Hooks 활성화 (선택)」).
-# ROADMAP.md 가 없는 트리(공개 mirror)에서는 [SKIP] 을 출력하고 exit 0 — 공개본에서 hook 을
-# 켜도 커밋이 막히지 않는다 (Phase 17.4 D-08).
+# 킷 발행 규칙 파일(MAINTAINER_MARKER — 킷 비공개 트리에만 있다)이나 ROADMAP.md 가 없는 트리에서는
+# [SKIP] 을 출력하고 exit 0 — 자기 .planning/ROADMAP.md 가 있는 킷 사용자 저장소나 공개 mirror 에서
+# hook 을 켜도 커밋이 막히지 않는다 (Phase 17.4 D-08). 판정 파일은 시험 헬퍼
+# test/helpers/planning_docs.dart 의 kMaintainerTreeMarker 와 같은 경로다(T-174-SKIP-04 가 대조).
 
 set -euo pipefail
 
 ROADMAP=".planning/ROADMAP.md"
+# 유지보수자 트리 판정 파일 — 킷 발행 규칙 파일(공개 mirror 제외 경로 목록).
+MAINTAINER_MARKER=".planning/release/mirror-exclude-paths.txt"
 SCAN_PATHS=("lib" "functions/src")
 SCAN_FILES=("firestore.rules")
 EXIT_CODE=0
 
-if [ ! -f "$ROADMAP" ]; then
-  echo "[SKIP] check_phase_refs.sh — $ROADMAP 없음(비공개 작업 일지가 없는 트리) · 유지보수자 검사 건너뜀"
+# [SKIP] 줄을 출력하고 exit 0 으로 끝낸다. $1 = 건너뛰는 사유(처음 없는 경로를 담는다).
+skip_maintainer_check() {
+  echo "[SKIP] check_phase_refs.sh — $1 · 유지보수자 검사 건너뜀"
   exit 0
-fi
+}
+
+# 발행 규칙 파일을 먼저 본다 — 킷 사용자 저장소는 자기 ROADMAP.md 는 있고 발행 규칙 파일만 없다.
+[ -f "$MAINTAINER_MARKER" ] ||
+  skip_maintainer_check "킷 발행 규칙 파일($MAINTAINER_MARKER)이 없는 트리(킷 사용자 저장소 · 공개본)"
+[ -f "$ROADMAP" ] || skip_maintainer_check "$ROADMAP 없음(phase 머리 진실원이 없는 트리)"
 
 # phase 번호의 성분별 선행 0 제거 — 09→9, 09.1→9.1, 9.01→9.1, 00→0. 단일 0 · 10 · 100 은 불변.
 # 디렉터리명 `09-…` 유래 0 채움 표기를 ROADMAP 헤딩과 맞추기 위함 (quick 260924-k61).
