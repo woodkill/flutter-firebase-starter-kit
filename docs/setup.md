@@ -34,6 +34,8 @@
   - Xcode 선택 · 라이선스 · 첫 실행 준비 · iOS 시뮬레이터 런타임은 위저드가 진행한다 — sudo 비밀번호는 그 명령이 직접 묻는다.
 - **Google 계정** — Firebase · Google Cloud 에 로그인할 계정이다.
   - 처음 쓰는 계정이면 위저드 안내대로 약관에 동의한다([위저드 실행](#위저드-실행) 의 「사용자가 하는 일」).
+- **조직(Google Workspace) 계정으로 만든 프로젝트** — 조직 정책 때문에 함수 빌드 계정의 역할과 공개 호출 예외가 더 필요할 수 있다.
+  - 「Cloud Functions 배포」 단계가 막히면 원인과 명령을 보이고, 절차는 [조직 계정 프로젝트에서 함수 배포가 막히면](#조직-계정-프로젝트에서-함수-배포가-막히면) 에 있다.
 - **결제 수단과 Blaze 요금제** — 위저드의 「결제 계정 (Blaze 요금제)」 단계가 열린 결제 계정을 골라 Firebase 프로젝트에 연결한다.
   - 연결하면 프로젝트가 Blaze(종량제) 요금제로 바뀌고, 무료 사용량을 넘는 사용분이 그 결제 계정으로 청구된다 — 쓴 만큼 낸다.
   - Cloud Functions 배포에 Blaze 가 필요하다.
@@ -268,6 +270,7 @@ clone 직후 기본값은 소셜 로그인 0개라 로그인 화면에는 「이
    - 비밀 값은 화면에 보이지 않게 받고, 위저드가 형식 · 서버 확인 뒤에 `config/<flavor>.json` · `ios/Flutter/<flavor>.xcconfig` · Secret Manager 에 기록하고, Apple · Facebook 은 Firebase 로그인 설정에도 기록한다.
    - Google 은 입력할 키가 없다 — 위저드가 Firebase 에서 Google 로그인을 켜고 Web client ID 를 읽어 기록한다.
 7. 「Cloud Functions 배포」 단계가 공통 함수와 켠 수단의 함수를 배포하고, 앱에서 부를 수 있게 공개 호출이 설정돼 있는지 확인한다.
+   - 공개 호출은 앱이 부르는 함수(`onCall` · `onRequest`)만 확인하고, Auth · Firestore · 스케줄 같은 백그라운드 함수는 배포됐는지만 본다.
 8. Kakao · Naver · LINE 가운데 하나라도 켰으면 「Custom Token 서명 권한」 단계가 함수 서비스 계정의 토큰 서명 권한을 확인하고 없으면 붙인다([Kakao · Naver · LINE 서명 권한(Token Creator)](#kakao--naver--line-서명-권한token-creator)).
 9. 「앱 실행 · 로그인 확인」 단계가 앱을 다시 빌드해 띄우고, 「소셜 로그인 확인」 단계가 켠 수단마다 로그인한 사용자 수를 센다.
    - 앱에서 켠 수단으로 한 번씩 로그인한다.
@@ -1154,6 +1157,36 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 - `unset` 이면 `./setup.sh --providers` 를 다시 실행하고, 체크 목록에서 Enter 로 지금 그대로 둔다.
   - 켠 수단의 단계가 다시 검사되어 `config/<flavor>.json` 의 값으로 secret 을 맞추고, 서버에만 두는 secret 이면 콘솔에서 받은 값을 다시 묻는다.
   - 옛 secret 버전을 쓰는 함수는 「Cloud Functions 배포」 단계가 다시 배포한다.
+
+### 조직 계정 프로젝트에서 함수 배포가 막히면
+
+조직(Google Workspace)에 속한 계정으로 만든 프로젝트는 조직 정책 두 가지 때문에 「Cloud Functions 배포」 단계가 막힐 수 있다.
+- 위저드는 실패 사유 아래에 프로젝트 ID 를 채운 명령을 보이고, 프로젝트 역할과 조직 정책은 직접 바꾸지 않는다.
+
+- **위저드가 `함수 빌드 계정에 역할이 없어 빌드가 실패했습니다` 를 보인다(배포 출력에 `Could not build the function due to a missing permission on the build service account` 가 있다).**
+  - 2세대 함수는 기본 Compute 서비스 계정(`<프로젝트 번호>-compute@developer.gserviceaccount.com`)으로 빌드 · 실행하는데, 조직 정책 `iam.automaticIamGrantsForDefaultServiceAccounts` 가 걸린 프로젝트는 이 계정에 역할이 자동으로 붙지 않는다.
+  - 프로젝트 IAM 을 바꿀 수 있는 계정(예: 프로젝트 소유자)으로 gcloud 에 로그인하고 아래 명령으로 이 계정에 역할 7개를 붙인다.
+
+  ```bash
+  N="$(gcloud projects describe <your-project-id> --format='value(projectNumber)')"
+  for R in roles/cloudbuild.builds.builder roles/artifactregistry.writer roles/logging.logWriter roles/datastore.user roles/firebaseauth.admin roles/firebasecloudmessaging.admin roles/eventarc.eventReceiver; do
+    gcloud projects add-iam-policy-binding <your-project-id> --member="serviceAccount:${N}-compute@developer.gserviceaccount.com" --role="$R" --condition=None --quiet --format=none
+  done
+  ```
+
+  - 역할이 반영되기까지 몇 분 걸릴 수 있다 — 그 뒤 `./setup.sh` 를 다시 실행하면 빌드가 실패한 함수를 다시 배포한다.
+- **위저드가 `조직 정책이 함수를 공개 호출(allUsers)할 수 없게 막고 있습니다` 를 보인다(배포 출력에 `Unable to set the invoker for the IAM policy` 가 있거나, 공개 호출을 붙이는 명령이 `FAILED_PRECONDITION` · `permitted customer` 로 실패한다).**
+  - 조직 정책 `iam.allowedPolicyMemberDomains` 가 조직 밖 계정(`allUsers` 포함)에 역할을 주지 못하게 막는 것이다.
+  - 조직 정책 관리자(`roles/orgpolicy.policyAdmin`)가 아니면 조직 관리자에게 이 프로젝트의 예외를 요청하거나, 조직에 속하지 않은 개인 Google 계정으로 만든 프로젝트를 쓴다.
+  - 조직 정책 관리자이면 아래 명령으로 이 프로젝트에만 예외를 둔다 — 이 프로젝트는 조직 밖 계정에도 역할을 줄 수 있게 되고, 반영까지 최대 15분 걸린다.
+
+  ```bash
+  gcloud services enable orgpolicy.googleapis.com --project <your-project-id>
+  printf 'name: projects/<your-project-id>/policies/iam.allowedPolicyMemberDomains\nspec:\n  rules:\n  - allowAll: true\n' > allowed-policy-member-domains.yaml
+  gcloud org-policies set-policy allowed-policy-member-domains.yaml
+  ```
+
+  - 예외가 생긴 뒤 `./setup.sh` 를 다시 실행하면 이어진다.
 
 ### 그 밖의 문제
 

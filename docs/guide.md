@@ -2240,6 +2240,7 @@ firebase functions:secrets:set MY_SECRET --project <your-project-id>
 **④ 배포 목록에 이름을 더한다.**
 - 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다.
 - 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 시험이 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
+- 백그라운드 함수(Auth · Firestore · 스케줄 트리거 등)도 같은 `common` 배열에 더한다 — 위저드의 「Cloud Functions 배포」 단계는 그 함수가 배포됐는지만 보고 공개 호출을 붙이지 않는다.
 
 **⑤ 게이트.**
 
@@ -2253,7 +2254,8 @@ cd ..
 
 **⑥ 배포.**
 - 먼저 옵션 없이 실행해 출력의 `functions` 목록에 새 함수가 있는지 보고, 맞으면 `--apply` 로 배포한다.
-- 처음 배포한 함수는 공개 호출이 켜졌는지 본다 — [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ⑥ 과 같은 방법으로, 인증 없이 보낸 POST 가 `401` 이면 정상이고 `403` 이면 공개 호출이 빠진 것이다(Google Cloud 콘솔 → Cloud Run 의 그 서비스에서 같은 칸을 켠다).
+- 앱이 부르는 함수(`onCall` · `onRequest`)를 처음 배포했으면 공개 호출이 켜졌는지 본다 — [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ⑥ 과 같은 방법으로, 인증 없이 보낸 POST 가 `401` 이면 정상이고 `403` 이면 공개 호출이 빠진 것이다(Google Cloud 콘솔 → Cloud Run 의 그 서비스에서 같은 칸을 켠다).
+- 백그라운드 함수에는 공개 호출을 켜지 않는다 — 켜면 앱이 부르지 않는 함수를 누구나 부를 수 있다.
 
 ```bash
 bash scripts/deploy_functions.sh dev
