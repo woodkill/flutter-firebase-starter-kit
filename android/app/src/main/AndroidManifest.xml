@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <application
         android:label="${appName}"
         android:name="${applicationName}"
@@ -134,6 +135,31 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${naverWebCallbackScheme}" />
+            </intent-filter>
+        </activity>
+
+        <!-- LINE 로그인 콜백 relay. LINE SDK 콜백 Activity 는 대기 인증 Activity 를
+             새 task 로 다시 띄우는데, 빈 affinity 라 앱 task 를 찾지 못해 LINE 메인
+             화면이나 브라우저 탭이 앞에 남는다. 그래서 SDK 콜백 Activity 를 병합에서
+             빼고 킷 relay 가 콜백을 받아 앱 task 의 대기 인증 Activity 로 결과를
+             넘긴다. relay 의 빈 affinity 는 StrandHogg(task hijacking) 방어다.
+
+             제거 선언과 relay 는 함께 다닌다. 수신자가 둘이면 chooser 가 뜨고,
+             제거 선언만 있으면 콜백을 받을 곳이 없다.
+
+             이 주석에 XML 속성 리터럴을 쓰지 않는 이유는 위 Naver 블록과 같다. -->
+        <activity
+            android:name="com.linecorp.linesdk.auth.internal.LineAuthenticationCallbackActivity"
+            tools:node="remove" />
+        <activity
+            android:name=".LineAuthCallbackActivity"
+            android:exported="true"
+            android:taskAffinity="">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lineauth" />
             </intent-filter>
         </activity>
 
