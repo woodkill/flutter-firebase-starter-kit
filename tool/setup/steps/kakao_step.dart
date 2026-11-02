@@ -147,7 +147,7 @@ final class KakaoStep extends KeyedProviderStep {
     '「앱 생성」 창에서 새 앱 만들기',
     '네이티브 앱 키에 Android 패키지명 · 키 해시 · iOS 번들 ID 등록',
     '카카오 로그인 · OpenID Connect 켜기',
-    '동의 항목에서 이메일을 받도록 설정 — ${formatDocReference(emailDocRef)}',
+    '동의 항목에서 이메일 · 닉네임 · 프로필 사진을 받도록 설정 — ${formatDocReference(emailDocRef)}',
   ];
 
   /// 이번에 입력한 네이티브 앱 키가 Secret Manager 의 네이티브 앱 키와 다르고

@@ -537,6 +537,14 @@ void main() {
     expect(h.output, contains('  ${KakaoStep.keyHashRowLabel}'));
   });
 
+  test('T-20-KAKAO-11: 넷째 할 일 줄은 이메일 · 닉네임 · 프로필 사진과 문서 절을 가리킨다', () {
+    expect(
+      KakaoStep().todoLines[3],
+      '동의 항목에서 이메일 · 닉네임 · 프로필 사진을 받도록 설정 — '
+      'docs/setup.md 「로그인 수단에서 이메일 받기」',
+    );
+  });
+
   group('어드민 키를 그대로 둘지 묻는 질문 — 고르는 조건 · 문구 원문', () {
     /// 이번에 입력한 네이티브 앱 키.
     final String enteredNative = buildNativeKey('1');
