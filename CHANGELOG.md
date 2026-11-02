@@ -17,6 +17,7 @@
 ### Fixed
 
 - 설정 위저드 「Naver 로그인」 단계가 밑줄(`_`)이 든 Client ID · Client Secret 을 받는다. 콘솔에서 복사한 값인데 `형식이 맞지 않습니다` 가 세 번 나오고 위저드가 멈추던 문제를 고친다. 바뀐 파일은 `tool/setup/providers/key_formats.dart` · `test/tool/setup/` 의 위저드 시험 파일이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
+- 설정 위저드 「Kakao 로그인」 · 「Naver 로그인」 단계의 할 일 줄과 `docs/setup.md` · `docs/guide.md` 의 안내가 이메일과 함께 이름 · 프로필 사진을 받는 설정을 적는다 — Kakao 는 「닉네임」 · 「프로필 사진」 동의항목을 [선택 동의] 로, Naver 는 「별명」 · 「프로필 사진」 을 추가 제공 항목으로 켠다. 킷은 이 값을 계정 이름과 계정 사진으로 보이는데 안내에 빠져 있어, 안내대로 설정한 앱은 계정 정보 화면의 「이름」 행이 「-」 로 보이고 Naver 는 프로필 사진도 오지 않던 문제를 고친다. 이미 콘솔을 설정한 앱은 그대로 동작하고, 이 항목을 켜야 이름과 사진이 온다. 바뀐 파일은 `tool/setup/steps/kakao_step.dart` · `tool/setup/steps/naver_step.dart` · `test/tool/setup/` 의 위저드 시험 파일 · `docs/setup.md` · `docs/guide.md` 이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
 
 ## [1.0.0-rc.6] - 2026-10-28
 
