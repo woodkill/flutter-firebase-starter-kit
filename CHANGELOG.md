@@ -14,6 +14,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 설정 위저드 「Naver 로그인」 단계가 밑줄(`_`)이 든 Client ID · Client Secret 을 받는다. 콘솔에서 복사한 값인데 `형식이 맞지 않습니다` 가 세 번 나오고 위저드가 멈추던 문제를 고친다. 바뀐 파일은 `tool/setup/providers/key_formats.dart` · `test/tool/setup/` 의 위저드 시험 파일이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
+
 ## [1.0.0-rc.6] - 2026-10-28
 
 ### Fixed
