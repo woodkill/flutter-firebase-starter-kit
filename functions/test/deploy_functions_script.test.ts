@@ -205,17 +205,20 @@ describe("deploy_functions.sh", () => {
     const r = runScript(["dev"]);
     const n = expectedFunctions(["kakao"]).length;
     expect(r.status).toBe(0);
-    expect(lastLine(r.stdout)).toBe(`DRY-RUN OK dev functions=${n} batches=1`);
+    expect(lastLine(r.stdout)).toBe(
+      `DRY-RUN OK dev functions=${n} batches=${Math.ceil(n / BATCH_MAX)}`,
+    );
     expect(existsSync(markerFile)).toBe(false);
   });
 
-  it("T-173-DEPLOY-05 CSV 가 비면 common 함수만 1묶음으로 고른다", () => {
+  it("T-173-DEPLOY-05 CSV 가 비면 common 함수만 고른다", () => {
     writeConfig({firebaseProjectId: "my-proj", enabledAuthProviders: ""});
     const r = runScript(["dev"]);
+    const n = manifest.common.length;
     expect(r.status).toBe(0);
-    expect(parseBatches(r.stdout)).toEqual([manifest.common]);
+    expect(parseBatches(r.stdout).flat()).toEqual(manifest.common);
     expect(lastLine(r.stdout)).toBe(
-      `DRY-RUN OK dev functions=${manifest.common.length} batches=1`,
+      `DRY-RUN OK dev functions=${n} batches=${Math.ceil(n / BATCH_MAX)}`,
     );
   });
 
@@ -228,10 +231,15 @@ describe("deploy_functions.sh", () => {
     const r = runScript(["dev"]);
     const expected = expectedFunctions([slug]);
     expect(r.status).toBe(0);
-    const only = expected.map((f) => `functions:${f}`).join(",");
-    expect(r.stdout).toContain(
-      `command: firebase deploy --project my-proj --only ${only}\n`,
-    );
+    for (let i = 0; i < expected.length; i += BATCH_MAX) {
+      const only = expected
+        .slice(i, i + BATCH_MAX)
+        .map((f) => `functions:${f}`)
+        .join(",");
+      expect(r.stdout).toContain(
+        `command: firebase deploy --project my-proj --only ${only}\n`,
+      );
+    }
     expect(parseBatches(r.stdout).flat()).toEqual(expected);
   });
 
@@ -343,13 +351,14 @@ describe("deploy_functions.sh", () => {
     (locale) => {
       writeConfig({firebaseProjectId: "my-proj-123", enabledAuthProviders: ""});
       const r = runScript(["dev"], {LC_ALL: locale});
+      const n = manifest.common.length;
       expect(r.status).toBe(0);
       expect(r.stdout).toContain("project: my-proj-123\n");
       expect(r.stdout).toContain(
         "command: firebase deploy --project my-proj-123 --only ",
       );
       expect(lastLine(r.stdout)).toBe(
-        `DRY-RUN OK dev functions=${manifest.common.length} batches=1`,
+        `DRY-RUN OK dev functions=${n} batches=${Math.ceil(n / BATCH_MAX)}`,
       );
     },
   );
@@ -574,15 +583,41 @@ describe("deploy_functions.sh", () => {
       emailDelivery: "kit",
     });
     const r = runScript(["dev"]);
-    const expected = expectedFunctions([], "kit");
+    const n = expectedFunctions([], "kit").length;
     expect(r.status).toBe(0);
     expect(
       r.stderr.split("\n").filter((l) => l.startsWith("warn: ")),
     ).toHaveLength(1);
     expect(r.stderr).toContain("deploy_email.sh dev kit --apply");
     expect(lastLine(r.stdout)).toBe(
-      `DRY-RUN OK dev functions=${expected.length} batches=1`,
+      `DRY-RUN OK dev functions=${n} batches=${Math.ceil(n / BATCH_MAX)}`,
     );
     expect(existsSync(markerFile)).toBe(false);
+  });
+
+  // common 은 사용자가 함수를 더하는 표면이다. 저장소의 함수 개수에 기대지
+  // 않도록 sandbox 의 manifest 사본을 묶음 하나보다 크게 늘려 동작을 잠근다.
+  it("T-173-DEPLOY-16 common 이 묶음 크기를 넘으면 나눠 담고 묶음 수는 계산값이다", () => {
+    const common = [...manifest.common];
+    while (common.length <= BATCH_MAX) {
+      common.push(`adopterFunction${common.length}`);
+    }
+    writeFileSync(
+      join(sandbox, "scripts", "functions_manifest.json"),
+      JSON.stringify({...manifest, common}),
+    );
+    writeConfig({firebaseProjectId: "my-proj", enabledAuthProviders: ""});
+    const r = runScript(["dev"]);
+    const n = common.length;
+    const batches = parseBatches(r.stdout);
+    expect(r.status).toBe(0);
+    expect(batches.flat()).toEqual(common);
+    expect(batches.length).toBe(Math.ceil(n / BATCH_MAX));
+    for (const b of batches) {
+      expect(b.length).toBeLessThanOrEqual(BATCH_MAX);
+    }
+    expect(lastLine(r.stdout)).toBe(
+      `DRY-RUN OK dev functions=${n} batches=${Math.ceil(n / BATCH_MAX)}`,
+    );
   });
 });
