@@ -2240,6 +2240,7 @@ firebase functions:secrets:set MY_SECRET --project <your-project-id>
 **④ 배포 목록에 이름을 더한다.**
 - 함수 이름(예: `myFunction`)을 `scripts/functions_manifest.json` 의 `common` 배열에 더한다.
 - 빠뜨리면 `functions/` 의 `pnpm test` 에서 배포 목록 대조 시험이 실패하고, 배포 스크립트가 그 함수를 배포하지 않는다.
+- `common` 이 10개를 넘어도 배포 스크립트가 10개씩 나눠 배포하고 `functions/` 의 `pnpm test` 는 그대로 통과한다.
 - 백그라운드 함수(Auth · Firestore · 스케줄 트리거 등)도 같은 `common` 배열에 더한다 — 위저드의 「Cloud Functions 배포」 단계는 그 함수가 배포됐는지만 보고 공개 호출을 붙이지 않는다.
 
 **⑤ 게이트.**
