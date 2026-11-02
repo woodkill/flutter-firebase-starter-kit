@@ -145,6 +145,14 @@ dependencies {
     // 플러그인을 올려 SDK 버전이 바뀌면 T-16.5-NATIVE-07 이 이 줄의 갱신을 요구한다.
     compileOnly("com.navercorp.nid:oauth:5.11.2")
 
+    // MainActivity.kt 의 LINE 로그인 콜백(LineAuthTaskReturnCallbacks)이 SDK 의 콜백 ·
+    // 인증 Activity 클래스를 참조하려면 컴파일 classpath 에 SDK 가 있어야 한다.
+    // flutter_line_sdk 플러그인이 같은 좌표를 implementation 으로 선언해 앱 모듈에는
+    // 노출되지 않으므로 compileOnly 로 같은 좌표 · 같은 버전을 선언한다(런타임 AAR 은
+    // 플러그인이 공급 — 새 의존성 0). 플러그인을 올려 SDK 버전이 바뀌면
+    // test/infrastructure/line_auth_task_return_contract_test.dart 가 이 줄의 갱신을 요구한다.
+    compileOnly("com.linecorp.linesdk:linesdk:5.11.1")
+
     // Phase 17 — see ROADMAP.md · flutter_local_notifications 10+ 요구 (README Gradle setup)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
