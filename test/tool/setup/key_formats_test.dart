@@ -91,20 +91,46 @@ void main() {
     );
   });
 
-  test('T-20-FMT-06: Naver Client ID 는 영숫자 1 ~ 40자', () {
+  test('T-20-FMT-06: Naver Client ID 는 영숫자 · 밑줄 1 ~ 40자', () {
     expectFormat(
       naverClientId,
-      valid: <String>['a', buildAlnum(20), buildAlnum(40)],
-      invalid: <String>['', buildAlnum(41), 'ab_cd', 'ab-cd'],
+      valid: <String>[
+        'a',
+        'ab_cd',
+        buildAlnum(20),
+        buildAlnum(40),
+        '${buildAlnum(39)}_',
+      ],
+      invalid: <String>[
+        '',
+        buildAlnum(41),
+        '${buildAlnum(40)}_',
+        'ab-cd',
+        'ab cd',
+      ],
     );
+    expect(naverClientId.description, '영숫자 · 밑줄 40자 이하');
   });
 
-  test('T-20-FMT-07: Naver Client Secret 은 영숫자 1 ~ 40자', () {
+  test('T-20-FMT-07: Naver Client Secret 은 영숫자 · 밑줄 1 ~ 40자', () {
     expectFormat(
       naverClientSecret,
-      valid: <String>['Z', buildAlnum(10), buildAlnum(40)],
-      invalid: <String>['', buildAlnum(41), 'ab cd'],
+      valid: <String>[
+        'Z',
+        buildAlnum(10),
+        '${buildAlnum(4)}_${buildAlnum(5)}',
+        buildAlnum(40),
+        '${buildAlnum(39)}_',
+      ],
+      invalid: <String>[
+        '',
+        buildAlnum(41),
+        '${buildAlnum(40)}_',
+        'ab-cd',
+        'ab cd',
+      ],
     );
+    expect(naverClientSecret.description, '영숫자 · 밑줄 40자 이하');
   });
 
   test('T-20-FMT-08: Naver URL scheme 은 소문자로 시작하는 소문자 · 숫자만', () {

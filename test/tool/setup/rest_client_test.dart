@@ -7,6 +7,7 @@ import 'package:test/test.dart';
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/rest_client.dart';
+import '../../../tool/setup/steps/naver_step.dart';
 import '../../../tool/setup/terminal.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
@@ -523,5 +524,31 @@ void main() {
       1,
     );
     expect(log.lines, contains('[rest] POST $slowUrl → 응답 없음 (200ms)'));
+  });
+
+  test('T-20-EXT-04: Naver 짝 확인의 밑줄 든 값은 form 본문에 글자 그대로 실린다', () async {
+    final clientId = 'idN${'x' * 8}_${'y' * 8}';
+    final clientSecret = '${'Q7' * 2}_${'R8' * 2}a';
+    final String probeToken = 'p' * NaverStep.probeTokenLength;
+    final ExternalRequest pairCheck = NaverStep.buildPairCheckRequest(
+      clientId,
+      clientSecret,
+      probeToken,
+    );
+
+    await client.sendExternal(
+      ExternalRequest(
+        method: pairCheck.method,
+        url: buildLocalUrl('/oauth2.0/revoke'),
+        formBody: pairCheck.formBody,
+        formDisplay: pairCheck.formDisplay,
+      ),
+    );
+
+    expect(
+      received.single.body,
+      'client_id=$clientId&client_secret=$clientSecret&token=$probeToken'
+      '&token_type_hint=access_token',
+    );
   });
 }

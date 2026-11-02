@@ -56,18 +56,23 @@ const KeyFormat facebookClientToken = KeyFormat(
   description: '소문자 16진수 32자',
 );
 
-/// Naver Client ID.
+/// Naver Client ID — 발급값에 밑줄이 든다.
+///
+/// example 자리표시(`YOUR_…`)도 이 형식에 맞으므로 자리표시는 형식이 아니라
+/// example 대조로 거른다.
 const KeyFormat naverClientId = KeyFormat(
   label: 'Naver Client ID',
-  pattern: r'^[A-Za-z0-9]{1,40}$',
-  description: '영숫자 40자 이하',
+  pattern: r'^[A-Za-z0-9_]{1,40}$',
+  description: '영숫자 · 밑줄 40자 이하',
 );
 
-/// Naver Client Secret.
+/// Naver Client Secret — 발급값에 밑줄이 든다.
+///
+/// 자리표시는 [naverClientId] 와 같이 example 대조로 거른다.
 const KeyFormat naverClientSecret = KeyFormat(
   label: 'Naver Client Secret',
-  pattern: r'^[A-Za-z0-9]{1,40}$',
-  description: '영숫자 40자 이하',
+  pattern: r'^[A-Za-z0-9_]{1,40}$',
+  description: '영숫자 · 밑줄 40자 이하',
 );
 
 /// Naver URL scheme — 킷은 소문자 영문으로 시작하는 소문자 영문 · 숫자만 쓴다.

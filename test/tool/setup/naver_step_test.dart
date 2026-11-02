@@ -58,6 +58,12 @@ String buildClientId([String letter = 'x']) => 'idN${letter * 17}';
 /// 실행 시점에 조립하는 가짜 Client Secret(영숫자 10자).
 String buildClientSecret([String pair = 'Q7']) => pair * 5;
 
+/// 실행 시점에 조립하는 밑줄 든 가짜 Client ID(20자).
+String buildUnderscoreClientId() => 'idN${'x' * 8}_${'y' * 8}';
+
+/// 실행 시점에 조립하는 밑줄 든 가짜 Client Secret(10자).
+String buildUnderscoreClientSecret() => '${'Q7' * 2}_${'R8' * 2}a';
+
 /// [haystack] 에서 [needle] 이 나타나는 횟수를 센다.
 int countText(String haystack, String needle) =>
     haystack.split(needle).length - 1;
@@ -872,6 +878,105 @@ void main() {
     for (final text in <String>[output, h.log.text]) {
       expect(countText(text, clientSecret), 0);
     }
+  });
+
+  test('T-20-NAVER-10: 밑줄 든 Client ID · Secret 이 짝 확인 본문 · config · xcconfig · '
+      'Secret Manager 에 글자 그대로 들어가고 다시 실행하면 쓰기가 0 이다', () async {
+    final String clientId = buildUnderscoreClientId();
+    final String clientSecret = buildUnderscoreClientSecret();
+    const urlScheme = 'myappnaverdev';
+    final h = _Harness(root, <String?>[
+      'y',
+      '1',
+      clientId,
+      clientSecret,
+      urlScheme,
+    ]);
+    h
+      ..registerFreshSecrets(clientId, clientSecret)
+      ..onPairCheck(<RestResponse>[const RestResponse(200, '')]);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone, reason: h.output);
+    expect(h.output, isNot(contains('형식이 맞지 않습니다')));
+    expect(countQuestions(h, NaverStep.clientIdField.label), 1);
+    expect(h.screen.secretAsks, <String>[secretQuestion]);
+    final expected = <KeyField, String>{
+      NaverStep.clientIdField: clientId,
+      NaverStep.clientSecretField: clientSecret,
+    };
+    for (final MapEntry<KeyField, String> entry in expected.entries) {
+      expect(readConfigValue(Flavor.dev, entry.key), entry.value);
+      expect(readXcconfigField(Flavor.dev, entry.key), entry.value);
+    }
+    expect(h.secretWrites.map((FakeCall call) => call.stdinText), <String>[
+      clientId,
+      clientSecret,
+    ]);
+    final ExternalRequest request = h.rest.externalRequests.single;
+    expect(request.formBody!['client_id'], clientId);
+    expect(request.formBody!['client_secret'], clientSecret);
+    expect(request.formDisplay, isNot(contains(clientSecret)));
+    for (final text in <String>[h.output, h.log.text]) {
+      expect(countText(text, clientSecret), 0);
+    }
+
+    final again = _Harness(root, const <String?>[]);
+    again
+      ..onSecretReads(clientIdSecret, <CommandResult>[ok('$clientId\n')])
+      ..onSecretReads(clientSecretSecret, <CommandResult>[
+        ok('$clientSecret\n'),
+      ]);
+
+    final int rerunCode = await again.run();
+
+    expect(rerunCode, wizardExitDone, reason: again.output);
+    expect(again.screen.asks, isEmpty);
+    expect(again.secretWrites, isEmpty);
+    expect(again.rest.externalRequests, isEmpty);
+  });
+
+  test('T-20-NAVER-11: config 가 example 자리표시 그대로면 밑줄 형식에 맞아도 '
+      '실 값으로 쓰지 않고 묻는다', () async {
+    final String placeholderId = readConfigValue(
+      Flavor.dev,
+      NaverStep.clientIdField,
+    )!;
+    final String placeholderSecret = readConfigValue(
+      Flavor.dev,
+      NaverStep.clientSecretField,
+    )!;
+    // 형식 검사는 이 자리표시를 거르지 못한다 — 막는 것은 example 대조뿐이다.
+    expect(naverClientId.matches(placeholderId), isTrue);
+    expect(naverClientSecret.matches(placeholderSecret), isTrue);
+    final String clientId = buildClientId();
+    final String clientSecret = buildClientSecret();
+    final h = _Harness(root, <String?>[
+      'y',
+      '1',
+      clientId,
+      clientSecret,
+      'myappnaverdev',
+    ]);
+    h
+      ..registerFreshSecrets(clientId, clientSecret)
+      ..onPairCheck(<RestResponse>[const RestResponse(200, '')]);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone, reason: h.output);
+    expect(countQuestions(h, NaverStep.clientIdField.label), 1);
+    expect(h.screen.secretAsks, <String>[secretQuestion]);
+    expect(h.secretWrites.map((FakeCall call) => call.stdinText), <String>[
+      clientId,
+      clientSecret,
+    ]);
+    expect(readConfigValue(Flavor.dev, NaverStep.clientIdField), clientId);
+    expect(
+      readConfigValue(Flavor.dev, NaverStep.clientSecretField),
+      clientSecret,
+    );
   });
 
   group('T-20.1-ROW-01: 실제 Naver 실행 화면의 값 표 마지막 행이 로고 이미지 경로이고 '
