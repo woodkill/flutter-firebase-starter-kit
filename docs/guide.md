@@ -3131,7 +3131,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 9 | `ios/Runner.xcodeproj/project.pbxproj` | 번들 ID(`bin/rename.dart`) · Xcode 가 저장하는 설정 | 중간 (Flutter · Xcode 상향 · 플러그인) | 충돌이 잦다. 번들 ID 줄은 내 값 · 나머지는 킷 값을 받고 Xcode 로 열어 확인한다 |
 | 10 | `ios/Flutter/*.example.xcconfig` · `config/*.example.json` | 고치지 않는다(복사 원본) | 높음 | 충돌 없음(고치지 않았다면) |
 | 11 | `pubspec.yaml` 의 `version:` | 앱 버전 · 빌드 번호 | 없음 (킷은 이 줄을 고치지 않는다) | 충돌 없음 |
-| 12 | `pubspec.yaml` 의 `description:` · `dependencies` | 앱 설명 · 의존성 추가 | 높음 (의존성 상향) | 다른 줄은 자동 병합 · 같은 줄은 내 값 |
+| 12 | `pubspec.yaml` 의 `description:` · `dependencies` · `flutter:` 아래 `assets` · `fonts` · `config` | 앱 설명 · 의존성 추가 · 앱 자산 · 글꼴 추가 · 빌드 대상 켜기 | 높음 (의존성 상향 · 자산 추가) | 다른 줄은 자동 병합 · 같은 줄은 내 값 · 같은 자리에 양쪽이 서로 다른 항목을 더해 충돌하면 양쪽 줄을 모두 남긴다 |
 | 13 | `pubspec.lock` | `fvm flutter pub upgrade` 결과 | 높음 | 충돌하면 킷 판(`git checkout --theirs -- pubspec.lock` · `git add pubspec.lock`)을 받고 `fvm flutter pub get` |
 | 14 | `flutter_native_splash.yaml` · `assets/images/splash/logo.png` · `logo_dark.png` | 스플래시 색 · 로고 | 낮음 | 내 값 · `fvm dart run flutter_native_splash:create` 로 다시 만든다 |
 | 15 | 스플래시 생성물(`android/app/src/main/res/drawable*/launch_background.xml` · `values*/styles.xml` · `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Base.lproj/LaunchScreen.storyboard`) | 14 를 다시 만든 결과 | 낮음 | 다시 만들어 덮어쓴다 |
