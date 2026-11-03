@@ -19,6 +19,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/app_font.dart';
 import '../../helpers/source_text.dart';
 
+/// 앱 글꼴 family 이름 — 글꼴을 바꾸면 이 값을 고친다(pubspec family 와 같다).
+const String _fontFamilyName = 'PretendardJP';
+
 /// 앱 글꼴 파일의 크기(bytes) — 글꼴을 바꾸면 이 값을 고친다(`wc -c`).
 const int _fontFileBytes = 13087888;
 
@@ -120,7 +123,7 @@ Future<TextStyle?> _readLocalizedBodyMedium(
 void main() {
   group('앱 글꼴 계약', () {
     test('M3V-FONT-01 테마 15 스타일이 앱 글꼴만 쓴다', () {
-      expect(AppTheme.fontFamily, 'PretendardJP');
+      expect(AppTheme.fontFamily, _fontFamilyName);
       final themes = <String, ThemeData>{
         'light': AppTheme.light(),
         'dark': AppTheme.dark(),
