@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.7] - 2026-11-03
+
 ### Fixed
 
 - 설정 위저드 「Naver 로그인」 단계가 밑줄(`_`)이 든 Client ID · Client Secret 을 받는다. 콘솔에서 복사한 값인데 `형식이 맞지 않습니다` 가 세 번 나오고 위저드가 멈추던 문제를 고친다. 바뀐 파일은 `tool/setup/providers/key_formats.dart` · `test/tool/setup/` 의 위저드 시험 파일이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
@@ -140,7 +142,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.6...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.7...HEAD
+[1.0.0-rc.7]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.7
 [1.0.0-rc.6]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.6
 [1.0.0-rc.5]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.5
 [1.0.0-rc.4]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.4
