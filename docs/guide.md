@@ -1163,7 +1163,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ## 디자인 토큰 바꾸기
 
-앱의 색 · 글자 스타일 · 간격 · 아이콘 크기 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
+앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
@@ -1254,6 +1254,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
    - 기하를 extension 에 미리 넣어 두면 로케일을 바꿀 때 어긋난다.
 5. **글꼴은 `ThemeData(fontFamily:)` 또는 `textTheme` 으로 바꾼다** — extension 을 건드리지 않는다.
    - 등록 레이어에 `fontFamily` 가 있으면 `merge` 단계에서 사용자가 바꾼 글꼴을 다시 덮어쓴다. 등록 레이어를 `empty` 로 두는 까닭이다.
+   - 킷이 싣는 앱 글꼴과 바꾸거나 빼는 자리는 [6. 앱 글꼴 바꾸기 · 빼기](#6-앱-글꼴-바꾸기--빼기) 를 본다.
 
 일부 스타일만 바꾸려면 `AppTypography.empty.copyWith(...)` 로 override 를 채워 등록한다.
 - `lib/app.dart` 의 `theme:` 줄에서 `AppTheme.light(seedColor: seed)` 뒤에 `copyWith` 를 붙인다(다크도 같은 꼴로 `Brightness.dark` 를 쓴다).
@@ -1401,6 +1402,52 @@ LayoutBuilder(
 - 그래서 wrapper 는 `includeSemantics: false` 로 자기 의미론을 숨기는 대신 `Semantics(focusable:, onFocus:)` 를 직접 노출하고, focus 요청을 첫 traversal 자손(실제 버튼의 `InkWell`)에게 넘긴다.
 - 스크린리더의 focus 요청이 실제 버튼에 닿는다.
 
+### 6. 앱 글꼴 바꾸기 · 빼기
+
+킷은 앱 글꼴로 Pretendard JP 를 싣고 테마 글꼴(`AppTheme.fontFamily`)로 건다 — 앱 언어 · OS 와 상관없이 한글 · 가나 · 한자 · 영문이 같은 글꼴로 그려진다.
+- 파일은 `assets/fonts/pretendard-jp/PretendardJPVariable.ttf` 이고 앱 크기가 약 13.1MB(압축 약 6.9MB) 늘어난다.
+- 소셜 로그인 버튼 라벨은 이 글꼴을 쓰지 않는다 — Android 는 Roboto, iOS 는 시스템 글꼴로 그리고 한글 · 가나는 기기 글꼴로 넘긴다.
+- 키보드 · 알림 · 시스템 권한 창처럼 OS 가 그리는 화면은 이 글꼴과 상관없다.
+- 한글 · 가나 · 한자가 없는 글꼴로 바꾸면 그 글자는 기기 글꼴로 그려져 기기 · 앱 언어마다 모양이 달라진다.
+
+다른 글꼴로 바꾸거나 빼려면 아래 자리를 함께 고친다.
+
+1. **글꼴 디렉터리를 바꾸거나 지운다.**
+   - 바꾸려면 `assets/fonts/` 아래에 내 글꼴 디렉터리(글꼴 파일 · 라이선스 파일 · 출처 README)를 만들어 `git add` 하고 `git rm -r assets/fonts/pretendard-jp` 로 킷 글꼴을 지운다.
+   - 빼려면 `git rm -r assets/fonts/pretendard-jp` 만 한다. 시험이 git 이 추적하는 파일 목록을 보므로 `git add` · `git rm` 으로 바꾼다.
+2. **`pubspec.yaml` 의 `flutter:` → `fonts:` 에서 `PretendardJP` family 블록을 고치거나 지운다.**
+   - 바꾸려면 `- family: PretendardJP` 를 내 family 이름으로, 그 아래 `- asset:` 경로를 내 글꼴 파일 경로로 고친다. 가변 글꼴이면 `weight:` 줄 없이 쓴다.
+   - 빼려면 블록 세 줄(`- family: PretendardJP` · `fonts:` · `- asset: assets/fonts/pretendard-jp/PretendardJPVariable.ttf`)과 그 위 주석 세 줄을 지운다.
+3. **`lib/core/theme/app_theme.dart` 의 `AppTheme.fontFamily` 를 고치거나 지운다.**
+   - 바꾸려면 `static const String fontFamily = 'PretendardJP';` 의 값을 내 family 이름으로 고친다.
+   - 빼려면 그 상수와 doc 주석, `light()` · `dark()` 의 `ThemeData(...)` 안 `fontFamily: fontFamily` 인자, `[fontFamily] 를 테마 글꼴로 건다.` doc 주석 줄 셋을 지운다. 앱 글자가 기기 기본 글꼴로 돌아간다.
+4. **`LICENSE` 제3자 자산 절의 `assets/fonts/pretendard-jp/OFL.txt` 줄을 내 라이선스 파일 줄로 바꾸거나 지운다.**
+   - 목록은 경로 알파벳 순이다.
+5. **시험의 글꼴 값을 고친다.**
+   - 바꾸려면 `test/helpers/app_font.dart` 의 `kAppFontAssetPath` 와 `test/core/theme/app_font_test.dart` 맨 위 값(family 이름 · 파일 크기 · sha256 · 라이선스 파일 경로 · 크기 · sha256)을 내 파일 값으로 고친다.
+   - 크기는 `wc -c`, sha256 은 `shasum -a 256` 으로 잰다.
+   - 빼려면 그 두 파일을 지우고, `test/features/settings/presentation/settings_golden_harness.dart` · `test/features/auth/presentation/auth_surfaces_golden_test.dart` 의 `await loadAppFont();` 줄과 `import '../../../helpers/app_font.dart';` 줄을 지운다.
+   - 라이선스 파일 수가 바뀌면 `test/release/public_artifacts_test.dart` 의 `expect(listed.length, 10, …)` 의 `10` 을 `LICENSE` 제3자 절 목록 줄 수에 맞춘다.
+   - 내 화면 golden 하네스를 만들었다면 그 하네스도 `loadAppFont()` 를 부른다(빼면 그 호출을 지운다).
+6. **화면 golden 을 다시 만든다.**
+
+   ```bash
+   fvm flutter test --update-goldens \
+     test/features/auth/presentation/auth_surfaces_golden_test.dart \
+     test/features/home/home_announcement_golden_test.dart \
+     test/features/not_found/not_found_screen_golden_test.dart \
+     test/features/settings/presentation/account_screen_golden_test.dart \
+     test/features/settings/presentation/settings_screen_golden_test.dart \
+     test/features/settings/presentation/withdrawal_disconnect_golden_test.dart \
+     test/shared/widgets/error_fallback_golden_test.dart
+   ```
+
+   - 소셜 버튼 golden(`test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart`)은 글꼴과 상관없어 다시 만들지 않는다.
+   - 다시 만든 그림은 이 절 「확인 방법」 의 golden 안내대로 눈으로 본 뒤 커밋한다.
+7. **분석과 시험을 돌리고 앱에서 글꼴을 확인한다.**
+   - `fvm flutter analyze` 와 `fvm flutter test` 가 통과하는지 본다.
+   - 앱을 다시 빌드해 앱 언어를 일본어로 바꾼 뒤 설정 화면 「言語」 행의 선택창에서 「한국어」 가 바꾼 글꼴로 그려지는지 본다.
+
 ### 확인 방법
 
 - 앱을 다시 빌드해 실행한다.
@@ -1447,6 +1494,9 @@ LayoutBuilder(
 - **`brandColor` 를 바꿨는데 앱 색이 보라색이다.**
   - 값이 `#RRGGBB` 형식이 아니면 `AppTheme.seedColor` 로 칠한다.
   - 형식을 고친 뒤 앱을 다시 빌드한다.
+- **화면 golden 의 글자가 네모 상자로 그려진다.**
+  - 테마가 쓰는 글꼴을 golden 하네스가 올리지 않으면 flutter 시험 환경은 그 글자를 상자로 그린다.
+  - 두 하네스가 `loadAppFont()` 를 부르는지, `kAppFontAssetPath` 가 `pubspec.yaml` 의 asset 경로와 같은지 본다.
 
 ### 되돌리기
 

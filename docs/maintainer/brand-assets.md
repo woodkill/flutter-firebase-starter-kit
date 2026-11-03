@@ -5,7 +5,7 @@
 소셜 로그인 버튼 6개가 그리는 로고 자산을 다시 받거나 바꿀 때의 절차다. 자산마다 README
 (`assets/brand/<provider>/README.md`)가 공식 BI URL · 자산 다운로드 URL · 라이선스 · 사전
 검수 절차를 담고, 이 문서는 그 README 들을 갱신하는 순서와 받은 날을 담는다.
-버튼 라벨 글꼴(`assets/fonts/`) · 시험 글꼴(`assets/test_fonts/`)의 받은 날 · 만든 날과 시험 글꼴
+번들 글꼴(`assets/fonts/` — 앱 글꼴 · 버튼 라벨 글꼴) · 시험 글꼴(`assets/test_fonts/`)의 받은 날 · 만든 날과 시험 글꼴
 subset 을 다시 만드는 법도 여기에 둔다.
 
 ---
@@ -144,6 +144,7 @@ assets/brand/
 | Naver 로고(`naver/btn_signin_icon.svg`) | 2026-05-09 받음(NAVER ID 로그인 BI 디자인 가이드 자료) | https://developers.naver.com/docs/login/bi/bi.md |
 | LINE 로고(`line/btn_signin_icon.svg`) | 2026-05-19 받음(LINE Login Button Image ZIP · Usage Guidelines 원문 발췌) | https://developers.line.biz/en/docs/line-login/login-button/ · https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button |
 | Google Sans 글꼴(`assets/fonts/googlesans/GoogleSans-Latin-wght.ttf`) | 2026-10-12 원본 가변 파일 `GoogleSans[GRAD,opsz,wght].ttf` 를 받아 라틴 subset 을 만듦 | https://github.com/google/fonts/tree/main/ofl/googlesans |
+| Pretendard JP 글꼴(`assets/fonts/pretendard-jp/PretendardJPVariable.ttf` · `OFL.txt`) | 2026-11-03 tag `v1.3.9` 의 가변 파일 · LICENSE 를 그대로 받음 | https://github.com/orioncactus/pretendard |
 | Roboto 글꼴(`assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf`) | 2026-05-16 받음(가변 파일 그대로) | https://github.com/google/fonts/tree/main/ofl/roboto |
 | 시험 글꼴 subset(`assets/test_fonts/NotoSansCJKKR-Regular-Subset.otf` · `NotoSansCJKJP-Regular-Subset.otf`) | 2026-09-26 KR · JP 를 만듦 · JP 를 마지막으로 다시 만든 날 2026-10-03 | 원본 = Android Studio 동봉 AOSP 시스템 폰트 `NotoSansCJK-Regular.ttc` · https://github.com/notofonts/noto-cjk |
 | 시험 글꼴 라이선스 사본(`assets/test_fonts/NotoSansCJK_LICENSE.txt`) | upstream 마지막 변경 커밋 `a99a4354c68964f6bfac488d01010b1fb6d9178a`(2022-03-20) 의 원문 사본 | https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/LICENSE |
@@ -178,7 +179,7 @@ uv venv /tmp/ftenv && uv pip install --python /tmp/ftenv/bin/python fonttools==4
 자산 · README 를 바꾼 뒤 아래를 돌린다.
 
 ```bash
-fvm flutter test --no-pub test/features/auth/presentation/_widgets/ test/docs test/release/public_artifacts_test.dart
+fvm flutter test --no-pub test/features/auth/presentation/_widgets/ test/core/theme/app_font_test.dart test/docs test/release/public_artifacts_test.dart
 ```
 
 | 시험 파일 | 지키는 것 |
@@ -186,7 +187,8 @@ fvm flutter test --no-pub test/features/auth/presentation/_widgets/ test/docs te
 | `test/features/auth/presentation/_widgets/brand_assets_lint_test.dart` | `kPlaceholderProviders` 가 비어 있음 · 자산 디렉토리에 `.placeholder` 가 없음 · 여섯 README 의 7개 제목 |
 | `test/features/auth/presentation/_widgets/brand_label_whitelist_test.dart` | ARB 의 로그인 버튼 문구 ↔ 공식 가이드 문구 |
 | `test/features/auth/presentation/_widgets/branded_social_button_golden_test.dart` | 버튼 6개 × 밝기 2 × 플랫폼 2 의 그림(허용 오차 0) |
-| `test/features/auth/presentation/_widgets/brand_button_assets_test.dart` | 자산 · 글꼴 파일의 sha256 · 번들 선언 · Google · Apple 자산 디렉토리의 추적 파일 집합(T-177-ASSET-12) |
+| `test/features/auth/presentation/_widgets/brand_button_assets_test.dart` | 자산 · 글꼴 파일의 sha256 · 번들 선언 · 글꼴 디렉터리 추적 파일 집합(T-177-ASSET-11 · 앱 글꼴 포함) · Google · Apple 자산 디렉토리의 추적 파일 집합(T-177-ASSET-12) |
+| `test/core/theme/app_font_test.dart` | 앱 글꼴 파일 · 라이선스 파일 sha256 · pubspec 선언 · 테마 연결 · golden 하네스 등록(M3V-FONT-01 ~ 03) |
 | `test/features/auth/presentation/_widgets/docs_compliance_lint_test.dart` | Facebook · Google · Kakao · Naver 디렉토리의 `LICENSE.txt` · `README.md` 동시 존재 · Facebook README 의 `sign_in_button` 언급과 7개 제목 · `facebook/facebook_login.png` 가 없음 |
 | `test/release/public_artifacts_test.dart` | 추적되는 자산 라이선스 파일 목록 = 루트 `LICENSE` 제3자 절 경로 목록(T-174-ART-03) |
 | `test/docs/` | README 의 사용자 문서 금지 패턴 0(T-21-DOCS-02) · 링크 · 앵커가 풀림(T-21-LINK-02) |

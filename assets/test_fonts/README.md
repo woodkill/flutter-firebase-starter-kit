@@ -38,8 +38,8 @@ attribution 보존 의무.
 
 ### 왜 필요한가
 
-앱은 한글 · 가나 · 한자 폰트를 bundle 하지 않는다. production Android 는 `Roboto`
-(`pubspec.yaml` fonts:) 에 없는 글리프를 **시스템 fallback** 으로 그린다. AOSP 의
+앱 글자는 번들한 Pretendard JP 가 그리지만, 로그인 버튼 라벨은 Android 에서
+`Roboto`(`pubspec.yaml` fonts:) 에 없는 한글 · 가나를 **시스템 fallback** 으로 그린다. AOSP 의
 fallback 은 `NotoSansCJK-Regular.ttc` 이며 `font_fallback.xml` 이 ko → face 1
 (Noto Sans CJK KR) · ja → face 0 (JP) 으로 매핑한다. Samsung One UI 단말의 실제
 fallback 폰트는 확인하지 않았다.
@@ -47,7 +47,7 @@ fallback 폰트는 확인하지 않았다.
 flutter_tester 는 `FontLoader` 로 올린 폰트로 **자동 fallback 하지 않는다** — Roboto
 만 올린 golden 은 한글 자리에 tofu 가 찍힌다. 그래서 ko/ja
 golden 은 이 파일을 별도 family 로 올리고, **테스트 전용** ThemeData 에
-`textTheme.apply(fontFamilyFallback: [<family>])` 를 건다 (`lib/` 변경 0).
+`textTheme.apply(fontFamilyFallback: [<family>])` 를 건다 (`lib/` 변경 0 · 버튼 라벨용).
 
 ### 출처
 

@@ -10,10 +10,10 @@
 
 ## 채택 사유
 
-번들 Roboto 는 Android 에서 두 곳에 쓰인다. 앱의 영문 글자가 이 파일로
-그려지고(`pubspec.yaml` 이 family `Roboto` 로 선언한다 — Flutter Material 이
-Android 에서 쓰는 기본 글꼴 이름이다), Google 을 뺀 5개 로그인 버튼의 라벨도
-이 글꼴을 쓴다(상수 `kBrandLabelFontFamily`). Google 버튼 라벨의 영문은
+번들 Roboto 는 Android 에서 Google 을 뺀 5개 로그인 버튼의 라벨에 쓰인다(상수
+`kBrandLabelFontFamily` · `pubspec.yaml` 의 family `Roboto`). 앱의 다른 글자는
+테마 글꼴 Pretendard JP 로 그려진다 — `assets/fonts/pretendard-jp/README.md`.
+Google 버튼 라벨의 영문은
 Google Sans 다 — `assets/fonts/googlesans/README.md`. iOS · macOS 에서는 버튼
 라벨이 시스템 글꼴로 그려진다(상수 `kBrandLabelFontFamilyApple`).
 
@@ -27,7 +27,7 @@ Google Sans 다 — `assets/fonts/googlesans/README.md`. iOS · macOS 에서는 
 4. Skia **synthetic bold** 적용 → 글자 더 굵음
 
 Roboto variable font asset 을 bundle 함으로써:
-- production Android: 앱의 영문 글자와 Google 을 뺀 5개 버튼 라벨이 bundled Roboto 로 그려진다
+- production Android: Google 을 뺀 5개 버튼 라벨이 bundled Roboto 로 그려진다
 - production iOS/macOS: 버튼 라벨이 시스템 글꼴로 그려진다 (`kBrandLabelFontFamilyApple`)
 - test env (macOS host): 화면 golden 하네스가 이 파일을 family `Roboto` 로 올린다
   (synthetic bold 회피). 버튼 단독 golden 은 `assets/test_fonts/Roboto-Medium.ttf` 를 올린다

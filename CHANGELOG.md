@@ -14,6 +14,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- 앱 전체 글자(한글 · 가나 · 한자 · 영문)를 킷이 싣는 Pretendard JP 글꼴로 그린다. 기기 대체 글꼴은 기기와 앱 언어마다 달라, 앱 언어를 일본어로 두면 일부 Android 기기에서 한글이 명조로 그려지는 등 글꼴이 섞이던 문제를 고친다. 앱 크기가 약 13.1MB(압축 약 6.9MB) 늘어나고, 소셜 로그인 버튼 라벨은 그대로 기기 기본 글꼴이다. 바뀐 파일은 `assets/fonts/pretendard-jp/` · `pubspec.yaml` · `lib/core/theme/app_theme.dart` · `LICENSE` · `test/helpers/app_font.dart` · 화면 golden 하네스 두 파일(`test/features/settings/presentation/settings_golden_harness.dart` · `test/features/auth/presentation/auth_surfaces_golden_test.dart`) · 화면 golden 이고 merge 로 끝난다. 글꼴을 직접 올리는 내 golden 하네스가 있으면 `loadAppFont()` 를 함께 부르고 golden 을 다시 만든다. 글꼴을 바꾸거나 빼려면 `docs/guide.md` 「디자인 토큰 바꾸기」 의 「6. 앱 글꼴 바꾸기 · 빼기」 를 따른다.
+
 ## [1.0.0-rc.7] - 2026-11-03
 
 ### Fixed
