@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.8] - 2026-11-03
+
 ### 사용자 조치
 
 - 킷 테마(`AppTheme`)로 화면을 그리는 golden 시험을 직접 만든 저장소는 merge 뒤 `fvm flutter test --update-goldens <그 시험 파일>` 로 golden 을 다시 만든다. 테마 글꼴이 Pretendard JP 로 바뀌어 글자 모양이 달라진다. 킷 하네스의 `loadGoldenFonts()`(`test/features/settings/presentation/settings_golden_harness.dart`)를 쓰는 시험은 앱 글꼴도 함께 올라가므로 다시 만들기만 하면 된다. 글꼴을 직접 올리는 시험은 `setUpAll` 에서 `await loadAppFont();`(`test/helpers/app_font.dart`)도 부른다 — flutter_tester 는 `pubspec.yaml` 의 글꼴을 스스로 올리지 않아, 부르지 않으면 글자가 네모 상자로 그려진다. 직접 만든 golden 시험이 없으면 할 일이 없다.
@@ -150,7 +152,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.7...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.8...HEAD
+[1.0.0-rc.8]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.8
 [1.0.0-rc.7]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.7
 [1.0.0-rc.6]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.6
 [1.0.0-rc.5]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.5
