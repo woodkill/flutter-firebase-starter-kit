@@ -190,12 +190,19 @@ flutter:
     - assets/brand/facebook/
     - assets/brand/line/
 
-  # 앱에 싣는 글꼴은 둘이다 — Roboto(앱 전체의 영문 글자)와 Google Sans 라틴
-  # subset(Google 로그인 버튼의 영문 라벨). 한글 · 가나는 기기 글꼴로 그려진다.
+  # 앱에 싣는 글꼴은 셋이다 — Pretendard JP(앱 전체 글자), Roboto(Android 의
+  # 로그인 버튼 라벨), Google Sans 라틴 subset(Google 로그인 버튼의 영문 라벨).
+  # 로그인 버튼 라벨의 한글 · 가나는 기기 글꼴로 그려진다.
   # 글꼴을 더하려면 아래에 family 를 더하고 그 라이선스 파일을 LICENSE 에 적는다.
   fonts:
+    # Pretendard JP variable font — 앱 전체 글자(테마 `AppTheme.fontFamily`)를
+    # 그린다. SIL OFL 1.1 (`assets/fonts/pretendard-jp/OFL.txt`, `README.md`).
+    # 굵기는 파일의 `wght` 축(100-900)으로 그린다 — weight 줄을 두지 않는다.
+    - family: PretendardJP
+      fonts:
+        - asset: assets/fonts/pretendard-jp/PretendardJPVariable.ttf
     # Phase 13.3 Wave 4 Step 3 (2026-05-16) — Roboto variable font.
-    # Android 에서 앱의 영문 글자와 Google 을 뺀 5개 로그인 버튼의 라벨
+    # Android 에서 Google 을 뺀 5개 로그인 버튼의 라벨
     # (`kBrandLabelFontFamily`)에 쓴다 — iOS · macOS 의 버튼 라벨은 시스템
     # 글꼴이다. 번들해 두면 테스트 환경(macOS)에서 `Roboto` 가 시스템 글꼴로
     # 대체돼 w500 이 합성 굵기(synthetic bold)로 그려지는 일이 없다.

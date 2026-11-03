@@ -11,6 +11,7 @@ import 'app_typography.dart';
 /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] ThemeExtension을
 /// 등록한다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
+/// [fontFamily] 를 테마 글꼴로 건다.
 ///
 /// **타이포그래피 계약:** 등록되는 [AppTypography] 는 기하를 포함하지 않는
 /// **override 레이어**([AppTypography.empty])다. 로케일별 기하(ko/ja 는
@@ -29,16 +30,30 @@ abstract final class AppTheme {
   /// `AppTheme.light(seedColor: Colors.teal)`.
   static const MaterialColor seedColor = Colors.deepPurple;
 
+  /// 앱 전체 글자의 글꼴 family 이름이다.
+  ///
+  /// `pubspec.yaml` 이 `assets/fonts/pretendard-jp/PretendardJPVariable.ttf` 를
+  /// 이 이름으로 선언한다. Pretendard JP 는 한글 · 가나 · 한자 · 라틴을 한 파일에
+  /// 담아 앱 언어 · OS 와 상관없이 같은 글꼴로 그린다.
+  ///
+  /// 대체 글꼴 목록은 두지 않는다 — 소셜 로그인 버튼 라벨은 글꼴 이름을 직접
+  /// 지정하고, 그 글꼴에 없는 글자를 기기 글꼴로 넘긴다.
+  ///
+  /// 바꾸거나 빼는 법은 `docs/guide.md` 「디자인 토큰 바꾸기」 의 「6. 앱 글꼴
+  /// 바꾸기 · 빼기」 를 본다.
+  static const String fontFamily = 'PretendardJP';
+
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] 4개
   /// ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
+  /// [fontFamily] 를 테마 글꼴로 건다.
   static ThemeData light({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
-    final base = ThemeData(colorScheme: colorScheme);
+    final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
 
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[
@@ -57,13 +72,14 @@ abstract final class AppTheme {
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
+  /// [fontFamily] 를 테마 글꼴로 건다.
   static ThemeData dark({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
     );
     // brightness 미지정 — colorScheme 이 있으면 거기서 파생된다.
-    final base = ThemeData(colorScheme: colorScheme);
+    final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
 
     return base.copyWith(
       extensions: <ThemeExtension<dynamic>>[

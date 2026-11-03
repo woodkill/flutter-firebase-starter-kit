@@ -14,7 +14,7 @@
 // - iOS variant 미생성 — 본 phase 신규 delta 에 platform 분기가 0 이고,
 //   provider 버튼의 iOS 분기는 Phase 13.3
 //   `_widgets/branded_social_button_golden_test.dart` 가 별도 고정한다.
-// - ko/ja 미생성 — Roboto 에 CJK 글리프가 없어 tofu 로 렌더된다. 문자열
+// - ko/ja 미생성 — 버튼 라벨의 Roboto 에 CJK 글리프가 없어 tofu 로 렌더된다. 문자열
 //   자체는 `test/l10n/email_relegation_arb_verbatim_test.dart` 가 고정한다.
 //
 // **fixture 갱신:** `fvm flutter test --update-goldens <this file>` 후 PNG
@@ -49,6 +49,8 @@ import 'package:flutter_starter_kit/features/settings/presentation/account_scree
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../helpers/app_font.dart';
 
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 ///
@@ -133,8 +135,9 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 /// FlutterTest(Ahem) 정사각 box 로 렌더된다. 등록하는 family 와 순서는 다음과
 /// 같다.
 ///
-/// - `Roboto` — M3 textTheme 전체 (AppBar title · 본문 · CTA · 링크) +
-///   소셜 버튼 라벨(Google 을 뺀 5개).
+/// - `PretendardJP` — 앱 글꼴. M3 textTheme 전체 (AppBar title · 본문 · CTA ·
+///   링크) 를 그린다. `loadAppFont()` 가 올린다.
+/// - `Roboto` — 소셜 버튼 라벨(Google 을 뺀 5개).
 ///   production bundle 의 variable font 를 그대로 로드한다 — pubspec 이
 ///   'Roboto' family 로 선언하므로 실 단말도 이 자산으로 렌더한다
 ///   (golden = production 렌더). 기존 button golden 이 쓰는 static
@@ -143,6 +146,7 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 /// - `GoogleSans` — 번들한 라틴 축소본. Google 버튼의 라벨이 쓴다.
 /// - `MaterialIcons` — [_loadMaterialIcons].
 Future<void> _loadGoldenFonts() async {
+  await loadAppFont();
   await _loadFamily('Roboto', <String>[
     'assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf',
   ]);

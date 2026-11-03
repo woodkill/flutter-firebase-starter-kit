@@ -7,7 +7,8 @@
 //
 // **캡처 계약 (UI-SPEC §Golden 캡처 계약):** 280×800 logical · DPR 3 · 빈
 // `Scaffold` 위 `MaterialPageRoute` push 진입(AppBar back 화살표 포함) ·
-// production 폰트 FontLoader + `assets/test_fonts` Noto Sans CJK KR/JP subset ·
+// production 폰트 FontLoader(앱 글꼴 포함) + `assets/test_fonts` Noto Sans CJK
+// KR/JP subset ·
 // test 전용 ThemeData 에만 `fontFamilyFallback` · `find.byType(MaterialApp)`
 // 전체 캡처 · viewport 는 `tester.view` 로 주입(MediaQuery 동기화).
 //
@@ -31,6 +32,8 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../helpers/app_font.dart';
 
 /// golden device pixel ratio — mockup 촬영 조건(DPR 3)과 같다.
 const double kGoldenDpr = 3;
@@ -70,13 +73,16 @@ Future<void> _loadFamily(String family, List<String> paths) async {
 
 /// golden 폰트 family 와 CJK subset 2종을 등록한다.
 ///
-/// 순서 = `Roboto` → `GoogleSans`(Google 버튼의 라벨) → `MaterialIcons` →
-/// `MockCjkKR` · `MockCjkJP`.
+/// 순서 = `PretendardJP`(앱 글꼴 · 테마 글자 전체) → `Roboto`(버튼 라벨) →
+/// `GoogleSans`(Google 버튼의 라벨) → `MaterialIcons` → `MockCjkKR` ·
+/// `MockCjkJP`.
 ///
 /// flutter_test 는 pubspec `fonts:` 를 자동 로드하지 않고 동적 로드 폰트로
-/// 자동 fallback 하지도 않는다 — ko/ja 글리프는 [goldenTheme] 의 test 전용
-/// `fontFamilyFallback` 으로만 CJK subset 에 닿는다.
+/// 자동 fallback 하지도 않는다. 테마 글자의 한글 · 가나는 앱 글꼴이 그리고,
+/// [goldenTheme] 의 test 전용 CJK `fontFamilyFallback` 은 이제 버튼
+/// 라벨(Roboto)의 한글 · 가나에만 닿는다.
 Future<void> loadGoldenFonts() async {
+  await loadAppFont();
   await _loadFamily('Roboto', <String>[
     'assets/fonts/roboto/Roboto-VariableFont_wdth_wght.ttf',
   ]);
@@ -115,8 +121,9 @@ List<String>? goldenCjkFamilies(String lang) => switch (lang) {
 
 /// production [AppTheme] + ko/ja 만 test 전용 CJK `fontFamilyFallback`.
 ///
-/// `lib/` 테마는 건드리지 않는다 — Android 시스템 CJK fallback 을 test 에서
-/// 재현하는 장치다 (UI-SPEC §Mockup CJK 재현성).
+/// `lib/` 테마는 건드리지 않는다 — 로그인 버튼 라벨의 한글 · 가나가 기기 글꼴로
+/// 넘어가는 것을 test 에서 재현한다. 테마 글자는 앱 글꼴이 그린다
+/// (UI-SPEC §Mockup CJK 재현성).
 ThemeData goldenTheme(Brightness brightness, String lang) {
   final base = brightness == Brightness.light
       ? AppTheme.light()

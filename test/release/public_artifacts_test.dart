@@ -352,7 +352,7 @@ void main() {
         '- ',
       ).map((String line) => line.substring(2).split(' ').first).toList();
 
-      expect(listed.length, 9, reason: 'LICENSE 제3자 절은 9경로를 나열한다: $listed');
+      expect(listed.length, 10, reason: 'LICENSE 제3자 절은 10경로를 나열한다: $listed');
       expect(
         listed.toSet(),
         tracked,

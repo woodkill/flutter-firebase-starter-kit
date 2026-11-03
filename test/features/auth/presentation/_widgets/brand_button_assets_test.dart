@@ -7,6 +7,9 @@
 // 원문이 있어야 하는 대조(원본 글꼴 · 공식 버튼 그림)는 opt-in 이다 — 원문은
 // 저장소에 싣지 않고, 경로를 `--dart-define` 으로 준 실행에서만 돈다. 받는 곳과
 // 해시는 각 자산의 README 에 있다.
+//
+// 글꼴 디렉터리 목록(ASSET-11)은 앱 글꼴 Pretendard JP 도 센다 — 그 파일 · 테마
+// 연결의 계약은 `test/core/theme/app_font_test.dart` 다.
 
 import 'dart:convert';
 import 'dart:io';
@@ -177,6 +180,20 @@ const List<String> _fontAssetFiles = <String>[
 
 /// 앱이 `fontFamily` 로 쓰는 family 이름 — pubspec 이 선언해야 한다.
 const List<String> _bundledFontFamilies = <String>['Roboto', _gsansFamily];
+
+/// 킷 저장소의 앱 글꼴 디렉터리 파일 목록 — 글꼴 · 라이선스 · 문서.
+///
+/// 유지보수자 트리에서만 쓴다. 킷 사용자가 앱 글꼴을 바꾸거나 빼도 컴파일이
+/// 깨지지 않게 lib · 시험 헬퍼를 import 하지 않고 리터럴로 둔다.
+const List<String> _appFontAssetFiles = <String>[
+  '$_fontAssetDir/pretendard-jp/OFL.txt',
+  '$_fontAssetDir/pretendard-jp/PretendardJPVariable.ttf',
+  '$_fontAssetDir/pretendard-jp/README.md',
+];
+
+/// 킷 저장소의 앱 글꼴 family 이름 — 유지보수자 트리에서만 쓴다(리터럴 이유는
+/// [_appFontAssetFiles] 와 같다).
+const String _appFontFamily = 'PretendardJP';
 
 /// 킷 발행 규칙 파일이 있는 트리(유지보수자 트리)에서만 집합 대조를 돌린다.
 const List<String> _maintainerOnlyDocs = <String>[kMaintainerTreeMarker];
@@ -891,13 +908,16 @@ void main() {
 
       expect(
         tracked,
-        _fontAssetFiles.toSet(),
-        reason: '$_fontAssetDir 의 추적 파일이 Google Sans 3개 + Roboto 3개가 아니다',
+        <String>{..._fontAssetFiles, ..._appFontAssetFiles},
+        reason:
+            '$_fontAssetDir 의 추적 파일이 Google Sans 3개 + Pretendard JP 3개 + '
+            'Roboto 3개가 아니다',
       );
       expect(
         families,
-        unorderedEquals(_bundledFontFamilies),
-        reason: 'pubspec fonts: 의 family 가 Roboto · GoogleSans 둘이 아니다',
+        unorderedEquals(<String>[..._bundledFontFamilies, _appFontFamily]),
+        reason:
+            'pubspec fonts: 의 family 가 Roboto · GoogleSans · PretendardJP 셋이 아니다',
       );
     }, skip: skipUnlessPlanningDocsExist(_maintainerOnlyDocs));
 
