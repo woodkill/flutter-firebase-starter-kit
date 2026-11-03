@@ -16,7 +16,7 @@
 
 ### 사용자 조치
 
-- 킷 테마(`AppTheme`)로 화면을 그리는 golden 시험을 직접 만든 저장소는 merge 뒤 그 시험의 `setUpAll` 에서 `await loadAppFont();`(`test/helpers/app_font.dart`)를 부르고 `fvm flutter test --update-goldens <그 시험 파일>` 로 golden 을 다시 만든다. 테마 글꼴이 Pretendard JP 로 바뀌었는데 flutter_tester 는 `pubspec.yaml` 의 글꼴을 스스로 올리지 않아, 부르지 않으면 글자가 네모 상자로 그려져 golden 비교가 실패한다. 직접 만든 golden 시험이 없으면 할 일이 없다.
+- 킷 테마(`AppTheme`)로 화면을 그리는 golden 시험을 직접 만든 저장소는 merge 뒤 `fvm flutter test --update-goldens <그 시험 파일>` 로 golden 을 다시 만든다. 테마 글꼴이 Pretendard JP 로 바뀌어 글자 모양이 달라진다. 킷 하네스의 `loadGoldenFonts()`(`test/features/settings/presentation/settings_golden_harness.dart`)를 쓰는 시험은 앱 글꼴도 함께 올라가므로 다시 만들기만 하면 된다. 글꼴을 직접 올리는 시험은 `setUpAll` 에서 `await loadAppFont();`(`test/helpers/app_font.dart`)도 부른다 — flutter_tester 는 `pubspec.yaml` 의 글꼴을 스스로 올리지 않아, 부르지 않으면 글자가 네모 상자로 그려진다. 직접 만든 golden 시험이 없으면 할 일이 없다.
 
 ### Changed
 
