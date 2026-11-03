@@ -1429,6 +1429,7 @@ LayoutBuilder(
    - 빼려면 그 두 파일을 지우고, `test/features/settings/presentation/settings_golden_harness.dart` · `test/features/auth/presentation/auth_surfaces_golden_test.dart` 의 `await loadAppFont();` 줄과 `import '../../../helpers/app_font.dart';` 줄을 지운다.
    - 라이선스 파일 수가 바뀌면 `test/release/public_artifacts_test.dart` 의 `expect(listed.length, 10, …)` 의 `10` 을 `LICENSE` 제3자 절 목록 줄 수에 맞춘다.
    - 내 화면 golden 하네스를 만들었다면 그 하네스도 `loadAppFont()` 를 부른다(빼면 그 호출을 지운다).
+   - 고친 뒤 `fvm dart format lib test` 로 Dart 파일을 정리한다. import 줄을 지운 자리의 빈 줄과 경로 길이가 바뀐 줄을 포매터가 맞춘다.
 6. **화면 golden 을 다시 만든다.**
 
    ```bash
