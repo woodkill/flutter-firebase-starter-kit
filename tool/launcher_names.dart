@@ -12,6 +12,8 @@
 //   빌드된 앱의 `<lang>.lproj/InfoPlist.strings` 에 `CFBundleDisplayName` 키 하나만
 //   얹고(다른 키는 보존 · binary plist), 빌드된 Info.plist 의 `CFBundleLocalizations`
 //   를 ARB 언어 목록으로 채운다. 저장소의 `ios/Runner/Info.plist` 는 건드리지 않는다.
+//   지난 빌드가 이름을 얹었다가 이번에 빠진 언어는 `DERIVED_FILE_DIR` 의 기록 파일
+//   (`launcher_names.manifest`) 기준으로 그 키만 빼고, 빈 파일 · 빈 lproj 는 지운다.
 //
 // 영어(template) ARB 의 `appTitle` 이 기본 이름(config 이름에서 flavor 접미사를 뗀
 // 값)과 다르거나 Android 빌드에 config `appName` 이 들어오지 않았으면, 고칠 곳을
@@ -746,6 +748,10 @@ String escapeAndroidString(String value) {
 
 /// iOS 빌드된 앱에 `<lproj>.lproj/InfoPlist.strings` 를 쓰고 Info.plist 의
 /// `CFBundleLocalizations` 를 [arbLocales] 로 채운다.
+///
+/// 지난 빌드가 이름을 얹었지만 이번 계획에 없는 lproj 는 기록 파일
+/// ([Options.iosManifestPath]) 기준으로 표시 이름 키만 빼고, 기록 파일을 이번
+/// lproj 목록으로 바꾼다.
 Future<List<String>> _writeIos(
   Options options,
   List<LauncherName> plan,
@@ -779,6 +785,12 @@ Future<List<String>> _writeIos(
       '${otherKeyCount > 0 ? ' (kept $otherKeyCount other key(s))' : ''}',
     );
   }
+  final current = <String>[
+    for (final entry in plan) '${toLprojName(entry.locale)}.lproj',
+  ];
+  final String manifestPath = options.iosManifestPath!;
+  await _removeStaleDisplayNames(bundleDir, manifestPath, current, log);
+  _writeManifest(manifestPath, current);
 
   final List<String> localizations = <String>{
     for (final String locale in arbLocales) toLprojName(locale),
@@ -792,6 +804,68 @@ Future<List<String>> _writeIos(
   ], infoPlist.path);
   log.add('set Info.plist $localizationsKey = ${jsonEncode(localizations)}');
   return written;
+}
+
+/// 기록 파일 줄이 따라야 하는 lproj 디렉터리 이름 꼴.
+///
+/// 이 꼴이 아닌 줄은 번들 밖을 가리킬 수 있으므로 무시한다.
+final RegExp _lprojEntryPattern = RegExp(r'^[A-Za-z0-9-]+\.lproj$');
+
+/// 기록 파일 [manifestPath] 에 있었지만 [current] 에 없는 lproj 에서 표시 이름
+/// 키를 뺀다.
+///
+/// 남은 키가 없으면 파일을, 그 뒤 lproj 디렉터리가 비면 디렉터리를 지운다.
+/// 기록에 없는 lproj(adopter 가 직접 둔 표시 이름 포함)는 건드리지 않는다.
+Future<void> _removeStaleDisplayNames(
+  String bundleDir,
+  String manifestPath,
+  List<String> current,
+  List<String> log,
+) async {
+  final manifest = File(manifestPath);
+  if (!manifest.existsSync()) return;
+  final List<String> previous;
+  try {
+    previous = manifest.readAsLinesSync();
+  } on FileSystemException catch (error) {
+    throw GeneratorException(
+      '지난 빌드 기록 파일을 읽지 못했다(${error.message}) — $manifestPath — '
+      '그 파일을 지우고 다시 빌드한다',
+    );
+  }
+  for (final line in previous) {
+    final String lproj = line.trim();
+    if (!_lprojEntryPattern.hasMatch(lproj) || current.contains(lproj)) {
+      continue;
+    }
+    final relativePath = '$lproj/InfoPlist.strings';
+    final file = File('$bundleDir/$relativePath');
+    if (!file.existsSync()) continue;
+    final Map<String, Object?> entries = await _readPlistAsJson(file);
+    if (!entries.containsKey(displayNameKey)) continue;
+    entries.remove(displayNameKey);
+    if (entries.isNotEmpty) {
+      await _writeBinaryPlist(file, entries);
+      log.add(
+        'unset $relativePath $displayNameKey '
+        '(kept ${entries.length} other key(s))',
+      );
+      continue;
+    }
+    file.deleteSync();
+    final Directory dir = file.parent;
+    if (dir.listSync().isEmpty) dir.deleteSync();
+    log.add('remove $relativePath');
+  }
+}
+
+/// 이번에 이름을 얹은 lproj 목록 [current] 를 기록 파일 [manifestPath] 에 쓴다.
+void _writeManifest(String manifestPath, List<String> current) {
+  File(manifestPath)
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync(
+      <String>[for (final lproj in current) '$lproj\n'].join(),
+    );
 }
 
 /// plist 파일을 JSON 객체로 읽는다 — 없으면 빈 맵. text · binary 모두 읽는다.

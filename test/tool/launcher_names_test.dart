@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../tool/launcher_names.dart' as gen;
+import '../helpers/source_text.dart';
 
 /// fixture 의 config 이름(flavor dev) — 기본 이름 `RunningPencil` + 접미사 ` Dev`.
 const String fixtureConfigName = 'RunningPencil Dev';
@@ -243,6 +244,115 @@ Future<String> captureGeneratorMessage(Future<Object?> Function() run) async {
   }
   fail('GeneratorException 이 나지 않았다');
 }
+
+/// macOS `plutil` 이 없는 기계에서 iOS 쓰기 시험을 건너뛰는 까닭(macOS 면 false).
+final Object skipWithoutPlutil = Platform.isMacOS
+    ? false
+    : 'iOS 쓰기는 macOS /usr/bin/plutil 로 plist 를 읽고 쓴다';
+
+/// `/usr/bin/plutil` 을 [arguments] 로 실행하고 stdout 을 돌려준다 — 실패하면 시험 실패.
+String runPlutil(List<String> arguments) {
+  final ProcessResult result = Process.runSync('/usr/bin/plutil', arguments);
+  if (result.exitCode != 0) {
+    fail('plutil ${arguments.join(' ')} 실패: ${result.stderr}');
+  }
+  return '${result.stdout}';
+}
+
+/// [entries] 를 binary plist 로 [file] 에 쓴다.
+void writeBinaryPlist(File file, Map<String, Object?> entries) {
+  file.parent.createSync(recursive: true);
+  final json = File('${file.path}.json')
+    ..writeAsStringSync(jsonEncode(entries));
+  runPlutil(<String>['-convert', 'binary1', '-o', file.path, json.path]);
+  json.deleteSync();
+}
+
+/// plist [file] 전체를 JSON 객체로 읽는다(text · binary 모두).
+Map<String, Object?> readPlist(File file) {
+  final Object? decoded = jsonDecode(
+    runPlutil(<String>['-convert', 'json', '-o', '-', file.path]),
+  );
+  if (decoded is! Map<String, Object?>) {
+    fail('${file.path} 이 plist 사전이 아니다');
+  }
+  return decoded;
+}
+
+/// `plutil -extract <key> raw` 로 [file] 의 문자열 값을 읽는다.
+String extractRaw(File file, String key) {
+  final String output = runPlutil(<String>[
+    '-extract',
+    key,
+    'raw',
+    '-o',
+    '-',
+    file.path,
+  ]);
+  // raw 출력은 값 뒤에 줄바꿈 하나를 붙인다.
+  return output.endsWith('\n')
+      ? output.substring(0, output.length - 1)
+      : output;
+}
+
+/// [file] 이 binary plist(`bplist00` 머리)인지 본다.
+bool isBinaryPlist(File file) {
+  final List<int> head = file.readAsBytesSync().take(8).toList();
+  return ascii.decode(head, allowInvalid: true) == 'bplist00';
+}
+
+/// [root] 의 가짜 빌드된 번들 디렉터리(`iosEnvironment` 와 같은 자리).
+Directory bundleDirOf(Directory root) =>
+    Directory('${root.path}/build/Runner.app');
+
+/// [root] 의 가짜 빌드된 Info.plist 를 binary 로 만든다.
+File createBuiltInfoPlist(
+  Directory root, {
+  Map<String, Object?> entries = const <String, Object?>{
+    'CFBundleDisplayName': fixtureConfigName,
+  },
+}) {
+  final file = File('${bundleDirOf(root).path}/Info.plist');
+  writeBinaryPlist(file, entries);
+  return file;
+}
+
+/// [root] 로 iOS 모드를 돌린다.
+Future<gen.GenerationResult> runIos(
+  Directory root, {
+  String displayName = fixtureConfigName,
+}) {
+  return gen.generateLauncherNames(
+    gen.parseOptions(<String>[
+      'ios',
+    ], iosEnvironment(root, displayName: displayName)),
+  );
+}
+
+/// 번들의 `<lproj>.lproj/InfoPlist.strings` 파일.
+File infoPlistStringsOf(Directory root, String lproj) =>
+    File('${bundleDirOf(root).path}/$lproj.lproj/InfoPlist.strings');
+
+/// 번들 안 `InfoPlist.strings` 가 있는 lproj 이름 목록(정렬).
+List<String> listLprojWithStrings(Directory root) {
+  return bundleDirOf(root)
+      .listSync()
+      .whereType<Directory>()
+      .map(
+        (Directory dir) =>
+            dir.uri.pathSegments[dir.uri.pathSegments.length - 2],
+      )
+      .where((String name) => name.endsWith('.lproj'))
+      .map((String name) => name.substring(0, name.length - '.lproj'.length))
+      .where((String lproj) => infoPlistStringsOf(root, lproj).existsSync())
+      .toList()
+    ..sort();
+}
+
+/// [root] 의 iOS 기록 파일 줄 목록.
+List<String> readManifestLines(Directory root) => File(
+  '${root.path}/build/derived/${gen.manifestFileName}',
+).readAsLinesSync();
 
 void main() {
   late Directory project;
@@ -686,4 +796,218 @@ void main() {
       r'\@러닝 &amp; &lt;펜슬&gt; Dev',
     );
   });
+
+  test('T-22-GEN-11: 기존 InfoPlist.strings 의 다른 키는 남고 출력은 binary 다', () async {
+    writeFixtureProject(project, <String, String?>{
+      'en': 'RunningPencil',
+      'ko': '러닝펜슬',
+      'ja': 'ランニングペンシル',
+    });
+    createBuiltInfoPlist(project);
+    final File ko = infoPlistStringsOf(project, 'ko');
+    ko.parent.createSync(recursive: true);
+    ko.writeAsStringSync('"NSCameraUsageDescription" = "카메라";\n');
+    expect(isBinaryPlist(ko), isFalse);
+
+    await runIos(project);
+
+    expect(isBinaryPlist(ko), isTrue);
+    expect(readPlist(ko), <String, Object?>{
+      'NSCameraUsageDescription': '카메라',
+      'CFBundleDisplayName': '러닝펜슬 Dev',
+    });
+    final File ja = infoPlistStringsOf(project, 'ja');
+    expect(isBinaryPlist(ja), isTrue);
+    expect(readPlist(ja), <String, Object?>{
+      'CFBundleDisplayName': 'ランニングペンシル Dev',
+    });
+  }, skip: skipWithoutPlutil);
+
+  test('T-22-GEN-12: ARB 에서 빠진 언어는 기록 파일 기준으로 표시 이름 키만 지운다', () async {
+    writeFixtureProject(project, <String, String?>{
+      'en': 'RunningPencil',
+      'ko': '러닝펜슬',
+      'ja': 'ランニングペンシル',
+    });
+    createBuiltInfoPlist(project);
+    writeBinaryPlist(infoPlistStringsOf(project, 'ko'), <String, Object?>{
+      'NSCameraUsageDescription': '카메라',
+    });
+    // 기록에 없는 언어에 adopter 가 직접 둔 표시 이름.
+    final File fr = infoPlistStringsOf(project, 'fr');
+    writeBinaryPlist(fr, <String, Object?>{'CFBundleDisplayName': 'Mon App'});
+
+    await runIos(project);
+    expect(readManifestLines(project), <String>['ja.lproj', 'ko.lproj']);
+    expect(listLprojWithStrings(project), <String>['fr', 'ja', 'ko']);
+
+    // 2회차 — ja ARB 를 지운다: 키 하나뿐인 ja 는 파일 · lproj 까지 사라진다.
+    File('${project.path}/lib/l10n/app_ja.arb').deleteSync();
+    await runIos(project);
+    expect(
+      Directory('${bundleDirOf(project).path}/ja.lproj').existsSync(),
+      isFalse,
+    );
+    expect(readManifestLines(project), <String>['ko.lproj']);
+    expect(
+      readPlist(infoPlistStringsOf(project, 'ko'))['CFBundleDisplayName'],
+      '러닝펜슬 Dev',
+    );
+
+    // 3회차 — ko ARB 를 지운다: 표시 이름 키만 빠지고 adopter 키 · 파일은 남는다.
+    File('${project.path}/lib/l10n/app_ko.arb').deleteSync();
+    await runIos(project);
+    final File ko = infoPlistStringsOf(project, 'ko');
+    expect(ko.existsSync(), isTrue);
+    expect(isBinaryPlist(ko), isTrue);
+    expect(readPlist(ko), <String, Object?>{'NSCameraUsageDescription': '카메라'});
+    expect(readManifestLines(project), isEmpty);
+    expect(readPlist(fr), <String, Object?>{'CFBundleDisplayName': 'Mon App'});
+  }, skip: skipWithoutPlutil);
+
+  test(
+    'T-22-GEN-13: 빌드된 Info.plist 의 CFBundleLocalizations 를 ARB 언어 목록으로 덮는다',
+    () async {
+      writeFixtureProject(project, <String, String?>{
+        'en': 'RunningPencil',
+        'ko': '러닝펜슬',
+        'ja': null,
+        'zh_Hant': '跑步鉛筆',
+      });
+      final File infoPlist = createBuiltInfoPlist(
+        project,
+        entries: <String, Object?>{
+          'CFBundleDisplayName': fixtureConfigName,
+          'CFBundleLocalizations': <String>['xx'],
+        },
+      );
+
+      await runIos(project);
+
+      expect(isBinaryPlist(infoPlist), isTrue);
+      expect(readPlist(infoPlist), <String, Object?>{
+        'CFBundleDisplayName': fixtureConfigName,
+        'CFBundleLocalizations': <String>['en', 'ja', 'ko', 'zh-Hant'],
+      });
+
+      infoPlist.deleteSync();
+      await expectLater(
+        runIos(project),
+        throwsGeneratorError(<String>['Info.plist']),
+      );
+    },
+    skip: skipWithoutPlutil,
+  );
+
+  test('T-22-GEN-14: 따옴표 · 역슬래시 · 줄바꿈이 든 이름이 plutil 로 다시 읽어도 같다', () async {
+    const quoted = r'Say "Hi" \';
+    const multiline = 'line1\nline2';
+    writeFixtureProject(project, <String, String?>{
+      'en': 'RunningPencil',
+      'ko': quoted,
+      'ja': multiline,
+    });
+    createBuiltInfoPlist(project);
+
+    await runIos(project);
+
+    expect(
+      extractRaw(infoPlistStringsOf(project, 'ko'), 'CFBundleDisplayName'),
+      '$quoted Dev',
+    );
+    expect(
+      extractRaw(infoPlistStringsOf(project, 'ja'), 'CFBundleDisplayName'),
+      '$multiline Dev',
+    );
+  }, skip: skipWithoutPlutil);
+
+  test('T-22-GEN-15: 생성기는 dart: import 만 쓰는 파일 하나이고 쓰는 키는 셋뿐이다', () {
+    final String source = readTrackedFile('tool/launcher_names.dart');
+    final List<String> lines = source.split('\n');
+
+    final importLines = <String>[
+      for (final line in lines)
+        if (RegExp(r'^\s*import\s').hasMatch(line)) line,
+    ];
+    // 양성 대조 — import 줄을 실제로 찾는다.
+    expect(importLines, isNotEmpty);
+    for (final line in importLines) {
+      expect(line, matches(RegExp(r"^\s*import\s+'dart:[a-z_]+';\s*$")));
+    }
+    expect(
+      lines.where((String line) => RegExp(r'^\s*part\s').hasMatch(line)),
+      isEmpty,
+    );
+
+    final generatorFiles = <String>[
+      for (final entity in Directory('tool').listSync())
+        if (entity is File &&
+            RegExp(
+              r'^launcher_names.*\.dart$',
+            ).hasMatch(entity.uri.pathSegments.last))
+          entity.uri.pathSegments.last,
+    ];
+    expect(generatorFiles, <String>['launcher_names.dart']);
+
+    // 쓰는 키: Android app_name · iOS CFBundleDisplayName · CFBundleLocalizations.
+    final String code = stripSlashComments(source);
+    expect(code, contains('<string name="app_name">'));
+    expect(code, contains("'CFBundleDisplayName'"));
+    expect(code, contains("'CFBundleLocalizations'"));
+    for (final key in <String>[
+      'FacebookDisplayName',
+      'NidAppName',
+      'naver_client_name',
+      'CFBundleName',
+    ]) {
+      expect(code, isNot(contains("'$key'")), reason: key);
+    }
+    expect(
+      RegExp('<string name="').allMatches(code).length,
+      1,
+      reason: 'Android 리소스 이름은 app_name 하나',
+    );
+  });
+
+  test(
+    'T-22-GEN-16: 같은 fixture 의 iOS 실제 출력이 Android 출력과 같은 기대 표를 따른다',
+    () async {
+      writeFixtureProject(project, fixtureAppTitles);
+      final Directory androidOut = await runAndroid(project);
+      final File infoPlist = createBuiltInfoPlist(project);
+
+      await runIos(project);
+
+      expect(listLprojWithStrings(project), expectedLprojNames);
+      for (final expected in expectedOutputs) {
+        final String iosName = extractRaw(
+          infoPlistStringsOf(project, expected.lproj),
+          'CFBundleDisplayName',
+        );
+        final String androidName = readAndroidAppName(
+          File('${androidOut.path}/${expected.androidDir}/strings.xml'),
+        );
+        expect(iosName, expected.name, reason: expected.lproj);
+        expect(iosName, androidName, reason: expected.locale);
+      }
+      expect(readPlist(infoPlist)['CFBundleLocalizations'], <String>[
+        'de',
+        'en',
+        'es',
+        'es-419',
+        'fil',
+        'fr',
+        'he',
+        'id',
+        'ja',
+        'ko',
+        'pt',
+        'pt-BR',
+        'yi',
+        'zh',
+        'zh-Hant',
+      ]);
+    },
+    skip: skipWithoutPlutil,
+  );
 }
