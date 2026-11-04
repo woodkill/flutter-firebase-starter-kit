@@ -14,6 +14,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- 재인증 성공 뒤 계정 화면으로 돌아오는 golden 시험과 계정 정보 화면 golden 시험이 시험을 돌리는 컴퓨터의 시간대와 상관없이 통과한다. 두 시험이 가입일을 UTC 시각으로 줘 계정 화면이 그 컴퓨터의 시간대로 날짜를 그리는 바람에, 시간대가 UTC 보다 서쪽(예: 미국 서부 `America/Los_Angeles`)이거나 UTC+12 이상(예: 뉴질랜드 `Pacific/Auckland`)이면 「가입일」 날짜가 하루 어긋나 이 시험들이 실패하던 문제를 고친다. 바뀐 파일은 `test/features/auth/presentation/auth_surfaces_golden_test.dart` · `test/features/settings/presentation/account_screen_golden_test.dart` 이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
+
 ## [1.0.0-rc.8] - 2026-11-03
 
 ### 사용자 조치
