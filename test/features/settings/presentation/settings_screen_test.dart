@@ -164,6 +164,7 @@ import 'package:flutter_starter_kit/core/auth/strategies/google_auth_strategy.da
 import 'package:flutter_starter_kit/core/auth/strategies/kakao_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/line_auth_strategy.dart';
 import 'package:flutter_starter_kit/core/auth/strategies/naver_auth_strategy.dart';
+import 'package:flutter_starter_kit/core/l10n/locale_display_names.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
@@ -895,15 +896,25 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('T-171-SETTINGS-04: 언어 행 → 시트(English · 日本語 · 한국어 · '
+    testWidgets('T-171-SETTINGS-04: 언어 행 → 시트(지원 언어 전부 · '
         '한국어 선택) → English = 저장 + 닫힘 · SnackBar 0 (D-04)', (tester) async {
       final container = await _pumpGuestSettings(tester);
+      // 항목 = 지원 언어 순서의 endonym — 앱 언어를 더해도 기대값이 따라간다.
+      final expectedLabels = [
+        for (final locale in AppLocalizations.supportedLocales)
+          localeDisplayName(locale),
+      ];
+      // 양성 대조 — 아래에서 탭 · 선택값으로 쓰는 두 언어가 목록에 있다.
+      expect(expectedLabels, containsAll(<String>['English', '한국어']));
 
       await tester.tap(find.text(ko.settingsLanguage));
       await tester.pumpAndSettle();
 
-      expect(find.byType(RadioListTile<Locale>), findsNWidgets(3));
-      expect(_sheetLabels<Locale>(tester), ['English', '日本語', '한국어']);
+      expect(
+        find.byType(RadioListTile<Locale>),
+        findsNWidgets(AppLocalizations.supportedLocales.length),
+      );
+      expect(_sheetLabels<Locale>(tester), expectedLabels);
       expect(_sheetGroupValue<Locale>(tester), const Locale('ko'));
 
       await tester.tap(find.text('English'));
@@ -1077,7 +1088,10 @@ void main() {
 
       await tester.tap(find.text(ko.settingsLanguage));
       await tester.pumpAndSettle();
-      expect(find.byType(RadioListTile<Locale>), findsNWidgets(3));
+      expect(
+        find.byType(RadioListTile<Locale>),
+        findsNWidgets(AppLocalizations.supportedLocales.length),
+      );
       expect(tester.takeException(), isNull);
     });
 

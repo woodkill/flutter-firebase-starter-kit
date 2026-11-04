@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../features/settings/presentation/settings_golden_harness.dart';
 import '../../helpers/source_text.dart';
+import '../../helpers/unsupported_locale.dart';
 
 /// [width]×[height] logical viewport 를 DPR 1 로 주입한다.
 void setViewport(WidgetTester tester, double width, double height) {
@@ -277,8 +278,14 @@ void main() {
       (tester) async {
         addTearDown(tester.platformDispatcher.clearLocaleTestValue);
 
-        // 미지원 기기 locale(fr) → en 문구.
-        tester.platformDispatcher.localeTestValue = const Locale('fr', 'FR');
+        // 미지원 기기 locale → en 문구.
+        final unsupported = Locale(pickUnsupportedLanguageCode(), 'FR');
+        // 양성 대조 — 고른 언어는 정말 지원 언어 밖이다.
+        expect(
+          AppLocalizations.supportedLocales.map((l) => l.languageCode),
+          isNot(contains(unsupported.languageCode)),
+        );
+        tester.platformDispatcher.localeTestValue = unsupported;
         await tester.pumpWidget(const ErrorFallback());
         await tester.pump();
         expect(tester.takeException(), isNull);
@@ -315,10 +322,7 @@ void main() {
           resolveErrorFallbackLocale(const Locale('ko', 'KR')),
           const Locale('ko'),
         );
-        expect(
-          resolveErrorFallbackLocale(const Locale('fr', 'FR')),
-          const Locale('en'),
-        );
+        expect(resolveErrorFallbackLocale(unsupported), const Locale('en'));
       },
     );
 

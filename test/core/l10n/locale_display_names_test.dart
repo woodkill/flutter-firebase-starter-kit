@@ -3,10 +3,12 @@ import 'package:flutter_starter_kit/core/l10n/locale_display_names.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/unsupported_locale.dart';
+
 void main() {
   // WR-04 (Phase 04 리뷰) — kLocaleEndonyms 는 손으로 유지되는 맵이고
   // localeDisplayName 은 미등록 코드를 조용히 코드 자체로 폴백한다. 새 ARB 를
-  // 추가하면서 이 맵을 잊으면 언어 선택 드롭다운에 원시 코드('fr')가 노출된
+  // 추가하면서 이 맵을 잊으면 언어 선택 드롭다운에 원시 언어 코드가 노출된
   // 채로 build / analyze / test 가 전부 통과한다. 그 드리프트를 RED 로 만든다.
   group('kLocaleEndonyms ↔ supportedLocales 정합', () {
     test('supportedLocales 전부가 endonym 을 가진다', () {
@@ -64,9 +66,16 @@ void main() {
     });
 
     test('미지원 코드는 languageCode 자체로 폴백한다', () {
-      expect(localeDisplayName(const Locale('fr')), 'fr');
-      // 폴백은 Locale 표기 전체가 아니라 languageCode 다 — 'fr_CA' 가 아니다.
-      expect(localeDisplayName(const Locale('fr', 'CA')), 'fr');
+      final code = pickUnsupportedLanguageCode();
+      // 양성 대조 — 고른 코드는 정말 지원 언어 밖이다.
+      expect(
+        AppLocalizations.supportedLocales.map((l) => l.languageCode),
+        isNot(contains(code)),
+      );
+
+      expect(localeDisplayName(Locale(code)), code);
+      // 폴백은 Locale 표기 전체가 아니라 languageCode 다 — '<code>_CA' 가 아니다.
+      expect(localeDisplayName(Locale(code, 'CA')), code);
     });
   });
 }
