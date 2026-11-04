@@ -104,7 +104,9 @@ User _fixtureUser(
     email: email,
     emailVerified: true,
     displayName: _displayNames[lang],
-    createdAt: DateTime.utc(2026, 9, 26, 12),
+    // 가입일은 로컬 DateTime — 계정 화면 formatYMD 가 toLocal() 로 그려 UTC 정오면
+    // UTC+12 이상에서 이튿날로 찍힌다(변환은 test/core/l10n/intl_extensions_test.dart 몫).
+    createdAt: DateTime(2026, 9, 26, 12),
     providerIds: providerIds,
     signUpProviderId: signUpProviderId,
   );
