@@ -194,6 +194,7 @@
 				9705A1C41CF9048500538489 /* Embed Frameworks */,
 				FFD3B74087316267830C1B47 /* Copy GoogleService-Info.plist */,
 				3B06AD1E1E4923F5004D2608 /* Thin Binary */,
+				7894E687219F9635331269D3 /* Localize Launcher Name */,
 				2A0E5F2910CB269AE86E2E91 /* FlutterFire: "flutterfire upload-crashlytics-symbols" */,
 			);
 			buildRules = (
@@ -305,6 +306,26 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" embed_and_thin";
+		};
+		7894E687219F9635331269D3 /* Localize Launcher Name */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Localize Launcher Name";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Writes per-language home screen app names into the built app from the ARB appTitle values; adding a language needs no change to this phase.\n\"$FLUTTER_ROOT/bin/dart\" \"$SRCROOT/../tool/launcher_names.dart\" ios\n";
+			showEnvVarsInLog = 0;
 		};
 		9740EEB61CF901F6004384FC /* Run Script */ = {
 			isa = PBXShellScriptBuildPhase;

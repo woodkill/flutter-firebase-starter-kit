@@ -2,9 +2,9 @@
 //
 // 설정 위저드 「앱 정체성」 단계는 표시 이름을 `config/<flavor>.json` 의 `appName`
 // 과 `ios/Flutter/<flavor>.xcconfig` 의 `DISPLAY_NAME` 에 쓴다. Android 는 Gradle
-// 이 dart-define `appName` 을 manifest placeholder 로 넘기고 application label 이
-// 그 placeholder 를 쓴다. iOS 는 Info.plist 의 `CFBundleDisplayName` 이 flavor
-// xcconfig 의 `DISPLAY_NAME` 빌드 변수를 쓴다. 어느 한 곳이라도 리터럴로 돌아가면
+// 이 dart-define `appName` 을 string 리소스 `app_name` 으로 넣고, application label
+// 이 쓰는 manifest placeholder 가 그 리소스를 가리킨다. iOS 는 Info.plist 의
+// `CFBundleDisplayName` 이 flavor xcconfig 의 `DISPLAY_NAME` 빌드 변수를 쓴다. 어느 한 곳이라도 리터럴로 돌아가면
 // 위저드에 넣은 이름이 홈 화면에 닿지 않는다. 예시 파일 두 곳의 기본 표시 이름이
 // 서로 다르면 위저드 「앱 정체성」 단계 전에 빌드한 앱의 Android · iOS 런처 이름이
 // 갈린다.
@@ -64,7 +64,7 @@ void main() {
     });
 
     test(
-      'Gradle 은 appName placeholder 를 dart-define appName 으로 채우고 없으면 기본 이름을 쓴다',
+      'Gradle 은 appName placeholder 를 @string/app_name 으로 두고 기본 이름을 resValue app_name 으로 넣는다',
       () {
         final String gradle = stripBlockComments(
           stripSlashComments(readTrackedFile(_gradlePath)),
@@ -76,13 +76,22 @@ void main() {
         );
         expect(
           RegExp(
-            r'manifestPlaceholders\["appName"\]\s*=\s*'
-            r'dartDefines\["appName"\]\s*\?:\s*"[^"]+"',
+            r'manifestPlaceholders\["appName"\]\s*=\s*"@string/app_name"',
           ).hasMatch(gradle),
           isTrue,
           reason:
-              'dart-define 없이 빌드해도 manifest 병합이 placeholder 값을 '
-              '얻도록 비어 있지 않은 기본 이름이 있어야 한다',
+              '런처 이름은 언어별 값을 가질 수 있는 string 리소스 app_name 을 '
+              '가리켜야 한다',
+        );
+        expect(
+          RegExp(
+            r'resValue\(\s*"string",\s*"app_name",\s*'
+            r'dartDefines\["appName"\]\s*\?:\s*"[^"]+"\s*\)',
+          ).hasMatch(gradle),
+          isTrue,
+          reason:
+              '기본 언어 app_name 은 config 의 appName 이고, dart-define 없이도 '
+              '리소스가 비어 있지 않은 기본 이름을 가져야 한다',
         );
       },
     );
