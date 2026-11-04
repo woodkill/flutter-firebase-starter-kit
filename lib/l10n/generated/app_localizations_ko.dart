@@ -9,7 +9,7 @@ class AppLocalizationsKo extends AppLocalizations {
   AppLocalizationsKo([String locale = 'ko']) : super(locale);
 
   @override
-  String get appTitle => 'Flutter Starter Kit';
+  String get appTitle => 'StarterKit';
 
   @override
   String get commonOk => '확인';

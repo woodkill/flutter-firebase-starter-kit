@@ -7,8 +7,10 @@
 // `dismissedAnnouncementProvider` override(닫은 적 없음) · non-release 안내 카드.
 // 비교 원본 =
 // `.planning/phases/17.1-production-home-and-404-screen-split/mockups/adopted_home_guest_announcement_ko_280_{light,dark}.png`
-// (사용자 sign-off 2026-10-03) — golden 은 그 PNG 와 byte 동일해야 한다(`cmp`).
-// 불일치면 채택 PNG 를 덮어쓰지 말고 원인을 먼저 찾는다.
+// (사용자 sign-off 2026-10-03) — golden 은 AppBar 제목 글자만 채택 PNG 와
+// 다르다 — 제목은 영어 ARB `appTitle` 이다(ko ARB 는 `appTitle` 을 두지 않아
+// 영어 값을 쓴다). 제목 밖 픽셀이 채택 PNG 와 다르면 채택 PNG 를 덮어쓰지 말고
+// 원인을 먼저 찾는다.
 //
 // 공지 문구는 mockup · golden fixture 전용 예시다 — ARB · RC 기본값이 아니다.
 
@@ -52,7 +54,7 @@ void main() {
     for (final brightness in Brightness.values) {
       final mode = brightness.name;
       testWidgets(
-        'T-171-HOME-golden · T-17-RC-10 게스트 ko 280×800 $mode = 채택 mockup byte 동일',
+        'T-171-HOME-golden · T-17-RC-10 게스트 ko 280×800 $mode = 채택 mockup 과 AppBar 제목만 다름',
         (tester) async {
           tester.view.devicePixelRatio = kGoldenDpr;
           tester.view.physicalSize =
