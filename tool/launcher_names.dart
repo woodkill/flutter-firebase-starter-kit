@@ -303,20 +303,60 @@ String stripFlavorSuffix(String name, String suffix) {
 /// [arbNames] 는 locale → ARB `appTitle`(없으면 null)이다. [templateLocale] 과
 /// 이름이 없거나(앞뒤 공백을 뗀 값이 빈 경우 포함) [baseName] 과 같은 언어는
 /// 뺀다. 남은 언어마다 이름 뒤에 [appliedSuffix] 를 붙이고 locale 순으로 정렬한다.
+///
+/// 지역 변형(`pt_BR` · `es_419` — 문자 체계 없이 지역만 있는 locale)이 계획에
+/// 있고 같은 언어의 기본 locale(`pt`)이 이름이 없거나 [baseName] 과 같으면, 기본
+/// locale 에 [baseName] + [appliedSuffix] 를 더한다. 같은 언어의 다른 지역 기기가
+/// 그 지역 변형 이름으로 떨어지지 않고 기본 이름을 쓰게 하기 위함이다. 문자 체계
+/// 변형(`zh_Hant`)은 기본 locale 항목을 만들지 않는다.
 List<LauncherName> planLauncherNames({
   required Map<String, String?> arbNames,
   required String templateLocale,
   required String baseName,
   required String appliedSuffix,
 }) {
-  final List<String> locales = arbNames.keys.toList()..sort();
+  bool hasOwnName(String locale) {
+    final String? name = arbNames[locale];
+    return name != null && name.trim().isNotEmpty && name != baseName;
+  }
+
+  final named = <String>{
+    for (final String locale in arbNames.keys)
+      if (locale != templateLocale && hasOwnName(locale)) locale,
+  };
+  final baseLocales = <String>{};
+  for (final locale in named) {
+    final (:String language, :String? script, :String? region) = _splitLocale(
+      locale,
+    );
+    if (region == null || script != null) continue;
+    final String baseLocale = _findBaseLocale(arbNames.keys, language);
+    if (!hasOwnName(baseLocale)) baseLocales.add(baseLocale);
+  }
+  final List<String> locales = <String>{...named, ...baseLocales}.toList()
+    ..sort();
   return <LauncherName>[
     for (final String locale in locales)
-      if (locale != templateLocale)
-        if (arbNames[locale] case final String name
-            when name.trim().isNotEmpty && name != baseName)
-          LauncherName(locale, '$name$appliedSuffix'),
+      LauncherName(
+        locale,
+        named.contains(locale)
+            ? '${arbNames[locale]}$appliedSuffix'
+            : '$baseName$appliedSuffix',
+      ),
   ];
+}
+
+/// [locales] 가운데 [language] 의 기본 locale(문자 체계 · 지역 없음)을 찾는다 —
+/// 없으면 [language] 그대로.
+String _findBaseLocale(Iterable<String> locales, String language) {
+  for (final locale in locales) {
+    final (language: String candidate, :String? script, :String? region) =
+        _splitLocale(locale);
+    if (candidate == language && script == null && region == null) {
+      return locale;
+    }
+  }
+  return language;
 }
 
 /// ARB locale 을 언어 · 문자 체계 · 지역으로 나눈다 — 꼴이 어긋나면 실패.
