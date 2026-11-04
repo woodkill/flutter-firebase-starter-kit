@@ -58,11 +58,10 @@ class App extends ConsumerWidget {
         AppConfig.parseBrandColor(AppConfig.brandColor) ?? AppTheme.seedColor;
 
     return MaterialApp.router(
-      // 앱 타이틀은 OS 최근 앱 화면(task description) 과 접근성 표면에
-      // 노출되므로 로케일을 따라야 한다. `onGenerateTitle` 은 BuildContext 를
-      // 주므로 l10n 접근이 가능하다. dart-define 으로 `appName` 이 주입된
-      // 경우에만 그 값을 우선한다 (브랜드명 고정 의도).
-      // Phase 17.1 D-12 — 홈 AppBar 와 같은 함수.
+      // 앱 제목은 OS 최근 앱 화면(task description) · 접근성에 나온다 — 앱
+      // 언어의 ARB `appTitle` 이고, config 이름이 flavor 접미사로 끝나면 같은
+      // 접미사를 붙인다. `onGenerateTitle` 은 BuildContext 를 주므로 l10n
+      // 접근이 가능하다. 홈 AppBar 와 같은 함수를 쓴다.
       onGenerateTitle: (context) =>
           resolveAppTitle(AppLocalizations.of(context)),
       debugShowCheckedModeBanner: false,

@@ -373,11 +373,19 @@ void main() {
         // 양성 대조 — 같은 순회가 제목 함수 파일을 찾는다.
         expect(readers, contains(titleFile));
         expect(readers, {titleFile});
+        // 제목 식 — flavor 접미사 표를 읽고, config 이름이 그 접미사로 끝날
+        // 때만 붙인다.
+        final titleCode = stripSlashComments(readTrackedFile(titleFile));
         expect(
-          countOccurrences(
-            stripSlashComments(readTrackedFile(titleFile)),
-            'appName.isEmpty ? l10n.appTitle : appName',
-          ),
+          RegExp(
+            r'kFlavorDisplayNameSuffixes\s*\[\s*flavor\s*\]',
+          ).allMatches(titleCode).length,
+          1,
+        );
+        expect(
+          RegExp(
+            r'appName\s*\.\s*endsWith\(\s*suffix\s*\)',
+          ).allMatches(titleCode).length,
           1,
         );
       },

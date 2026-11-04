@@ -74,15 +74,16 @@ abstract final class AppConfig {
   /// defaultValue 가 이미 `''` 이므로 `defaultValue: ''` 는 동작상 무의미한데,
   /// 일부만 명시하면 독자가 두 표기의 의미 차이를 찾느라 시간을 쓴다. 빈
   /// 문자열 자체가 "미주입" sentinel 이며, 그 값을 무엇으로 대체할지는
-  /// 소비처가 결정한다 (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고
-  /// chip).
+  /// 소비처가 결정한다 (앱 제목은 l10n 의 `appTitle` 이고 이 값은 flavor
+  /// 접미사를 붙일지만 정한다, 환경 정보 화면은 경고 chip).
   ///
   /// **예외 — 유의미한 non-empty default.** 빈 값이 애초에 유효하지 않고
   /// 기본값이 곧 프로젝트 표준인 운영 상수는 default 를 명시한다
   /// ([functionsRegion] 이 유일한 사례다). 금지되는 것은 `defaultValue: ''`
   /// 라는 **no-op 표기**이지 default 개념 자체가 아니다.
   /// 빈 문자열일 때 표시 문자열을 무엇으로 대체할지는 소비처가 결정한다
-  /// (`App` 은 l10n 의 `appTitle`, 환경 정보 화면은 경고 chip).
+  /// (앱 제목은 l10n 의 `appTitle` 이고 이 값은 flavor 접미사를 붙일지만
+  /// 정한다, 환경 정보 화면은 경고 chip).
   static const String appName = String.fromEnvironment('appName');
 
   /// Kakao 네이티브 앱 키 (Phase 12 D-20).
