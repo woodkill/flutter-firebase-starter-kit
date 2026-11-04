@@ -203,6 +203,47 @@ List<gen.LauncherName> planFixture(Map<String, String?> appTitles) {
   );
 }
 
+/// [root] 를 Flutter 프로젝트로 보는 iOS 모드 가짜 Xcode 빌드 환경 변수.
+///
+/// 번들은 `<root>/build/Runner.app`, Info.plist 는 그 안 `Info.plist`, 기록 파일
+/// 디렉터리는 `<root>/build/derived` 다(아직 없을 수 있다).
+Map<String, String> iosEnvironment(
+  Directory root, {
+  String flavor = 'dev',
+  String displayName = fixtureConfigName,
+}) {
+  return <String, String>{
+    'SRCROOT': '${root.path}/ios',
+    'FLAVOR': flavor,
+    'DISPLAY_NAME': displayName,
+    'TARGET_BUILD_DIR': '${root.path}/build',
+    'UNLOCALIZED_RESOURCES_FOLDER_PATH': 'Runner.app',
+    'INFOPLIST_PATH': 'Runner.app/Info.plist',
+    'DERIVED_FILE_DIR': '${root.path}/build/derived',
+  };
+}
+
+/// [GeneratorException] 이고 문구에 [fragments] 가 모두 들어 있는지 보는 matcher.
+Matcher throwsGeneratorError(List<String> fragments) {
+  return throwsA(
+    isA<gen.GeneratorException>().having(
+      (gen.GeneratorException error) => error.message,
+      'message',
+      allOf(<Matcher>[for (final fragment in fragments) contains(fragment)]),
+    ),
+  );
+}
+
+/// [run] 을 실행해 [gen.GeneratorException] 문구를 돌려준다 — 실패가 없으면 시험 실패.
+Future<String> captureGeneratorMessage(Future<Object?> Function() run) async {
+  try {
+    await run();
+  } on gen.GeneratorException catch (error) {
+    return error.message;
+  }
+  fail('GeneratorException 이 나지 않았다');
+}
+
 void main() {
   late Directory project;
 
@@ -377,4 +418,272 @@ void main() {
       expect('<string '.allMatches(content).length, 1);
     },
   );
+
+  group('T-22-GEN-06: 영어 ARB 와 기본 이름 대조(양방향)', () {
+    const mismatchFragments = <String>[
+      'lib/l10n/app_en.arb',
+      '"RunningPencil"',
+      '"RunningPencik"',
+      './setup.sh --flavor dev',
+    ];
+
+    test('T-22-GEN-06: 영어 ARB 와 기본 이름이 같으면 통과한다', () async {
+      writeFixtureProject(project, fixtureAppTitles);
+      await expectLater(runAndroid(project), completes);
+    });
+
+    test('T-22-GEN-06: 영어 ARB 가 한 글자 다르면 실패한다', () async {
+      writeFixtureProject(project, <String, String?>{
+        ...fixtureAppTitles,
+        'en': 'RunningPencik',
+      });
+      await expectLater(
+        runAndroid(project),
+        throwsGeneratorError(mismatchFragments),
+      );
+    });
+
+    test('T-22-GEN-06: config 이름이 한 글자 다르면 실패한다', () async {
+      writeFixtureProject(project, fixtureAppTitles);
+      await expectLater(
+        runAndroid(project, appName: 'RunningPencik Dev'),
+        throwsGeneratorError(mismatchFragments),
+      );
+    });
+
+    test('T-22-GEN-06: 영어 ARB 에 appTitle 이 없으면 실패한다', () async {
+      writeFixtureProject(project, <String, String?>{
+        ...fixtureAppTitles,
+        'en': null,
+      });
+      await expectLater(
+        runAndroid(project),
+        throwsGeneratorError(<String>[
+          'lib/l10n/app_en.arb',
+          'appTitle',
+          './setup.sh --flavor dev',
+        ]),
+      );
+    });
+  });
+
+  test('T-22-GEN-07: config 이름 미주입은 이름 불일치와 다른 문구로 실패한다', () async {
+    writeFixtureProject(project, fixtureAppTitles);
+
+    final String android = await captureGeneratorMessage(
+      () => runAndroid(project, appName: ''),
+    );
+    expect(android, contains('--dart-define-from-file=config/dev.json'));
+
+    final String ios = await captureGeneratorMessage(
+      () => gen.generateLauncherNames(
+        gen.parseOptions(<String>[
+          'ios',
+        ], iosEnvironment(project, displayName: '')),
+      ),
+    );
+    expect(ios, contains('ios/Flutter/dev.xcconfig'));
+    expect(ios, contains('DISPLAY_NAME'));
+
+    final String mismatch = await captureGeneratorMessage(
+      () => runAndroid(project, appName: 'RunningPencik Dev'),
+    );
+    for (final message in <String>[android, ios]) {
+      expect(message, isNot(contains('lib/l10n/app_en.arb')));
+      expect(message, isNot(mismatch));
+    }
+    expect(android, isNot(ios));
+  });
+
+  group('T-22-GEN-08: 깨진 입력은 고칠 파일을 적은 GeneratorException', () {
+    void writeArb(Directory root, String fileName, String content) {
+      File('${root.path}/lib/l10n/$fileName').writeAsStringSync(content);
+    }
+
+    final cases =
+        <
+          ({
+            String label,
+            void Function(Directory root) breakInput,
+            String fragment,
+            String flavor,
+          })
+        >[
+          (
+            label: '깨진 JSON',
+            breakInput: (Directory root) =>
+                writeArb(root, 'app_ko.arb', '{"appTitle": '),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: '최상위가 배열',
+            breakInput: (Directory root) =>
+                writeArb(root, 'app_ko.arb', '["러닝펜슬"]'),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: 'appTitle 이 숫자',
+            breakInput: (Directory root) => writeArb(
+              root,
+              'app_ko.arb',
+              '{"@@locale": "ko", "appTitle": 3}',
+            ),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: 'appTitle 이 공백뿐',
+            breakInput: (Directory root) => writeArb(
+              root,
+              'app_ko.arb',
+              '{"@@locale": "ko", "appTitle": "   "}',
+            ),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: 'appTitle 이 빈 문자열',
+            breakInput: (Directory root) => writeArb(
+              root,
+              'app_ko.arb',
+              '{"@@locale": "ko", "appTitle": ""}',
+            ),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: '파일 이름 app_k.arb',
+            breakInput: (Directory root) =>
+                writeArb(root, 'app_k.arb', '{"@@locale": "k"}'),
+            fragment: 'lib/l10n/app_k.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: '파일 이름 app_ko-KR.arb',
+            breakInput: (Directory root) =>
+                writeArb(root, 'app_ko-KR.arb', '{"@@locale": "ko_KR"}'),
+            fragment: 'lib/l10n/app_ko-KR.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: '파일 이름 app_abcd_EFG.arb',
+            breakInput: (Directory root) =>
+                writeArb(root, 'app_abcd_EFG.arb', '{"@@locale": "abcd_EFG"}'),
+            fragment: 'lib/l10n/app_abcd_EFG.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: '@@locale 이 파일 이름과 다름',
+            breakInput: (Directory root) => writeArb(
+              root,
+              'app_ko.arb',
+              '{"@@locale": "ja", "appTitle": "러닝펜슬"}',
+            ),
+            fragment: 'lib/l10n/app_ko.arb',
+            flavor: 'dev',
+          ),
+          (
+            label: 'l10n.yaml 없음',
+            breakInput: (Directory root) =>
+                File('${root.path}/l10n.yaml').deleteSync(),
+            fragment: 'l10n.yaml',
+            flavor: 'dev',
+          ),
+          (
+            label: 'l10n.yaml 에 arb-dir 없음',
+            breakInput: (Directory root) => File(
+              '${root.path}/l10n.yaml',
+            ).writeAsStringSync('template-arb-file: app_en.arb\n'),
+            fragment: 'l10n.yaml',
+            flavor: 'dev',
+          ),
+          (
+            label: '모르는 flavor',
+            breakInput: (Directory root) {},
+            fragment: '"qa"',
+            flavor: 'qa',
+          ),
+        ];
+
+    for (final c in cases) {
+      test('T-22-GEN-08: ${c.label}', () async {
+        writeFixtureProject(project, fixtureAppTitles);
+        c.breakInput(project);
+
+        final String message = await captureGeneratorMessage(
+          () => runAndroid(project, flavor: c.flavor),
+        );
+        expect(message, contains(c.fragment));
+        // 파일은 임시 디렉터리 절대 경로가 아니라 저장소 상대 경로로 적는다.
+        expect(message, isNot(contains(project.path)));
+      });
+    }
+  });
+
+  test('T-22-GEN-09: flavor 접미사는 config 이름이 그 접미사로 끝날 때만 붙는다', () async {
+    expect(gen.stripFlavorSuffix('A Dev', ' Dev'), 'A');
+    expect(gen.stripFlavorSuffix('A', ' Dev'), 'A');
+    expect(gen.stripFlavorSuffix('A Dev', ''), 'A Dev');
+
+    writeFixtureProject(project, fixtureAppTitles);
+    final Directory prod = await runAndroid(
+      project,
+      flavor: 'prod',
+      appName: 'RunningPencil',
+    );
+    expect(
+      readAndroidAppName(File('${prod.path}/values-ko/strings.xml')),
+      '러닝펜슬',
+    );
+    expect(
+      readAndroidAppName(File('${prod.path}/values-pt/strings.xml')),
+      'RunningPencil',
+    );
+    prod.deleteSync(recursive: true);
+
+    final Directory devWithoutSuffix = await runAndroid(
+      project,
+      appName: 'RunningPencil',
+    );
+    expect(
+      readAndroidAppName(
+        File('${devWithoutSuffix.path}/values-ko/strings.xml'),
+      ),
+      '러닝펜슬',
+    );
+    expect(
+      readAndroidAppName(
+        File('${devWithoutSuffix.path}/values-ja/strings.xml'),
+      ),
+      'ランニングペンシル',
+    );
+  });
+
+  test('T-22-GEN-10: Android 이스케이프 — 엔티티 · 역슬래시 · 맨 앞 @ ? 규칙', () async {
+    expect(
+      gen.escapeAndroidString("A&B<C>'D\"E\\F\nG"),
+      "A&amp;B&lt;C&gt;\\'D\\\"E\\\\F\\nG",
+    );
+    expect(gen.escapeAndroidString('@x'), r'\@x');
+    expect(gen.escapeAndroidString('?x'), r'\?x');
+    expect(gen.escapeAndroidString('a@b'), 'a@b');
+    expect(gen.escapeAndroidString('a?b'), 'a?b');
+
+    // Android 쓰기가 같은 이스케이프를 쓴다.
+    writeFixtureProject(project, <String, String?>{
+      'en': 'RunningPencil',
+      'ko': '@러닝 & <펜슬>',
+    });
+    final Directory out = await runAndroid(project);
+    expect(
+      readAndroidAppName(File('${out.path}/values-ko/strings.xml')),
+      gen.escapeAndroidString('@러닝 & <펜슬> Dev'),
+    );
+    expect(
+      readAndroidAppName(File('${out.path}/values-ko/strings.xml')),
+      r'\@러닝 &amp; &lt;펜슬&gt; Dev',
+    );
+  });
 }

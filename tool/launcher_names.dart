@@ -26,6 +26,9 @@ import 'dart:io';
 /// ARB 에서 앱 이름을 읽는 키.
 const String appTitleKey = 'appTitle';
 
+/// ARB 가 자기 locale 을 적는 키.
+const String _arbLocaleKey = '@@locale';
+
 /// 홈 화면 이름표가 읽는 Info.plist 키.
 const String displayNameKey = 'CFBundleDisplayName';
 
@@ -438,11 +441,23 @@ final class _L10nConfig {
   String get templatePath => '$arbDir/$templateArbFile';
 }
 
+/// 입력 파일 실패 — 「무엇이 틀렸나 — 어느 파일(프로젝트 상대 경로) — 어떻게
+/// 고치나」 순서의 문구를 만든다.
+GeneratorException _inputError(String problem, String file, String fix) =>
+    GeneratorException('$problem — $file — $fix');
+
+/// 프로젝트 루트 기준 `l10n.yaml` 경로.
+const String _l10nYamlPath = 'l10n.yaml';
+
 /// `l10n.yaml` 의 `arb-dir` · `template-arb-file` 두 줄만 줄 단위로 읽는다.
 _L10nConfig _readL10nConfig(String projectRoot) {
-  final file = File('$projectRoot/l10n.yaml');
+  final file = File('$projectRoot/$_l10nYamlPath');
   if (!file.existsSync()) {
-    throw GeneratorException('l10n.yaml 을 찾지 못했다: ${file.path}');
+    throw _inputError(
+      'l10n.yaml 을 찾지 못했다',
+      _l10nYamlPath,
+      '프로젝트 루트에 arb-dir · template-arb-file 을 적은 l10n.yaml 을 둔다',
+    );
   }
   String? arbDir;
   String? template;
@@ -458,8 +473,11 @@ _L10nConfig _readL10nConfig(String projectRoot) {
       arbDir.isEmpty ||
       template == null ||
       template.isEmpty) {
-    throw GeneratorException(
-      '${file.path} 에 arb-dir 와 template-arb-file 이 모두 있어야 한다',
+    throw _inputError(
+      'arb-dir 또는 template-arb-file 이 없다',
+      _l10nYamlPath,
+      '두 줄을 모두 적는다(예: arb-dir: lib/l10n · template-arb-file: '
+          'app_en.arb)',
     );
   }
   if (arbDir.endsWith('/')) arbDir = arbDir.substring(0, arbDir.length - 1);
@@ -484,10 +502,12 @@ String _localeFromArbFileName(String fileName, String prefix, String arbDir) {
       ? fileName.substring(prefix.length, fileName.length - extension.length)
       : '';
   if (!arbLocalePattern.hasMatch(locale)) {
-    throw GeneratorException(
-      '$arbDir/$fileName — ARB 파일 이름은 $prefix<locale>.arb 꼴이어야 하고 '
-      'locale 은 언어(2~3글자) · 문자 체계(4글자) · 지역(2글자 또는 숫자 3자리)을 '
-      '`_` 로 이은 값이어야 한다',
+    throw _inputError(
+      'ARB 파일 이름의 locale 을 읽을 수 없다',
+      '$arbDir/$fileName',
+      '파일 이름을 $prefix<locale>.arb 꼴로 바꾼다 — locale 은 언어(2~3글자) · '
+          '문자 체계(4글자) · 지역(2글자 또는 숫자 3자리)을 `_` 로 이은 값이다 '
+          '(예: ${prefix}ko.arb · ${prefix}pt_BR.arb · ${prefix}zh_Hant.arb)',
     );
   }
   return locale;
@@ -498,14 +518,20 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
   final String template = config.templateArbFile;
   final int separator = template.indexOf('_');
   if (separator < 0 || !template.endsWith('.arb')) {
-    throw GeneratorException(
-      'template ARB 이름에서 locale 을 읽을 수 없다: ${config.templatePath}',
+    throw _inputError(
+      'template ARB 이름에서 locale 을 읽을 수 없다(${config.templatePath})',
+      _l10nYamlPath,
+      'template-arb-file 을 <prefix>_<locale>.arb 꼴(예: app_en.arb)로 적는다',
     );
   }
   final String prefix = template.substring(0, separator + 1);
   final dir = Directory('$projectRoot/${config.arbDir}');
   if (!dir.existsSync()) {
-    throw GeneratorException('ARB 디렉터리를 찾지 못했다: ${config.arbDir}');
+    throw _inputError(
+      'ARB 디렉터리 ${config.arbDir} 를 찾지 못했다',
+      _l10nYamlPath,
+      'arb-dir 을 ARB 파일이 있는 디렉터리(프로젝트 루트 기준)로 고친다',
+    );
   }
   final List<File> files =
       dir
@@ -527,16 +553,42 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
     try {
       decoded = jsonDecode(file.readAsStringSync());
     } on FormatException catch (error) {
-      throw GeneratorException(
-        '$relativePath 이 올바른 JSON 이 아니다: ${error.message}',
+      throw _inputError(
+        'ARB 파일이 올바른 JSON 이 아니다(${error.message})',
+        relativePath,
+        'JSON 문법(따옴표 · 쉼표 · 괄호)을 고친다',
       );
     }
     if (decoded is! Map<String, Object?>) {
-      throw GeneratorException('$relativePath 이 JSON 객체가 아니다');
+      throw _inputError(
+        'ARB 파일의 최상위가 JSON 객체가 아니다',
+        relativePath,
+        '{ "@@locale": "$locale", ... } 꼴의 객체로 고친다',
+      );
+    }
+    final Object? declaredLocale = decoded[_arbLocaleKey];
+    if (declaredLocale != null && declaredLocale != locale) {
+      throw _inputError(
+        'ARB 의 $_arbLocaleKey ${jsonEncode(declaredLocale)} 가 파일 이름의 '
+            'locale "$locale" 과 다르다',
+        relativePath,
+        '$_arbLocaleKey 를 "$locale" 로 고치거나 파일 이름을 그 locale 로 바꾼다',
+      );
     }
     final Object? name = decoded[appTitleKey];
     if (name != null && name is! String) {
-      throw GeneratorException('$relativePath 의 $appTitleKey 는 문자열이어야 한다');
+      throw _inputError(
+        'ARB 의 $appTitleKey 가 문자열이 아니다',
+        relativePath,
+        '$appTitleKey 값을 따옴표로 감싼 문자열로 고친다',
+      );
+    }
+    if (name is String && name.trim().isEmpty) {
+      throw _inputError(
+        'ARB 의 $appTitleKey 가 비어 있다',
+        relativePath,
+        '그 언어 이름을 넣거나, 기본 이름을 쓰려면 $appTitleKey 키를 지운다',
+      );
     }
     names[locale] = name is String ? name : null;
   }
@@ -545,7 +597,11 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
     template.length - '.arb'.length,
   );
   if (!names.containsKey(templateLocale)) {
-    throw GeneratorException('template ARB 를 찾지 못했다: ${config.templatePath}');
+    throw _inputError(
+      'template ARB 를 찾지 못했다',
+      config.templatePath,
+      '그 파일을 만들거나 l10n.yaml 의 template-arb-file 을 고친다',
+    );
   }
   return names;
 }
@@ -562,7 +618,7 @@ Future<GenerationResult> generateLauncherNames(Options options) async {
   if (suffix == null) {
     throw GeneratorException(
       '알 수 없는 flavor "$flavor" — '
-      '${flavorDisplayNameSuffixes.keys.join(' · ')} 중 하나여야 한다',
+      '${flavorDisplayNameSuffixes.keys.join(' · ')} 중 하나로 빌드한다',
     );
   }
   final String nameSource = switch (options.platform) {
@@ -655,7 +711,7 @@ List<String> _writeAndroid(
     file.writeAsStringSync(
       '<?xml version="1.0" encoding="utf-8"?>\n'
       '<resources>\n'
-      '    <string name="app_name">${_escapeAndroidValue(entry.name)}</string>\n'
+      '    <string name="app_name">${escapeAndroidString(entry.name)}</string>\n'
       '</resources>\n',
     );
     written.add(relativePath);
@@ -664,9 +720,12 @@ List<String> _writeAndroid(
   return written;
 }
 
-/// Android string 리소스 값을 이스케이프한다 — XML 특수 문자 · 역슬래시 · 따옴표 ·
-/// 줄바꿈 · 맨 앞 `@` `?`.
-String _escapeAndroidValue(String value) {
+/// [value] 를 Android string 리소스 값으로 이스케이프한다.
+///
+/// `&` `<` `>` 는 XML 엔티티로, 역슬래시 · `'` · `"` · 줄바꿈은 역슬래시
+/// 이스케이프로 바꾼다. 맨 앞 `@` `?` 는 리소스 참조로 읽히지 않도록 역슬래시를
+/// 붙이고, 가운데의 `@` `?` 는 그대로 둔다.
+String escapeAndroidString(String value) {
   final buffer = StringBuffer();
   for (var index = 0; index < value.length; index++) {
     final String c = value[index];
