@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../launcher_names.dart' show GeneratorException;
+import 'arb_titles.dart';
 import 'command_runner.dart';
 import 'git_tree.dart';
 import 'gradle_identity.dart';
+import 'steps/app_names_step.dart';
 import 'steps/identity_step.dart';
 import 'wizard.dart';
 
@@ -19,14 +22,18 @@ const String kotlinSourceRoot = 'android/app/src/main/kotlin';
 /// 끝 요약에서 로그인 수단을 바꾸는 방법을 알리는 줄.
 const String providersHintLine = '로그인 수단을 바꾸려면: ./setup.sh --providers';
 
-/// 모든 단계가 끝난 뒤의 끝 요약 — 로그인 수단을 바꾸는 방법과 커밋 안내를 보인다.
+/// 모든 단계가 끝난 뒤의 끝 요약 — 로그인 수단을 바꾸는 방법 · 커밋 안내 ·
+/// golden 갱신 안내를 보인다.
 ///
-/// 빈 줄 · [providersHintLine] 뒤에 [showCommitHint] 를 부른다.
+/// 빈 줄 · [providersHintLine] 뒤에 [showCommitHint] 와 같은 커밋 안내를 보이고,
+/// 이번 실행이 바꾼 ko ARB 의 이름이 기본 이름과 다르면 빈 줄 뒤
+/// [AppNamesStep.goldenHintLine] 한 줄을 더한다. 바뀐 추적 파일 목록은 한 번만
+/// 읽는다. 위저드는 golden 갱신 명령을 실행하지 않는다.
 Future<void> showCompletionSummary(WizardContext context) async {
   context.terminal
     ..writeLine('')
     ..writeLine(providersHintLine);
-  await showCommitHint(context);
+  await _showChangedFiles(context, withGoldenHint: true);
 }
 
 /// 모든 단계가 끝난 뒤 바뀐 추적 파일 목록과 커밋 명령을 보여 준다.
@@ -36,9 +43,32 @@ Future<void> showCompletionSummary(WizardContext context) async {
 /// 커밋하면 옛 Kotlin 파일 삭제와 새 파일 추가가 함께 들어가 빌드되는 저장소가
 /// 된다. 위저드는 스테이징 · 커밋 · push 를 하지 않고 명령을 보이기만 한다. 목록이
 /// 비면 아무것도 보이지 않는다. git 이 실패하면 [GitTreeException] 을 던진다.
-Future<void> showCommitHint(WizardContext context) async {
+Future<void> showCommitHint(WizardContext context) =>
+    _showChangedFiles(context, withGoldenHint: false);
+
+/// 바뀐 추적 파일 목록을 한 번 읽어 커밋 안내를 보이고, [withGoldenHint] 면
+/// golden 갱신 안내도 같은 목록으로 판정해 보인다.
+///
+/// 목록 읽기는 [listChangedTrackedFiles] 한 번이다 — git 이 실패하면
+/// [GitTreeException] 을 던진다.
+Future<void> _showChangedFiles(
+  WizardContext context, {
+  required bool withGoldenHint,
+}) async {
+  final List<String> changed = await listChangedTrackedFiles(context);
+  await _writeCommitHint(context, changed);
+  if (withGoldenHint) _writeGoldenHint(context, changed);
+}
+
+/// 바뀐 추적 파일 [changed] 에 옮긴 Kotlin 새 파일을 더해 커밋 안내를 쓴다.
+///
+/// 합친 목록이 비면 아무것도 쓰지 않는다.
+Future<void> _writeCommitHint(
+  WizardContext context,
+  List<String> changed,
+) async {
   final List<String> paths = <String>{
-    ...await listChangedTrackedFiles(context),
+    ...changed,
     ...await _listMovedKotlinFiles(context),
   }.toList()..sort();
   if (paths.isEmpty) return;
@@ -52,6 +82,33 @@ Future<void> showCommitHint(WizardContext context) async {
     'git add ${paths.map(quoteForShellDisplay).join(' ')} '
     '&& git commit -m "$commitHintMessage"',
   );
+}
+
+/// 바뀐 추적 파일 [changed] 에 ko ARB 가 있고 golden 이 다시 찍혀야 하면 빈 줄
+/// 뒤 [AppNamesStep.goldenHintLine] 한 줄을 쓴다.
+///
+/// ko ARB 경로를 찾지 못하면(ARB 목록을 읽지 못하거나 ko ARB 가 없으면) 쓰지
+/// 않는다. 판정은 [AppNamesStep.needsGoldenHint] 를 그대로 쓴다.
+void _writeGoldenHint(WizardContext context, List<String> changed) {
+  final String? arbPath = _findGoldenLocaleArbPath(context);
+  if (arbPath == null || !changed.contains(arbPath)) return;
+  if (!AppNamesStep.needsGoldenHint(context)) return;
+  context.terminal
+    ..writeLine('')
+    ..writeLine(AppNamesStep.goldenHintLine);
+}
+
+/// [AppNamesStep.goldenLocale] ARB 의 저장소 상대 경로 — 없거나 목록을 읽지
+/// 못하면 null.
+String? _findGoldenLocaleArbPath(WizardContext context) {
+  try {
+    for (final LocalizedArb arb in listLocalizedArbs(context.projectRoot)) {
+      if (arb.locale == AppNamesStep.goldenLocale) return arb.relativePath;
+    }
+  } on GeneratorException {
+    return null;
+  }
+  return null;
 }
 
 /// 앱 정체성이 옮긴 Kotlin 패키지 디렉터리의 추적하지 않는 파일을 모은다.
