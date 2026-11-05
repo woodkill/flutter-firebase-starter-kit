@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.9] - 2026-11-06
+
 ### 사용자 조치
 
 - merge 뒤 `lib/l10n/app_en.arb` 의 `appTitle` 을 내 앱의 기본 이름(`config/<flavor>.json` 의 `appName` 에서 ` Dev` · ` Stg` 를 뗀 값)으로 맞춘다. 두 값이 다르면 iOS · Android 첫 빌드가 두 값과 고칠 파일을 알리며 멈춘다. `./setup.sh` 를 다시 실행하면 「앱 정체성」 단계가 이 값을 맞춘다. 맞춘 뒤 `fvm flutter pub get` 으로 다시 만든 `lib/l10n/generated/` 를 함께 커밋한다.
@@ -173,7 +175,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.8...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.9...HEAD
+[1.0.0-rc.9]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.9
 [1.0.0-rc.8]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.8
 [1.0.0-rc.7]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.7
 [1.0.0-rc.6]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.6
