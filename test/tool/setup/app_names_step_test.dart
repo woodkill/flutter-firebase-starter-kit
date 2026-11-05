@@ -673,7 +673,7 @@ void main() {
     expect(snapshotTree(root), before);
   });
 
-  test('T-23-NAMES-14 고칠 ARB 에 미커밋 변경이 있으면 실패하고 쓰지 않는다', () async {
+  test('T-23-NAMES-14 고칠 ARB 에 미커밋 변경이 있으면 묻기 전에 실패하고 쓰지 않는다', () async {
     writeAppNamesFixture(root);
     final Map<String, List<int>> before = snapshotTree(root);
     final runner = FakeCommandRunner()
@@ -681,14 +681,11 @@ void main() {
         _gitStatusKey,
         const CommandResult(0, ' M lib/l10n/app_ko.arb\n', ''),
       );
-    final terminal = ScriptedTerminal(const <String?>[
-      'y',
-      'マイアプリ',
-      '마이앱',
-      '1',
-      '2',
-    ]);
+    final terminal = ScriptedTerminal(const <String?>['y', '2']);
     expect(await runAppNamesStep(runner, terminal), wizardExitStopped);
+    // 이름을 묻거나 머리 안내를 보이기 전에 실패한다 — 입력이 버려지지 않는다.
+    expect(collectNameAsks(terminal), isEmpty);
+    expect(terminal.output.toString(), isNot(contains('기본 이름은 "My App"')));
     expect(
       terminal.output.toString(),
       contains(

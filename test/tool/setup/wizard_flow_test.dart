@@ -1778,7 +1778,7 @@ void main() {
     writeLocalizedArbFixture(root);
     final first = _Harness(root, const <String?>['y', 'マイアプリ', '마이앱', '1']);
     _registerFinished(first);
-    // 언어별 앱 이름 단계가 쓰기 전 고칠 ARB 의 미커밋 변경을 한 번 본다.
+    // 언어별 앱 이름 단계가 이름을 묻기 전 고칠 ARB 의 미커밋 변경을 한 번 본다.
     first.on(gitStatusKey, ok());
 
     final int firstCode = await first.run();

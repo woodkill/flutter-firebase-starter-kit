@@ -279,7 +279,19 @@ final class AppNamesStep implements Step {
   }
 
   /// 언어마다 이름을 묻고 확인 표 뒤 대상 ARB 에 쓴다.
+  ///
+  /// 대상 ARB 는 검사 때 이미 정해지므로, 그 파일의 미커밋 변경은 이름을 묻기
+  /// 전에 검사해 입력을 버리지 않게 한다.
   Future<StepOutcome> _applyAsk(WizardContext context) async {
+    final List<String> dirty = await findDirtyTrackedFiles(context, <String>[
+      for (final _NameTarget target in _targets) target.arb.relativePath,
+    ]);
+    if (dirty.isNotEmpty) {
+      return Failed(
+        '고칠 파일에 커밋하지 않은 변경이 있습니다 — ${IdentityStep.dirtyTreeGuidance}\n'
+        '${dirty.map((String path) => '    $path').join('\n')}',
+      );
+    }
     final Terminal terminal = context.terminal;
     final String flavorName = context.flavor.name;
     final String suffix = flavorDisplayNameSuffixes[flavorName] ?? '';
@@ -388,23 +400,14 @@ final class AppNamesStep implements Step {
     return null;
   }
 
-  /// 쓰기 전 검사를 모두 통과하면 대상 ARB 마다 [names] 를 쓴다.
+  /// 쓰기 직전 JSON 재검사를 통과하면 대상 ARB 마다 [names] 를 쓴다.
   ///
-  /// 고칠 ARB 에 미커밋 변경이 있거나 · 하나라도 JSON 객체로 읽히지 않으면 어떤
-  /// 파일도 쓰지 않고, 쓰다가 실패하면 이미 쓴 파일을 되돌린다.
+  /// 하나라도 JSON 객체로 읽히지 않으면 어떤 파일도 쓰지 않고, 쓰다가 실패하면
+  /// 이미 쓴 파일을 되돌린다. 미커밋 변경 검사는 이름을 묻기 전에 끝났다.
   Future<StepOutcome> _writeNames(
     WizardContext context,
     List<String> names,
   ) async {
-    final List<String> dirty = await findDirtyTrackedFiles(context, <String>[
-      for (final _NameTarget target in _targets) target.arb.relativePath,
-    ]);
-    if (dirty.isNotEmpty) {
-      return Failed(
-        '고칠 파일에 커밋하지 않은 변경이 있습니다 — ${IdentityStep.dirtyTreeGuidance}\n'
-        '${dirty.map((String path) => '    $path').join('\n')}',
-      );
-    }
     for (final _NameTarget target in _targets) {
       final String? invalidJson = findInvalidJson(
         target.arb.absolutePath,
