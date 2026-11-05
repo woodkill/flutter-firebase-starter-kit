@@ -263,8 +263,8 @@ final class IdentityStep implements Step {
         '다음 pub get · 빌드가 lib/l10n/generated/ 를 다시 만듭니다)';
     // _applyFull 은 rename 변경에서 사용자 config appName 치환을 빼므로 CLI
     // 만 적으면 다른 flavor 의 appName 까지 바뀐다고 읽힌다 — 빼는 일을 함께
-    // 적는다(IN-08). 이 flavor 의 appName 은 바로 다음 줄(displayNameLines 첫
-    // 줄)이 쓴다.
+    // 적는다. 이 flavor 의 appName 은 바로 다음 줄(displayNameLines 첫 줄)이
+    // 쓴다.
     const renameLine =
         'fvm dart run bin/rename.dart --org <org> --name <name> '
         '--project-prefix <prefix> --apply --yes '

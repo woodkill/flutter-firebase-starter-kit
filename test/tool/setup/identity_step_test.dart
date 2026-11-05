@@ -812,7 +812,7 @@ void main() {
       hasLength(1),
     );
     // rename 줄은 위저드가 빼는 사용자 config appName 치환을 적고, 이 flavor 의
-    // appName 은 바로 다음 줄이 쓴다(IN-08).
+    // appName 은 바로 다음 줄이 쓴다.
     final int renameIndex = lines.indexWhere(
       (String line) => line.startsWith('fvm dart run bin/rename.dart --org'),
     );
