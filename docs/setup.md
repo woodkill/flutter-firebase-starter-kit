@@ -148,7 +148,7 @@
 **위저드가 하는 일**
 
 위저드는 개발 도구를 확인하고, 없는 도구는 확인을 받은 뒤 설치한다.
-- 이어서 Xcode 를 준비하고, 앱 정체성을 정하고, CLI 에 로그인하고, Firebase 프로젝트를 만들거나 고르고, 결제 계정을 연결한다.
+- 이어서 Xcode 를 준비하고, 앱 정체성을 정하고, 영어 아닌 언어마다 앱 이름을 묻고, CLI 에 로그인하고, Firebase 프로젝트를 만들거나 고르고, 결제 계정을 연결한다.
 - Firestore · 기본 Storage bucket · 이메일 로그인 · 익명 로그인을 켜고, 앱을 등록해 설정 파일을 만들고, rules 를 배포하고, App Check 디버그 토큰을 등록하고, Cloud Functions 를 배포한다.
 - 이어서 코드를 생성하고 dev flavor 앱을 실행해 로그인을 확인한다.
 - 끝으로 출시용 단계 — App Check 의 Play Integrity · DeviceCheck 등록과 APNs 키 업로드 안내 — 를 진행한다.
