@@ -94,13 +94,18 @@ String normalizeRepoPath(String path) {
 }
 
 /// 커밋된 상태(HEAD)의 [relativePath] 파일 내용을 보이는 git 명령을 만든다.
+///
+/// 출력은 파일 원문 전체라 실행 기록에는 본문 대신 길이만 남긴다
+/// ([Command.isOutputLogged] false) — 비밀 값은 아니므로 민감 표시는 하지 않는다.
 Command buildShowCommittedFileCommand(
   String relativePath, {
   String? workingDirectory,
-}) => Command('git', <String>[
-  'show',
-  'HEAD:${normalizeRepoPath(relativePath)}',
-], workingDirectory: workingDirectory);
+}) => Command(
+  'git',
+  <String>['show', 'HEAD:${normalizeRepoPath(relativePath)}'],
+  workingDirectory: workingDirectory,
+  isOutputLogged: false,
+);
 
 /// 커밋된 상태(HEAD)의 [relativePath] 파일 내용을 읽는다.
 ///

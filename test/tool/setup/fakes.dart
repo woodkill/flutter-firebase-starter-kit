@@ -30,6 +30,7 @@ final class FakeCall {
     this.key,
     this.stdinText, {
     this.isOutputSensitive = false,
+    this.isOutputLogged = true,
     this.workingDirectory,
   });
 
@@ -44,6 +45,9 @@ final class FakeCall {
 
   /// 명령이 민감 출력으로 실행됐으면 true.
   final bool isOutputSensitive;
+
+  /// 명령이 출력 본문을 실행 기록에 남기게 실행됐으면 true.
+  final bool isOutputLogged;
 
   /// 명령에 넘어간 작업 디렉터리 — 키에는 넣지 않으므로 cwd 회귀는 이 값으로 본다.
   final String? workingDirectory;
@@ -96,6 +100,7 @@ final class FakeCommandRunner implements CommandRunner {
         key,
         command.stdinText,
         isOutputSensitive: command.isOutputSensitive,
+        isOutputLogged: command.isOutputLogged,
         workingDirectory: command.workingDirectory,
       ),
     );

@@ -7,6 +7,8 @@ import '../../../tool/launcher_names.dart'
     show escapeAndroidString, generateLauncherNames, parseOptions;
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/flavor.dart' show Flavor;
+import '../../../tool/setup/git_tree.dart' show buildShowCommittedFileCommand;
+import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/app_names_step.dart';
 import '../../../tool/setup/wizard.dart';
@@ -846,6 +848,73 @@ void main() {
         buildGitShowKey(englishArbPath),
       ]);
       expect(runner.countCalls(RunMode.capture, _gitStatusKey), 1);
+      // 커밋된 ARB 원문 읽기는 실행 기록에 본문을 남기지 않게 실행된다.
+      final List<FakeCall> showCalls = runner.calls
+          .where((FakeCall call) => call.key.startsWith('git show '))
+          .toList();
+      expect(showCalls, hasLength(2));
+      for (final call in showCalls) {
+        expect(call.isOutputLogged, isFalse, reason: call.key);
+        expect(call.isOutputSensitive, isFalse, reason: call.key);
+      }
+      expect(
+        runner.calls
+            .singleWhere((FakeCall call) => call.key == _gitStatusKey)
+            .isOutputLogged,
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'T-23-NAMES-16 실제 실행기 기록 경로 — 커밋된 ARB 읽기는 본문 대신 글자 수 생략 표지를 남긴다(대조군 있음)',
+    () async {
+      final Command constant = buildShowCommittedFileCommand(
+        './lib/l10n/app_ko.arb',
+      );
+      expect(constant.arguments, <String>['show', 'HEAD:$koArbPath']);
+      expect(constant.isOutputLogged, isFalse);
+      expect(constant.isOutputSensitive, isFalse);
+      const marker = '기록 표지 앱 이름';
+      final String arbBody = buildLocalizedArb(
+        'ko',
+        titleJson: jsonEncode(marker),
+      );
+      // 스텁은 인자를 무시하고 ARB 원문을 표준 출력에 쓴다(here-doc 이 줄바꿈을 더한다).
+      final stub = File(
+        '$root/git-show-stub',
+      )..writeAsStringSync("#!/bin/sh\ncat <<'STUB_EOF'\n${arbBody}STUB_EOF\n");
+      Process.runSync('chmod', <String>['+x', stub.path]);
+
+      final log = MemoryLogSink(Redactor());
+      final CommandResult result =
+          await ProcessCommandRunner(
+            ScriptedTerminal(const <String?>[]),
+            log: log,
+          ).capture(
+            Command(
+              stub.path,
+              constant.arguments,
+              isOutputLogged: constant.isOutputLogged,
+            ),
+          );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, arbBody);
+      expect(log.lines, contains('[cmd] ${stub.path} show HEAD:$koArbPath'));
+      expect(log.text, isNot(contains(marker)));
+      expect(log.text, isNot(contains('commonOk')));
+      expect(log.lines, contains('[stdout] (출력 ${arbBody.runes.length}자 생략)'));
+      expect(log.text, isNot(contains('민감')));
+
+      // 대조군 — 같은 스텁을 기본 표시로 실행하면 기록에 본문이 남는다.
+      final controlLog = MemoryLogSink(Redactor());
+      await ProcessCommandRunner(
+        ScriptedTerminal(const <String?>[]),
+        log: controlLog,
+      ).capture(Command(stub.path, constant.arguments));
+      expect(controlLog.text, contains(marker));
+      expect(controlLog.text, isNot(contains('자 생략)')));
     },
   );
 
