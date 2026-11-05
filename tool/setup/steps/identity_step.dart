@@ -23,7 +23,8 @@ import 'configure_step.dart';
 /// 접미사를 뗀 기본 이름을 쓴다(빌드의 홈 화면 이름 생성기와 같은 규칙). 앱 ID 가
 /// 이미 바뀐 저장소에서 사용자 xcconfig 에 남은 킷 번들 ID 는 묻지 않고 앱 ID 에
 /// 맞춘다. 표시 이름이 이미 정해졌는데 영어 ARB `appTitle` 만 그 기본 이름과
-/// 다르면 묻지 않고 ARB 를 맞춘다.
+/// 다르면 묻지 않고 ARB 를 맞춘다. JSON `appName` 과 xcconfig `DISPLAY_NAME` 이
+/// 서로 다르면 표시 이름을 다시 묻고 두 곳에 같은 값을 쓴다.
 ///
 /// 영어 ARB `appTitle` 은 세 flavor 가 함께 쓴다. 그래서 다른 flavor 사용자
 /// 파일에 이미 정해진 표시 이름이 있으면 그 기본 이름을 표시 이름 제안값에 쓰고,
@@ -188,9 +189,24 @@ final class IdentityStep implements Step {
       _reason = '표시 이름이 킷 기본값입니다';
       return Todo(_reason);
     }
-    // 표시 이름이 기본값이 아니면 config appName 은 이미 읽힌 값이다.
+    // 표시 이름이 기본값이 아니면 config appName · xcconfig DISPLAY_NAME 은
+    // 이미 읽힌 값이다.
     final String appName =
         readJsonString(context.resolve(context.paths.json), 'appName') ?? '';
+    final String? xcconfigDisplayName = _readXcconfigDisplayName(
+      context.resolve(context.paths.xcconfig),
+    );
+    if (xcconfigDisplayName != appName) {
+      // 빌드의 기본 이름 원본은 Android 가 JSON appName, iOS 가 xcconfig
+      // DISPLAY_NAME 이다 — 둘이 다르면 영어 ARB 를 어느 쪽에 맞춰도 한 플랫폼
+      // 빌드가 멈추므로 표시 이름을 다시 묻고 두 곳에 같은 값을 쓴다.
+      _mode = _IdentityMode.displayNameOnly;
+      _reason =
+          '${context.paths.json} 의 appName("$appName")과 '
+          '${context.paths.xcconfig} 의 DISPLAY_NAME("$xcconfigDisplayName")이 '
+          '다릅니다';
+      return Todo(_reason);
+    }
     _baseName = stripFlavorSuffix(appName, context.flavor.displayNameSuffix);
     if (_baseName.trim().isEmpty) {
       // 기본 이름이 비면 영어 ARB 에 쓸 값이 없다 — 표시 이름을 다시 묻는다.
@@ -831,8 +847,9 @@ enum _IdentityMode {
   /// 앱 ID 가 킷 기본값 — org · name 부터 진행.
   full,
 
-  /// 앱 ID 는 바뀌었고 표시 이름이 기본값 — 사용자 xcconfig 의 킷 번들 ID 가
-  /// 남았으면 함께 맞춘다.
+  /// 앱 ID 는 바뀌었고 표시 이름이 기본값이거나 JSON `appName` 과 xcconfig
+  /// `DISPLAY_NAME` 이 다름 — 표시 이름을 다시 묻고, 사용자 xcconfig 의 킷 번들
+  /// ID 가 남았으면 함께 맞춘다.
   displayNameOnly,
 
   /// 앱 ID · 표시 이름은 바뀌었고 사용자 xcconfig 의 번들 ID 만 킷 값.

@@ -1796,4 +1796,72 @@ void main() {
       }
     });
   });
+
+  group('JSON appName 과 xcconfig DISPLAY_NAME 이 다르면 표시 이름을 다시 묻는다', () {
+    const renamedId = 'com.acme.my_app';
+
+    /// dev JSON `appName` 은 `Beta Dev`, xcconfig `DISPLAY_NAME` 은 `Alpha Dev`
+    /// 인 저장소를 만든다 — `bin/rename.dart` 를 단독으로 돌린 뒤의 모양이다.
+    void writeDivergedFixture(String appTitle) {
+      writeIdentityFixture(root, applicationId: renamedId, appTitle: appTitle);
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        'Beta Dev',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        'Alpha Dev',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'PRODUCT_BUNDLE_IDENTIFIER',
+        '${buildIosBundleIdPrefix(renamedId)}.dev',
+      );
+    }
+
+    for (final appTitle in <String>['Alpha', 'Beta']) {
+      test('영어 ARB appTitle 이 $appTitle 이어도 검사는 두 값을 적은 Todo 이고 '
+          '입력한 표시 이름을 세 곳에 쓴 뒤 ✓', () async {
+        writeDivergedFixture(appTitle);
+        final terminal = ScriptedTerminal(const <String?>['Beta Dev']);
+        final WizardContext context = buildTestContext(
+          projectRoot: root,
+          terminal: terminal,
+        );
+        final step = IdentityStep();
+
+        expect(
+          await step.check(context),
+          isA<Todo>().having(
+            (Todo todo) => todo.reason,
+            'reason',
+            allOf(
+              contains('${UserFilesStep.jsonUserPath} 의 appName("Beta Dev")'),
+              contains(
+                '${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME("Alpha Dev")',
+              ),
+            ),
+          ),
+        );
+        expect(await step.apply(context), isA<Applied>());
+
+        expect(terminal.asks, <String>[IdentityStep.displayNameQuestion]);
+        expect(
+          readXcconfigValue(
+            '$root/${UserFilesStep.xcconfigUserPath}',
+            'DISPLAY_NAME',
+          ),
+          'Beta Dev',
+        );
+        expect(
+          readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+          'Beta Dev',
+        );
+        expect(readJsonString('$root/$fixtureArbPath', 'appTitle'), 'Beta');
+        expect(await step.check(context), isA<Done>());
+      });
+    }
+  });
 }
