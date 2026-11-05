@@ -25,6 +25,7 @@ import '../../../tool/setup/steps/apis_step.dart';
 import '../../../tool/setup/steps/apns_step.dart';
 import '../../../tool/setup/steps/app_check_step.dart';
 import '../../../tool/setup/steps/app_icon_step.dart';
+import '../../../tool/setup/steps/app_names_step.dart';
 import '../../../tool/setup/steps/billing_step.dart';
 import '../../../tool/setup/steps/configure_step.dart';
 import '../../../tool/setup/steps/dev_steps.dart';
@@ -250,6 +251,21 @@ const String playIntegrityDeferredLine =
 const String apnsUnverifiableLine =
     '  ? ${ApnsStep.stepTitle} — ${ApnsStep.unverifiableNote}';
 
+/// 흐름 fixture 의 한국어 ARB 경로.
+const String koArbPath = 'lib/l10n/app_ko.arb';
+
+/// 흐름 fixture 의 일본어 ARB 경로.
+const String jaArbPath = 'lib/l10n/app_ja.arb';
+
+/// 영어 아닌 ARB 에 `appTitle` 이 없을 때 점검표의 언어별 앱 이름 줄.
+const String localizedAppNamesTodoLine =
+    '  ✗ ${AppNamesStep.stepTitle} — '
+    'lib/l10n/app_ja.arb · app_ko.arb 에 appTitle 이 없습니다';
+
+/// ja · ko 이름을 넣은 뒤 언어별 앱 이름 줄.
+const String localizedAppNamesDoneLine =
+    '  ✓ ${AppNamesStep.stepTitle} — ja マイアプリ · ko 마이앱';
+
 /// 모든 단계가 끝난 저장소의 DeviceCheck Key ID(실행 시점 조립).
 final String finishedDeviceCheckKeyId = 'K' * 10;
 
@@ -326,6 +342,40 @@ void writeFixture(String root, String relativePath, String content) {
   File('$root/$relativePath')
     ..parent.createSync(recursive: true)
     ..writeAsStringSync(content);
+}
+
+/// `appTitle` 이 없는 [locale] ARB 본문 — 다른 문구 [okLabel] 하나만 둔다.
+String buildUntitledArb(String locale, String okLabel) =>
+    '{\n'
+    '  "@@locale": "$locale",\n'
+    '\n'
+    '  "commonOk": "$okLabel"\n'
+    '}\n';
+
+/// 원어 이름 lib 표(`lib/core/l10n/locale_display_names.dart`) 사본 본문 —
+/// 킷 표와 같은 세 항목.
+const String localeEndonymsSource =
+    "import 'package:flutter/widgets.dart' show Locale;\n"
+    '\n'
+    'const Map<String, String> kLocaleEndonyms = <String, String>{\n'
+    "  'en': 'English',\n"
+    "  'ko': '한국어',\n"
+    "  'ja': '日本語',\n"
+    '};\n'
+    '\n'
+    'String localeDisplayName(Locale locale) =>\n'
+    '    kLocaleEndonyms[locale.languageCode] ?? locale.languageCode;\n';
+
+/// 킷 업데이트를 merge 해 들어온 모양 — `appTitle` 없는 ko · ja ARB 와 원어
+/// 이름 lib 표 사본을 [root] 에 쓴다(저장소 파일은 읽지 않는다).
+void writeLocalizedArbFixture(String root) {
+  writeFixture(root, koArbPath, buildUntitledArb('ko', '확인'));
+  writeFixture(root, jaArbPath, buildUntitledArb('ja', 'OK'));
+  writeFixture(
+    root,
+    'lib/core/l10n/locale_display_names.dart',
+    localeEndonymsSource,
+  );
 }
 
 /// 모든 단계가 끝난 저장소 모양을 [root] 에 만든다.
@@ -1722,4 +1772,77 @@ void main() {
       expect(readJsonString(configPath, 'kakaoNativeAppKey'), nativeKey);
     },
   );
+
+  test('T-23-FLOW-01: 끝난 저장소에 appTitle 없는 ko · ja ARB 가 들어오면 '
+      '언어별 앱 이름만 할 일 → 입력 → 재실행은 ✓ 19줄 · 질문 0 · 바이트 그대로', () async {
+    writeLocalizedArbFixture(root);
+    final first = _Harness(root, const <String?>['y', 'マイアプリ', '마이앱', '1']);
+    _registerFinished(first);
+    // 언어별 앱 이름 단계가 쓰기 전 고칠 ARB 의 미커밋 변경을 한 번 본다.
+    first.on(gitStatusKey, ok());
+
+    final int firstCode = await first.run();
+
+    expect(firstCode, wizardExitDone, reason: first.output);
+    final List<String> firstLines = const LineSplitter().convert(first.output);
+    expect(firstLines.where((String line) => line.startsWith('  ✗ ')), <String>[
+      localizedAppNamesTodoLine,
+      playIntegrityDeferredLine,
+      playIntegrityDeferredLine,
+    ]);
+    expect(first.output, contains('▶ ${AppNamesStep.stepTitle}'));
+    expect(first.screen.asks, contains('  ja (日本語) 앱 이름'));
+    expect(first.screen.asks, contains('  ko (한국어) 앱 이름'));
+    expect(first.output, contains('── ${AppNamesStep.confirmTitle} ──'));
+    expect(first.output, contains(localizedAppNamesDoneLine));
+    expect(
+      firstLines.where((String line) => line.startsWith('  ✓ ')),
+      hasLength(19),
+    );
+    expect(first.countStepQuestions(), 1);
+    expect(first.runner.countMode(RunMode.interactive), 0);
+    expect(first.runner.countMode(RunMode.stream), 0);
+    expect(countWriteRequests(first.rest), 0);
+    expect(
+      File('$root/$koArbPath').readAsStringSync(),
+      '{\n'
+      '  "@@locale": "ko",\n'
+      '\n'
+      '  "appTitle": "마이앱",\n'
+      '\n'
+      '  "commonOk": "확인"\n'
+      '}\n',
+    );
+    expect(
+      File('$root/$jaArbPath').readAsStringSync(),
+      '{\n'
+      '  "@@locale": "ja",\n'
+      '\n'
+      '  "appTitle": "マイアプリ",\n'
+      '\n'
+      '  "commonOk": "OK"\n'
+      '}\n',
+    );
+    final List<int> koAfterFirst = File('$root/$koArbPath').readAsBytesSync();
+    final List<int> jaAfterFirst = File('$root/$jaArbPath').readAsBytesSync();
+
+    final second = _Harness(root, const <String?>[]);
+    _registerFinished(second);
+
+    final int secondCode = await second.run();
+
+    expect(secondCode, wizardExitDone, reason: second.output);
+    final List<String> secondLines = const LineSplitter().convert(
+      second.output,
+    );
+    expect(
+      secondLines.where((String line) => line.startsWith('  ✓ ')),
+      hasLength(19),
+    );
+    expect(secondLines, contains(localizedAppNamesDoneLine));
+    expect(second.screen.asks, isEmpty);
+    expect(second.countStepQuestions(), 0);
+    expect(File('$root/$koArbPath').readAsBytesSync(), koAfterFirst);
+    expect(File('$root/$jaArbPath').readAsBytesSync(), jaAfterFirst);
+  });
 }
