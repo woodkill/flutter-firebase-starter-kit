@@ -100,7 +100,7 @@ abstract class AppLocalizations {
     Locale('ko'),
   ];
 
-  /// App name on the home screen (launcher), the recent-apps screen and the home AppBar. Give a value only in languages whose name differs from the default name; the English value must equal the default name (config appName without the flavor suffix).
+  /// App name on the home screen (launcher), the recent-apps screen and the home AppBar. The setup wizard writes this key in every non-English ARB (the same value as the default name when that language keeps it); the English value must equal the default name (config appName without the flavor suffix).
   ///
   /// In en, this message translates to:
   /// **'StarterKit'**
