@@ -70,6 +70,10 @@ const String devBundleId = '$org.myApp.dev';
 /// 흐름 fixture 의 표시 이름.
 const String displayName = 'My App Dev';
 
+/// 흐름 fixture 영어 ARB(`lib/l10n/app_en.arb`)의 `appTitle` — 표시 이름에서
+/// dev 접미사를 뗀 기본 이름.
+const String englishAppTitle = 'My App';
+
 /// 가짜 iOS Firebase 앱 ID.
 const String iosAppId = '1:111111111111:ios:aaaaaaaaaaaaaaaa';
 
@@ -359,6 +363,12 @@ void writeFinishedFixture(String root) {
           RegExp('DISPLAY_NAME = .*'),
           'DISPLAY_NAME = $displayName',
         ),
+  );
+  // 앱 정체성이 표시 이름과 함께 쓴 영어 ARB — 시험 상수 본문.
+  writeFixture(
+    root,
+    IdentityStep.arbPath,
+    '{\n  "@@locale": "en",\n  "appTitle": "$englishAppTitle"\n}\n',
   );
 
   writeFixture(

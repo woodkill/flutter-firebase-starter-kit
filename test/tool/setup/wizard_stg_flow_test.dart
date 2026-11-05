@@ -386,6 +386,11 @@ void _writeDevFinishedFixture(_Fixture fixture) {
       'functions/src/index.ts',
       'const kitSecret = defineSecret("$declaredSecret");\n',
     )
+    // 킷 영어 ARB(lib/l10n/app_en.arb) — appTitle 은 킷 기본 이름(시험 상수 본문).
+    ..write(
+      IdentityStep.arbPath,
+      '{\n  "@@locale": "en",\n  "appTitle": "${rename.currentAppName}"\n}\n',
+    )
     ..runGitChecked(<String>['init', '-q'])
     ..commitAll('init');
 
@@ -401,6 +406,13 @@ void _writeDevFinishedFixture(_Fixture fixture) {
     devConfig,
     AppCheckStep.tokenKey,
     generateUuidV4(Random(5)),
+  );
+  // dev 앱 정체성이 표시 이름과 함께 쓴 영어 ARB — rename 표시 이름에서 dev
+  // 접미사를 뗀 기본 이름.
+  replaceJsonString(
+    '${fixture.root}/${IdentityStep.arbPath}',
+    'appTitle',
+    rename.toTitleCase(newName),
   );
   _writeAppFiles(
     fixture,

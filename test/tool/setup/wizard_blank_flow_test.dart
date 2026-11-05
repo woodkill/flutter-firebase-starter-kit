@@ -258,6 +258,11 @@ void _writeBlankFixture(_Fixture fixture) {
     ..write(
       'functions/src/index.ts',
       'const kitSecret = defineSecret("$declaredSecret");\n',
+    )
+    // 킷 영어 ARB(lib/l10n/app_en.arb) — appTitle 은 킷 기본 이름(시험 상수 본문).
+    ..write(
+      IdentityStep.arbPath,
+      '{\n  "@@locale": "en",\n  "appTitle": "${rename.currentAppName}"\n}\n',
     );
   fixture
     ..runGitChecked(<String>['init', '-q'])
@@ -1145,6 +1150,14 @@ void main() {
       }
       expect(fixture.read(IdentityStep.gradlePath), contains(newApplicationId));
       expect(readDevBundleId(fixture.root), newDevBundleId);
+      // 앱 정체성은 표시 이름(My App Dev)과 함께 영어 ARB appTitle 을 기본 이름으로
+      // 바꾸고, 그 추적 파일 변경은 끝 요약의 커밋 안내에 함께 보인다.
+      expect(
+        fixture.read(IdentityStep.arbPath),
+        contains('"appTitle": "My App"'),
+      );
+      expect(status, contains(' M ${IdentityStep.arbPath}'));
+      expect(hint, contains('\n  ${IdentityStep.arbPath}\n'));
       // 작업 디렉터리에 기대는 명령(스크립트 · pnpm · fvm · 배포)은 저장소 루트에서
       // 실행한다 — 가짜 실행기 키에는 cwd 가 없으므로 기록으로 따로 본다.
       final List<FakeCall> rootBound = run.fake.calls
