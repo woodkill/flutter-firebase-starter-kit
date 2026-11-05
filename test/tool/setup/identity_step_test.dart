@@ -811,6 +811,22 @@ void main() {
       ),
       hasLength(1),
     );
+    // rename 줄은 위저드가 빼는 사용자 config appName 치환을 적고, 이 flavor 의
+    // appName 은 바로 다음 줄이 쓴다(IN-08).
+    final int renameIndex = lines.indexWhere(
+      (String line) => line.startsWith('fvm dart run bin/rename.dart --org'),
+    );
+    expect(
+      lines[renameIndex],
+      endsWith(
+        ' (단 config/{dev,stg,prod}.json 의 appName 치환은 빼고 — '
+        '이 flavor 의 appName 만 바로 아래 줄에서 씀)',
+      ),
+    );
+    expect(
+      lines[renameIndex + 1],
+      '(${context.paths.json} 의 appName 을 표시 이름으로 바꿈)',
+    );
     expect(lines.where((String line) => line.contains('appName')), isNotEmpty);
     expect(
       lines.where((String line) => line.contains('DISPLAY_NAME')),
