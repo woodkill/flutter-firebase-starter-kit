@@ -427,6 +427,34 @@ void main() {
     expect(output, contains('  ✓ 언어별 앱 이름 — ja マイアプリ · ko 마이앱'));
   });
 
+  test(
+    'T-23-NAMES-06 config 이름에 접미사가 없으면 접미사 입력 안내는 빌드가 붙인다고 하지 않는다',
+    () async {
+      writeAppNamesFixture(root, appName: 'My App');
+      final terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'マイアプリ',
+        '마이앱 Dev',
+        '마이앱',
+        '1',
+      ]);
+      expect(
+        await runAppNamesStep(buildCleanRunner(), terminal),
+        wizardExitDone,
+      );
+      final output = terminal.output.toString();
+      expect(
+        output,
+        contains(
+          '  이름 끝의 " Dev" 는 flavor 접미사와 겹쳐 받지 않습니다 — 접미사 없는 이름을 입력하세요\n',
+        ),
+      );
+      expect(output, isNot(contains('빌드가 붙이므로')));
+      expect(countAsks(terminal, koQuestion), 2);
+      expect(readFile(koArbPath), contains('"appTitle": "마이앱",'));
+    },
+  );
+
   test('T-23-NAMES-07 이어진 공백은 안내 뒤 다시 묻고 기본 이름과 같은 입력은 그대로 기록한다', () async {
     writeAppNamesFixture(root);
     final terminal = ScriptedTerminal(const <String?>[

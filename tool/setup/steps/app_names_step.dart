@@ -324,7 +324,12 @@ final class AppNamesStep implements Step {
     ];
     final names = List<String>.filled(_targets.length, '');
     for (var i = 0; i < _targets.length; i++) {
-      final String? name = _askName(terminal, _targets[i], labels[i]);
+      final String? name = _askName(
+        terminal,
+        _targets[i],
+        labels[i],
+        showsSuffix: showsSuffix,
+      );
       if (name == null) return const Declined();
       if (name.isEmpty) return const Failed(invalidFormatFailure);
       names[i] = name;
@@ -353,7 +358,12 @@ final class AppNamesStep implements Step {
       if (choice == null) return const Declined();
       if (choice == 0) break;
       final int index = choice - 1;
-      final String? name = _askName(terminal, _targets[index], labels[index]);
+      final String? name = _askName(
+        terminal,
+        _targets[index],
+        labels[index],
+        showsSuffix: showsSuffix,
+      );
       if (name == null) return const Declined();
       if (name.isEmpty) return const Failed(invalidFormatFailure);
       names[index] = name;
@@ -365,8 +375,14 @@ final class AppNamesStep implements Step {
   /// [target] 언어의 이름을 규칙에 맞을 때까지 [maxInputAttempts] 번까지 묻는다.
   ///
   /// 지금 값이 규칙에 어긋나면 그 값을 질문 글에 보이고, 기본값은 늘 기본 이름이다.
-  /// 입력 끝이면 null, 끝까지 틀리면 빈 문자열을 돌려준다.
-  String? _askName(Terminal terminal, _NameTarget target, String label) {
+  /// [showsSuffix] 는 이 flavor 빌드가 접미사를 붙이는지로, 접미사 입력 안내
+  /// 문구를 고른다. 입력 끝이면 null, 끝까지 틀리면 빈 문자열을 돌려준다.
+  String? _askName(
+    Terminal terminal,
+    _NameTarget target,
+    String label, {
+    required bool showsSuffix,
+  }) {
     final Object? current = target.currentValue;
     final question = current == null
         ? '  $label 앱 이름'
@@ -375,7 +391,7 @@ final class AppNamesStep implements Step {
       final String? answer = terminal.ask(question, defaultValue: _baseName);
       if (answer == null) return null;
       final String name = answer.trim();
-      final String? problem = _findInputProblem(name);
+      final String? problem = _findInputProblem(name, showsSuffix: showsSuffix);
       if (problem == null) return name;
       terminal.writeLine(problem);
     }
@@ -384,16 +400,21 @@ final class AppNamesStep implements Step {
 
   /// 입력 [name] 이 받을 수 없는 이름이면 다시 물을 때의 안내 — 받으면 null.
   ///
-  /// 접미사는 빌드가 붙이므로 어느 flavor 접미사로 끝나는 이름도 받지 않는다.
-  /// 공백 규칙은 빌드 생성기의 판정을 그대로 쓴다.
-  static String? _findInputProblem(String name) {
+  /// 어느 flavor 접미사로 끝나는 이름도 받지 않는다. [showsSuffix] 가 true 면
+  /// 그 접미사를 빌드가 붙인다고 알리고, false 면(표시 이름에서 접미사를 지움)
+  /// 빌드가 붙이지 않으므로 접미사와 겹친다는 사실만 알린다. 공백 규칙은 빌드
+  /// 생성기의 판정을 그대로 쓴다.
+  static String? _findInputProblem(String name, {required bool showsSuffix}) {
     if (name.isEmpty) return emptyNameMessage;
     for (final MapEntry<String, String> entry
         in flavorDisplayNameSuffixes.entries) {
       final String suffix = entry.value;
       final String flavorName = entry.key;
       if (suffix.isNotEmpty && name.endsWith(suffix)) {
-        return '  "$suffix" 는 $flavorName 빌드가 붙이므로 접미사 없는 이름을 입력하세요';
+        return showsSuffix
+            ? '  "$suffix" 는 $flavorName 빌드가 붙이므로 접미사 없는 이름을 입력하세요'
+            : '  이름 끝의 "$suffix" 는 flavor 접미사와 겹쳐 받지 않습니다 — '
+                  '접미사 없는 이름을 입력하세요';
       }
     }
     if (hasLauncherNameWhitespaceIssue(name)) return repeatedWhitespaceMessage;
