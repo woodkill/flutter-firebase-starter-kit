@@ -102,16 +102,42 @@ String buildFixtureArb(String appTitle) =>
     '  }\n'
     '}\n';
 
+/// fixture 한국어 ARB(저장소 상대 경로).
+const String fixtureKoArbPath = 'lib/l10n/app_ko.arb';
+
+/// fixture 일본어 ARB(저장소 상대 경로).
+const String fixtureJaArbPath = 'lib/l10n/app_ja.arb';
+
+/// fixture 의 `l10n.yaml` 본문 — ARB 집합을 읽는 두 줄.
+const String fixtureL10nYaml =
+    'arb-dir: lib/l10n\n'
+    'template-arb-file: app_en.arb\n';
+
+/// [locale] 다른 언어 ARB fixture 본문을 만든다.
+///
+/// [appTitle] 이 null 이 아니면 `@@locale` 줄 바로 뒤에 `appTitle` 줄을 둔다 —
+/// null 이면 키가 없다. 다른 키 하나를 둔다.
+String buildFixtureLocalizedArb(String locale, String? appTitle) =>
+    '{\n'
+    '  "@@locale": "$locale",\n'
+    '${appTitle == null ? '' : '  "appTitle": "$appTitle",\n'}'
+    '\n'
+    '  "commonOk": "확인"\n'
+    '}\n';
+
 /// [root] 아래에 앱 정체성 단계가 읽고 고치는 파일 fixture 를 쓴다.
 ///
 /// 사용자 설정 파일은 추적되는 example 을 복사해 만든다. [applicationId] 가 킷
 /// 기본값이 아니면 이름 바꾸기가 끝난 추적 파일 모양(Kotlin 디렉터리 이동 ·
 /// pbxproj 번들 ID · 스크립트 상수)으로 쓰고, 킷 Kotlin 디렉터리는 지운다.
-/// 영어 ARB 는 `appTitle` 이 [appTitle] 인 시험 상수 본문으로 쓴다.
+/// 영어 ARB 는 `appTitle` 이 [appTitle] 인 시험 상수 본문으로 쓴다. `l10n.yaml`
+/// 은 늘 쓰고, [localizedTitles] 의 locale 마다 `appTitle` 이 그 값(null 이면
+/// 키 없음)인 다른 언어 ARB 를 쓴다.
 void writeIdentityFixture(
   String root, {
   String applicationId = rename.currentAndroidPackage,
   String appTitle = fixtureKitAppTitle,
+  Map<String, String?> localizedTitles = const <String, String?>{},
 }) {
   final isKitDefault = applicationId == rename.currentAndroidPackage;
   final String iosBundleIdPrefix = isKitDefault
@@ -154,7 +180,15 @@ void writeIdentityFixture(
       androidPackagePrefix: applicationId,
     ),
   );
+  writeFixtureFile(root, 'l10n.yaml', fixtureL10nYaml);
   writeFixtureFile(root, fixtureArbPath, buildFixtureArb(appTitle));
+  for (final MapEntry<String, String?> entry in localizedTitles.entries) {
+    writeFixtureFile(
+      root,
+      'lib/l10n/app_${entry.key}.arb',
+      buildFixtureLocalizedArb(entry.key, entry.value),
+    );
+  }
   for (final path in <String>[
     UserFilesStep.jsonExamplePath,
     UserFilesStep.xcconfigExamplePath,
@@ -1303,12 +1337,19 @@ void main() {
 
     /// 앱 ID · 표시 이름이 정해진 저장소를 만든다 — 영어 ARB `appTitle` 은
     /// [appTitle] 이고, [isBundleIdRenamed] 가 false 면 사용자 xcconfig 번들 ID 는
-    /// example 의 킷 값 그대로다.
+    /// example 의 킷 값 그대로다. [localizedTitles] 는 [writeIdentityFixture] 에
+    /// 그대로 넘긴다.
     void writeSettledFixture({
       required String appTitle,
       bool isBundleIdRenamed = true,
+      Map<String, String?> localizedTitles = const <String, String?>{},
     }) {
-      writeIdentityFixture(root, applicationId: renamedId, appTitle: appTitle);
+      writeIdentityFixture(
+        root,
+        applicationId: renamedId,
+        appTitle: appTitle,
+        localizedTitles: localizedTitles,
+      );
       replaceJsonString(
         '$root/${UserFilesStep.jsonUserPath}',
         'appName',
@@ -1493,6 +1534,175 @@ void main() {
       );
       expect(readArbTitle(), 'Acme Studio');
       expect(await step.check(settled.context), isA<Done>());
+    });
+
+    test('T-23-ID-01 영어 값과 같은 다른 언어 appTitle 은 묻지 않고 새 기본 이름으로 '
+        '함께 바꾸고 진짜 번역은 그대로 둔다', () async {
+      writeSettledFixture(
+        appTitle: fixtureKitAppTitle,
+        localizedTitles: const <String, String?>{
+          'ja': 'マイアプリ',
+          'ko': fixtureKitAppTitle,
+        },
+      );
+      final String englishBefore = readFile(fixtureArbPath);
+      final String koreanBefore = readFile(fixtureKoArbPath);
+      final List<int> japaneseBefore = File(
+        '$root/$fixtureJaArbPath',
+      ).readAsBytesSync();
+      final settled = buildSettledContext();
+      final step = IdentityStep();
+
+      expect(await step.check(settled.context), isA<Todo>());
+      expect(step.plannedCommandLines(settled.context), <String>[
+        arbPlanLine,
+        '(lib/l10n/app_ko.arb 의 appTitle 도 옛 기본 이름과 같아 새 이름으로 바꿈)',
+      ]);
+
+      final StepOutcome outcome = await step.apply(settled.context);
+
+      expect(outcome, isA<Applied>());
+      expect(settled.terminal.asks, isEmpty);
+      // 두 파일 모두 appTitle 줄 하나만 다르다.
+      expect(
+        readFile(fixtureArbPath),
+        englishBefore.replaceFirst(
+          '"appTitle": "$fixtureKitAppTitle"',
+          '"appTitle": "$settledBaseName"',
+        ),
+      );
+      expect(
+        readFile(fixtureKoArbPath),
+        koreanBefore.replaceFirst(
+          '"appTitle": "$fixtureKitAppTitle"',
+          '"appTitle": "$settledBaseName"',
+        ),
+      );
+      expect(
+        readJsonString('$root/$fixtureKoArbPath', 'appTitle'),
+        settledBaseName,
+      );
+      expect(File('$root/$fixtureJaArbPath').readAsBytesSync(), japaneseBefore);
+      expect(await step.check(settled.context), isA<Done>());
+    });
+
+    test('T-23-ID-02 영어 값과 같은 다른 언어 appTitle 이 없으면 계획 줄 · 다른 언어 '
+        'ARB 가 그대로다', () async {
+      writeSettledFixture(
+        appTitle: fixtureKitAppTitle,
+        localizedTitles: const <String, String?>{'ja': null, 'ko': '마이앱'},
+      );
+      final localizedBefore = <String, List<int>>{
+        for (final String path in <String>[fixtureJaArbPath, fixtureKoArbPath])
+          path: File('$root/$path').readAsBytesSync(),
+      };
+      final settled = buildSettledContext();
+      final step = IdentityStep();
+
+      await step.check(settled.context);
+      expect(step.plannedCommandLines(settled.context), <String>[arbPlanLine]);
+      expect(await step.apply(settled.context), isA<Applied>());
+
+      expect(readArbTitle(), settledBaseName);
+      for (final MapEntry<String, List<int>> entry in localizedBefore.entries) {
+        expect(
+          File('$root/${entry.key}').readAsBytesSync(),
+          entry.value,
+          reason: entry.key,
+        );
+      }
+    });
+
+    test('T-23-ID-02 영어 ARB 를 지운 킷 기본 저장소의 검사는 기존 사유 그대로이고 '
+        '복사본 줄이 없다', () async {
+      writeIdentityFixture(
+        root,
+        localizedTitles: const <String, String?>{'ko': fixtureKitAppTitle},
+      );
+      File('$root/$fixtureArbPath').deleteSync();
+      final step = IdentityStep();
+      final WizardContext context = buildSettledContext().context;
+
+      final CheckResult result = await step.check(context);
+
+      expect(
+        result,
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          startsWith('Android 앱 ID 가 킷 기본값입니다 ('),
+        ),
+      );
+      expect(
+        step.plannedCommandLines(context),
+        everyElement(isNot(contains('옛 기본 이름'))),
+      );
+    });
+
+    group('T-23-ID-03 다른 언어 ARB 가 깨졌으면', () {
+      const brokenKoArb = '{ "@@locale": "ko", ';
+      const numericKoArb =
+          '{\n'
+          '  "@@locale": "ko",\n'
+          '  "appTitle": 12\n'
+          '}\n';
+
+      for (final (String body, String expected) in <(String, String)>[
+        (brokenKoArb, '올바른 JSON 이 아닙니다'),
+        (numericKoArb, '$fixtureKoArbPath 의 appTitle 이 문자열이 아닙니다'),
+      ]) {
+        test('T-23-ID-03 영어 ARB 만 맞출 때 검사는 그대로이고 실행은 어느 파일도 쓰기 전에 '
+            '실패한다 — $expected', () async {
+          writeSettledFixture(
+            appTitle: fixtureKitAppTitle,
+            localizedTitles: const <String, String?>{'ko': fixtureKitAppTitle},
+          );
+          writeFixtureFile(root, fixtureKoArbPath, body);
+          final Map<String, List<int>> before = snapshotTree(root);
+          final settled = buildSettledContext();
+          final step = IdentityStep();
+
+          expect(
+            await step.check(settled.context),
+            isA<Todo>().having(
+              (Todo todo) => todo.reason,
+              'reason',
+              '$fixtureArbPath 의 appTitle("$fixtureKitAppTitle")이 표시 이름의 '
+                  '기본 이름("$settledBaseName")과 다릅니다',
+            ),
+          );
+          final StepOutcome outcome = await step.apply(settled.context);
+
+          expect(
+            outcome,
+            isA<Failed>().having(
+              (Failed failed) => failed.summary,
+              'summary',
+              allOf(contains(fixtureKoArbPath), contains(expected)),
+            ),
+          );
+          expect(settled.terminal.asks, isEmpty);
+          expect(snapshotTree(root), before);
+        });
+      }
+
+      test('T-23-ID-03 끝난 저장소의 검사는 깨진 다른 언어 ARB 와 무관하게 ✓ 다', () async {
+        writeSettledFixture(appTitle: settledBaseName);
+        writeFixtureFile(root, fixtureKoArbPath, brokenKoArb);
+
+        final CheckResult result = await IdentityStep().check(
+          buildSettledContext().context,
+        );
+
+        expect(
+          result,
+          isA<Done>().having(
+            (Done done) => done.summary,
+            'summary',
+            'Android 앱 ID $renamedId',
+          ),
+        );
+      });
     });
   });
 

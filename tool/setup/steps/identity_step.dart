@@ -1,8 +1,14 @@
 import 'dart:io';
 
 import '../../../bin/rename.dart' as rename;
-import '../../launcher_names.dart' show stripFlavorSuffix;
-import '../arb_titles.dart' show findInvalidJson;
+import '../../launcher_names.dart' show GeneratorException, stripFlavorSuffix;
+import '../arb_titles.dart'
+    show
+        findInvalidArbTitle,
+        findInvalidJson,
+        formatArbPaths,
+        listLocalizedArbs,
+        readArbTitle;
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
@@ -145,6 +151,10 @@ final class IdentityStep implements Step {
   /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 줄 변경.
   List<rename.FileChange> _xcconfigResidue = const <rename.FileChange>[];
 
+  /// 직전 검사가 모은 — 영어 ARB 의 지금 `appTitle` 과 같은 값을 가진 다른 언어
+  /// ARB 의 저장소 상대 경로(파일 이름 순).
+  List<String> _arbCopyPaths = const <String>[];
+
   @override
   String get id => 'identity';
 
@@ -164,6 +174,7 @@ final class IdentityStep implements Step {
   Future<CheckResult> check(WizardContext context) async {
     // 이전 검사의 잔여를 들고 가지 않는다 — 아래 판정이 다시 채운다.
     _xcconfigResidue = const <rename.FileChange>[];
+    _arbCopyPaths = const <String>[];
     final String? applicationId = readGradleApplicationId(
       context.resolve(gradlePath),
     );
@@ -173,6 +184,9 @@ final class IdentityStep implements Step {
       return Todo(_reason);
     }
     _applicationId = applicationId;
+    // 계획 줄 · 미커밋 검사가 어느 판정으로 돌아가도 같은 목록을 쓰도록 판정
+    // 앞에서 모은다 — 판정 · 사유는 바꾸지 않는다.
+    _arbCopyPaths = _collectArbCopyPaths(context);
     if (_applicationId == rename.currentAndroidPackage) {
       _mode = _IdentityMode.full;
       _reason = 'Android 앱 ID 가 킷 기본값입니다 ($_applicationId)';
@@ -261,6 +275,12 @@ final class IdentityStep implements Step {
     const arbLine =
         '($arbPath 의 appTitle 을 표시 이름에서 flavor 접미사를 뺀 값으로 바꿈 — '
         '다음 pub get · 빌드가 lib/l10n/generated/ 를 다시 만듭니다)';
+    // 영어 값을 그대로 따르던 다른 언어 이름도 영어 ARB 와 함께 바뀐다 — 그런
+    // 파일이 있을 때만 적는다.
+    final arbCopyLines = <String>[
+      if (_arbCopyPaths.isNotEmpty)
+        '(${formatArbPaths(_arbCopyPaths)} 의 appTitle 도 옛 기본 이름과 같아 새 이름으로 바꿈)',
+    ];
     // _applyFull 은 rename 변경에서 사용자 config appName 치환을 빼므로 CLI
     // 만 적으면 다른 flavor 의 appName 까지 바뀐다고 읽힌다 — 빼는 일을 함께
     // 적는다. 이 flavor 의 appName 은 바로 다음 줄(displayNameLines 첫 줄)이
@@ -274,6 +294,7 @@ final class IdentityStep implements Step {
       '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
       '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
       arbLine,
+      ...arbCopyLines,
     ];
     final bundleIdLines = <String>[
       for (final String path in _listTargetPaths(context, _xcconfigResidue))
@@ -290,7 +311,11 @@ final class IdentityStep implements Step {
         ...displayNameLines,
       ],
       _IdentityMode.bundleIdOnly => bundleIdLines,
-      _IdentityMode.titleOnly => <String>[...bundleIdLines, arbLine],
+      _IdentityMode.titleOnly => <String>[
+        ...bundleIdLines,
+        arbLine,
+        ...arbCopyLines,
+      ],
       _IdentityMode.unreadable ||
       _IdentityMode.inconsistent ||
       _IdentityMode.nameConflict ||
@@ -404,6 +429,8 @@ final class IdentityStep implements Step {
 
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
+    final String? unwritableArb = _findUnwritableLocalizedArb(context);
+    if (unwritableArb != null) return Failed(unwritableArb);
     final String? conflict = _findDisplayNameConflict(context, displayName);
     if (conflict != null) return Failed(conflict);
 
@@ -446,6 +473,8 @@ final class IdentityStep implements Step {
   StepOutcome _applyDisplayNameOnly(WizardContext context) {
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
+    final String? unwritableArb = _findUnwritableLocalizedArb(context);
+    if (unwritableArb != null) return Failed(unwritableArb);
 
     final String suggested = _suggestDisplayName(context);
     final String? displayName = _askValid(
@@ -506,6 +535,8 @@ final class IdentityStep implements Step {
   StepOutcome _applyTitleOnly(WizardContext context) {
     final String? missingTitle = _findMissingArbTitle(context);
     if (missingTitle != null) return Failed(missingTitle);
+    final String? unwritableArb = _findUnwritableLocalizedArb(context);
+    if (unwritableArb != null) return Failed(unwritableArb);
     rename.applyChanges(_xcconfigResidue);
     _writeArbTitle(context, _baseName);
     return const Applied();
@@ -792,10 +823,70 @@ final class IdentityStep implements Step {
     );
   }
 
-  /// 영어 ARB `appTitle` 값만 [baseName] 으로 바꾼다 — 설명 객체 · 다른 키의
+  /// 영어 ARB `appTitle` 값을 [baseName] 으로 바꾼다 — 설명 객체 · 다른 키의
   /// 바이트는 그대로다.
+  ///
+  /// 바꾸기 직전 영어 값과 글자 그대로 같은 `appTitle` 을 가진 다른 언어 ARB 도
+  /// 먼저 [baseName] 으로 바꾼다 — 영어 값을 따르던 이름이라 함께 따라가야 하고,
+  /// 다른 값(그 언어로 따로 정한 이름)은 그대로 둔다. 다른 언어 ARB 를 쓸 수
+  /// 있는지는 [_findUnwritableLocalizedArb] 가 미리 본다.
   static void _writeArbTitle(WizardContext context, String baseName) {
-    replaceJsonString(context.resolve(arbPath), 'appTitle', baseName);
+    final String englishPath = context.resolve(arbPath);
+    final String? oldTitle = readJsonString(englishPath, 'appTitle');
+    if (oldTitle != null) {
+      for (final arb in listLocalizedArbs(context.projectRoot)) {
+        if (readArbTitle(arb.absolutePath) == oldTitle) {
+          replaceJsonString(arb.absolutePath, 'appTitle', baseName);
+        }
+      }
+    }
+    replaceJsonString(englishPath, 'appTitle', baseName);
+  }
+
+  /// 영어 ARB 의 지금 `appTitle` 과 같은 값을 가진 다른 언어 ARB 의 저장소 상대
+  /// 경로를 파일 이름 순으로 모은다.
+  ///
+  /// 검사 판정 · 사유를 바꾸지 않도록 어떤 트리에서도 던지지 않는다 — 영어 ARB 나
+  /// 그 `appTitle` 이 없거나 읽히지 않거나, `l10n.yaml` 로 다른 언어 ARB 를 찾지
+  /// 못하면 빈 목록이다. 찾지 못한 이유는 쓰기 직전 검사가 사유로 보인다.
+  static List<String> _collectArbCopyPaths(WizardContext context) {
+    final String englishPath = context.resolve(arbPath);
+    try {
+      if (!File(englishPath).existsSync()) return const <String>[];
+      final String? englishTitle = readJsonString(englishPath, 'appTitle');
+      if (englishTitle == null) return const <String>[];
+      return <String>[
+        for (final arb in listLocalizedArbs(context.projectRoot))
+          if (readArbTitle(arb.absolutePath) == englishTitle) arb.relativePath,
+      ];
+    } on GeneratorException {
+      return const <String>[];
+    } on FileSystemException {
+      return const <String>[];
+    } on FormatException {
+      return const <String>[];
+    }
+  }
+
+  /// 다른 언어 ARB 가운데 `appTitle` 을 바꿀 수 없는 첫 파일의 사유를 돌려준다
+  /// — 모두 쓸 수 있으면 null.
+  ///
+  /// 세 실행 경로가 어떤 파일도 쓰기 전에만 부른다. 검사(check) 판정에는 끼지
+  /// 않으므로 끝난 정체성은 다른 언어 ARB 가 깨져 있어도 끝난 것으로 본다.
+  /// 사유 문구는 영어 ARB 검사와 같은 함수의 것이다.
+  static String? _findUnwritableLocalizedArb(WizardContext context) {
+    try {
+      for (final arb in listLocalizedArbs(context.projectRoot)) {
+        final String? invalid = findInvalidArbTitle(
+          arb.absolutePath,
+          arb.relativePath,
+        );
+        if (invalid != null) return invalid;
+      }
+      return null;
+    } on GeneratorException catch (e) {
+      return '언어별 ARB 목록을 읽지 못했습니다 — ${e.message}';
+    }
   }
 
   /// configure 스크립트의 prefix 상수가 [applicationId] 와 같은 정체성인지 본다.
