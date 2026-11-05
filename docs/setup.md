@@ -25,6 +25,7 @@
 **사람이 미리 갖출 것**
 
 - **macOS 와 터미널 앱** — 위저드는 macOS 에서만 돈다.
+  - Android 빌드도 macOS 를 전제한다 — Windows 에서는 홈 화면 이름 생성 단계가 Flutter SDK 의 dart 를 실행하지 못해 빌드가 멈춘다.
   - 개발자 도구가 한 번도 설치되지 않은 Mac 에서는 처음 `git clone` 을 실행할 때 macOS 가 Command Line Tools 설치 창을 띄운다 — 「설치」 를 누르고 끝나면 같은 `git clone` 명령을 다시 실행한다.
 - **Homebrew** — 없으면 `./setup.sh` 가 설치 명령을 보이고 끝난다.
   - 설치한 뒤 같은 명령을 다시 실행한다.
