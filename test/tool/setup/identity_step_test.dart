@@ -1214,6 +1214,57 @@ void main() {
       expect(terminal.asks, isEmpty);
       expect(snapshotTree(root), before);
     });
+
+    // appTitle 줄은 읽히지만 파일 끝이 깨진 ARB — 값 읽기 정규식은 통과한다.
+    final brokenArb = '${buildFixtureArb(fixtureKitAppTitle)},';
+
+    test('표시 이름만 쓸 때 영어 ARB 가 깨진 JSON 이면 묻기 전에 ARB 경로를 적고 '
+        '실패하며 파일 변경 0', () async {
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      File('$root/$fixtureArbPath').writeAsStringSync(brokenArb);
+      final Map<String, List<int>> before = snapshotTree(root);
+
+      final (StepOutcome outcome, ScriptedTerminal terminal) =
+          await checkAndApply(const <String?>['Acme Studio Dev']);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          allOf(
+            contains(fixtureArbPath),
+            isNot(contains(UserFilesStep.jsonUserPath)),
+          ),
+        ),
+      );
+      expect(terminal.asks, isEmpty);
+      expect(snapshotTree(root), before);
+    });
+
+    test('org · name 부터 진행할 때 영어 ARB 가 깨진 JSON 이면 이름 바꾸기 전에 '
+        '실패하고 파일 변경 0', () async {
+      writeIdentityFixture(root);
+      File('$root/$fixtureArbPath').writeAsStringSync(brokenArb);
+      final Map<String, List<int>> before = snapshotTree(root);
+
+      final (StepOutcome outcome, _) = await checkAndApply(const <String?>[
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          contains(fixtureArbPath),
+        ),
+      );
+      expect(snapshotTree(root), before);
+    });
   });
 
   group('T-22-ID-04 ~ 08 앱 ID · 표시 이름은 정해졌고 영어 ARB appTitle 만 다를 때', () {

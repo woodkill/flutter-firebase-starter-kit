@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../../bin/rename.dart' as rename;
@@ -581,6 +582,8 @@ final class IdentityStep implements Step {
         readJsonString(jsonPath, 'appName') == null) {
       return '${paths.json} 에 appName 문자열 값이 없습니다';
     }
+    final String? invalidJson = _findInvalidJson(jsonPath, paths.json);
+    if (invalidJson != null) return invalidJson;
     if (!File(xcconfigPath).existsSync() ||
         readXcconfigValue(xcconfigPath, 'DISPLAY_NAME') == null) {
       return '${paths.xcconfig} 에 DISPLAY_NAME 이 없습니다';
@@ -604,14 +607,32 @@ final class IdentityStep implements Step {
         '기본 이름("$baseName")과 다릅니다';
   }
 
-  /// 영어 ARB 에 `appTitle` 문자열 값이 없으면 그 사유를 돌려준다 — 있으면 null.
+  /// 영어 ARB 에 `appTitle` 문자열 값이 없거나 ARB 가 올바른 JSON 이 아니면 그
+  /// 사유를 돌려준다 — 쓸 수 있으면 null.
   static String? _findMissingArbTitle(WizardContext context) {
     final String path = context.resolve(arbPath);
     if (!File(path).existsSync()) return '$arbPath 이 없습니다';
     if (readJsonString(path, 'appTitle') == null) {
       return '$arbPath 에 appTitle 문자열 값이 없습니다';
     }
-    return null;
+    return _findInvalidJson(path, arbPath);
+  }
+
+  /// [path] 가 JSON 객체로 읽히지 않으면 [displayPath] 를 적은 사유를 돌려준다 —
+  /// 읽히면 null.
+  ///
+  /// 값 쓰기는 쓴 뒤 다시 파싱해 실패하면 되돌리므로, 깨진 파일은 쓰기 전에 걸러
+  /// 앞서 다른 파일만 바뀐 상태를 남기지 않는다. 문구에는 파일 내용을 싣지 않는다.
+  static String? _findInvalidJson(String path, String displayPath) {
+    try {
+      if (jsonDecode(File(path).readAsStringSync()) is Map<String, Object?>) {
+        return null;
+      }
+      return '$displayPath 의 최상위가 JSON 객체가 아닙니다';
+    } on FormatException catch (error) {
+      return '$displayPath 이 올바른 JSON 이 아닙니다(${error.message}) — '
+          '따옴표 · 쉼표 · 괄호를 고친 뒤 다시 실행하세요';
+    }
   }
 
   /// 다른 flavor 사용자 파일에 이미 정해진 표시 이름의 기본 이름을 모은다.
