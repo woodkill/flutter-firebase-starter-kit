@@ -75,7 +75,7 @@ INFO_PATTERNS=$(cat <<'INFO_PATTERNS_END'
 10 ^(ios/Flutter/[^/]+\.example\.xcconfig|config/[^/]+\.example\.json)$
 23 ^ios/Runner/(Info\.plist|[^/]+\.lproj/InfoPlist\.strings)$
 24 ^android/app/src/main/AndroidManifest\.xml$
-32 ^(KIT_VERSION|CHANGELOG\.md|LICENSE|CONTRIBUTING\.md|setup\.sh|bin/setup\.dart)$|^(\.github|tool/setup)/
+32 ^(KIT_VERSION|CHANGELOG\.md|LICENSE|CONTRIBUTING\.md|setup\.sh|bin/setup\.dart|tool/launcher_names\.dart)$|^(\.github|tool/setup)/
 INFO_PATTERNS_END
 )
 

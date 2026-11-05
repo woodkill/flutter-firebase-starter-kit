@@ -20,6 +20,7 @@
 //   T-174-UA-09  낮음 행 파일이 TARGET 에 없음 → exit 3 control
 //   T-174-UA-10  인자 수 · 빈 인자 → exit 2 · stderr usage · stdout 빈 출력
 //   T-174-UA-11  풀 수 없는 커밋 이름 → exit 3 git
+//   T-22-UA-01   런처 이름 생성기 경로 = 32행 꼴(킷 전용) · 그 파일만 바뀌면 OTHER_ROW_HIT 만 · 판정 none
 //
 // **값 모양 리터럴을 두지 않는다** — fixture 파일 내용은 짧은 평문 한 줄이다. 이 파일도 공개
 // 이력에 들어가 같은 스캔을 거친다.
@@ -85,6 +86,18 @@ const (int, String) _infoSample = (7, 'android/app/build.gradle.kts');
 
 /// 어떤 경로 꼴에도 걸리지 않는 표본 경로.
 const String _plainPath = 'lib/app.dart';
+
+/// 킷 전용 파일 행(사용자 소유 표면 32행) 번호.
+const int _kitOnlyRow = 32;
+
+/// 런처 이름 생성기 경로 — 32행 꼴에 걸린다.
+const String _launcherNamesPath = 'tool/launcher_names.dart';
+
+/// 32행 꼴의 `tool/setup/` 디렉터리 안 표본 경로.
+const String _setupToolSample = 'tool/setup/flavor.dart';
+
+/// 32행 꼴에 걸리지 않는 `tool/` 바로 아래 표본 경로.
+const String _otherToolSample = 'tool/other.dart';
 
 /// 작업 일지 디렉터리 이름 — 스크립트 diff 가 이 디렉터리를 뺀다.
 const String _workLogDir = '.planning';
@@ -618,5 +631,42 @@ void main() {
     expect(badTarget.exitCode, 3, reason: 'stdout: ${badTarget.stdout}');
     expect(lines.first, 'BASE $base');
     expect(lines.last, startsWith('LOW_ROW_FAIL git:'));
+  }, skip: _skipUnlessScript());
+
+  test('T-22-UA-01: 런처 이름 생성기 경로는 32행 꼴에 걸리고 그 파일만 바뀌면 판정은 none', () {
+    final List<RegExp> kitOnly = _readInfoPatterns()
+        .where(((int, RegExp) p) => p.$1 == _kitOnlyRow)
+        .map(((int, RegExp) p) => p.$2)
+        .toList();
+    expect(kitOnly, hasLength(1), reason: 'INFO_PATTERNS 의 32행 꼴은 하나다');
+    final RegExp row32 = kitOnly.single;
+    expect(row32.hasMatch(_launcherNamesPath), isTrue);
+    expect(row32.hasMatch(_setupToolSample), isTrue);
+    expect(row32.hasMatch(_otherToolSample), isFalse);
+    expect(
+      _readLowPatterns().any(
+        ((int, RegExp) p) => p.$2.hasMatch(_launcherNamesPath),
+      ),
+      isFalse,
+      reason: '생성기 경로는 낮음 꼴에 걸리지 않는다',
+    );
+
+    final fixture = _Fixture.create();
+    addTearDown(fixture.dispose);
+    final (String base, String target) = _commitBaseAndTarget(
+      fixture,
+      () =>
+          fixture.writeFiles(<String, String>{_launcherNamesPath: 'sample\n'}),
+    );
+
+    final ProcessResult result = _runTool(fixture.dir, <String>[base, target]);
+    final List<String> lines = _outLines(result);
+
+    expect(result.exitCode, 0, reason: 'stdout: ${result.stdout}');
+    expect(_selectLines(lines, 'OTHER_ROW_HIT '), <String>[
+      'OTHER_ROW_HIT row=$_kitOnlyRow $_launcherNamesPath',
+    ]);
+    expect(_selectLines(lines, 'LOW_ROW_HIT '), isEmpty);
+    expect(lines.last, 'USER_ACTION_VERDICT none low_hits=0');
   }, skip: _skipUnlessScript());
 }
