@@ -14,6 +14,21 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- merge 뒤 `lib/l10n/app_en.arb` 의 `appTitle` 을 내 앱의 기본 이름(`config/<flavor>.json` 의 `appName` 에서 ` Dev` · ` Stg` 를 뗀 값)으로 맞춘다. 두 값이 다르면 iOS · Android 첫 빌드가 두 값과 고칠 파일을 알리며 멈춘다. `./setup.sh` 를 다시 실행하면 「앱 정체성」 단계가 이 값을 맞춘다. 맞춘 뒤 `fvm flutter pub get` 으로 다시 만든 `lib/l10n/generated/` 를 함께 커밋한다.
+- `ios/Runner.xcodeproj/project.pbxproj` 에 Runner 빌드 단계 「Localize Launcher Name」 하나가 더해지고, `android/app/build.gradle.kts` 에 홈 화면 이름 생성 task · `app_name` 리소스 줄이 더해지며 `manifestPlaceholders["appName"]` 값이 `@string/app_name` 으로 바뀐다. 두 파일을 고치지 않았다면 merge 로 끝나고, 충돌하면 그 줄들은 킷 값을 받는다(사용자 소유 표면 표 7행 · 9행).
+- 킷 `lib/l10n/app_ko.arb` · `app_ja.arb` 의 `appTitle` 이 빠진다. 그 언어 이름을 내 값으로 두었다면 merge 충돌에서 내 줄을 남긴다.
+- Android 빌드는 `--dart-define-from-file=config/<flavor>.json` 없이 하면 config 이름이 빌드에 들어오지 않았다는 오류로 멈춘다. 빌드 명령마다 이 옵션을 붙인다.
+
+### Added
+
+- 홈 화면 앱 이름이 기기 언어를 따른다. 그 언어 ARB 의 `appTitle` 이 이름이고, 빌드가 iOS · Android 이름 파일을 빌드 산출물 안에만 만든다. dev · stg 의 다른 언어 이름에는 config `appName` 이 ` Dev` · ` Stg` 로 끝나면 같은 접미사가 붙는다. 언어를 더할 때 `ios/` · `android/` 파일은 고치지 않는다 — 빌드가 그 언어의 이름 파일을 만든다(절차는 [언어별 앱 이름 넣기 · 앱 언어 추가하기](docs/guide.md#언어별-앱-이름-넣기--앱-언어-추가하기)). 빌드된 iOS 앱은 ARB 언어 목록을 앱이 다루는 언어로 알린다. 바뀐 파일은 `tool/launcher_names.dart`(새) · `ios/Runner.xcodeproj/project.pbxproj` · `android/app/build.gradle.kts` · `docs/guide.md` · `docs/setup.md` · 시험이고, 두 네이티브 파일은 위 「사용자 조치」 를 본다.
+
+### Changed
+
+- 앱 안 제목(홈 AppBar · Android 최근 앱)이 config `appName` 대신 앱 언어의 ARB `appTitle` 이고, config `appName` 이 ` Dev` · ` Stg` 로 끝나면 같은 접미사를 붙인다. 설정 위저드 「앱 정체성」 단계가 `lib/l10n/app_en.arb` 의 `appTitle` 에 표시 이름에서 접미사를 뗀 값도 쓰고, 다시 실행하면 영어 `appTitle` 과 표시 이름의 어긋남을 맞춘다. 킷의 영어 `appTitle` 은 example 표시 이름의 기본 이름 `StarterKit` 이다. 바뀐 파일은 `lib/app.dart` · `lib/core/l10n/app_title.dart` · `lib/core/config/app_config.dart`(주석) · `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` · `lib/l10n/generated/` · `tool/setup/steps/identity_step.dart` · 홈 공지 golden 2장(`test/features/home/goldens/`) · `test/tool/setup/` 의 위저드 시험 파일 등 시험이고, ARB 는 위 「사용자 조치」 를 본다.
+
 ### Fixed
 
 - 재인증 성공 뒤 계정 화면으로 돌아오는 golden 시험과 계정 정보 화면 golden 시험이 시험을 돌리는 컴퓨터의 시간대와 상관없이 통과한다. 두 시험이 가입일을 UTC 시각으로 줘 계정 화면이 그 컴퓨터의 시간대로 날짜를 그리는 바람에, 시간대가 UTC 보다 서쪽(예: 미국 서부 `America/Los_Angeles`)이거나 UTC+12 이상(예: 뉴질랜드 `Pacific/Auckland`)이면 「가입일」 날짜가 하루 어긋나 이 시험들이 실패하던 문제를 고친다. 바뀐 파일은 `test/features/auth/presentation/auth_surfaces_golden_test.dart` · `test/features/settings/presentation/account_screen_golden_test.dart` 이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
