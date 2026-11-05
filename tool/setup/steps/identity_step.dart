@@ -864,8 +864,6 @@ final class IdentityStep implements Step {
       return const <String>[];
     } on FileSystemException {
       return const <String>[];
-    } on FormatException {
-      return const <String>[];
     }
   }
 

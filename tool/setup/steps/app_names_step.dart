@@ -248,8 +248,6 @@ final class AppNamesStep implements Step {
       return Failed('ARB 를 고치지 못했습니다 — $e');
     } on ConfigEditException catch (e) {
       return Failed('언어별 앱 이름을 쓰지 못했습니다 — ${e.message}');
-    } on GeneratorException catch (e) {
-      return Failed(e.message);
     }
   }
 
