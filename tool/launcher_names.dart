@@ -450,6 +450,20 @@ final class _L10nConfig {
 
   /// 프로젝트 루트 기준 template ARB 경로(`lib/l10n/app_en.arb`).
   String get templatePath => '$arbDir/$templateArbFile';
+
+  /// ARB 파일 이름에서 locale 앞에 오는 부분(`app_en.arb` → `app_`).
+  ///
+  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [_readArbNames] 가 먼저 검사한다.
+  String get arbFilePrefix =>
+      templateArbFile.substring(0, templateArbFile.indexOf('_') + 1);
+
+  /// template ARB 의 locale(`app_en.arb` → `en`).
+  ///
+  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [_readArbNames] 가 먼저 검사한다.
+  String get templateLocale => templateArbFile.substring(
+    arbFilePrefix.length,
+    templateArbFile.length - '.arb'.length,
+  );
 }
 
 /// 입력 파일 실패 — 「무엇이 틀렸나 — 어느 파일(프로젝트 상대 경로) — 어떻게
@@ -527,15 +541,14 @@ String _localeFromArbFileName(String fileName, String prefix, String arbDir) {
 /// ARB 디렉터리의 파일마다 locale → `appTitle`(없으면 null)을 모은다.
 Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
   final String template = config.templateArbFile;
-  final int separator = template.indexOf('_');
-  if (separator < 0 || !template.endsWith('.arb')) {
+  if (!template.contains('_') || !template.endsWith('.arb')) {
     throw _inputError(
       'template ARB 이름에서 locale 을 읽을 수 없다(${config.templatePath})',
       _l10nYamlPath,
       'template-arb-file 을 <prefix>_<locale>.arb 꼴(예: app_en.arb)로 적는다',
     );
   }
-  final String prefix = template.substring(0, separator + 1);
+  final String prefix = config.arbFilePrefix;
   final dir = Directory('$projectRoot/${config.arbDir}');
   if (!dir.existsSync()) {
     throw _inputError(
@@ -603,11 +616,7 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
     }
     names[locale] = name is String ? name : null;
   }
-  final String templateLocale = template.substring(
-    prefix.length,
-    template.length - '.arb'.length,
-  );
-  if (!names.containsKey(templateLocale)) {
+  if (!names.containsKey(config.templateLocale)) {
     throw _inputError(
       'template ARB 를 찾지 못했다',
       config.templatePath,
@@ -657,10 +666,7 @@ Future<GenerationResult> generateLauncherNames(Options options) async {
     options.projectRoot,
     config,
   );
-  final String templateLocale = config.templateArbFile.substring(
-    config.templateArbFile.indexOf('_') + 1,
-    config.templateArbFile.length - '.arb'.length,
-  );
+  final String templateLocale = config.templateLocale;
   final String? templateName = arbNames[templateLocale];
   if (templateName != baseName) {
     final source = appliedSuffix.isEmpty
