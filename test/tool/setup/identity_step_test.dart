@@ -1770,6 +1770,34 @@ void main() {
       expect(readArbTitle(), 'Foo');
     });
 
+    test('세 flavor 의 appName · DISPLAY_NAME 을 모두 새 기본 이름으로 고치고 다시 '
+        '실행하면 묻지 않고 영어 ARB 를 맞춘다', () async {
+      // 영어 ARB 는 옛 기본 이름 Foo 그대로다.
+      writeDevSettledFixture();
+      for (final (Flavor flavor, String displayName) in <(Flavor, String)>[
+        (Flavor.dev, 'New Name Dev'),
+        (Flavor.stg, 'New Name Stg'),
+        (Flavor.prod, 'New Name'),
+      ]) {
+        writeSettledFlavor(flavor, displayName);
+      }
+      final dev = buildContext(Flavor.dev);
+      final step = IdentityStep();
+
+      expect(await step.check(dev.context), isA<Todo>());
+      expect(await step.apply(dev.context), isA<Applied>());
+
+      expect(dev.terminal.asks, isEmpty);
+      expect(readArbTitle(), 'New Name');
+      for (final flavor in Flavor.values) {
+        expect(
+          await IdentityStep().check(buildContext(flavor).context),
+          isA<Done>(),
+          reason: flavor.name,
+        );
+      }
+    });
+
     test('처음 dev → stg → prod 순서로 Enter 만 쳐도 멈추지 않고 셋 다 ✓', () async {
       writeIdentityFixture(root, applicationId: renamedId);
       writeExampleFlavor(Flavor.stg);

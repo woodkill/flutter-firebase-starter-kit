@@ -1701,7 +1701,9 @@ fvm dart run flutter_native_splash:create
 - config `appName` 이 ` Dev` · ` Stg` 로 끝나면(위저드 제안값 그대로면 그렇다) 모든 언어 이름 뒤에 같은 접미사가 붙는다.
   - 표시 이름에서 접미사를 지웠으면 붙지 않는다. 앱 안 제목도 같은 규칙을 따른다.
 - prod 표시 이름에는 접미사가 없어 언어 이름에도 붙지 않는다.
-- 영어 이름(기본 이름)은 ARB 가 아니라 위저드 「앱 정체성」 으로 바꾼다.
+- 영어 이름(기본 이름)을 바꾸려면 있는 flavor 모두의 config `appName` · xcconfig `DISPLAY_NAME` 을 새 기본 이름으로 고친 뒤 `./setup.sh --flavor dev` 를 실행한다.
+  - 접미사는 그대로 둔다(예: `config/dev.json` 의 `"appName": "<새 이름> Dev"` · `ios/Flutter/dev.xcconfig` 의 `DISPLAY_NAME = <새 이름> Dev`).
+  - 위저드 「앱 정체성」 이 영어 `appTitle` 을 새 기본 이름으로 맞춘다. 표시 이름이 정해진 뒤에는 위저드가 이름을 묻지 않으므로 파일을 먼저 고친다.
 - 이름을 넣은 뒤 생성 문구 파일을 다시 만든다.
 
   ```bash
@@ -1770,7 +1772,8 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
     lib/l10n/app_en.arb 의 appTitle("…")이 표시 이름의 기본 이름("…")과 다릅니다
     ```
 
-  - 세 flavor 의 기본 이름은 같아야 한다 — 영어 `appTitle` 은 하나라 접미사 말고도 이름이 다른 flavor 는 빌드가 멈춘다.
+  - 세 flavor 의 기본 이름은 같아야 한다 — 다르면 위저드는 ARB 를 맞추지 않고 다른 기본 이름이 든 파일과 값을 적고 멈춘다. 그 파일의 표시 이름을 같은 기본 이름으로 고치고 다시 실행한다.
+  - config `appName` 과 xcconfig `DISPLAY_NAME` 이 다르면 위저드가 표시 이름을 다시 묻고 두 곳과 영어 `appTitle` 에 같은 값을 쓴다.
 - **Android 빌드가 `config/<flavor>.json 의 appName 이 빌드에 들어오지 않았다` 로 멈춘다.**
   - `--dart-define-from-file=config/<flavor>.json` 없이 빌드했다. 그 옵션을 붙여 다시 빌드한다.
 - **빌드가 ARB 파일 경로를 적은 `error: launcher_names:` 오류로 멈춘다.**
@@ -3239,7 +3242,7 @@ git update-index --skip-worktree lib/core/firebase/firebase_options_dev.dart ios
 
 **앱 ID 는 `bin/rename.dart` 로 바꾼다.**
 - 이 도구는 Android `applicationId` · `namespace` · Kotlin 소스 디렉터리, iOS 번들 ID, `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX`, 내 config 파일(`config/dev.json` · `config/stg.json` · `config/prod.json`)의 `appName` 을 바꾼다.
-  - 이 도구는 iOS `DISPLAY_NAME` 과 영어 ARB `appTitle` 은 바꾸지 않는다 — 단독으로 실행했으면 `./setup.sh` 의 「앱 정체성」 단계로 두 값을 맞춘다(그 전 Android 빌드는 이름 불일치로 멈춘다).
+  - 이 도구는 iOS `DISPLAY_NAME` 과 영어 ARB `appTitle` 은 바꾸지 않는다 — 단독으로 실행했으면 [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기) ① 의 영어 이름 바꾸기대로 `DISPLAY_NAME` 을 `appName` 과 같게 고치고 `./setup.sh` 를 실행한다(그 전 Android 빌드는 이름 불일치로 멈춘다).
 - iOS 번들 ID 는 `ios/Runner.xcodeproj/project.pbxproj` 와 내 xcconfig 파일(`ios/Flutter/dev.xcconfig` · `ios/Flutter/stg.xcconfig` · `ios/Flutter/prod.xcconfig`)의 `PRODUCT_BUNDLE_IDENTIFIER` 에서 바뀌고, 킷의 `*.example.xcconfig` 는 바꾸지 않는다.
 - 키 없이 빌드하기 위한 Firebase placeholder 파일(`android/app/src/stg/google-services.json` · `android/app/src/prod/google-services.json` 의 `package_name`, `ios/config/dev/GoogleService-Info.plist` · `ios/config/stg/GoogleService-Info.plist` · `ios/config/prod/GoogleService-Info.plist` 의 `BUNDLE_ID`)도 새 앱 ID 로 바뀌어 rename 뒤에도 `--flavor stg` · `--flavor prod` 빌드가 그대로 된다.
 - `scripts/firebase-configure.sh` 가 실 값으로 바꾼 파일은 건드리지 않는다.
