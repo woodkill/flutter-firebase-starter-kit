@@ -3,6 +3,7 @@
 //
 // 파일은 `Directory.systemTemp` 아래 임시 프로젝트에만 쓰고 시험마다 지운다 —
 // 저장소의 ARB 는 읽지도 쓰지도 않는다.
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -10,6 +11,7 @@ import 'package:test/test.dart';
 import '../../../tool/launcher_names.dart' show GeneratorException;
 import '../../../tool/setup/arb_titles.dart';
 import '../../../tool/setup/config_files.dart' show ConfigEditException;
+import '../../helpers/planning_docs.dart';
 
 /// 시험 트리의 `l10n.yaml` 본문(킷과 같은 두 줄).
 const String fixtureL10nYaml =
@@ -279,4 +281,23 @@ void main() {
       'lib/l10n/app_ko.arb',
     );
   });
+
+  // 킷 자체의 비 template ARB 에 appTitle 이 있으면 「앱 정체성」 이 그 값을 새
+  // 기본 이름으로 덮어 이 단계가 묻지 않고 ✓ 로 지나간다. 킷을 받은 저장소에서는
+  // 위저드가 appTitle 을 쓰는 것이 정상이므로 유지보수자 트리에서만 돈다.
+  test('T-23-KIT-01 킷의 비 template ARB 에는 appTitle 키가 없다', () {
+    final List<LocalizedArb> arbs = listLocalizedArbs(Directory.current.path);
+    expect(arbs, isNotEmpty);
+    for (final arb in arbs) {
+      final Object? decoded = jsonDecode(
+        File(arb.absolutePath).readAsStringSync(),
+      );
+      expect(decoded, isA<Map<String, Object?>>(), reason: arb.relativePath);
+      expect(
+        (decoded! as Map<String, Object?>).containsKey('appTitle'),
+        isFalse,
+        reason: '${arb.relativePath} 에 appTitle 이 있다',
+      );
+    }
+  }, skip: skipUnlessPlanningDocsExist(<String>[kMaintainerTreeMarker]));
 }

@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../tool/launcher_names.dart'
+    show escapeAndroidString, generateLauncherNames, parseOptions;
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/flavor.dart' show Flavor;
 import '../../../tool/setup/step.dart';
 import '../../../tool/setup/steps/app_names_step.dart';
 import '../../../tool/setup/wizard.dart';
@@ -983,5 +986,218 @@ void main() {
       await AppNamesStep.needsGoldenHint(buildHintContext(changed)),
       isFalse,
     );
+  });
+
+  // 위저드가 받은 값은 빌드 생성기도 받고 그 이름 그대로 내보낸다.
+  // 각 항목은 ko 질문에 차례로 넣을 입력 — 앞의 입력은 위저드가 거부해야 하고
+  // 마지막 입력이 ARB 에 기록된다. 빈 입력은 Enter(기본 이름)와 같아 거부 대상이
+  // 아니다.
+  final contractCases =
+      <({String label, List<String> koInputs, String expectedKo})>[
+        (label: '따옴표', koInputs: <String>['My "App"'], expectedKo: 'My "App"'),
+        (label: '역슬래시', koInputs: <String>[r'C:\앱'], expectedKo: r'C:\앱'),
+        (label: '꺾쇠와 앰퍼샌드', koInputs: <String>['<A&B>'], expectedKo: '<A&B>'),
+        (label: '낱말 사이 탭 하나', koInputs: <String>['마이\t앱'], expectedKo: '마이\t앱'),
+        (label: '이모지', koInputs: <String>['앱🙂'], expectedKo: '앱🙂'),
+        (label: '앞뒤 공백은 지움', koInputs: <String>['  마이앱  '], expectedKo: '마이앱'),
+        (
+          label: '기본 이름과 같은 값',
+          koInputs: <String>['My App'],
+          expectedKo: 'My App',
+        ),
+        (
+          label: '이어진 공백 거부 뒤 재입력',
+          koInputs: <String>['마이  앱', '마이앱'],
+          expectedKo: '마이앱',
+        ),
+        (
+          label: '탭과 공백 이어짐 거부 뒤 재입력',
+          koInputs: <String>['마이\t 앱', '마이앱'],
+          expectedKo: '마이앱',
+        ),
+        (
+          label: 'Dev 접미사 거부 뒤 재입력',
+          koInputs: <String>['마이앱 Dev', '마이앱'],
+          expectedKo: '마이앱',
+        ),
+        (
+          label: 'Stg 접미사 거부 뒤 재입력',
+          koInputs: <String>['마이앱 Stg', '마이앱'],
+          expectedKo: '마이앱',
+        ),
+      ];
+
+  for (final contractCase in contractCases) {
+    test(
+      'T-23-NAMES-18 위저드가 받은 값은 생성기도 받고 그대로 내보낸다 (${contractCase.label})',
+      () async {
+        writeAppNamesFixture(root);
+        final terminal = ScriptedTerminal(<String?>[
+          'y',
+          'マイアプリ',
+          ...contractCase.koInputs,
+          // 위저드가 입력을 거부하지 않아 입력이 어긋나도 생성기 판정까지 가도록
+          // 남는 입력을 둔다.
+          '1',
+          '1',
+          '1',
+        ]);
+        final int code = await runAppNamesStep(buildCleanRunner(), terminal);
+
+        final koArb = jsonDecode(readFile(koArbPath)) as Map<String, Object?>;
+        final jaArb =
+            jsonDecode(readFile('lib/l10n/app_ja.arb')) as Map<String, Object?>;
+
+        final out = '$root/android-out';
+        await generateLauncherNames(
+          parseOptions(<String>[
+            'android',
+            '--project-root',
+            root,
+            '--out',
+            out,
+            '--flavor',
+            'dev',
+            '--app-name',
+            'My App Dev',
+          ], const <String, String>{}),
+        );
+
+        String expectedXml(String title) =>
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<resources>\n'
+            '    <string name="app_name">'
+            '${escapeAndroidString('$title Dev')}</string>\n'
+            '</resources>\n';
+        expect(
+          File('$out/values-ja/strings.xml').readAsStringSync(),
+          expectedXml(jaArb['appTitle']! as String),
+        );
+        if (koArb['appTitle'] == 'My App') {
+          // 기본 이름과 같은 값은 생성기가 따로 내보내지 않는다.
+          expect(File('$out/values-ko/strings.xml').existsSync(), isFalse);
+        } else {
+          expect(
+            File('$out/values-ko/strings.xml').readAsStringSync(),
+            expectedXml(koArb['appTitle']! as String),
+          );
+        }
+
+        // 생성기 판정 뒤에 위저드 쪽 기대(거부 횟수 · 기록 값 · 종료 코드)를 본다.
+        expect(koArb['appTitle'], contractCase.expectedKo);
+        expect(jaArb['appTitle'], 'マイアプリ');
+        expect(countAsks(terminal, koQuestion), contractCase.koInputs.length);
+        expect(code, wizardExitDone);
+      },
+    );
+  }
+
+  /// [flavor] 로 앱 정체성 대역 · 언어별 앱 이름 단계를 돌린다.
+  Future<int> runAppNamesStepFor(
+    Flavor flavor,
+    FakeCommandRunner runner,
+    ScriptedTerminal terminal,
+  ) => runWizard(
+    buildTestContext(
+      projectRoot: root,
+      runner: runner,
+      terminal: terminal,
+      flavor: flavor,
+    ),
+    <Step>[
+      const DoneStandInStep(id: 'identity', title: '앱 정체성'),
+      AppNamesStep(),
+    ],
+  );
+
+  test(
+    'T-23-NAMES-19 dev 가 쓴 ko · ja 는 stg · prod 에서 질문 없이 ✓ 이고 ARB 는 그대로다',
+    () async {
+      writeAppNamesFixture(
+        root,
+        localizedTitles: const <String, String?>{'ja': 'マイアプリ', 'ko': '마이앱'},
+      );
+      writeFixtureFile(
+        root,
+        'config/stg.json',
+        '{\n  "appName": "My App Stg"\n}\n',
+      );
+      writeFixtureFile(
+        root,
+        'config/prod.json',
+        '{\n  "appName": "My App"\n}\n',
+      );
+      final Map<String, List<int>> snapshot = snapshotTree(root);
+
+      for (final flavor in <Flavor>[Flavor.dev, Flavor.stg, Flavor.prod]) {
+        expect(
+          await AppNamesStep().check(
+            buildTestContext(projectRoot: root, flavor: flavor),
+          ),
+          isDone('ja マイアプリ · ko 마이앱'),
+          reason: flavor.name,
+        );
+        final terminal = ScriptedTerminal(const <String?>[]);
+        expect(
+          await runAppNamesStepFor(flavor, FakeCommandRunner(), terminal),
+          wizardExitDone,
+          reason: flavor.name,
+        );
+        expect(terminal.asks, isEmpty, reason: flavor.name);
+        expect(snapshotTree(root), snapshot, reason: flavor.name);
+      }
+    },
+  );
+
+  test(
+    'T-23-NAMES-19 stg 에서 물으면 머리 안내는 " Stg" 이고 Enter 는 접미사 없는 기본 이름이다',
+    () async {
+      writeAppNamesFixture(root);
+      writeFixtureFile(
+        root,
+        'config/stg.json',
+        '{\n  "appName": "My App Stg"\n}\n',
+      );
+      final terminal = ScriptedTerminal(const <String?>['y', '', '', '1']);
+      expect(
+        await runAppNamesStepFor(Flavor.stg, buildCleanRunner(), terminal),
+        wizardExitDone,
+      );
+      final output = terminal.output.toString();
+      expect(
+        output,
+        contains(
+          '  기본 이름은 "My App" 입니다. flavor 접미사(" Stg")는 빌드가 붙이므로 '
+          '접미사 없는 이름을 입력하고,\n',
+        ),
+      );
+      expect(output, isNot(contains('" Dev"')));
+      expect(output, contains('  · stg 빌드에서는 뒤에 " Stg" 가 붙어 보입니다'));
+      expect(
+        readFile('lib/l10n/app_ja.arb'),
+        contains('"appTitle": "My App",'),
+      );
+      expect(readFile(koArbPath), contains('"appTitle": "My App",'));
+      expect(output, contains('  ✓ 언어별 앱 이름 — ja My App · ko My App'));
+    },
+  );
+
+  test('T-23-NAMES-19 prod 에서 물으면 접미사 노트가 없고 Enter 는 기본 이름이다', () async {
+    writeAppNamesFixture(root);
+    writeFixtureFile(root, 'config/prod.json', '{\n  "appName": "My App"\n}\n');
+    final terminal = ScriptedTerminal(const <String?>['y', '', '', '1']);
+    expect(
+      await runAppNamesStepFor(Flavor.prod, buildCleanRunner(), terminal),
+      wizardExitDone,
+    );
+    final output = terminal.output.toString();
+    expect(
+      output,
+      contains('  기본 이름은 "My App" 입니다. 기본 이름 그대로 쓰려면 Enter 를 누릅니다.\n'),
+    );
+    expect(output, isNot(contains('flavor 접미사')));
+    expect(output, isNot(contains('빌드에서는 뒤에')));
+    expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "My App",'));
+    expect(readFile(koArbPath), contains('"appTitle": "My App",'));
   });
 }
