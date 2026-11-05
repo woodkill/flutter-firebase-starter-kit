@@ -36,11 +36,12 @@ final class Command {
   /// 출력에 비밀 값이 섞일 수 있으면 true.
   final bool isOutputSensitive;
 
-  /// 캡처한 출력 본문을 실행 기록에 남기면 true(기본).
+  /// 캡처한 표준 출력 본문을 실행 기록에 남기면 true(기본).
   ///
   /// 비밀은 아니지만 길어서 진단 기록을 채우는 출력(커밋된 파일 원문 등)이면
-  /// false 로 준다 — 기록에는 본문 대신 길이만 남는다. 비밀 값이 섞일 수 있는
-  /// 출력은 [isOutputSensitive] 로 표시한다.
+  /// false 로 준다 — 기록에는 표준 출력 본문 대신 길이만 남는다. 오류 출력은
+  /// 실패 원인이라 false 여도 그대로 남는다. 비밀 값이 섞일 수 있는 출력은
+  /// [isOutputSensitive] 로 표시한다.
   final bool isOutputLogged;
 
   /// 화면에 보일 명령 줄을 만든다.
@@ -136,9 +137,10 @@ abstract interface class CommandRunner {
 ///
 /// 모든 실행을 [log] 에 남긴다 — 명령 줄(`cmd`) · 종료 코드(`exit`), 캡처한
 /// 출력(`stdout` · `stderr`). [Command.isOutputSensitive] 인 명령은 출력 본문 대신
-/// [sensitiveOutputNotice] 를, [Command.isOutputLogged] 가 false 인 명령은
-/// [buildOmittedOutputNotice] 의 길이 표지를 남긴다. 흘리는 출력은 [terminal] 을
-/// 거쳐 화면과 기록에 함께 남는다(위저드는 가림 터미널을 넘긴다).
+/// [sensitiveOutputNotice] 를, [Command.isOutputLogged] 가 false 인 명령은 표준
+/// 출력 본문 대신 [buildOmittedOutputNotice] 의 길이 표지를 남긴다(오류 출력은
+/// 그대로 남긴다). 흘리는 출력은 [terminal] 을 거쳐 화면과 기록에 함께 남는다
+/// (위저드는 가림 터미널을 넘긴다).
 final class ProcessCommandRunner implements CommandRunner {
   /// [terminal] 에 명령 줄과 흘리는 출력을 쓰고 [log] 에 실행을 남기는 실행기를
   /// 만든다.
@@ -241,7 +243,8 @@ final class ProcessCommandRunner implements CommandRunner {
       final String logged;
       if (command.isOutputSensitive) {
         logged = sensitiveOutputNotice;
-      } else if (!command.isOutputLogged) {
+      } else if (!command.isOutputLogged && kind == 'stdout') {
+        // 길어서 빼는 것은 파일 원문 같은 표준 출력뿐 — 오류 문장은 실패 원인이라 남긴다.
         logged = buildOmittedOutputNotice(text.runes.length);
       } else {
         logged = text;

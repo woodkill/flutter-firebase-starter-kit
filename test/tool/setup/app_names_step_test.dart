@@ -918,6 +918,39 @@ void main() {
     },
   );
 
+  test(
+    'T-23-NAMES-16 실제 실행기 기록 경로 — 커밋된 ARB 읽기가 실패하면 git 오류 문장은 생략 없이 남긴다',
+    () async {
+      final Command constant = buildShowCommittedFileCommand(koArbPath);
+      expect(constant.isOutputLogged, isFalse);
+      const failureLine = "fatal: path 'x' does not exist in 'HEAD'";
+      // 스텁은 인자를 무시하고 git 의 「HEAD 에 경로 없음」 실패를 흉내 낸다.
+      final stub = File('$root/git-show-fail-stub')
+        ..writeAsStringSync('#!/bin/sh\necho "$failureLine" >&2\nexit 128\n');
+      Process.runSync('chmod', <String>['+x', stub.path]);
+
+      final log = MemoryLogSink(Redactor());
+      final CommandResult result =
+          await ProcessCommandRunner(
+            ScriptedTerminal(const <String?>[]),
+            log: log,
+          ).capture(
+            Command(
+              stub.path,
+              constant.arguments,
+              isOutputLogged: constant.isOutputLogged,
+            ),
+          );
+
+      expect(result.exitCode, 128);
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, '$failureLine\n');
+      expect(log.lines, contains('[exit] 128'));
+      expect(log.lines, contains('[stderr] $failureLine'));
+      expect(log.text, isNot(contains('자 생략)')));
+    },
+  );
+
   /// [runner] 로 직접 판정용 문맥을 만든다.
   WizardContext buildHintContext(FakeCommandRunner runner) =>
       buildTestContext(projectRoot: root, runner: runner);
