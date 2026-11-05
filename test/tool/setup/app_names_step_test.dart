@@ -699,6 +699,42 @@ void main() {
     expect(snapshotTree(root), before);
   });
 
+  test('T-23-NAMES-14 뒤 ARB 를 쓰지 못하면 앞서 쓴 ARB 도 되돌리고 실패한다', () async {
+    writeAppNamesFixture(root);
+    // 최상위 appTitle 이 빈 값이라 대상이고, 앞선 placeholder 정의에 같은 이름
+    // 키가 있어 값 교체가 최상위 값을 바꾸지 못한다.
+    writeFixtureFile(
+      root,
+      koArbPath,
+      '{\n'
+      '  "@@locale": "ko",\n'
+      '  "@aboutTitle": {\n'
+      '    "placeholders": {\n'
+      '      "appTitle": {"type": "String"}\n'
+      '    }\n'
+      '  },\n'
+      '  "appTitle": ""\n'
+      '}\n',
+    );
+    final Map<String, List<int>> before = snapshotTree(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      '1',
+      '2',
+    ]);
+    expect(
+      await runAppNamesStep(buildCleanRunner(), terminal),
+      wizardExitStopped,
+    );
+    expect(
+      terminal.output.toString(),
+      contains('  실패 — 언어별 앱 이름을 쓰지 못했습니다 — '),
+    );
+    expect(snapshotTree(root), before);
+  });
+
   test('T-23-NAMES-15 l10n.yaml 이 없으면 Todo 이고 실행은 질문 없이 같은 사유로 실패한다', () async {
     writeAppNamesFixture(root, withL10nYaml: false);
     final Map<String, List<int>> before = snapshotTree(root);

@@ -393,7 +393,7 @@ final class AppNamesStep implements Step {
   /// 쓰기 전 검사를 모두 통과하면 대상 ARB 마다 [names] 를 쓴다.
   ///
   /// 고칠 ARB 에 미커밋 변경이 있거나 · 하나라도 JSON 객체로 읽히지 않으면 어떤
-  /// 파일도 쓰지 않는다.
+  /// 파일도 쓰지 않고, 쓰다가 실패하면 이미 쓴 파일을 되돌린다.
   Future<StepOutcome> _writeNames(
     WizardContext context,
     List<String> names,
@@ -414,14 +414,37 @@ final class AppNamesStep implements Step {
       );
       if (invalidJson != null) return Failed(invalidJson);
     }
-    for (var i = 0; i < _targets.length; i++) {
-      writeArbTitle(_targets[i].arb.absolutePath, names[i]);
-    }
+    _writeTitlesAtomically(names);
     // 실행 블록 끝(✓ 줄 바로 앞)에 golden 안내만 보이고 명령은 실행하지 않는다.
     if (await needsGoldenHint(context)) {
       context.terminal.writeLine('  $goldenHintLine');
     }
     return const Applied();
+  }
+
+  /// 대상 ARB 마다 [names] 를 차례로 쓰고, 하나라도 실패하면 이미 쓴 파일을
+  /// 원본으로 되돌린 뒤 그 예외를 그대로 올린다 — 일부 파일만 바뀐 상태를 남기지
+  /// 않는다.
+  void _writeTitlesAtomically(List<String> names) {
+    final originals = <String, String>{
+      for (final _NameTarget target in _targets)
+        target.arb.absolutePath: File(
+          target.arb.absolutePath,
+        ).readAsStringSync(),
+    };
+    final written = <String>[];
+    try {
+      for (var i = 0; i < _targets.length; i++) {
+        final String path = _targets[i].arb.absolutePath;
+        writeArbTitle(path, names[i]);
+        written.add(path);
+      }
+    } on Exception {
+      for (final path in written) {
+        writeFileAtomically(path, originals[path]!);
+      }
+      rethrow;
+    }
   }
 
   /// [path] JSON 의 `appName` 문자열 값을 읽는다 — 파일이나 값이 없으면 null.

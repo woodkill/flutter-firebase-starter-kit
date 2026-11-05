@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import '../../../tool/launcher_names.dart' show GeneratorException;
 import '../../../tool/setup/arb_titles.dart';
+import '../../../tool/setup/config_files.dart' show ConfigEditException;
 
 /// 시험 트리의 `l10n.yaml` 본문(킷과 같은 두 줄).
 const String fixtureL10nYaml =
@@ -213,6 +214,42 @@ void main() {
         '{\n  "@@locale": "ko",\n  "appTitle": "마이앱",\n  "commonOk": "확인"\n}\n',
       );
       expect(updated.split('\n').length, original.split('\n').length);
+    });
+
+    test('T-23-ARB-04: 앞선 placeholder 정의의 같은 이름 키는 바꾸지 않고 실패한다', () {
+      const original =
+          '{\n'
+          '  "@@locale": "ko",\n'
+          '  "@aboutTitle": {\n'
+          '    "placeholders": {\n'
+          '      "appTitle": {"type": "String"}\n'
+          '    }\n'
+          '  },\n'
+          '  "appTitle": "옛 앱"\n'
+          '}\n';
+      final String path = writeKoArb(original);
+
+      expect(
+        () => writeArbTitle(path, '마이앱'),
+        throwsA(isA<ConfigEditException>()),
+      );
+      expect(File(path).readAsStringSync(), original);
+    });
+
+    test('T-23-ARB-04: 최상위 키가 겹치면 바꾸지 않고 실패한다', () {
+      const original =
+          '{\n'
+          '  "@@locale": "ko",\n'
+          '  "appTitle": "첫 값",\n'
+          '  "appTitle": "옛 앱"\n'
+          '}\n';
+      final String path = writeKoArb(original);
+
+      expect(
+        () => writeArbTitle(path, '마이앱'),
+        throwsA(isA<ConfigEditException>()),
+      );
+      expect(File(path).readAsStringSync(), original);
     });
   });
 

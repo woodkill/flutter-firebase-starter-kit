@@ -119,12 +119,25 @@ String? parseArbTitle(String source) {
 /// 키가 없으면 [insertJsonString] 으로 `@@locale` 뒤에 넣고, 있으면 값의 타입과
 /// 무관하게 [replaceJsonValue] 로 값을 바꾼다. 두 경로 모두 쓴 뒤 다시 파싱해
 /// 실패하면 원본으로 되돌린다. 깨진 파일은 [findInvalidArbTitle] 로 먼저 거른다.
+///
+/// 값 교체는 원문에서 처음 나오는 같은 이름 키를 바꾸므로, 앞선 placeholder
+/// 정의 안의 같은 이름 키나 겹친 최상위 키를 만나면 최상위 값이 그대로 남는다.
+/// 그래서 쓴 뒤 최상위 값이 [value] 가 아니면 원본으로 되돌리고
+/// [ConfigEditException] 을 던진다.
 void writeArbTitle(String absolutePath, String value) {
-  final Object? decoded = jsonDecode(File(absolutePath).readAsStringSync());
+  final String original = File(absolutePath).readAsStringSync();
+  final Object? decoded = jsonDecode(original);
   if (decoded is Map<String, Object?> && decoded.containsKey(appTitleKey)) {
     replaceJsonValue(absolutePath, appTitleKey, value);
   } else {
     insertJsonString(absolutePath, appTitleKey, value);
+  }
+  if (readArbTitle(absolutePath) != value) {
+    writeFileAtomically(absolutePath, original);
+    throw ConfigEditException(
+      '$absolutePath 의 최상위 $appTitleKey 을 바꾸지 못했습니다 — 같은 이름의 '
+      '중첩 키(placeholder 정의 등)나 겹친 최상위 키를 정리한 뒤 다시 실행하세요',
+    );
   }
 }
 
