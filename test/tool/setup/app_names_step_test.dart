@@ -27,6 +27,16 @@ const String fixtureL10nYaml =
 /// ko · ja 질문이 모두 끝난 뒤 확인 표 머리 줄.
 const String confirmHeading = '── 언어별 앱 이름 — 확인 ──';
 
+/// 홈 화면 golden 시험 파일의 저장소 상대 경로.
+const String goldenTestFixturePath =
+    'test/features/home/home_announcement_golden_test.dart';
+
+/// 단계 실행 직후 화면에 보일 golden 갱신 안내 줄(들여쓰기 포함).
+const String goldenHintText =
+    '  ko 이름이 기본 이름과 다르므로 홈 화면 golden 2장이 다시 찍혀야 합니다: '
+    'fvm flutter test --update-goldens '
+    'test/features/home/home_announcement_golden_test.dart';
+
 /// [root] 아래 [relativePath] 에 [content] 를 쓴다 — 상위 디렉터리는 만든다.
 void writeFixtureFile(String root, String relativePath, String content) {
   File('$root/$relativePath')
@@ -76,7 +86,8 @@ String buildEndonymsSource(Map<String, String> endonyms) =>
 ///
 /// [localizedTitles] 의 locale 마다 ARB 를 두고, 값이 null 이 아니면 그 문자열을
 /// `appTitle` 로 넣는다. [endonyms] 가 null 이면 원어 이름 표 사본을 두지 않고,
-/// [appName] 이 null 이면 `config/dev.json` 을 두지 않는다.
+/// [appName] 이 null 이면 `config/dev.json` 을 두지 않는다. [withGoldenTest] 가
+/// true 면 홈 화면 golden 시험 파일(빈 파일)을 둔다.
 void writeAppNamesFixture(
   String root, {
   Map<String, String?> localizedTitles = const <String, String?>{
@@ -87,8 +98,10 @@ void writeAppNamesFixture(
   String? appName = 'My App Dev',
   Map<String, String>? endonyms = kitEndonyms,
   bool withL10nYaml = true,
+  bool withGoldenTest = true,
 }) {
   if (withL10nYaml) writeFixtureFile(root, 'l10n.yaml', fixtureL10nYaml);
+  if (withGoldenTest) writeFixtureFile(root, goldenTestFixturePath, '');
   writeFixtureFile(root, 'lib/l10n/app_en.arb', buildEnglishArb(englishTitle));
   for (final MapEntry<String, String?> entry in localizedTitles.entries) {
     final String? title = entry.value;
@@ -695,5 +708,89 @@ void main() {
     expect(step.id, 'app_names');
     expect(step.dependsOn, <String>['identity']);
     expect(step.isCostlyOrIrreversible, isFalse);
+  });
+
+  /// [output] 에서 golden 갱신 안내 줄의 개수를 센다.
+  int countGoldenHints(String output) =>
+      output.split('\n').where((String line) => line == goldenHintText).length;
+
+  test(
+    'T-23-NAMES-16 ko 가 기본 이름과 다르면 실행 직후 ✓ 줄 앞에 golden 안내 한 줄 · 실행 0',
+    () async {
+      writeAppNamesFixture(root);
+      final FakeCommandRunner runner = buildCleanRunner();
+      final terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'マイアプリ',
+        '마이앱',
+        '1',
+      ]);
+      expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+
+      final List<String> lines = terminal.output.toString().split('\n');
+      expect(countGoldenHints(terminal.output.toString()), 1);
+      final int hintIndex = lines.indexOf(goldenHintText);
+      final int doneIndex = lines.indexWhere(
+        (String line) => line.startsWith('  ✓ 언어별 앱 이름'),
+      );
+      expect(doneIndex, greaterThan(hintIndex));
+      expect(hintIndex, greaterThan(-1));
+      // 위저드는 안내만 하고 golden 갱신 명령을 실행하지 않는다.
+      expect(runner.calls.map((FakeCall call) => call.key), <String>[
+        _gitStatusKey,
+      ]);
+      expect(runner.countCalls(RunMode.capture, _gitStatusKey), 1);
+    },
+  );
+
+  /// 직접 판정용 문맥을 만든다.
+  WizardContext buildHintContext() => buildTestContext(projectRoot: root);
+
+  test('T-23-NAMES-17 ko 를 Enter 로 기본 이름 그대로 두면 안내 0 · 판정 false', () async {
+    writeAppNamesFixture(root);
+    final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "My App"'));
+    expect(countGoldenHints(terminal.output.toString()), 0);
+    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+  });
+
+  test('T-23-NAMES-17 ja 만 다른 값이면 안내 0 · 판정 false', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': null, 'ko': 'My App'},
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "マイアプリ"'));
+    expect(countGoldenHints(terminal.output.toString()), 0);
+    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+  });
+
+  test('T-23-NAMES-17 golden 시험 파일이 없으면 ko 가 달라도 안내 0 · 판정 false', () async {
+    writeAppNamesFixture(root, withGoldenTest: false);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "마이앱"'));
+    expect(countGoldenHints(terminal.output.toString()), 0);
+    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+  });
+
+  test('T-23-NAMES-17 판정은 ko 가 다르고 golden 시험 파일이 있을 때만 true · 안내 줄 원문', () {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': null, 'ko': '마이앱'},
+    );
+    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isTrue);
+    expect('  ${AppNamesStep.goldenHintLine}', goldenHintText);
+
+    // l10n.yaml 을 읽지 못하면 판정은 false 다.
+    File('$root/l10n.yaml').deleteSync();
+    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
   });
 }

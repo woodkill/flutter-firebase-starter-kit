@@ -50,6 +50,45 @@ final class AppNamesStep implements Step {
   /// 같은 언어를 다시 묻는 최대 횟수.
   static const int maxInputAttempts = 3;
 
+  /// 홈 화면 golden 이 찍는 언어 — 이 언어의 이름만 golden 을 바꾼다.
+  static const String goldenLocale = 'ko';
+
+  /// 홈 화면 golden 시험 파일의 저장소 상대 경로.
+  static const String goldenTestPath =
+      'test/features/home/home_announcement_golden_test.dart';
+
+  /// golden 을 다시 찍는 명령 — 위저드는 안내만 하고 실행하지 않는다.
+  static const String goldenCommand =
+      'fvm flutter test --update-goldens $goldenTestPath';
+
+  /// golden 이 다시 찍혀야 할 때 보이는 안내 문장(들여쓰기 없음).
+  static const String goldenHintLine =
+      'ko 이름이 기본 이름과 다르므로 홈 화면 golden 2장이 다시 찍혀야 합니다: $goldenCommand';
+
+  /// [goldenLocale] 의 `appTitle` 이 기본 이름과 달라 golden 이 다시 찍혀야 하면 true.
+  ///
+  /// 파일을 다시 읽어 판정한다. [goldenTestPath] 시험 파일이 없거나 · `l10n.yaml`
+  /// 을 읽지 못하거나 · [goldenLocale] ARB 가 없거나 그 `appTitle` 문자열이
+  /// 없으면 false 다.
+  static bool needsGoldenHint(WizardContext context) {
+    if (!File(context.resolve(goldenTestPath)).existsSync()) return false;
+    final L10nConfig config;
+    final List<LocalizedArb> arbs;
+    try {
+      config = readL10nConfig(context.projectRoot);
+      arbs = listLocalizedArbs(context.projectRoot);
+    } on GeneratorException {
+      return false;
+    }
+    for (final arb in arbs) {
+      if (arb.locale != goldenLocale) continue;
+      final String? title = readArbTitle(arb.absolutePath);
+      return title != null &&
+          title != readArbTitle(context.resolve(config.templatePath));
+    }
+    return false;
+  }
+
   _AppNamesMode _mode = _AppNamesMode.unreadable;
   String _reason = '';
 
@@ -342,6 +381,10 @@ final class AppNamesStep implements Step {
     }
     for (var i = 0; i < _targets.length; i++) {
       writeArbTitle(_targets[i].arb.absolutePath, names[i]);
+    }
+    // 실행 블록 끝(✓ 줄 바로 앞)에 golden 안내만 보이고 명령은 실행하지 않는다.
+    if (needsGoldenHint(context)) {
+      context.terminal.writeLine('  $goldenHintLine');
     }
     return const Applied();
   }
