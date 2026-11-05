@@ -341,6 +341,25 @@ void main() {
     );
   });
 
+  test('T-23-CFG-03 insertJsonString 은 @@locale 이 없으면 닫는 } 앞 마지막 값 뒤에 넣는다', () {
+    final String path = writeArb('{\n  "commonOk": "확인"\n}\n');
+
+    insertJsonString(path, 'appTitle', 'X');
+
+    expect(
+      File(path).readAsStringSync(),
+      '{\n  "commonOk": "확인",\n  "appTitle": "X"\n}\n',
+    );
+  });
+
+  test('T-23-CFG-03 insertJsonString 은 @@locale 없는 빈 객체면 2칸 들여 한 줄로 넣는다', () {
+    final String path = writeArb('{}');
+
+    insertJsonString(path, 'appTitle', 'X');
+
+    expect(File(path).readAsStringSync(), '{\n  "appTitle": "X"\n}');
+  });
+
   group('T-23-CFG-04 replaceJsonValue 는 값 토큰 전체를 문자열로 바꾼다', () {
     final cases = <({String label, String before, String after})>[
       (
