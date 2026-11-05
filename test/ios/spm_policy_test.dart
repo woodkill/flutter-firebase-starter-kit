@@ -125,37 +125,6 @@ Map<String, Object?> findPin(List<Object?> pins, String identity) {
 const String _flutterCheckoutRun =
     r'"${SRCROOT}/../build/ios/SourcePackages/checkouts/firebase-ios-sdk/Crashlytics/run"';
 
-/// pbxproj 의 `shellScript = "…";` 값 하나를 통째로 집는다.
-///
-/// **`"(.*?)";` 같은 non-greedy 패턴을 쓰면 안 된다**(코드 리뷰 IN-04(R2) 수정 중
-/// 실측) — 스크립트 본문에 `…/Crashlytics/run\"; do` 가 들어 있어 probe 루프 도중에
-/// 끊긴다. 역슬래시 이스케이프를 인식하는 이 패턴만 값 전체를 집는다.
-final RegExp _shellScriptValue = RegExp(r'shellScript = "((?:\\.|[^"\\])*)";');
-
-/// pbxproj 문자열 리터럴 [raw] 의 이스케이프를 풀어 실제 셸 스크립트로 되돌린다.
-String _decodePbxprojString(String raw) {
-  final out = StringBuffer();
-  for (var i = 0; i < raw.length; i++) {
-    final String ch = raw[i];
-    if (ch != r'\' || i + 1 >= raw.length) {
-      out.write(ch);
-      continue;
-    }
-    final String next = raw[i + 1];
-    i++;
-    switch (next) {
-      case 'n':
-        out.write('\n');
-      case 't':
-        out.write('\t');
-      default:
-        // `\"` → `"`, `\\` → `\` 등 나머지는 다음 문자를 그대로 쓴다.
-        out.write(next);
-    }
-  }
-  return out.toString();
-}
-
 /// Crashlytics 업로드 build phase 의 `shellScript` 본문만 잘라 돌려준다.
 ///
 /// 이 test 들이 pbxproj **전체 텍스트**가 아니라 이 반환값만 보는 이유
@@ -163,9 +132,10 @@ String _decodePbxprojString(String raw) {
 /// buildPhases 참조 · 객체 주석 · `name =` 에도 있어서 **`shellScript` 가 통째로
 /// 비어도** 전체 텍스트 검사는 통과한다. 여기서 실패시키면 그 구멍이 닫힌다.
 String _readCrashlyticsShellScript(String pbx) {
-  return _shellScriptValue
+  // 값 꼴 정규식 · 이스케이프 풀기는 `test/helpers/source_text.dart` 공용 도우미다.
+  return pbxprojShellScriptValue
       .allMatches(pbx)
-      .map((RegExpMatch match) => _decodePbxprojString(match.group(1)!))
+      .map((RegExpMatch match) => decodePbxprojString(match.group(1)!))
       .firstWhere(
         (String script) =>
             script.contains('flutterfire upload-crashlytics-symbols'),

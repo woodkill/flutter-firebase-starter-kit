@@ -32,6 +32,19 @@ const String _gradlePath = 'android/app/build.gradle.kts';
 /// iOS 앱 Info.plist 경로.
 const String _infoPlistPath = 'ios/Runner/Info.plist';
 
+/// iOS Xcode 프로젝트 파일 경로.
+const String _pbxprojPath = 'ios/Runner.xcodeproj/project.pbxproj';
+
+/// 홈 화면 이름 생성기 경로(Gradle task · Xcode 빌드 단계가 같은 파일을 부른다).
+const String _generatorPath = 'tool/launcher_names.dart';
+
+/// 홈 화면 이름을 만드는 Xcode Run Script 단계 이름.
+const String _launcherPhaseName = 'Localize Launcher Name';
+
+/// 그 단계가 실행하는 유일한 명령 줄 — 생성기 경로와 모드 인자뿐이다.
+const String _launcherPhaseCommand =
+    r'"$FLUTTER_ROOT/bin/dart" "$SRCROOT/../tool/launcher_names.dart" ios';
+
 /// 킷의 세 flavor.
 const List<String> _flavors = <String>['dev', 'stg', 'prod'];
 
@@ -72,6 +85,47 @@ String _readCallArguments(String source, String opener) {
     }
   }
   return '';
+}
+
+/// pbxproj [pbx] 에서 `/* [name] */ = {` 로 여는 객체 블록을 닫는 `};` 줄까지
+/// 돌려준다.
+///
+/// 객체가 없으면 빈 문자열이다(호출자가 객체 머리 계수를 먼저 단언한다).
+String _readPbxprojObject(String pbx, String name) {
+  final RegExpMatch? head = RegExp(
+    '[0-9A-F]{24} /\\* ${RegExp.escape(name)} \\*/ = \\{',
+  ).firstMatch(pbx);
+  if (head == null) {
+    return '';
+  }
+  final RegExpMatch? end = RegExp(
+    r'\n\s*\};',
+  ).firstMatch(pbx.substring(head.end));
+  return end == null ? '' : pbx.substring(head.start, head.end + end.end);
+}
+
+/// pbxproj [pbx] 의 Runner 앱 타깃 `buildPhases` 목록을 `(ID, 주석 이름)` 순서로
+/// 돌려준다.
+///
+/// 타깃 블록이나 목록이 없으면 빈 목록이다.
+List<({String id, String name})> _readRunnerBuildPhases(String pbx) {
+  final RegExpMatch? target = RegExp(
+    r'[0-9A-F]{24} /\* Runner \*/ = \{\s*isa = PBXNativeTarget;',
+  ).firstMatch(pbx);
+  if (target == null) {
+    return <({String id, String name})>[];
+  }
+  final RegExpMatch? list = RegExp(
+    r'buildPhases = \((.*?)\);',
+    dotAll: true,
+  ).firstMatch(pbx.substring(target.end));
+  if (list == null) {
+    return <({String id, String name})>[];
+  }
+  return RegExp(r'([0-9A-F]{24}) /\* (.*?) \*/')
+      .allMatches(list.group(1)!)
+      .map((RegExpMatch match) => (id: match.group(1)!, name: match.group(2)!))
+      .toList();
 }
 
 void main() {
@@ -398,6 +452,189 @@ void main() {
           plistStringPattern(key, r'$(DISPLAY_NAME)').hasMatch(plist),
           isTrue,
           reason: '$key 는 flavor xcconfig 의 DISPLAY_NAME 하나여야 한다',
+        );
+      }
+    });
+
+    test(
+      'T-22-WIRE-07: Localize Launcher Name 단계는 하나이고 매번 돌며 생성기 iOS 모드 한 줄만 실행한다',
+      () {
+        final String pbx = readTrackedFile(_pbxprojPath);
+        expect(
+          countOccurrences(pbx, '/* $_launcherPhaseName */ = {'),
+          1,
+          reason: '$_launcherPhaseName 객체 블록은 정확히 1개여야 한다',
+        );
+        final String block = _readPbxprojObject(pbx, _launcherPhaseName);
+        expect(block, isNotEmpty, reason: '객체 블록을 끝까지 읽어야 한다');
+
+        for (final setting in <String>[
+          'isa = PBXShellScriptBuildPhase;',
+          'alwaysOutOfDate = 1;',
+          'name = "$_launcherPhaseName";',
+          'shellPath = /bin/sh;',
+        ]) {
+          expect(
+            countOccurrences(block, setting),
+            1,
+            reason: '단계 설정 $setting 이 있어야 한다',
+          );
+        }
+        for (final listName in <String>[
+          'inputPaths',
+          'outputPaths',
+          'inputFileListPaths',
+          'outputFileListPaths',
+        ]) {
+          expect(
+            RegExp('\\b$listName = \\(\\s*\\);').hasMatch(block),
+            isTrue,
+            reason: '입출력을 선언하지 않는 단계라 $listName 는 빈 목록이어야 한다',
+          );
+        }
+        expect(
+          RegExp(r'showEnvVarsInLog\s*=\s*0\s*;').hasMatch(block),
+          isTrue,
+          reason: '빌드 로그에 환경 변수를 펼치지 않는다',
+        );
+
+        final List<RegExpMatch> scripts = pbxprojShellScriptValue
+            .allMatches(block)
+            .toList();
+        expect(scripts, hasLength(1), reason: 'shellScript 값이 하나여야 한다');
+        final String script = decodePbxprojString(scripts.single.group(1)!);
+        // 양성 대조 — 풀어 읽은 본문에서 명령 줄과 낱말 경계 패턴이 맞는다.
+        expect(countExactLines(script, _launcherPhaseCommand), 1);
+        expect(RegExp(r'\bios\b').hasMatch(script), isTrue);
+
+        final List<String> commands = script
+            .split('\n')
+            .where(
+              (String line) =>
+                  line.trim().isNotEmpty && !line.trimLeft().startsWith('#'),
+            )
+            .toList();
+        expect(commands, <String>[
+          _launcherPhaseCommand,
+        ], reason: '단계는 생성기 경로 · 모드만 넘긴다 — 언어 목록을 적지 않는다');
+        expect(
+          RegExp(r'\brun\b').hasMatch(script),
+          isFalse,
+          reason: 'dart run 은 빌드 중 패키지 해석을 끼워 넣는다',
+        );
+      },
+    );
+
+    test(
+      'T-22-WIRE-08: Runner 빌드 단계 순서에서 Resources 뒤 · Thin Binary 바로 다음 · FlutterFire 앞이다',
+      () {
+        final String pbx = readTrackedFile(_pbxprojPath);
+        final List<({String id, String name})> phases = _readRunnerBuildPhases(
+          pbx,
+        );
+        final List<String> names = phases
+            .map((({String id, String name}) phase) => phase.name)
+            .toList();
+        // 양성 대조 — 기존 단계 이름을 같은 방법으로 읽는다.
+        expect(names, contains('Resources'));
+        expect(names, contains('Thin Binary'));
+
+        final int launcherAt = names.indexOf(_launcherPhaseName);
+        final int flutterFireAt = names.indexWhere(
+          (String name) => name.startsWith('FlutterFire'),
+        );
+        expect(
+          names.where((String name) => name == _launcherPhaseName).length,
+          1,
+          reason: 'Runner 는 이 단계를 한 번만 참조해야 한다',
+        );
+        expect(launcherAt, greaterThanOrEqualTo(0));
+        expect(flutterFireAt, greaterThanOrEqualTo(0));
+        expect(
+          launcherAt > names.indexOf('Resources'),
+          isTrue,
+          reason:
+              'Copy Bundle Resources 보다 앞이면 앱 쪽 InfoPlist.strings 가 '
+              '생성 이름을 덮는다',
+        );
+        expect(
+          launcherAt,
+          names.indexOf('Thin Binary') + 1,
+          reason: 'Thin Binary 바로 다음이어야 한다',
+        );
+        expect(
+          launcherAt < flutterFireAt,
+          isTrue,
+          reason: 'FlutterFire 업로드 단계보다 앞이어야 한다',
+        );
+
+        final String launcherId = phases[launcherAt].id;
+        expect(
+          countOccurrences(pbx, launcherId),
+          2,
+          reason: '단계 ID 는 객체 정의와 Runner 참조에만 나와야 한다(RunnerTests 0)',
+        );
+        expect(
+          countOccurrences(pbx, '$launcherId /* $_launcherPhaseName */ = {'),
+          1,
+          reason: 'Runner 참조 ID 가 객체 정의 ID 와 같아야 한다',
+        );
+      },
+    );
+
+    test('T-22-WIRE-09: 빌드 구성은 사용자 스크립트 샌드박스를 켜지 않는다', () {
+      final String pbx = readTrackedFile(_pbxprojPath);
+      // 양성 대조 — 같은 설정 키 줄을 같은 방법으로 센다.
+      expect(
+        countOccurrences(pbx, 'ENABLE_USER_SCRIPT_SANDBOXING = NO;'),
+        greaterThanOrEqualTo(1),
+      );
+      expect(
+        RegExp(
+          r'ENABLE_USER_SCRIPT_SANDBOXING\s*=\s*YES\s*;',
+        ).allMatches(pbx).length,
+        0,
+        reason: '샌드박스가 켜지면 입출력을 선언하지 않은 단계가 빌드된 앱에 쓰지 못한다',
+      );
+    });
+
+    test('T-22-WIRE-10: 생성기는 홈 화면 이름 키만 쓰고 SDK 표시 이름 · 번들 이름 키를 쓰지 않는다', () {
+      final String generator = stripBlockComments(
+        stripSlashComments(readTrackedFile(_generatorPath)),
+      );
+      // 양성 대조 — 생성기가 쓰는 키를 같은 방법으로 찾는다.
+      expect(
+        countOccurrences(generator, "'CFBundleDisplayName'"),
+        greaterThanOrEqualTo(1),
+      );
+      expect(
+        countOccurrences(generator, "'CFBundleLocalizations'"),
+        greaterThanOrEqualTo(1),
+      );
+      expect(
+        countOccurrences(generator, 'name="app_name"'),
+        greaterThanOrEqualTo(1),
+      );
+
+      // 이 시험 소스가 키 이름을 그대로 담지 않게 조각을 잇는다.
+      final sdkDisplayNameKeys = <String>[
+        'Facebook${'Display'}Name',
+        'Nid${'App'}Name',
+        'naver_${'client'}_name',
+      ];
+      for (final key in sdkDisplayNameKeys) {
+        expect(
+          countOccurrences(generator, key),
+          0,
+          reason: 'SDK 표시 이름 $key 은 기본 이름 하나로 둔다',
+        );
+      }
+      const bundleNameKey = 'CFBundle${'Name'}';
+      for (final quoted in <String>["'$bundleNameKey'", '"$bundleNameKey"']) {
+        expect(
+          countOccurrences(generator, quoted),
+          0,
+          reason: '번들 이름 $bundleNameKey 은 바꾸지 않는다',
         );
       }
     });

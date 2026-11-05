@@ -72,6 +72,43 @@ int countOccurrences(String haystack, String needle) {
   return count;
 }
 
+/// Xcode `project.pbxproj` 의 `shellScript = "…";` 값 하나를 통째로 집는 정규식이다.
+///
+/// 그룹 1 이 이스케이프가 남은 값 원문이고, [decodePbxprojString] 으로 실제 셸
+/// 스크립트로 푼다. `"(.*?)";` 같은 non-greedy 패턴은 쓰지 않는다 — 스크립트
+/// 본문에 `…/Crashlytics/run\"; do` 처럼 이스케이프된 따옴표 뒤 `;` 가 있으면 값
+/// 도중에 끊긴다. 역슬래시 이스케이프를 인식하는 이 패턴만 값 전체를 집는다.
+final RegExp pbxprojShellScriptValue = RegExp(
+  r'shellScript = "((?:\\.|[^"\\])*)";',
+);
+
+/// pbxproj 문자열 리터럴 [raw] 의 이스케이프를 풀어 실제 셸 스크립트로 되돌린다.
+///
+/// `\n` 은 줄바꿈, `\t` 는 탭이고, 그 밖의 역슬래시 이스케이프(`\"` · `\\` 등)는
+/// 다음 문자를 그대로 쓴다. 끝에 홀로 남은 역슬래시는 그대로 둔다.
+String decodePbxprojString(String raw) {
+  final out = StringBuffer();
+  for (var i = 0; i < raw.length; i++) {
+    final String ch = raw[i];
+    if (ch != r'\' || i + 1 >= raw.length) {
+      out.write(ch);
+      continue;
+    }
+    final String next = raw[i + 1];
+    i++;
+    switch (next) {
+      case 'n':
+        out.write('\n');
+      case 't':
+        out.write('\t');
+      default:
+        // `\"` → `"`, `\\` → `\` 등 나머지는 다음 문자를 그대로 쓴다.
+        out.write(next);
+    }
+  }
+  return out.toString();
+}
+
 /// 마크다운 [text] 에서 [heading] 줄부터 다음 헤딩 직전까지를 돌려준다.
 ///
 /// 경계로 치는 헤딩은 `## ` 부터 [maxLevel] 개의 `#` 까지다 — 2 면 `## ` 만,
