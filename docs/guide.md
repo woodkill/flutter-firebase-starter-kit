@@ -1700,6 +1700,12 @@ fvm dart run flutter_native_splash:create
   - 표시 이름에서 접미사를 지웠으면 붙지 않는다. 앱 안 제목도 같은 규칙을 따른다.
 - prod 표시 이름에는 접미사가 없어 언어 이름에도 붙지 않는다.
 - 영어 이름(기본 이름)은 ARB 가 아니라 위저드 「앱 정체성」 으로 바꾼다.
+- 이름을 넣은 뒤 생성 문구 파일을 다시 만든다.
+
+  ```bash
+  fvm flutter gen-l10n
+  ```
+
 - 한국어 이름을 넣으면 홈 화면 golden 2장이 AppBar 제목만큼 바뀐다.
   - 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고, 아래 명령으로 다시 만든다.
 
@@ -1709,14 +1715,15 @@ fvm dart run flutter_native_splash:create
 
 **② 새 언어를 더한다.**
 - `lib/l10n/app_<언어 코드>.arb` 를 `"@@locale": "<언어 코드>"` 와 함께 만들고 그 언어로 옮긴 문구를 넣는다.
-  - 옮기지 않은 키는 영어 문구로 보인다. `fvm flutter pub get` 이 그 수를 `untranslated message(s)` 로 알린다.
+  - 옮기지 않은 키는 영어 문구로 보인다. `fvm flutter gen-l10n` 이 그 수를 `untranslated message(s)` 로 알린다.
 - 이름이 기본 이름과 다르면 그 ARB 에 `appTitle` 도 넣는다(①).
 - `lib/core/l10n/locale_display_names.dart` 의 `kLocaleEndonyms` 에 그 언어로 쓴 언어 이름을 더한다(예: `'fr': 'Français'`).
   - 설정 화면의 언어 선택창이 이 이름을 보인다.
 - 생성 문구 파일을 다시 만든다.
+  - `fvm flutter pub get` 은 새 ARB 파일을 더한 것만으로는 생성 문구 파일을 다시 만들지 않는다.
 
   ```bash
-  fvm flutter pub get
+  fvm flutter gen-l10n
   ```
 
 - 설정 화면의 언어 선택창 golden 2장은 새 언어 항목만큼 바뀐다.
@@ -1767,15 +1774,15 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - **빌드가 ARB 파일 경로를 적은 `error: launcher_names:` 오류로 멈춘다.**
   - 오류는 `<무엇이 틀렸나> — <파일> — <고칠 방법>` 순서다(예: `ARB 의 appTitle 가 비어 있다`).
   - 그 파일의 JSON 문법 · `appTitle` 값(빈 값 · 문자열 아님) · 파일 이름 꼴 `app_<언어>[_<문자 체계>][_<지역>].arb` 을 오류의 고칠 방법대로 고친다.
-- **`fvm flutter pub get` 이 `"ja": 1 untranslated message(s).` 를 낸다.**
+- **`fvm flutter gen-l10n` 이 `"ja": 1 untranslated message(s).` 를 낸다.**
   - 이름이 기본 이름과 같아 `appTitle` 을 두지 않은 언어의 알림이다. 그대로 둬도 된다.
 - **홈 화면 이름이 그대로다.**
   - 기기가 옛 이름을 기억하고 있다. 앱을 지우고 다시 설치한다.
 
 ### 되돌리기
 
-- 언어별 이름은 그 ARB 의 `appTitle` 줄을 지우고 다시 빌드한다.
-- 더한 언어는 그 ARB 파일과 `kLocaleEndonyms` 항목을 지우고 `fvm flutter pub get` 한 뒤, 언어 선택창 golden 2장을 ② 의 명령으로 다시 만든다.
+- 언어별 이름은 그 ARB 의 `appTitle` 줄을 지우고 `fvm flutter gen-l10n` 한 뒤 다시 빌드한다.
+- 더한 언어는 그 ARB 파일 · `lib/l10n/generated/app_localizations_<언어 코드>.dart` · `kLocaleEndonyms` 항목을 지우고 `fvm flutter gen-l10n` 한 뒤, 언어 선택창 golden 2장을 ② 의 명령으로 다시 만든다.
 
 ## 인증 메일 발송 모드 켜고 끄기
 
