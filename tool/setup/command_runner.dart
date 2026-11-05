@@ -42,6 +42,9 @@ final class Command {
   /// false 로 준다 — 기록에는 표준 출력 본문 대신 길이만 남는다. 오류 출력은
   /// 실패 원인이라 false 여도 그대로 남는다. 비밀 값이 섞일 수 있는 출력은
   /// [isOutputSensitive] 로 표시한다.
+  ///
+  /// [CommandRunner.capture] 실행의 기록에만 적용된다 — [CommandRunner.stream]
+  /// 은 흘리는 줄이 터미널을 거쳐 그대로 기록된다.
   final bool isOutputLogged;
 
   /// 화면에 보일 명령 줄을 만든다.
