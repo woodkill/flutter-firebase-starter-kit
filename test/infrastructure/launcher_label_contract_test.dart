@@ -284,7 +284,6 @@ void main() {
           'addGeneratedSourceDirectory(',
           '"../tool/launcher_names.dart"',
           '"../l10n.yaml"',
-          '"../lib/l10n"',
           '@get:OutputDirectory',
         ]) {
           expect(
@@ -327,6 +326,24 @@ void main() {
         );
       },
     );
+
+    test('생성 task 는 ARB 위치를 고정하지 않고 빌드마다 다시 돈다', () {
+      final String gradle = _readGradleCode();
+      // 양성 대조 — 생성기가 ARB 위치를 읽는 l10n.yaml 은 입력으로 남는다.
+      expect(countOccurrences(gradle, '"../l10n.yaml"'), 1);
+      expect(
+        RegExp(r'outputs\.upToDateWhen\s*\{\s*false\s*\}').allMatches(gradle),
+        hasLength(1),
+        reason:
+            'l10n.yaml 의 arb-dir 를 옮긴 프로젝트에서도 ARB 변경이 반영되도록 '
+            '매번 돌아야 한다',
+      );
+      expect(
+        countOccurrences(gradle, '"../lib/l10n"'),
+        0,
+        reason: 'ARB 디렉터리는 생성기가 l10n.yaml 의 arb-dir 에서 읽는다',
+      );
+    });
 
     test('T-22-WIRE-02: 생성기는 dart run 이 아니라 주입한 ExecOperations 로 바로 실행한다', () {
       final String gradle = _readGradleCode();

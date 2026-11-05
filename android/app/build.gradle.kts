@@ -179,14 +179,11 @@ flutter {
 // 입력 · 출력 선언과 실행만 맡는다. 생성기는 dart: 라이브러리만 쓰므로 패키지
 // 해석 없이 Flutter SDK 의 dart 로 바로 실행한다. 출력 디렉터리는 AGP 가
 // build/ 아래에 정하고 variant 의 생성 리소스로 붙인다 — 저장소에 언어별 파일이
-// 생기지 않는다.
+// 생기지 않는다. ARB 위치는 생성기가 l10n.yaml 의 arb-dir 에서 읽으므로 이
+// task 는 ARB 파일을 입력으로 세지 않고 빌드마다 다시 돈다(iOS 빌드 단계와 같다).
 abstract class GenerateLauncherNamesTask : DefaultTask() {
     @get:javax.inject.Inject
     abstract val execOperations: ExecOperations
-
-    @get:InputFiles
-    @get:PathSensitive(PathSensitivity.RELATIVE)
-    abstract val arbFiles: ConfigurableFileCollection
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.RELATIVE)
@@ -260,7 +257,9 @@ androidComponents {
         val task = tasks.register<GenerateLauncherNamesTask>(
             "generate${variant.name.replaceFirstChar { it.uppercase() }}LauncherNames",
         ) {
-            arbFiles.from(fileTree(rootProject.file("../lib/l10n")) { include("*.arb") })
+            // ARB 디렉터리를 여기서 고정하면 l10n.yaml 의 arb-dir 를 옮긴 프로젝트에서
+            // ARB 를 고쳐도 UP-TO-DATE 로 건너뛴다 — 생성기는 짧게 끝나므로 매번 돌린다.
+            outputs.upToDateWhen { false }
             generator.set(rootProject.file("../tool/launcher_names.dart"))
             l10nConfig.set(rootProject.file("../l10n.yaml"))
             projectRoot.set(rootProject.file(".."))
