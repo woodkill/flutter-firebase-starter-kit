@@ -1587,4 +1587,213 @@ void main() {
       );
     });
   });
+
+  group('영어 appTitle 은 세 flavor 가 함께 쓴다 — 다른 flavor 의 기본 이름과 맞춘다', () {
+    const renamedId = 'com.acme.my_app';
+    const devDisplayName = 'Foo Dev';
+    const devBaseName = 'Foo';
+
+    /// [flavor] 의 사용자 JSON `appName` · xcconfig `DISPLAY_NAME` · 번들 ID 를
+    /// 정해진 값으로 쓴다 — example 두 파일과 사용자 파일이 없으면 먼저 복사한다.
+    void writeSettledFlavor(Flavor flavor, String displayName) {
+      final paths = FlavorPaths(flavor);
+      for (final (String example, String user) in <(String, String)>[
+        (paths.jsonExample, paths.json),
+        (paths.xcconfigExample, paths.xcconfig),
+      ]) {
+        if (!File('$root/$example').existsSync()) {
+          File(example).copySync('$root/$example');
+        }
+        if (!File('$root/$user').existsSync()) {
+          File(example).copySync('$root/$user');
+        }
+      }
+      replaceJsonString('$root/${paths.json}', 'appName', displayName);
+      replaceXcconfigValue(
+        '$root/${paths.xcconfig}',
+        'DISPLAY_NAME',
+        displayName,
+      );
+      replaceXcconfigValue(
+        '$root/${paths.xcconfig}',
+        'PRODUCT_BUNDLE_IDENTIFIER',
+        '${buildIosBundleIdPrefix(renamedId)}${flavor.suffix}',
+      );
+    }
+
+    /// [flavor] 의 example 두 파일과 그 복사본 사용자 파일(킷 기본값)을 둔다.
+    void writeExampleFlavor(Flavor flavor) {
+      final paths = FlavorPaths(flavor);
+      for (final (String example, String user) in <(String, String)>[
+        (paths.jsonExample, paths.json),
+        (paths.xcconfigExample, paths.xcconfig),
+      ]) {
+        File(example).copySync('$root/$example');
+        File(example).copySync('$root/$user');
+      }
+    }
+
+    /// dev 표시 이름이 [devDisplayName] 으로 정해지고 영어 ARB 가 그 기본 이름인
+    /// 저장소를 만든다.
+    void writeDevSettledFixture() {
+      writeIdentityFixture(
+        root,
+        applicationId: renamedId,
+        appTitle: devBaseName,
+      );
+      writeSettledFlavor(Flavor.dev, devDisplayName);
+    }
+
+    /// [flavor] 문맥과 단언에 쓸 터미널을 만든다 — 입력은 [inputs] 순서로 답한다.
+    ({WizardContext context, ScriptedTerminal terminal}) buildContext(
+      Flavor flavor, [
+      List<String?> inputs = const <String?>[],
+    ]) {
+      final terminal = ScriptedTerminal(inputs);
+      return (
+        context: buildTestContext(
+          projectRoot: root,
+          terminal: terminal,
+          flavor: flavor,
+        ),
+        terminal: terminal,
+      );
+    }
+
+    String? readArbTitle() =>
+        readJsonString('$root/$fixtureArbPath', 'appTitle');
+
+    test('stg 표시 이름이 킷 기본값이면 dev 의 기본 이름으로 제안하고 Enter 면 '
+        '영어 ARB 를 그대로 둔다', () async {
+      writeDevSettledFixture();
+      writeExampleFlavor(Flavor.stg);
+      final stg = buildContext(Flavor.stg, const <String?>['']);
+      final step = IdentityStep();
+
+      expect(await step.check(stg.context), isA<Todo>());
+      expect(await step.apply(stg.context), isA<Applied>());
+
+      expect(stg.terminal.asks, <String>[IdentityStep.displayNameQuestion]);
+      expect(
+        readJsonString(
+          '$root/${const FlavorPaths(Flavor.stg).json}',
+          'appName',
+        ),
+        'Foo Stg',
+      );
+      expect(readArbTitle(), devBaseName);
+      // dev 다시 검사도 ✓ — 핑퐁이 생기지 않는다.
+      expect(
+        await IdentityStep().check(buildContext(Flavor.dev).context),
+        isA<Done>(),
+      );
+      expect(await step.check(stg.context), isA<Done>());
+    });
+
+    test('stg 에 dev 와 다른 기본 이름을 입력하면 어느 파일도 바꾸지 않고 실패한다', () async {
+      writeDevSettledFixture();
+      writeExampleFlavor(Flavor.stg);
+      final Map<String, List<int>> before = snapshotTree(root);
+      final stg = buildContext(Flavor.stg, const <String?>['Bar Stg']);
+      final step = IdentityStep();
+
+      expect(await step.check(stg.context), isA<Todo>());
+      final StepOutcome outcome = await step.apply(stg.context);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          allOf(
+            contains(UserFilesStep.jsonUserPath),
+            contains('"$devBaseName"'),
+            contains('"Bar"'),
+          ),
+        ),
+      );
+      expect(snapshotTree(root), before);
+    });
+
+    test('stg 표시 이름이 이미 dev 와 다른 기본 이름이면 영어 ARB 를 맞추지 않고 '
+        '두 값을 적어 실패한다', () async {
+      writeDevSettledFixture();
+      writeSettledFlavor(Flavor.stg, 'Bar Stg');
+      final Map<String, List<int>> before = snapshotTree(root);
+      final stg = buildContext(Flavor.stg);
+      final step = IdentityStep();
+
+      final CheckResult result = await step.check(stg.context);
+
+      expect(
+        result,
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          allOf(
+            contains(UserFilesStep.jsonUserPath),
+            contains('"$devBaseName"'),
+            contains('"Bar"'),
+          ),
+        ),
+      );
+      expect(step.plannedCommandLines(stg.context), isEmpty);
+      expect(await step.apply(stg.context), isA<Failed>());
+      expect(stg.terminal.asks, isEmpty);
+      expect(snapshotTree(root), before);
+    });
+
+    test('org · name 부터 진행할 때도 다른 flavor 의 기본 이름을 표시 이름 제안값에 쓴다', () async {
+      writeIdentityFixture(root);
+      writeSettledFlavor(Flavor.stg, 'Foo Stg');
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        runner: runner,
+        terminal: terminal,
+      );
+      final step = IdentityStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(await step.apply(context), isA<Applied>());
+
+      expect(
+        readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+        'Foo Dev',
+      );
+      expect(readArbTitle(), 'Foo');
+    });
+
+    test('처음 dev → stg → prod 순서로 Enter 만 쳐도 멈추지 않고 셋 다 ✓', () async {
+      writeIdentityFixture(root, applicationId: renamedId);
+      writeExampleFlavor(Flavor.stg);
+      writeExampleFlavor(Flavor.prod);
+
+      for (final flavor in Flavor.values) {
+        final run = buildContext(flavor, const <String?>['']);
+        final step = IdentityStep();
+        expect(await step.check(run.context), isA<Todo>(), reason: flavor.name);
+        expect(
+          await step.apply(run.context),
+          isA<Applied>(),
+          reason: flavor.name,
+        );
+      }
+
+      expect(readArbTitle(), 'My App');
+      for (final flavor in Flavor.values) {
+        expect(
+          await IdentityStep().check(buildContext(flavor).context),
+          isA<Done>(),
+          reason: flavor.name,
+        );
+      }
+    });
+  });
 }

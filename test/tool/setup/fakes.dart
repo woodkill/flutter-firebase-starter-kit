@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/log_sink.dart';
 import '../../../tool/setup/redactor.dart';
 import '../../../tool/setup/step.dart';
@@ -259,7 +260,8 @@ final String noKeystoreTestHome =
 /// [terminal] 은 [RedactingTerminal] 로 감싸 넣는다 — 화면 단언은 넘긴
 /// [ScriptedTerminal] 의 `output` 으로, 기록 단언은 [log] 로 한다. [log] 를 따로
 /// 넘길 때는 같은 [redactor] 로 만든 것을 넘긴다. [homeDirectory] 를 주지 않으면
-/// [noKeystoreTestHome] 을, [session] 을 주지 않으면 빈 세션을 쓴다.
+/// [noKeystoreTestHome] 을, [session] 을 주지 않으면 빈 세션을 쓴다. [flavor] 의
+/// 기본값은 dev 다.
 WizardContext buildTestContext({
   required String projectRoot,
   FakeCommandRunner? runner,
@@ -271,6 +273,7 @@ WizardContext buildTestContext({
   DateTime Function()? now,
   String? homeDirectory,
   WizardSession? session,
+  Flavor flavor = Flavor.dev,
 }) {
   final Redactor usedRedactor = redactor ?? log?.redactor ?? Redactor();
   final MemoryLogSink usedLog = log ?? MemoryLogSink(usedRedactor);
@@ -285,6 +288,7 @@ WizardContext buildTestContext({
     redactor: usedRedactor,
     log: usedLog,
     rest: rest ?? FakeRestClient(),
+    flavor: flavor,
     session: session,
     homeDirectory: homeDirectory ?? noKeystoreTestHome,
     random: random ?? Random(fixedTestRandomSeed),

@@ -25,6 +25,11 @@ import 'configure_step.dart';
 /// 맞춘다. 표시 이름이 이미 정해졌는데 영어 ARB `appTitle` 만 그 기본 이름과
 /// 다르면 묻지 않고 ARB 를 맞춘다.
 ///
+/// 영어 ARB `appTitle` 은 세 flavor 가 함께 쓴다. 그래서 다른 flavor 사용자
+/// 파일에 이미 정해진 표시 이름이 있으면 그 기본 이름을 표시 이름 제안값에 쓰고,
+/// 쓰려는 기본 이름이 그것과 다르면 어느 파일도 바꾸지 않고 실패한다. 다른 flavor
+/// 파일이 없거나 킷 기본값이면 대조하지 않는다.
+///
 /// 경로 · 표시 이름 접미사는 고른 flavor 를 따른다. 앱 ID 는 flavor 가 함께
 /// 쓰므로 이름 바꾸기는 모든 flavor 를 바꾸지만, 표시 이름은 그 flavor 의
 /// 사용자 파일에만 쓴다. dev 가 아닌 flavor 는 그 flavor 의 사용자 xcconfig
@@ -109,6 +114,11 @@ final class IdentityStep implements Step {
       'Kotlin 디렉토리를 옮기지 못했습니다 — git status 로 바뀐 파일을 확인하고 '
       'git restore . 로 되돌린 뒤 다시 시도하세요';
 
+  /// 쓰려는 기본 이름이 다른 flavor 의 기본 이름과 다를 때 붙이는 안내.
+  static const String baseNameConflictGuidance =
+      '영어 appTitle 은 세 flavor 가 함께 쓰므로 세 flavor 의 표시 이름은 flavor '
+      '접미사를 뗀 기본 이름이 같아야 합니다';
+
   /// 같은 질문을 다시 묻는 최대 횟수.
   static const int maxInputAttempts = 3;
 
@@ -192,6 +202,16 @@ final class IdentityStep implements Step {
     }
     final String? titleMismatch = _findArbTitleMismatch(context, _baseName);
     if (titleMismatch != null) {
+      // 다른 flavor 의 기본 이름과 다르면 ARB 를 이 flavor 쪽으로 맞추는 순간
+      // 그 flavor 빌드가 멈춘다 — 맞추지 않고 두 값을 적어 실패한다.
+      final String? conflict = _findBaseNameConflict(context, _baseName);
+      if (conflict != null) {
+        _mode = _IdentityMode.nameConflict;
+        _reason =
+            '$conflict — 세 flavor 사용자 파일의 표시 이름을 같은 기본 이름으로 '
+            '맞춘 뒤 다시 실행하세요';
+        return Todo(_reason);
+      }
       _mode = _IdentityMode.titleOnly;
       _reason = titleMismatch;
       return Todo(_reason);
@@ -240,6 +260,7 @@ final class IdentityStep implements Step {
       _IdentityMode.titleOnly => <String>[...bundleIdLines, arbLine],
       _IdentityMode.unreadable ||
       _IdentityMode.inconsistent ||
+      _IdentityMode.nameConflict ||
       _IdentityMode.done => const <String>[],
     };
   }
@@ -254,7 +275,8 @@ final class IdentityStep implements Step {
         _IdentityMode.bundleIdOnly => _applyBundleIdOnly(),
         _IdentityMode.titleOnly => _applyTitleOnly(context),
         _IdentityMode.unreadable ||
-        _IdentityMode.inconsistent => Failed(_reason),
+        _IdentityMode.inconsistent ||
+        _IdentityMode.nameConflict => Failed(_reason),
         _IdentityMode.done => const Applied(),
       };
     } on GitTreeException catch (e) {
@@ -288,7 +310,9 @@ final class IdentityStep implements Step {
 
     String prefix = name.replaceAll('_', '-');
     final Flavor flavor = context.flavor;
-    var displayName = '${rename.toTitleCase(name)}${flavor.displayNameSuffix}';
+    var displayName =
+        '${_findOtherFlavorBaseName(context) ?? rename.toTitleCase(name)}'
+        '${flavor.displayNameSuffix}';
     while (true) {
       final List<SummaryRow> rows = _buildRows(
         org,
@@ -347,6 +371,8 @@ final class IdentityStep implements Step {
 
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
+    final String? conflict = _findDisplayNameConflict(context, displayName);
+    if (conflict != null) return Failed(conflict);
 
     final List<rename.FileChange> changes = rename.collectChanges(
       context.projectRoot,
@@ -379,9 +405,11 @@ final class IdentityStep implements Step {
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
 
-    final suggested =
-        '${rename.toTitleCase(_applicationId.split('.').last)}'
-        '${context.flavor.displayNameSuffix}';
+    // 다른 flavor 에 정해진 기본 이름이 있으면 그 이름을, 없으면 앱 ID 이름을 쓴다.
+    final String suggestedBase =
+        _findOtherFlavorBaseName(context) ??
+        rename.toTitleCase(_applicationId.split('.').last);
+    final suggested = '$suggestedBase${context.flavor.displayNameSuffix}';
     final String? displayName = _askValid(
       context.terminal,
       question: displayNameQuestion,
@@ -393,6 +421,8 @@ final class IdentityStep implements Step {
     if (displayName.isEmpty) {
       return const Failed('표시 이름 형식이 맞지 않아 진행하지 않았습니다');
     }
+    final String? conflict = _findDisplayNameConflict(context, displayName);
+    if (conflict != null) return Failed(conflict);
     rename.applyChanges(_xcconfigResidue);
     _writeDisplayName(context, displayName);
     return const Applied();
@@ -568,6 +598,86 @@ final class IdentityStep implements Step {
     return null;
   }
 
+  /// 다른 flavor 사용자 파일에 이미 정해진 표시 이름의 기본 이름을 모은다.
+  ///
+  /// flavor 마다 JSON `appName`(Android 원본) · xcconfig `DISPLAY_NAME`(iOS
+  /// 원본)을 본다. 파일이 없거나 값이 킷 기본값(`appName` 이 킷 이름으로 시작 ·
+  /// `DISPLAY_NAME` 이 example 값)이면 아직 정하지 않은 것으로 보고 건너뛴다 —
+  /// 처음 dev → stg → prod 순서로 실행할 때 막히지 않게 하기 위함이다. flavor
+  /// 접미사를 떼면 빈 값도 건너뛴다.
+  static List<({String source, String baseName})> _collectOtherFlavorBaseNames(
+    WizardContext context,
+  ) {
+    final entries = <({String source, String baseName})>[];
+    for (final Flavor other in Flavor.values) {
+      if (other == context.flavor) continue;
+      final paths = FlavorPaths(other);
+      final String jsonPath = context.resolve(paths.json);
+      final String? appName = File(jsonPath).existsSync()
+          ? readJsonString(jsonPath, 'appName')
+          : null;
+      if (appName != null && !appName.startsWith(rename.currentAppName)) {
+        entries.add((
+          source: '${paths.json} 의 appName("$appName")',
+          baseName: stripFlavorSuffix(appName, other.displayNameSuffix),
+        ));
+      }
+      final String? displayName = _readXcconfigDisplayName(
+        context.resolve(paths.xcconfig),
+      );
+      final String? exampleDisplayName = _readXcconfigDisplayName(
+        context.resolve(paths.xcconfigExample),
+      );
+      if (displayName != null && displayName != exampleDisplayName) {
+        entries.add((
+          source: '${paths.xcconfig} 의 DISPLAY_NAME("$displayName")',
+          baseName: stripFlavorSuffix(displayName, other.displayNameSuffix),
+        ));
+      }
+    }
+    return <({String source, String baseName})>[
+      for (final entry in entries)
+        if (entry.baseName.trim().isNotEmpty) entry,
+    ];
+  }
+
+  /// [path] xcconfig 의 `DISPLAY_NAME` 을 읽는다 — 파일이나 변수가 없으면 null.
+  static String? _readXcconfigDisplayName(String path) =>
+      File(path).existsSync() ? readXcconfigValue(path, 'DISPLAY_NAME') : null;
+
+  /// 다른 flavor 사용자 파일에 이미 정해진 첫 기본 이름 — 없으면 null.
+  static String? _findOtherFlavorBaseName(WizardContext context) {
+    final List<({String source, String baseName})> entries =
+        _collectOtherFlavorBaseNames(context);
+    return entries.isEmpty ? null : entries.first.baseName;
+  }
+
+  /// [baseName] 이 다른 flavor 사용자 파일의 기본 이름과 다르면 두 값을 적은
+  /// 사유를 돌려준다 — 모두 같거나 대조할 값이 없으면 null.
+  static String? _findBaseNameConflict(WizardContext context, String baseName) {
+    for (final entry in _collectOtherFlavorBaseNames(context)) {
+      if (entry.baseName != baseName) {
+        return '${entry.source}의 기본 이름 "${entry.baseName}" 과 이번 기본 이름 '
+            '"$baseName" 이 다릅니다 — $baseNameConflictGuidance';
+      }
+    }
+    return null;
+  }
+
+  /// 표시 이름 [displayName] 의 기본 이름이 다른 flavor 와 다르면 고칠 방법까지
+  /// 적은 사유를 돌려준다 — 같으면 null.
+  static String? _findDisplayNameConflict(
+    WizardContext context,
+    String displayName,
+  ) {
+    final String? conflict = _findBaseNameConflict(
+      context,
+      stripFlavorSuffix(displayName, context.flavor.displayNameSuffix),
+    );
+    if (conflict == null) return null;
+    return '$conflict. 같은 기본 이름의 표시 이름으로 다시 실행하세요';
+  }
+
   /// 표시 이름을 고른 flavor 의 사용자 JSON `appName` · xcconfig
   /// `DISPLAY_NAME` 에 쓰고, 영어 ARB `appTitle` 에 그 flavor 접미사를 뗀
   /// 기본 이름을 쓴다.
@@ -739,6 +849,10 @@ enum _IdentityMode {
   /// Gradle 앱 ID 와 configure 스크립트 상수 · 추적 파일이 다름 — 이름 바꾸기가
   /// 중간에 끊김.
   inconsistent,
+
+  /// 영어 ARB `appTitle` 을 이 flavor 의 기본 이름으로 맞춰야 하는데 다른 flavor
+  /// 사용자 파일의 기본 이름과 다름 — 맞추면 그 flavor 빌드가 멈추므로 실패.
+  nameConflict,
 
   /// 끝남.
   done,
