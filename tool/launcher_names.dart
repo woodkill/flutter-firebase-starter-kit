@@ -58,6 +58,8 @@ final RegExp arbLocalePattern = RegExp(
 );
 
 /// 생성기 진입점 — 실패하면 빌드가 멈추도록 0 이 아닌 코드로 끝낸다.
+///
+/// 실패는 종류와 관계없이 `error: launcher_names:` 로 시작하는 한 줄로 알린다.
 Future<void> main(List<String> args) async {
   try {
     final Options options = parseOptions(args, Platform.environment);
@@ -73,6 +75,13 @@ Future<void> main(List<String> args) async {
     // Xcode 는 `error:` 로 시작하는 줄을 이슈 목록의 오류로 보이고, Gradle 은
     // stderr 를 「What went wrong」 에 그대로 싣는다.
     stderr.writeln('error: launcher_names: ${error.message}');
+    exitCode = 1;
+  } on Object catch (error, stackTrace) {
+    // 파일 쓰기 · plist 해석 같은 예기치 못한 실패도 같은 `error:` 줄로 알려
+    // Xcode 이슈 목록에 보이게 하고, 원인을 찾도록 스택을 그 뒤에 남긴다.
+    stderr
+      ..writeln('error: launcher_names: 예기치 못한 실패 — $error')
+      ..writeln(stackTrace);
     exitCode = 1;
   }
 }

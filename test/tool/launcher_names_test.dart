@@ -8,6 +8,7 @@
 //
 // 파일은 `Directory.systemTemp` 아래 임시 프로젝트에만 쓰고 시험마다 지운다 —
 // 저장소의 ARB · 빌드 설정은 읽지도 쓰지도 않는다.
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -1010,4 +1011,44 @@ void main() {
     },
     skip: skipWithoutPlutil,
   );
+
+  test('예기치 못한 실패도 error: 줄 하나로 알리고 코드 1 로 끝낸다', () async {
+    writeFixtureProject(project, fixtureAppTitles);
+    // 출력 디렉터리 자리에 일반 파일을 두면 디렉터리를 만들다 FileSystemException 이 난다.
+    final blocker = File('${project.path}/android-out')
+      ..writeAsStringSync('not a directory');
+    final Process process = await Process.start('fvm', <String>[
+      'dart',
+      '${Directory.current.path}/tool/launcher_names.dart',
+      'android',
+      '--project-root',
+      project.path,
+      '--out',
+      blocker.path,
+      '--flavor',
+      'dev',
+      '--app-name',
+      fixtureConfigName,
+    ]);
+    final Future<String> out = process.stdout.transform(utf8.decoder).join();
+    final Future<String> err = process.stderr.transform(utf8.decoder).join();
+    final int code = await process.exitCode.timeout(
+      const Duration(seconds: 50),
+      onTimeout: () {
+        // 멈춘 생성기 프로세스를 남기지 않는다.
+        process.kill();
+        throw TimeoutException('생성기가 끝나지 않았다');
+      },
+    );
+    final String stderrText = await err;
+    await out;
+
+    expect(code, 1, reason: stderrText);
+    final errorLines = <String>[
+      for (final String line in const LineSplitter().convert(stderrText))
+        if (line.startsWith('error: launcher_names: ')) line,
+    ];
+    expect(errorLines, hasLength(1), reason: stderrText);
+    expect(errorLines.single, contains('FileSystemException'));
+  });
 }
