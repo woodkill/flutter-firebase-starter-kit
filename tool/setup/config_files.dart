@@ -127,6 +127,86 @@ void replaceJsonString(String path, String key, String value) {
   _writeJsonVerified(path, updated, original);
 }
 
+/// [path] JSON 에 없는 [key] 를 문자열 [value] 로 더한다 — 기존 바이트는 그대로다.
+///
+/// 넣는 자리는 `"@@locale"` 값의 닫는 따옴표 바로 뒤다. 그 자리에 `,` · 빈 줄 ·
+/// `@@locale` 줄과 같은 들여쓰기의 `"<key>": "<값>"` 을 넣으므로, 원래 뒤따르던
+/// 쉼표와 글자는 새 줄 끝으로 밀린다(`@@locale` 이 마지막 키였어도 같은 꼴).
+/// `@@locale` 이 없으면 [addMissingJsonKeys] 와 같이 닫는 `}` 앞에 넣는다. 값은
+/// `jsonEncode` 로 이스케이프한다. 키가 이미 있으면 [ConfigEditException], 파일이
+/// JSON 객체가 아니면 [FormatException] 을 던지고 파일은 그대로 둔다. 쓴 뒤 다시
+/// 파싱해 실패하면 원본을 되돌리고 [FormatException] 을 던진다.
+void insertJsonString(String path, String key, String value) {
+  final String original = File(path).readAsStringSync();
+  final Map<String, Object?> decoded = _decodeJsonObject(original, path);
+  if (decoded.containsKey(key)) {
+    throw ConfigEditException('$path 에 "$key" 가 이미 있습니다');
+  }
+  final entry = '${jsonEncode(key)}: ${jsonEncode(value)}';
+  final RegExpMatch? localeMatch = _jsonStringPattern(
+    '@@locale',
+  ).firstMatch(original);
+
+  final String updated;
+  if (localeMatch != null) {
+    final String indent = _readLineIndent(original, localeMatch.start);
+    updated = original.replaceRange(
+      localeMatch.end,
+      localeMatch.end,
+      ',\n\n$indent$entry',
+    );
+  } else {
+    final int closeIndex = original.lastIndexOf('}');
+    if (closeIndex < 0) {
+      throw FormatException('닫는 } 를 찾지 못했습니다', path);
+    }
+    final int lastValueIndex = _findLastNonSpaceIndex(original, closeIndex);
+    final bool isEmptyObject =
+        lastValueIndex >= 0 && original[lastValueIndex] == '{';
+    if (isEmptyObject) {
+      updated =
+          '${original.substring(0, lastValueIndex + 1)}'
+          '\n  $entry\n'
+          '${original.substring(closeIndex)}';
+    } else {
+      final String indent = _readLineIndent(original, lastValueIndex);
+      updated =
+          '${original.substring(0, lastValueIndex + 1)},'
+          '\n$indent$entry'
+          '${original.substring(lastValueIndex + 1)}';
+    }
+  }
+  _writeJsonVerified(path, updated, original);
+}
+
+/// [path] JSON 의 [key] 값을 그 타입과 무관하게 문자열 [value] 로 바꾼다.
+///
+/// `"<key>":` 첫 일치 뒤의 JSON 값 토큰 하나(문자열 · 숫자 · 불 · null · 객체 ·
+/// 배열)를 끝까지 읽어 통째로 `jsonEncode(value)` 로 바꾼다 — 키 · 구분자 · 다른
+/// 바이트는 그대로다. 객체 · 배열은 괄호 깊이를 세되 안의 문자열은 이스케이프를
+/// 건너 통째로 넘겨, 문자열 안의 괄호 · 따옴표가 깊이에 끼지 않는다. 키가 없거나
+/// 값 끝을 찾지 못하면 [ConfigEditException] 을 던지고 파일은 그대로 둔다. 쓴 뒤
+/// 다시 파싱해 실패하면 원본을 되돌리고 [FormatException] 을 던진다.
+void replaceJsonValue(String path, String key, String value) {
+  final String original = File(path).readAsStringSync();
+  final RegExpMatch? match = RegExp(
+    '${RegExp.escape(jsonEncode(key))}\\s*:\\s*',
+  ).firstMatch(original);
+  if (match == null) {
+    throw ConfigEditException('$path 에 "$key" 값이 없습니다');
+  }
+  final int? valueEnd = _findJsonValueEnd(original, match.end);
+  if (valueEnd == null) {
+    throw ConfigEditException('$path 의 "$key" 값 끝을 찾지 못했습니다');
+  }
+  final String updated = original.replaceRange(
+    match.end,
+    valueEnd,
+    jsonEncode(value),
+  );
+  _writeJsonVerified(path, updated, original);
+}
+
 /// example xcconfig 에는 있고 사용자 xcconfig 에는 없는 변수를 example 순서로 찾는다.
 Set<String> findMissingXcconfigVars({
   required String examplePath,
@@ -276,6 +356,58 @@ void _writeJsonVerified(String path, String updated, String original) {
     writeFileAtomically(path, original);
     rethrow;
   }
+}
+
+/// [text] 의 [start] 에서 시작하는 JSON 값 토큰 바로 뒤 위치를 찾는다 — 없으면 null.
+///
+/// 문자열은 닫는 따옴표까지, 객체 · 배열은 짝 괄호까지, 그 밖(숫자 · 불 · null)은
+/// `,` · `}` · `]` · 공백 앞까지다.
+int? _findJsonValueEnd(String text, int start) {
+  if (start >= text.length) return null;
+  final String first = text[start];
+  if (first == '"') return _findJsonStringEnd(text, start);
+  if (first == '{' || first == '[') {
+    var depth = 0;
+    var i = start;
+    while (i < text.length) {
+      final String char = text[i];
+      if (char == '"') {
+        final int? stringEnd = _findJsonStringEnd(text, i);
+        if (stringEnd == null) return null;
+        i = stringEnd;
+        continue;
+      }
+      if (char == '{' || char == '[') depth++;
+      if (char == '}' || char == ']') {
+        depth--;
+        if (depth == 0) return i + 1;
+      }
+      i++;
+    }
+    return null;
+  }
+  var i = start;
+  while (i < text.length &&
+      !',}]'.contains(text[i]) &&
+      text[i].trim().isNotEmpty) {
+    i++;
+  }
+  return i == start ? null : i;
+}
+
+/// [text] 의 [start] 에 있는 여는 따옴표의 문자열 바로 뒤 위치 — 닫히지 않으면 null.
+int? _findJsonStringEnd(String text, int start) {
+  var i = start + 1;
+  while (i < text.length) {
+    final String char = text[i];
+    if (char == r'\') {
+      i += 2;
+      continue;
+    }
+    if (char == '"') return i + 1;
+    i++;
+  }
+  return null;
 }
 
 /// [end] 앞에서 공백이 아닌 마지막 글자의 위치를 찾는다 — 없으면 -1.

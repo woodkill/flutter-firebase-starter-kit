@@ -258,4 +258,173 @@ void main() {
       contains('\nDEVELOPMENT_TEAM = ABCDE12345\n'),
     );
   });
+
+  /// 시험 ARB [content] 를 임시 디렉터리에 쓰고 경로를 돌려준다.
+  String writeArb(String content) {
+    final path = '${tempDir.path}/app_ko.arb';
+    File(path).writeAsStringSync(content);
+    return path;
+  }
+
+  test('T-23-CFG-01 insertJsonString 은 @@locale 줄 · 빈 줄 다음에 새 줄과 빈 줄을 넣는다', () {
+    const original =
+        '{\n'
+        '  "@@locale": "ko",\n'
+        '\n'
+        '  "commonOk": "확인"\n'
+        '}\n';
+    final String path = writeArb(original);
+
+    insertJsonString(path, 'appTitle', '마이앱');
+
+    final String updated = File(path).readAsStringSync();
+    expect(
+      updated,
+      '{\n'
+      '  "@@locale": "ko",\n'
+      '\n'
+      '  "appTitle": "마이앱",\n'
+      '\n'
+      '  "commonOk": "확인"\n'
+      '}\n',
+    );
+    expect(updated.split('\n').length, original.split('\n').length + 2);
+    final Object? decoded = jsonDecode(updated);
+    expect(decoded, <String, Object?>{
+      '@@locale': 'ko',
+      'appTitle': '마이앱',
+      'commonOk': '확인',
+    });
+  });
+
+  test('T-23-CFG-02 insertJsonString 은 @@locale 이 마지막 키여도 같은 꼴로 넣는다', () {
+    final String path = writeArb('{\n  "@@locale": "fr"\n}\n');
+
+    insertJsonString(path, 'appTitle', 'Mon App');
+
+    expect(
+      File(path).readAsStringSync(),
+      '{\n  "@@locale": "fr",\n\n  "appTitle": "Mon App"\n}\n',
+    );
+    expect(jsonDecode(File(path).readAsStringSync()), <String, Object?>{
+      '@@locale': 'fr',
+      'appTitle': 'Mon App',
+    });
+  });
+
+  test('T-23-CFG-03 insertJsonString 은 키가 이미 있으면 거부하고 값은 이스케이프한다', () {
+    const existing = '{\n  "@@locale": "ko",\n  "appTitle": "앱"\n}\n';
+    final String path = writeArb(existing);
+
+    expect(
+      () => insertJsonString(path, 'appTitle', '새 앱'),
+      throwsA(
+        isA<ConfigEditException>().having(
+          (ConfigEditException e) => e.message,
+          'message',
+          '$path 에 "appTitle" 가 이미 있습니다',
+        ),
+      ),
+    );
+    expect(File(path).readAsStringSync(), existing);
+
+    File(path).writeAsStringSync('{\n  "@@locale": "ko"\n}\n');
+    insertJsonString(path, 'appTitle', r'A "q" \ b');
+    expect(
+      File(path).readAsStringSync(),
+      contains(r'  "appTitle": "A \"q\" \\ b"'),
+    );
+    expect(
+      (jsonDecode(File(path).readAsStringSync())
+          as Map<String, Object?>)['appTitle'],
+      r'A "q" \ b',
+    );
+  });
+
+  group('T-23-CFG-04 replaceJsonValue 는 값 토큰 전체를 문자열로 바꾼다', () {
+    final cases = <({String label, String before, String after})>[
+      (
+        label: '숫자',
+        before: '  "appTitle": 12,\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '불',
+        before: '  "appTitle": true,\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: 'null',
+        before: '  "appTitle": null,\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '객체',
+        before: '  "appTitle": {"a": "b"},\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '배열',
+        before: '  "appTitle": ["x", "y"],\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '문자열',
+        before: '  "appTitle": "옛 앱",\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '이스케이프 따옴표가 든 문자열',
+        before: '  "appTitle": "마이\\"앱",\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+      (
+        label: '괄호 글자가 든 문자열을 품은 중첩 값',
+        before: '  "appTitle": {"a": "}]"},\n',
+        after: '  "appTitle": "마이앱",\n',
+      ),
+    ];
+
+    for (final c in cases) {
+      test('T-23-CFG-04 ${c.label}', () {
+        const head = '{\n  "@@locale": "ko",\n';
+        const tail = '  "commonOk": "확인"\n}\n';
+        final String path = writeArb('$head${c.before}$tail');
+
+        replaceJsonValue(path, 'appTitle', '마이앱');
+
+        final String updated = File(path).readAsStringSync();
+        expect(updated, '$head${c.after}$tail');
+        expect(jsonDecode(updated), <String, Object?>{
+          '@@locale': 'ko',
+          'appTitle': '마이앱',
+          'commonOk': '확인',
+        });
+      });
+    }
+
+    test('T-23-CFG-04 쉼표 없이 닫는 괄호가 오는 마지막 키 값', () {
+      final String path = writeArb(
+        '{\n  "@@locale": "ko",\n  "appTitle": 12\n}\n',
+      );
+
+      replaceJsonValue(path, 'appTitle', '마이앱');
+
+      expect(
+        File(path).readAsStringSync(),
+        '{\n  "@@locale": "ko",\n  "appTitle": "마이앱"\n}\n',
+      );
+    });
+
+    test('T-23-CFG-04 키가 없으면 ConfigEditException 이고 파일은 그대로다', () {
+      const original = '{\n  "@@locale": "ko"\n}\n';
+      final String path = writeArb(original);
+
+      expect(
+        () => replaceJsonValue(path, 'appTitle', '마이앱'),
+        throwsA(isA<ConfigEditException>()),
+      );
+      expect(File(path).readAsStringSync(), original);
+    });
+  });
 }

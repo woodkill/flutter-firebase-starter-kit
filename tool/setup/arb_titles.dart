@@ -2,8 +2,17 @@
 //
 // 어느 ARB 를 어떤 locale 로 읽는가는 빌드 생성기(`tool/launcher_names.dart`)의
 // 공개 함수를 그대로 쓴다 — 위저드가 묻는 파일 집합과 빌드가 읽는 집합이 같다.
+import 'dart:convert';
+import 'dart:io';
+
 import '../launcher_names.dart'
-    show L10nConfig, listArbFiles, localeFromArbFileName, readL10nConfig;
+    show
+        L10nConfig,
+        appTitleKey,
+        listArbFiles,
+        localeFromArbFileName,
+        readL10nConfig;
+import 'config_files.dart';
 
 /// template(영어) 밖 ARB 파일 하나 — locale 과 두 경로.
 final class LocalizedArb {
@@ -40,4 +49,85 @@ List<LocalizedArb> listLocalizedArbs(String projectRoot) {
           file.path,
         ),
   ];
+}
+
+/// [path] 가 JSON 객체로 읽히지 않으면 [displayPath] 를 적은 사유를 돌려준다 —
+/// 읽히면 null.
+///
+/// 값 쓰기는 쓴 뒤 다시 파싱해 실패하면 되돌리므로, 깨진 파일은 쓰기 전에 걸러
+/// 앞서 다른 파일만 바뀐 상태를 남기지 않는다. 문구에는 파일 내용을 싣지 않는다.
+String? findInvalidJson(String path, String displayPath) {
+  try {
+    if (jsonDecode(File(path).readAsStringSync()) is Map<String, Object?>) {
+      return null;
+    }
+    return '$displayPath 의 최상위가 JSON 객체가 아닙니다';
+  } on FormatException catch (error) {
+    return '$displayPath 이 올바른 JSON 이 아닙니다(${error.message}) — '
+        '따옴표 · 쉼표 · 괄호를 고친 뒤 다시 실행하세요';
+  }
+}
+
+/// ARB [absolutePath] 에 `appTitle` 을 쓸 수 없는 사유를 돌려준다 — 쓸 수 있으면 null.
+///
+/// 파일이 JSON 객체로 읽히지 않으면 [findInvalidJson] 의 사유를, `appTitle` 값이
+/// 문자열이 아니면 그 사실을 [displayPath] 와 함께 돌려준다. 키가 없거나 값이
+/// null 이면(생성기도 이름 없음으로 본다) 쓸 수 있다.
+String? findInvalidArbTitle(String absolutePath, String displayPath) {
+  final String? invalidJson = findInvalidJson(absolutePath, displayPath);
+  if (invalidJson != null) return invalidJson;
+  final Object? decoded = jsonDecode(File(absolutePath).readAsStringSync());
+  if (decoded is Map<String, Object?>) {
+    final Object? title = decoded[appTitleKey];
+    if (title != null && title is! String) {
+      return '$displayPath 의 $appTitleKey 이 문자열이 아닙니다';
+    }
+  }
+  return null;
+}
+
+/// ARB [absolutePath] 의 `appTitle` 문자열 값을 읽는다.
+///
+/// 파일이 없거나 · 올바른 JSON 객체가 아니거나 · 키가 없거나 · 값이 문자열이
+/// 아니면 null 이다.
+String? readArbTitle(String absolutePath) {
+  try {
+    final Object? decoded = jsonDecode(File(absolutePath).readAsStringSync());
+    if (decoded is Map<String, Object?>) {
+      final Object? title = decoded[appTitleKey];
+      if (title is String) return title;
+    }
+    return null;
+  } on FormatException {
+    return null;
+  } on FileSystemException {
+    return null;
+  }
+}
+
+/// ARB [absolutePath] 의 `appTitle` 을 [value] 로 쓴다 — 다른 키의 바이트는 그대로다.
+///
+/// 키가 없으면 [insertJsonString] 으로 `@@locale` 뒤에 넣고, 있으면 값의 타입과
+/// 무관하게 [replaceJsonValue] 로 값을 바꾼다. 두 경로 모두 쓴 뒤 다시 파싱해
+/// 실패하면 원본으로 되돌린다. 깨진 파일은 [findInvalidArbTitle] 로 먼저 거른다.
+void writeArbTitle(String absolutePath, String value) {
+  final Object? decoded = jsonDecode(File(absolutePath).readAsStringSync());
+  if (decoded is Map<String, Object?> && decoded.containsKey(appTitleKey)) {
+    replaceJsonValue(absolutePath, appTitleKey, value);
+  } else {
+    insertJsonString(absolutePath, appTitleKey, value);
+  }
+}
+
+/// ARB 상대 경로들을 화면 한 줄로 잇는다 — 첫 경로는 그대로, 나머지는 파일 이름만.
+///
+/// `['lib/l10n/app_ja.arb', 'lib/l10n/app_ko.arb']` →
+/// `lib/l10n/app_ja.arb · app_ko.arb`.
+String formatArbPaths(Iterable<String> relativePaths) {
+  final List<String> paths = relativePaths.toList();
+  if (paths.isEmpty) return '';
+  return <String>[
+    paths.first,
+    for (final path in paths.skip(1)) path.substring(path.lastIndexOf('/') + 1),
+  ].join(' · ');
 }

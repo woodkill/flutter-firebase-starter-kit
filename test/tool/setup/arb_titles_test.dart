@@ -15,6 +15,9 @@ const String fixtureL10nYaml =
     'arb-dir: lib/l10n\n'
     'template-arb-file: app_en.arb\n';
 
+/// 시험 트리의 한국어 ARB 상대 경로.
+const String koArbPath = 'lib/l10n/app_ko.arb';
+
 /// [root] 아래 [relativePath] 에 [content] 를 쓴다 — 상위 디렉터리는 만든다.
 void writeTreeFile(String root, String relativePath, String content) {
   File('$root/$relativePath')
@@ -113,5 +116,114 @@ void main() {
         ),
       );
     });
+  });
+
+  /// 임시 트리의 `lib/l10n/app_ko.arb` 에 [content] 를 쓰고 절대 경로를 돌려준다.
+  String writeKoArb(String content) {
+    writeTreeFile(tree.path, koArbPath, content);
+    return '${tree.path}/$koArbPath';
+  }
+
+  test('T-23-ARB-02: readArbTitle 은 문자열 값만 돌려주고 나머지는 null', () {
+    expect(
+      readArbTitle(writeKoArb('{"@@locale": "ko", "appTitle": "마이앱"}')),
+      '마이앱',
+    );
+    expect(readArbTitle(writeKoArb('{"@@locale": "ko"}')), isNull);
+    expect(
+      readArbTitle(writeKoArb('{"@@locale": "ko", "appTitle": 12}')),
+      isNull,
+    );
+    expect(readArbTitle(writeKoArb('{"appTitle": ')), isNull);
+    expect(readArbTitle('${tree.path}/lib/l10n/app_none.arb'), isNull);
+  });
+
+  test('T-23-ARB-03: findInvalidArbTitle 은 깨진 JSON · 최상위 · 문자열 아님을 사유로', () {
+    final String broken = findInvalidArbTitle(
+      writeKoArb('{"appTitle": '),
+      koArbPath,
+    )!;
+    expect(broken, startsWith('$koArbPath 이 올바른 JSON 이 아닙니다('));
+    expect(broken, endsWith(') — 따옴표 · 쉼표 · 괄호를 고친 뒤 다시 실행하세요'));
+
+    expect(
+      findInvalidArbTitle(writeKoArb('["마이앱"]'), koArbPath),
+      '$koArbPath 의 최상위가 JSON 객체가 아닙니다',
+    );
+    expect(
+      findInvalidArbTitle(
+        writeKoArb('{"@@locale": "ko", "appTitle": 12}'),
+        koArbPath,
+      ),
+      '$koArbPath 의 appTitle 이 문자열이 아닙니다',
+    );
+    expect(
+      findInvalidArbTitle(writeKoArb('{"@@locale": "ko"}'), koArbPath),
+      isNull,
+    );
+    expect(
+      findInvalidArbTitle(
+        writeKoArb('{"@@locale": "ko", "appTitle": "마이앱"}'),
+        koArbPath,
+      ),
+      isNull,
+    );
+  });
+
+  test('T-23-ARB-03: findInvalidJson 은 객체면 null', () {
+    expect(findInvalidJson(writeKoArb('{"a": 1}'), koArbPath), isNull);
+  });
+
+  group('T-23-ARB-04: writeArbTitle 은 삽입 · 값 교체 두 분기', () {
+    test('T-23-ARB-04: 키가 없으면 @@locale 뒤에 넣는다(+2줄)', () {
+      const original = '{\n  "@@locale": "ko",\n\n  "commonOk": "확인"\n}\n';
+      final String path = writeKoArb(original);
+
+      writeArbTitle(path, '마이앱');
+
+      final String updated = File(path).readAsStringSync();
+      expect(updated.split('\n').length, original.split('\n').length + 2);
+      expect(readArbTitle(path), '마이앱');
+      expect(updated, contains('  "commonOk": "확인"\n}\n'));
+    });
+
+    test('T-23-ARB-04: 문자열 값이 있으면 그 값만 바꾼다(줄 수 그대로)', () {
+      const original =
+          '{\n  "@@locale": "ko",\n  "appTitle": "옛 앱",\n  "commonOk": "확인"\n}\n';
+      final String path = writeKoArb(original);
+
+      writeArbTitle(path, '마이앱');
+
+      expect(
+        File(path).readAsStringSync(),
+        '{\n  "@@locale": "ko",\n  "appTitle": "마이앱",\n  "commonOk": "확인"\n}\n',
+      );
+    });
+
+    test('T-23-ARB-04: 문자열 아닌 값도 통째로 문자열로 바꾼다(줄 수 그대로)', () {
+      const original =
+          '{\n  "@@locale": "ko",\n  "appTitle": 12,\n  "commonOk": "확인"\n}\n';
+      final String path = writeKoArb(original);
+
+      writeArbTitle(path, '마이앱');
+
+      final String updated = File(path).readAsStringSync();
+      expect(
+        updated,
+        '{\n  "@@locale": "ko",\n  "appTitle": "마이앱",\n  "commonOk": "확인"\n}\n',
+      );
+      expect(updated.split('\n').length, original.split('\n').length);
+    });
+  });
+
+  test('T-23-ARB-04: formatArbPaths 는 첫 경로 뒤를 파일 이름만 잇는다', () {
+    expect(
+      formatArbPaths(<String>['lib/l10n/app_ja.arb', 'lib/l10n/app_ko.arb']),
+      'lib/l10n/app_ja.arb · app_ko.arb',
+    );
+    expect(
+      formatArbPaths(<String>['lib/l10n/app_ko.arb']),
+      'lib/l10n/app_ko.arb',
+    );
   });
 }
