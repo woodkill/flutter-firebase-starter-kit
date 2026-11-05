@@ -24,10 +24,12 @@
 ### Added
 
 - 홈 화면 앱 이름이 기기 언어를 따른다. 그 언어 ARB 의 `appTitle` 이 이름이고, 빌드가 iOS · Android 이름 파일을 빌드 산출물 안에만 만든다. dev · stg 의 다른 언어 이름에는 config `appName` 이 ` Dev` · ` Stg` 로 끝나면 같은 접미사가 붙는다. 언어를 더할 때 `ios/` · `android/` 파일은 고치지 않는다 — 빌드가 그 언어의 이름 파일을 만든다(절차는 [언어별 앱 이름 넣기 · 앱 언어 추가하기](docs/guide.md#언어별-앱-이름-넣기--앱-언어-추가하기)). 빌드된 iOS 앱은 ARB 언어 목록을 앱이 다루는 언어로 알린다. 바뀐 파일은 `tool/launcher_names.dart`(새) · `ios/Runner.xcodeproj/project.pbxproj` · `android/app/build.gradle.kts` · `docs/guide.md` · `docs/setup.md` · 시험이고, 두 네이티브 파일은 위 「사용자 조치」 를 본다.
+- 설정 위저드에 「언어별 앱 이름」 단계가 「앱 정체성」 다음에 들어간다. 영어 아닌 ARB(`lib/l10n/app_ko.arb` · `app_ja.arb` · 더한 언어)마다 홈 화면 · 앱 안 제목에 쓸 이름을 묻고 그 ARB 의 `appTitle` 에 쓰며, Enter 면 기본 이름을 그대로 기록해 그 언어는 다시 묻지 않는다. 기존 사용자는 merge 뒤 `./setup.sh` 를 다시 실행하면 이 단계만 할 일로 보인다. 입력은 앞뒤 공백을 떼고, 빈 이름 · ` Dev` · ` Stg` 접미사가 붙은 이름 · 이어진 공백은 받지 않고 다시 묻는다 — 빌드의 이름 생성기와 같은 규칙이다. 한국어 이름을 기본 이름과 다르게 넣으면 홈 화면 golden 2장을 다시 만드는 명령을 안내한다(실행은 하지 않는다). 바뀐 파일은 `tool/setup/steps/app_names_step.dart`(새) · `tool/setup/arb_titles.dart`(새) · `tool/setup/locale_endonyms.dart`(새) · `tool/setup/config_files.dart` · `tool/setup/steps/flavor_steps.dart` · `tool/setup/completion.dart` · `tool/launcher_names.dart` · `docs/setup.md` · `docs/guide.md` · 시험이고, 모두 킷 전용(사용자 소유 표면 32행)이라 merge 로 끝난다.
 
 ### Changed
 
 - 앱 안 제목(홈 AppBar · Android 최근 앱)이 config `appName` 대신 앱 언어의 ARB `appTitle` 이고, config `appName` 이 ` Dev` · ` Stg` 로 끝나면 같은 접미사를 붙인다. 설정 위저드 「앱 정체성」 단계가 `lib/l10n/app_en.arb` 의 `appTitle` 에 표시 이름에서 접미사를 뗀 값도 쓰고, 다시 실행하면 영어 `appTitle` 과 표시 이름의 어긋남을 맞춘다. 킷의 영어 `appTitle` 은 example 표시 이름의 기본 이름 `StarterKit` 이다. 바뀐 파일은 `lib/app.dart` · `lib/core/l10n/app_title.dart` · `lib/core/config/app_config.dart`(주석) · `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` · `lib/l10n/generated/` · `tool/setup/steps/identity_step.dart` · 홈 공지 golden 2장(`test/features/home/goldens/`) · `test/tool/setup/` 의 위저드 시험 파일 등 시험이고, ARB 는 위 「사용자 조치」 를 본다.
+- 설정 위저드 「앱 정체성」 이 기본 이름을 바꿀 때(처음 실행 · 표시 이름 다시 쓰기 · 다시 실행의 영어 `appTitle` 맞추기) 옛 기본 이름과 같은 다른 언어 `appTitle` 도 새 기본 이름으로 함께 바꾼다. `lib/l10n/app_en.arb` 의 `@appTitle` 설명은 위저드가 영어 아닌 언어마다 이 키를 쓰고 기본 이름 그대로인 언어는 같은 값을 둔다는 뜻으로 바뀌고, `lib/l10n/generated/app_localizations.dart` 가 함께 바뀐다. 바뀐 파일은 `tool/setup/steps/identity_step.dart` · `lib/l10n/app_en.arb` · `lib/l10n/generated/` · 시험이고, ARB 는 위 「사용자 조치」 의 영어 `appTitle` 맞추기를 그대로 본다(설명 줄은 자동 병합된다).
 
 ### Fixed
 
