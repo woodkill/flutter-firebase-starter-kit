@@ -10,19 +10,20 @@
 3. [디자인 토큰 바꾸기](#디자인-토큰-바꾸기)
 4. [앱 아이콘 바꾸기](#앱-아이콘-바꾸기)
 5. [스플래시 바꾸기](#스플래시-바꾸기)
-6. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
-7. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
-8. [Firebase 서비스 쓰기](#firebase-서비스-쓰기)
-9. [빌드 · 출시](#빌드--출시)
-10. [출시 전 점검](#출시-전-점검)
-11. [앱 운영하기](#앱-운영하기)
-12. [킷 업데이트 반영](#킷-업데이트-반영)
-13. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-14. [Git Hooks 활성화 (선택)](#git-hooks-활성화-선택)
-15. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-16. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-17. [테스트 돌리기](#테스트-돌리기)
-18. [알아 둘 동작](#알아-둘-동작)
+6. [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기)
+7. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
+8. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
+9. [Firebase 서비스 쓰기](#firebase-서비스-쓰기)
+10. [빌드 · 출시](#빌드--출시)
+11. [출시 전 점검](#출시-전-점검)
+12. [앱 운영하기](#앱-운영하기)
+13. [킷 업데이트 반영](#킷-업데이트-반영)
+14. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+15. [Git Hooks 활성화 (선택)](#git-hooks-활성화-선택)
+16. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+17. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+18. [테스트 돌리기](#테스트-돌리기)
+19. [알아 둘 동작](#알아-둘-동작)
 
 ---
 
@@ -1680,6 +1681,101 @@ fvm dart run flutter_native_splash:create
 
 - 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
 - 킷 새 판을 받을 때 스플래시 설정 · 로고는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행대로 처리한다.
+
+## 언어별 앱 이름 넣기 · 앱 언어 추가하기
+
+홈 화면 앱 이름(iOS · Android)과 앱 안 제목을 기기 · 앱 언어마다 다르게 보이게 하거나, 앱 언어를 하나 더하는 절차다.
+- 이름은 ARB 의 `appTitle` 한 곳에서 오고 빌드가 iOS · Android 이름 파일을 만든다 — `ios/` · `android/` 파일은 고치지 않는다.
+- 기본 이름은 config `appName` · xcconfig `DISPLAY_NAME` 에서 ` Dev` · ` Stg` 를 뗀 값이다(예시 `StarterKit Dev` → `StarterKit`).
+
+**전제:** 위저드 「앱 정체성」 단계를 끝냈다([위저드 실행](setup.md#위저드-실행)).
+- 위저드가 `lib/l10n/app_en.arb` 의 `appTitle` 에 기본 이름을 쓴다.
+
+### 단계
+
+**① 언어별 이름을 넣는다.**
+- 그 언어 ARB(예: `lib/l10n/app_ko.arb`)에 `"appTitle": "<그 언어 이름>"` 한 줄을 더한다.
+- 이름이 기본 이름과 같은 언어에는 `appTitle` 을 두지 않는다.
+- config `appName` 이 ` Dev` · ` Stg` 로 끝나면(위저드 제안값 그대로면 그렇다) 모든 언어 이름 뒤에 같은 접미사가 붙는다.
+  - 표시 이름에서 접미사를 지웠으면 붙지 않는다. 앱 안 제목도 같은 규칙을 따른다.
+- prod 표시 이름에는 접미사가 없어 언어 이름에도 붙지 않는다.
+- 영어 이름(기본 이름)은 ARB 가 아니라 위저드 「앱 정체성」 으로 바꾼다.
+- 한국어 이름을 넣으면 홈 화면 golden 2장이 AppBar 제목만큼 바뀐다.
+  - 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고, 아래 명령으로 다시 만든다.
+
+  ```bash
+  fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
+  ```
+
+**② 새 언어를 더한다.**
+- `lib/l10n/app_<언어 코드>.arb` 를 `"@@locale": "<언어 코드>"` 와 함께 만들고 그 언어로 옮긴 문구를 넣는다.
+  - 옮기지 않은 키는 영어 문구로 보인다. `fvm flutter pub get` 이 그 수를 `untranslated message(s)` 로 알린다.
+- 이름이 기본 이름과 다르면 그 ARB 에 `appTitle` 도 넣는다(①).
+- `lib/core/l10n/locale_display_names.dart` 의 `kLocaleEndonyms` 에 그 언어로 쓴 언어 이름을 더한다(예: `'fr': 'Français'`).
+  - 설정 화면의 언어 선택창이 이 이름을 보인다.
+- 생성 문구 파일을 다시 만든다.
+
+  ```bash
+  fvm flutter pub get
+  ```
+
+- 설정 화면의 언어 선택창 golden 2장은 새 언어 항목만큼 바뀐다.
+  - 테스트 파일 옆 `failures/` 의 비교 이미지에서 새 항목만 늘었는지 보고, 아래 명령으로 그 두 장만 다시 만든다.
+
+  ```bash
+  fvm flutter test --update-goldens --plain-name 'golden-picker: language' test/features/settings/presentation/settings_screen_golden_test.dart
+  ```
+
+- `ios/` · `android/` 파일은 더하거나 고치지 않는다 — 빌드가 새 언어의 이름 파일을 만든다.
+
+**③ 지역 · 문자 체계 변형을 더한다.**
+- 지역 변형 ARB(`app_pt_BR.arb`)는 기본 언어 ARB(`app_pt.arb`)와 짝으로 둔다 — gen-l10n 이 그 짝을 요구한다.
+- 문자 체계 변형(`app_zh_Hant.arb`)도 기본 언어 ARB(`app_zh.arb`)와 짝으로 둔다.
+- 앱 안 언어 선택과 문구는 언어 코드 단위라 pt-BR 기기도 앱 안에서는 `app_pt.arb` 를 쓴다.
+- 홈 화면 이름은 지역마다 다를 수 있다 — `app_pt_BR.arb` 에만 이름이 있으면 pt-BR 기기는 그 이름, pt-PT 기기는 `app_pt.arb` 의 이름(없으면 기본 이름)이다.
+- 같은 언어의 변형 둘(`app_pt.arb` · `app_pt_BR.arb`)을 함께 두면 언어 선택창에 같은 이름이 두 번 나와 `test/core/l10n/locale_display_names_test.dart` 가 실패한다.
+  - 변형마다 다른 이름을 보이려면 `kLocaleEndonyms` 의 키와 `localeDisplayName` 이 찾는 축을 `toLanguageTag()` 로 올린다.
+
+**④ 다시 빌드한다.**
+
+```bash
+fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+```
+
+- stg · prod 는 `--flavor` 와 config 파일 이름만 바꾼다.
+
+### 확인 방법
+
+- 기기 언어를 그 언어로 두고 dev 를 설치해 홈 화면 이름을 본다.
+- 긴 이름은 홈 화면에서 잘린다 — 기기에서 확인한다.
+- 앱 안 제목(앱 홈 화면의 AppBar · Android 최근 앱 화면)은 앱 언어를 따른다.
+  - 설정 화면에서 앱 언어를 기기 언어와 다르게 고르면 앱 안 제목은 고른 언어 이름이고, 홈 화면 이름은 기기 언어 이름이다.
+
+### 문제 해결
+
+- **빌드가 `error: launcher_names: lib/l10n/app_en.arb 의 appTitle "…" 이 기본 앱 이름 "…"(…)과 맞지 않는다.` 로 멈춘다.**
+  - 영어 `appTitle` 이 config 기본 이름과 다르다. `./setup.sh --flavor dev` 로 위저드를 다시 실행하거나 그 값을 오류가 적은 기본 이름으로 고친다.
+  - 위저드는 아래 줄을 보이고 묻지 않고 ARB 를 맞춘다.
+
+    ```text
+    lib/l10n/app_en.arb 의 appTitle("…")이 표시 이름의 기본 이름("…")과 다릅니다
+    ```
+
+  - 세 flavor 의 기본 이름은 같아야 한다 — 영어 `appTitle` 은 하나라 접미사 말고도 이름이 다른 flavor 는 빌드가 멈춘다.
+- **Android 빌드가 `config/<flavor>.json 의 appName 이 빌드에 들어오지 않았다` 로 멈춘다.**
+  - `--dart-define-from-file=config/<flavor>.json` 없이 빌드했다. 그 옵션을 붙여 다시 빌드한다.
+- **빌드가 ARB 파일 경로를 적은 `error: launcher_names:` 오류로 멈춘다.**
+  - 오류는 `<무엇이 틀렸나> — <파일> — <고칠 방법>` 순서다(예: `ARB 의 appTitle 가 비어 있다`).
+  - 그 파일의 JSON 문법 · `appTitle` 값(빈 값 · 문자열 아님) · 파일 이름 꼴 `app_<언어>[_<문자 체계>][_<지역>].arb` 을 오류의 고칠 방법대로 고친다.
+- **`fvm flutter pub get` 이 `"ja": 1 untranslated message(s).` 를 낸다.**
+  - 이름이 기본 이름과 같아 `appTitle` 을 두지 않은 언어의 알림이다. 그대로 둬도 된다.
+- **홈 화면 이름이 그대로다.**
+  - 기기가 옛 이름을 기억하고 있다. 앱을 지우고 다시 설치한다.
+
+### 되돌리기
+
+- 언어별 이름은 그 ARB 의 `appTitle` 줄을 지우고 다시 빌드한다.
+- 더한 언어는 그 ARB 파일과 `kLocaleEndonyms` 항목을 지우고 `fvm flutter pub get` 한 뒤, 언어 선택창 golden 2장을 ② 의 명령으로 다시 만든다.
 
 ## 인증 메일 발송 모드 켜고 끄기
 
