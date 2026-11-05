@@ -175,12 +175,12 @@ void main() {
         expect(
           RegExp(
             r'resValue\(\s*"string",\s*"app_name",\s*'
-            r'dartDefines\["appName"\]\s*\?:\s*"[^"]+"\s*\)',
+            r'dartDefines\["appName"\]\s*\?:\s*""\s*\)',
           ).hasMatch(gradle),
           isTrue,
           reason:
-              '기본 언어 app_name 은 config 의 appName 이고, dart-define 없이도 '
-              '리소스가 비어 있지 않은 기본 이름을 가져야 한다',
+              '기본 언어 app_name 은 config 의 appName 이다 — dart-define 이 '
+              '없으면 생성 task 가 빌드를 멈추므로 미주입 값은 빈 문자열이다',
         );
       },
     );

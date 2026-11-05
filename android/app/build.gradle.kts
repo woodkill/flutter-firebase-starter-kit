@@ -115,8 +115,9 @@ android {
         // 「앱 정체성」 단계가 iOS xcconfig 의 DISPLAY_NAME 과 같은 값으로 쓴다).
         // 다른 언어 값은 파일 아래 GenerateLauncherNamesTask 가 ARB 의 appTitle 로
         // 만든 values-<qualifier>/strings.xml 이다. dart-define 없이 빌드하면 그
-        // 생성 task 가 고칠 방법을 적고 빌드를 멈춘다.
-        resValue("string", "app_name", dartDefines["appName"] ?: "flutter_starter_kit")
+        // 생성 task 가 고칠 방법을 적고 빌드를 멈추므로, 미주입 값은 다른
+        // resValue 와 같은 빈 문자열이다.
+        resValue("string", "app_name", dartDefines["appName"] ?: "")
         manifestPlaceholders["appName"] = "@string/app_name"
     }
 
