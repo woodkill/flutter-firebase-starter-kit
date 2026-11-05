@@ -664,6 +664,25 @@ void main() {
             fragment: 'lib/l10n/app_ko.arb',
             flavor: 'dev',
           ),
+          for (final (String label, String title) in <(String, String)>[
+            ('appTitle 앞에 공백', ' 러닝펜슬'),
+            ('appTitle 뒤에 공백', '러닝펜슬 '),
+            ('appTitle 안에 이어진 공백', '러닝  펜슬'),
+          ])
+            (
+              // Android 는 앞뒤 공백을 지우고 이어진 공백을 접어 iOS 와 이름이 갈린다.
+              label: label,
+              breakInput: (Directory root) => writeArb(
+                root,
+                'app_ko.arb',
+                jsonEncode(<String, String>{
+                  '@@locale': 'ko',
+                  'appTitle': title,
+                }),
+              ),
+              fragment: 'lib/l10n/app_ko.arb',
+              flavor: 'dev',
+            ),
           (
             label: '파일 이름 app_k.arb',
             breakInput: (Directory root) =>

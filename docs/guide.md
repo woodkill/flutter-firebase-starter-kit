@@ -1778,7 +1778,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
   - `--dart-define-from-file=config/<flavor>.json` 없이 빌드했다. 그 옵션을 붙여 다시 빌드한다.
 - **빌드가 ARB 파일 경로를 적은 `error: launcher_names:` 오류로 멈춘다.**
   - 오류는 `<무엇이 틀렸나> — <파일> — <고칠 방법>` 순서다(예: `ARB 의 appTitle 가 비어 있다`).
-  - 그 파일의 JSON 문법 · `appTitle` 값(빈 값 · 문자열 아님) · 파일 이름 꼴 `app_<언어>[_<문자 체계>][_<지역>].arb` 을 오류의 고칠 방법대로 고친다.
+  - 그 파일의 JSON 문법 · `appTitle` 값(빈 값 · 문자열 아님 · 앞뒤 공백이나 이어진 공백) · 파일 이름 꼴 `app_<언어>[_<문자 체계>][_<지역>].arb` 을 오류의 고칠 방법대로 고친다.
 - **`fvm flutter gen-l10n` 이 `"ja": 1 untranslated message(s).` 를 낸다.**
   - 이름이 기본 이름과 같아 `appTitle` 을 두지 않은 언어의 알림이다. 그대로 둬도 된다.
 - **홈 화면 이름이 그대로다.**

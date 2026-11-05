@@ -538,6 +538,9 @@ String _localeFromArbFileName(String fileName, String prefix, String arbDir) {
   return locale;
 }
 
+/// 이어진 공백 — Android string 리소스가 한 칸으로 접는다.
+final RegExp _repeatedWhitespace = RegExp(r'\s{2,}');
+
 /// ARB 디렉터리의 파일마다 locale → `appTitle`(없으면 null)을 모은다.
 Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
   final String template = config.templateArbFile;
@@ -612,6 +615,19 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
         'ARB 의 $appTitleKey 가 비어 있다',
         relativePath,
         '그 언어 이름을 넣거나, 기본 이름을 쓰려면 $appTitleKey 키를 지운다',
+      );
+    }
+    if (locale != config.templateLocale &&
+        name is String &&
+        (name != name.trim() || _repeatedWhitespace.hasMatch(name))) {
+      // 생성기가 쓰는 언어별 이름에서 Android string 리소스는 앞뒤 공백을 지우고
+      // 이어진 공백을 한 칸으로 접지만 iOS 는 그대로 보여 두 플랫폼 이름이 갈린다.
+      // template 이름은 생성기가 쓰지 않고 config 기본 이름과의 대조만 받는다.
+      throw _inputError(
+        'ARB 의 $appTitleKey ${jsonEncode(name)} 의 앞뒤에 공백이 있거나 공백이 '
+            '이어진다',
+        relativePath,
+        '앞뒤 공백을 지우고 낱말 사이 공백은 한 칸으로 둔다',
       );
     }
     names[locale] = name is String ? name : null;
