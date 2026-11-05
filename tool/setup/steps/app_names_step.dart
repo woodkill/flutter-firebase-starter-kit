@@ -1,0 +1,323 @@
+import 'dart:convert';
+import 'dart:io';
+
+import '../../launcher_names.dart'
+    show
+        GeneratorException,
+        L10nConfig,
+        appTitleKey,
+        flavorDisplayNameSuffixes,
+        hasLauncherNameWhitespaceIssue,
+        readL10nConfig;
+import '../arb_titles.dart';
+import '../config_files.dart';
+import '../confirm.dart';
+import '../git_tree.dart';
+import '../locale_endonyms.dart';
+import '../step.dart';
+import '../terminal.dart';
+import '../wizard.dart';
+import 'identity_step.dart';
+
+/// 언어별 앱 이름 단계 — 영어 아닌 ARB 마다 `appTitle`(홈 화면 이름)을 묻고 쓴다.
+///
+/// 대상 ARB 집합은 빌드 생성기와 같은 `l10n.yaml` 읽기로 정한다. 키가 있으면
+/// 정한 언어, 없으면 아직 정하지 않은 언어로 보고 파일만 보고 판정한다. Enter 는
+/// 기본 이름(영어 ARB 의 `appTitle`)을 그대로 값으로 쓴다. 위저드는 생성 dart 를
+/// 만들지 않는다 — 다음 pub get · 빌드가 만든다.
+final class AppNamesStep implements Step {
+  /// 점검표 · 단계 머리에 보일 제목.
+  static const String stepTitle = '언어별 앱 이름';
+
+  /// 쓰기 전 확인 표의 제목.
+  static const String confirmTitle = '언어별 앱 이름 — 확인';
+
+  /// 확인 표 뒤 고르기 질문.
+  static const String confirmQuestion = '이 값으로 진행할까요, 고칠까요?';
+
+  /// 확인 표 뒤 진행 선택지.
+  static const String proceedOption = '이대로 진행';
+
+  _AppNamesMode _mode = _AppNamesMode.unreadable;
+  String _reason = '';
+
+  /// 직전 검사가 읽은 기본 이름(영어 ARB 의 `appTitle`).
+  String _baseName = '';
+
+  /// 직전 검사가 모은 물을 언어(ARB 파일 이름 순).
+  List<_NameTarget> _targets = const <_NameTarget>[];
+
+  @override
+  String get id => 'app_names';
+
+  @override
+  String get title => stepTitle;
+
+  @override
+  List<String> get dependsOn => const <String>['identity'];
+
+  // ARB 는 git 으로 되돌릴 수 있고 비용도 들지 않는다.
+  @override
+  bool get isCostlyOrIrreversible => false;
+
+  @override
+  Future<CheckResult> check(WizardContext context) async {
+    // 이전 검사의 대상을 들고 가지 않는다 — 아래 판정이 다시 채운다.
+    _targets = const <_NameTarget>[];
+    final L10nConfig config;
+    final List<LocalizedArb> arbs;
+    try {
+      config = readL10nConfig(context.projectRoot);
+      arbs = listLocalizedArbs(context.projectRoot);
+    } on GeneratorException catch (e) {
+      return _markUnreadable('언어별 ARB 목록을 읽지 못했습니다 — ${e.message}');
+    }
+    if (arbs.isEmpty) {
+      _mode = _AppNamesMode.done;
+      return Done('${config.arbDir} 에 영어 ARB 만 있어 물을 언어가 없습니다');
+    }
+    final String? baseName = readArbTitle(context.resolve(config.templatePath));
+    if (baseName == null) {
+      return _markUnreadable(
+        '${config.templatePath} 에 $appTitleKey 문자열 값이 없습니다',
+      );
+    }
+    _baseName = baseName;
+
+    final unreadable = <String>[];
+    final missing = <String>[];
+    final violations = <String>[];
+    final targets = <_NameTarget>[];
+    final decided = <String>[];
+    for (final arb in arbs) {
+      final String? invalidJson = findInvalidJson(
+        arb.absolutePath,
+        arb.relativePath,
+      );
+      if (invalidJson != null) {
+        unreadable.add(invalidJson);
+        continue;
+      }
+      final Object? decoded = jsonDecode(
+        File(arb.absolutePath).readAsStringSync(),
+      );
+      // 위 검사가 JSON 객체만 통과시킨다.
+      if (decoded is! Map<String, Object?>) continue;
+      final Object? value = decoded[appTitleKey];
+      if (value == null) {
+        // 키가 없거나 값이 null 이면 생성기도 이름 없음으로 본다.
+        missing.add(arb.relativePath);
+        targets.add(_NameTarget(arb));
+        continue;
+      }
+      final String? violation = _findValueViolation(arb.relativePath, value);
+      if (violation != null) {
+        violations.add(violation);
+        targets.add(_NameTarget(arb, currentValue: value));
+        continue;
+      }
+      decided.add('${arb.locale} $value');
+    }
+    if (unreadable.isNotEmpty) return _markUnreadable(unreadable.join(' · '));
+    if (targets.isEmpty) {
+      _mode = _AppNamesMode.done;
+      return Done(decided.join(' · '));
+    }
+    _mode = _AppNamesMode.ask;
+    _targets = targets;
+    _reason = <String>[
+      if (missing.isNotEmpty)
+        '${formatArbPaths(missing)} 에 $appTitleKey 이 없습니다',
+      ...violations,
+    ].join(' · ');
+    return Todo(_reason);
+  }
+
+  @override
+  List<String> plannedCommandLines(WizardContext context) {
+    if (_mode != _AppNamesMode.ask) return const <String>[];
+    final String paths = formatArbPaths(
+      _targets.map((_NameTarget target) => target.arb.relativePath),
+    );
+    final line =
+        '($paths 의 $appTitleKey 에 입력한 이름을 씀 — 키가 없으면 더하고 있으면 '
+        '바꾸며, 다음 pub get · 빌드가 lib/l10n/generated/ 를 다시 만듭니다)';
+    return <String>[line];
+  }
+
+  @override
+  Future<StepOutcome> apply(WizardContext context) async {
+    // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
+    try {
+      return switch (_mode) {
+        _AppNamesMode.unreadable => Failed(_reason),
+        _AppNamesMode.done => const Applied(),
+        _AppNamesMode.ask => await _applyAsk(context),
+      };
+    } on GitTreeException catch (e) {
+      return Failed(e.message, result: e.result);
+    } on FileSystemException catch (e) {
+      return Failed('파일을 고치지 못했습니다 — $e');
+    } on FormatException catch (e) {
+      return Failed('ARB 를 고치지 못했습니다 — $e');
+    } on ConfigEditException catch (e) {
+      return Failed('언어별 앱 이름을 쓰지 못했습니다 — ${e.message}');
+    } on GeneratorException catch (e) {
+      return Failed(e.message);
+    }
+  }
+
+  /// 읽지 못함 모드로 두고 [reason] 을 사유로 한 [Todo] 를 돌려준다.
+  Todo _markUnreadable(String reason) {
+    _mode = _AppNamesMode.unreadable;
+    _reason = reason;
+    return Todo(reason);
+  }
+
+  /// [relativePath] ARB 의 `appTitle` [value] 가 생성기 규칙에 어긋나는 사유 —
+  /// 맞으면 null.
+  ///
+  /// flavor 접미사로 끝나는 값은 생성기가 받으므로 사유로 삼지 않는다.
+  static String? _findValueViolation(String relativePath, Object value) {
+    if (value is! String) {
+      return '$relativePath 의 $appTitleKey 이 문자열이 아닙니다';
+    }
+    if (value.trim().isEmpty) {
+      return '$relativePath 의 $appTitleKey 이 비어 있습니다';
+    }
+    if (value != value.trim()) {
+      return '$relativePath 의 $appTitleKey "$value" 의 앞뒤에 공백이 있습니다';
+    }
+    if (hasLauncherNameWhitespaceIssue(value)) {
+      return '$relativePath 의 $appTitleKey "$value" 의 공백이 이어집니다';
+    }
+    return null;
+  }
+
+  /// 언어마다 이름을 묻고 확인 표 뒤 대상 ARB 에 쓴다.
+  Future<StepOutcome> _applyAsk(WizardContext context) async {
+    final Terminal terminal = context.terminal;
+    final String flavorName = context.flavor.name;
+    final String suffix = flavorDisplayNameSuffixes[flavorName] ?? '';
+    final String? appName = _readJsonAppName(
+      context.resolve(context.paths.json),
+    );
+    final bool showsSuffix =
+        suffix.isNotEmpty && appName != null && appName.endsWith(suffix);
+    if (showsSuffix) {
+      terminal
+        ..writeLine(
+          '  기본 이름은 "$_baseName" 입니다. flavor 접미사("$suffix")는 빌드가 '
+          '붙이므로 접미사 없는 이름을 입력하고,',
+        )
+        ..writeLine('  기본 이름 그대로 쓰려면 Enter 를 누릅니다.');
+    } else {
+      terminal.writeLine(
+        '  기본 이름은 "$_baseName" 입니다. 기본 이름 그대로 쓰려면 Enter 를 '
+        '누릅니다.',
+      );
+    }
+    terminal.writeLine('');
+
+    final Map<String, String> endonyms = readLocaleEndonyms(
+      context.projectRoot,
+    );
+    final labels = <String>[
+      for (final _NameTarget target in _targets)
+        formatLocaleLabel(target.arb.locale, endonyms),
+    ];
+    final names = List<String>.filled(_targets.length, '');
+    for (var i = 0; i < _targets.length; i++) {
+      final String? name = _askName(terminal, _targets[i], labels[i]);
+      if (name == null) return const Declined();
+      names[i] = name;
+    }
+
+    final notes = <String>[
+      if (showsSuffix) '$flavorName 빌드에서는 뒤에 "$suffix" 가 붙어 보입니다',
+    ];
+    terminal.writeLine('');
+    writeSummary(
+      terminal,
+      title: confirmTitle,
+      rows: <SummaryRow>[
+        for (var i = 0; i < _targets.length; i++)
+          SummaryRow(labels[i], names[i]),
+      ],
+      notes: notes,
+    );
+    terminal.writeLine('');
+    final int? choice = terminal.choose(confirmQuestion, <String>[
+      proceedOption,
+      for (final _NameTarget target in _targets) '${target.arb.locale} 고치기',
+    ]);
+    if (choice != 0) return const Declined();
+
+    return await _writeNames(context, names);
+  }
+
+  /// [target] 언어의 이름을 묻는다 — 입력 끝이면 null.
+  ///
+  /// 지금 값이 규칙에 어긋나면 그 값을 질문 글에 보이고, 기본값은 늘 기본 이름이다.
+  String? _askName(Terminal terminal, _NameTarget target, String label) {
+    final Object? current = target.currentValue;
+    final question = current == null
+        ? '  $label 앱 이름'
+        : '  $label 앱 이름(지금 값 ${jsonEncode(current)})';
+    return terminal.ask(question, defaultValue: _baseName)?.trim();
+  }
+
+  /// 쓰기 전 검사를 모두 통과하면 대상 ARB 마다 [names] 를 쓴다.
+  ///
+  /// 고칠 ARB 에 미커밋 변경이 있거나 · 하나라도 JSON 객체로 읽히지 않으면 어떤
+  /// 파일도 쓰지 않는다.
+  Future<StepOutcome> _writeNames(
+    WizardContext context,
+    List<String> names,
+  ) async {
+    final List<String> dirty = await findDirtyTrackedFiles(context, <String>[
+      for (final _NameTarget target in _targets) target.arb.relativePath,
+    ]);
+    if (dirty.isNotEmpty) {
+      return Failed(
+        '고칠 파일에 커밋하지 않은 변경이 있습니다 — ${IdentityStep.dirtyTreeGuidance}\n'
+        '${dirty.map((String path) => '    $path').join('\n')}',
+      );
+    }
+    for (final _NameTarget target in _targets) {
+      final String? invalidJson = findInvalidJson(
+        target.arb.absolutePath,
+        target.arb.relativePath,
+      );
+      if (invalidJson != null) return Failed(invalidJson);
+    }
+    for (var i = 0; i < _targets.length; i++) {
+      writeArbTitle(_targets[i].arb.absolutePath, names[i]);
+    }
+    return const Applied();
+  }
+
+  /// [path] JSON 의 `appName` 문자열 값을 읽는다 — 파일이나 값이 없으면 null.
+  static String? _readJsonAppName(String path) =>
+      File(path).existsSync() ? readJsonString(path, 'appName') : null;
+}
+
+/// 언어별 앱 이름 단계의 실행 모드 — 직전 검사가 정한다.
+enum _AppNamesMode {
+  /// ARB 목록 · 기본 이름 · ARB 내용을 읽지 못함 — 실행은 그 사유로 실패한다.
+  unreadable,
+
+  /// 물을 언어가 있음.
+  ask,
+
+  /// 모든 언어가 정해졌거나 물을 언어가 없음.
+  done,
+}
+
+/// 물을 언어 하나 — ARB 와 규칙에 어긋난 지금 값(키가 없으면 null).
+final class _NameTarget {
+  const _NameTarget(this.arb, {this.currentValue});
+
+  final LocalizedArb arb;
+  final Object? currentValue;
+}

@@ -111,38 +111,39 @@
 | 2 | 개발 도구 | 항상 |
 | 3 | 사용자 설정 파일 | 항상 |
 | 4 | 앱 정체성 | 항상 |
-| 5 | Firebase · Google Cloud 로그인 | 항상 |
-| 6 | Firebase 프로젝트 | 항상 |
-| 7 | 결제 계정 (Blaze 요금제) | 항상 |
-| 8 | 필요한 Google Cloud API | 항상 |
-| 9 | 위치 · Firestore | 항상 |
-| 10 | 기본 Storage bucket | 항상 |
-| 11 | 로그인 수단 (이메일 · 익명) | 항상 |
-| 12 | 로그인 수단 | 항상 — `--providers` 로 실행하면 체크 목록을 연다 |
-| 13 | 앱 아이콘 | 콘솔에 앱 아이콘 칸이 있는 수단(Naver · Kakao · LINE · Facebook · Google)을 켰을 때 |
-| 14 | Google 로그인 | Google 을 켰을 때 |
-| 15 | 앱 등록 · 설정 파일 | 항상 |
-| 16 | Google — iOS 쪽 | Google 을 켰을 때 |
-| 17 | Google — Android 쪽 | Google 을 켰을 때 |
-| 18 | Firestore · Storage rules | 항상 |
-| 19 | App Check 디버그 토큰 | 항상 |
-| 20 | Apple 로그인 — iOS 쪽 | Apple 을 켰을 때 |
-| 21 | Apple 로그인 — Android 쪽 | Apple 을 켰을 때 |
-| 22 | Facebook 로그인 | Facebook 을 켰을 때 |
-| 23 | Facebook — Android 쪽 | Facebook 을 켰을 때 |
-| 24 | Kakao 로그인 | Kakao 를 켰을 때 |
-| 25 | Kakao — Android 쪽 | Kakao 를 켰을 때 |
-| 26 | Naver 로그인 | Naver 를 켰을 때 |
-| 27 | Naver — Android 쪽 | Naver 를 켰을 때 |
-| 28 | LINE 로그인 | LINE 을 켰을 때 |
-| 29 | LINE — Android 쪽 | LINE 을 켰을 때 |
-| 30 | Cloud Functions 배포 | 항상 |
-| 31 | Custom Token 서명 권한 | Kakao · Naver · LINE 가운데 하나라도 켰을 때 |
-| 32 | 앱 실행 · 로그인 확인 | 항상 |
-| 33 | 소셜 로그인 확인 | 소셜 로그인 수단을 하나라도 켰을 때 |
-| 34 | App Check — Play Integrity | 항상 — 출시용 단계(미룰 수 있다) |
-| 35 | App Check — DeviceCheck | 항상 — 출시용 단계(미룰 수 있다) |
-| 36 | APNs 키 | 항상 — 출시용 단계(미룰 수 있다) |
+| 5 | 언어별 앱 이름 | 항상 |
+| 6 | Firebase · Google Cloud 로그인 | 항상 |
+| 7 | Firebase 프로젝트 | 항상 |
+| 8 | 결제 계정 (Blaze 요금제) | 항상 |
+| 9 | 필요한 Google Cloud API | 항상 |
+| 10 | 위치 · Firestore | 항상 |
+| 11 | 기본 Storage bucket | 항상 |
+| 12 | 로그인 수단 (이메일 · 익명) | 항상 |
+| 13 | 로그인 수단 | 항상 — `--providers` 로 실행하면 체크 목록을 연다 |
+| 14 | 앱 아이콘 | 콘솔에 앱 아이콘 칸이 있는 수단(Naver · Kakao · LINE · Facebook · Google)을 켰을 때 |
+| 15 | Google 로그인 | Google 을 켰을 때 |
+| 16 | 앱 등록 · 설정 파일 | 항상 |
+| 17 | Google — iOS 쪽 | Google 을 켰을 때 |
+| 18 | Google — Android 쪽 | Google 을 켰을 때 |
+| 19 | Firestore · Storage rules | 항상 |
+| 20 | App Check 디버그 토큰 | 항상 |
+| 21 | Apple 로그인 — iOS 쪽 | Apple 을 켰을 때 |
+| 22 | Apple 로그인 — Android 쪽 | Apple 을 켰을 때 |
+| 23 | Facebook 로그인 | Facebook 을 켰을 때 |
+| 24 | Facebook — Android 쪽 | Facebook 을 켰을 때 |
+| 25 | Kakao 로그인 | Kakao 를 켰을 때 |
+| 26 | Kakao — Android 쪽 | Kakao 를 켰을 때 |
+| 27 | Naver 로그인 | Naver 를 켰을 때 |
+| 28 | Naver — Android 쪽 | Naver 를 켰을 때 |
+| 29 | LINE 로그인 | LINE 을 켰을 때 |
+| 30 | LINE — Android 쪽 | LINE 을 켰을 때 |
+| 31 | Cloud Functions 배포 | 항상 |
+| 32 | Custom Token 서명 권한 | Kakao · Naver · LINE 가운데 하나라도 켰을 때 |
+| 33 | 앱 실행 · 로그인 확인 | 항상 |
+| 34 | 소셜 로그인 확인 | 소셜 로그인 수단을 하나라도 켰을 때 |
+| 35 | App Check — Play Integrity | 항상 — 출시용 단계(미룰 수 있다) |
+| 36 | App Check — DeviceCheck | 항상 — 출시용 단계(미룰 수 있다) |
+| 37 | APNs 키 | 항상 — 출시용 단계(미룰 수 있다) |
 
 **위저드가 하는 일**
 
