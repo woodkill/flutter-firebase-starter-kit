@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../bin/rename.dart' as rename;
+import '../../launcher_names.dart' show stripFlavorSuffix;
 import '../command_runner.dart';
 import '../config_files.dart';
 import '../confirm.dart';
@@ -18,8 +19,10 @@ import 'configure_step.dart';
 /// 계산 · 검증 · 변경은 `bin/rename.dart` 의 공개 함수를 그대로 부른다. 확인은
 /// 단계 진행 확인과 값 요약 표 한 번으로 끝나고 rename 도구 자체의 확인 질문은
 /// 거치지 않는다. 표시 이름은 rename 뒤 사용자 파일의 `appName` · `DISPLAY_NAME`
-/// 에 위저드가 직접 쓴다. 앱 ID 가 이미 바뀐 저장소에서 사용자 xcconfig 에 남은
-/// 킷 번들 ID 는 묻지 않고 앱 ID 에 맞춘다.
+/// 에 위저드가 직접 쓰고, 영어 ARB([arbPath])의 `appTitle` 에는 그 flavor
+/// 접미사를 뗀 기본 이름을 쓴다(빌드의 홈 화면 이름 생성기와 같은 규칙). 앱 ID 가
+/// 이미 바뀐 저장소에서 사용자 xcconfig 에 남은 킷 번들 ID 는 묻지 않고 앱 ID 에
+/// 맞춘다.
 ///
 /// 경로 · 표시 이름 접미사는 고른 flavor 를 따른다. 앱 ID 는 flavor 가 함께
 /// 쓰므로 이름 바꾸기는 모든 flavor 를 바꾸지만, 표시 이름은 그 flavor 의
@@ -31,6 +34,11 @@ final class IdentityStep implements Step {
 
   /// Android 앱 ID 를 읽는 Gradle 파일.
   static const String gradlePath = 'android/app/build.gradle.kts';
+
+  /// 표시 이름의 기본 이름(flavor 접미사를 뗀 값)을 `appTitle` 로 쓰는 영어 ARB.
+  ///
+  /// 빌드는 이 값이 config 기본 이름과 다르면 멈추므로 표시 이름과 함께 쓴다.
+  static const String arbPath = 'lib/l10n/app_en.arb';
 
   /// 확인 표 제목.
   static const String confirmTitle = '앱 정체성 — 확인';
@@ -181,9 +189,15 @@ final class IdentityStep implements Step {
   @override
   List<String> plannedCommandLines(WizardContext context) {
     final FlavorPaths paths = context.paths;
+    // 위저드는 gen-l10n 을 부르지 않는다 — 생성 dart 는 다음 pub get · 빌드가
+    // 다시 만든다.
+    const arbLine =
+        '($arbPath 의 appTitle 을 표시 이름에서 flavor 접미사를 뺀 값으로 바꿈 — '
+        '다음 pub get · 빌드가 lib/l10n/generated/ 를 다시 만듭니다)';
     final displayNameLines = <String>[
       '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
       '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+      arbLine,
     ];
     final bundleIdLines = <String>[
       for (final String path in _listTargetPaths(context, _xcconfigResidue))
@@ -472,7 +486,10 @@ final class IdentityStep implements Step {
     return paths;
   }
 
-  /// 표시 이름을 쓸 키 · 변수가 없으면 그 사유를 돌려준다 — 모두 있으면 null.
+  /// 표시 이름을 쓸 키 · 변수(JSON `appName` · xcconfig `DISPLAY_NAME` · 영어
+  /// ARB `appTitle`)가 없으면 그 사유를 돌려준다 — 모두 있으면 null.
+  ///
+  /// 쓰기 전에 세 곳을 모두 보므로 일부 파일만 바뀐 상태를 남기지 않는다.
   String? _findMissingDisplayNameTarget(WizardContext context) {
     final FlavorPaths paths = context.paths;
     final String jsonPath = context.resolve(paths.json);
@@ -485,11 +502,22 @@ final class IdentityStep implements Step {
         readXcconfigValue(xcconfigPath, 'DISPLAY_NAME') == null) {
       return '${paths.xcconfig} 에 DISPLAY_NAME 이 없습니다';
     }
+    return _findMissingArbTitle(context);
+  }
+
+  /// 영어 ARB 에 `appTitle` 문자열 값이 없으면 그 사유를 돌려준다 — 있으면 null.
+  static String? _findMissingArbTitle(WizardContext context) {
+    final String path = context.resolve(arbPath);
+    if (!File(path).existsSync()) return '$arbPath 이 없습니다';
+    if (readJsonString(path, 'appTitle') == null) {
+      return '$arbPath 에 appTitle 문자열 값이 없습니다';
+    }
     return null;
   }
 
   /// 표시 이름을 고른 flavor 의 사용자 JSON `appName` · xcconfig
-  /// `DISPLAY_NAME` 에 쓴다.
+  /// `DISPLAY_NAME` 에 쓰고, 영어 ARB `appTitle` 에 그 flavor 접미사를 뗀
+  /// 기본 이름을 쓴다.
   void _writeDisplayName(WizardContext context, String displayName) {
     replaceJsonString(
       context.resolve(context.paths.json),
@@ -501,6 +529,16 @@ final class IdentityStep implements Step {
       'DISPLAY_NAME',
       displayName,
     );
+    _writeArbTitle(
+      context,
+      stripFlavorSuffix(displayName, context.flavor.displayNameSuffix),
+    );
+  }
+
+  /// 영어 ARB `appTitle` 값만 [baseName] 으로 바꾼다 — 설명 객체 · 다른 키의
+  /// 바이트는 그대로다.
+  static void _writeArbTitle(WizardContext context, String baseName) {
+    replaceJsonString(context.resolve(arbPath), 'appTitle', baseName);
   }
 
   /// configure 스크립트의 prefix 상수가 [applicationId] 와 같은 정체성인지 본다.

@@ -72,14 +72,46 @@ String buildStgPlaceholderJson() =>
     '  ]\n'
     '}\n';
 
+/// 앱 정체성 단계가 표시 이름의 기본 이름을 쓰는 영어 ARB(저장소 상대 경로).
+const String fixtureArbPath = 'lib/l10n/app_en.arb';
+
+/// fixture 영어 ARB 의 처음 `appTitle` 값.
+const String fixtureKitAppTitle = 'StarterKit';
+
+/// 영어 ARB 를 맞추는 계획 줄.
+const String arbPlanLine =
+    '(lib/l10n/app_en.arb 의 appTitle 을 표시 이름에서 flavor 접미사를 뺀 값으로 '
+    '바꿈 — 다음 pub get · 빌드가 lib/l10n/generated/ 를 다시 만듭니다)';
+
+/// `appTitle` 값이 [appTitle] 인 영어 ARB fixture 본문을 만든다.
+///
+/// `@appTitle` 설명 객체와 다른 키 하나를 둔다. 저장소의 실제 ARB 와 무관한
+/// 시험 상수라 킷 ARB 가 바뀌어도 같은 본문이다.
+String buildFixtureArb(String appTitle) =>
+    '{\n'
+    '  "@@locale": "en",\n'
+    '\n'
+    '  "appTitle": "$appTitle",\n'
+    '  "@appTitle": {\n'
+    '    "description": "App name on the home screen"\n'
+    '  },\n'
+    '\n'
+    '  "commonOk": "OK",\n'
+    '  "@commonOk": {\n'
+    '    "description": "Common confirmation button label"\n'
+    '  }\n'
+    '}\n';
+
 /// [root] 아래에 앱 정체성 단계가 읽고 고치는 파일 fixture 를 쓴다.
 ///
 /// 사용자 설정 파일은 추적되는 example 을 복사해 만든다. [applicationId] 가 킷
 /// 기본값이 아니면 이름 바꾸기가 끝난 추적 파일 모양(Kotlin 디렉터리 이동 ·
 /// pbxproj 번들 ID · 스크립트 상수)으로 쓰고, 킷 Kotlin 디렉터리는 지운다.
+/// 영어 ARB 는 `appTitle` 이 [appTitle] 인 시험 상수 본문으로 쓴다.
 void writeIdentityFixture(
   String root, {
   String applicationId = rename.currentAndroidPackage,
+  String appTitle = fixtureKitAppTitle,
 }) {
   final isKitDefault = applicationId == rename.currentAndroidPackage;
   final String iosBundleIdPrefix = isKitDefault
@@ -122,6 +154,7 @@ void writeIdentityFixture(
       androidPackagePrefix: applicationId,
     ),
   );
+  writeFixtureFile(root, fixtureArbPath, buildFixtureArb(appTitle));
   for (final path in <String>[
     UserFilesStep.jsonExamplePath,
     UserFilesStep.xcconfigExamplePath,
@@ -541,9 +574,14 @@ void main() {
     const stgUserPath = 'ios/Flutter/stg.xcconfig';
     const prodUserPath = 'ios/Flutter/prod.xcconfig';
 
-    /// 표시 이름까지 바뀐 저장소에 example 복사본 사용자 xcconfig 를 둔다.
+    /// 표시 이름까지 바뀐 저장소에 example 복사본 사용자 xcconfig 를 둔다 — 영어
+    /// ARB 는 표시 이름의 기본 이름과 같다.
     void writeBundleIdOnlyFixture() {
-      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      writeIdentityFixture(
+        root,
+        applicationId: 'com.acme.my_app',
+        appTitle: 'My App',
+      );
       replaceJsonString(
         '$root/${UserFilesStep.jsonUserPath}',
         'appName',
@@ -720,7 +758,11 @@ void main() {
   });
 
   test('T-19-ID-07 이미 끝난 저장소는 ✓ 이고 아무것도 묻지 않는다', () async {
-    writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+    writeIdentityFixture(
+      root,
+      applicationId: 'com.acme.my_app',
+      appTitle: 'My App',
+    );
     replaceJsonString(
       '$root/${UserFilesStep.jsonUserPath}',
       'appName',
@@ -767,6 +809,8 @@ void main() {
       lines.where((String line) => line.contains('DISPLAY_NAME')),
       isNotEmpty,
     );
+    // 표시 이름 쓰기 줄 셋 — json · xcconfig · 영어 ARB.
+    expect(lines.where((String line) => line == arbPlanLine), hasLength(1));
 
     // 표시 이름만 남은 저장소는 rename 명령 줄 없이 표시 이름 쓰기 줄만 있다.
     writeIdentityFixture(root, applicationId: 'com.acme.my_app');
@@ -779,6 +823,10 @@ void main() {
     expect(
       displayNameLines.where((String line) => line.contains('appName')),
       isNotEmpty,
+    );
+    expect(
+      displayNameLines.where((String line) => line == arbPlanLine),
+      hasLength(1),
     );
     expect(
       displayNameLines.where(
@@ -824,7 +872,7 @@ void main() {
 
     /// 표시 이름까지 바뀐 점 없는 앱 ID 저장소와 킷 값 placeholder 잔여를 만든다.
     void writeDotlessFixture() {
-      writeIdentityFixture(root, applicationId: dotlessId);
+      writeIdentityFixture(root, applicationId: dotlessId, appTitle: 'My App');
       replaceJsonString(
         '$root/${UserFilesStep.jsonUserPath}',
         'appName',
@@ -1066,6 +1114,108 @@ void main() {
     });
   });
 
+  test('T-22-ID-01 표시 이름 My App Dev 를 쓰면 영어 ARB appTitle 이 My App 이 되고 '
+      '다른 줄 바이트는 그대로다', () async {
+    writeIdentityFixture(root);
+    final String arbBefore = readFile(fixtureArbPath);
+    const titleLineBefore = '  "appTitle": "$fixtureKitAppTitle",';
+    // 전제: 바뀔 줄은 하나뿐이고 설명 객체 키가 따로 있다.
+    expect(titleLineBefore.allMatches(arbBefore), hasLength(1));
+    expect(arbBefore, contains('"@appTitle": {'));
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'com.acme',
+      'my_app',
+      '1',
+      'y',
+    ]);
+
+    final int code = await runIdentityStep(runner, terminal);
+
+    expect(code, wizardExitDone);
+    expect(
+      readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+      'My App Dev',
+    );
+    expect(readJsonString('$root/$fixtureArbPath', 'appTitle'), 'My App');
+    // appTitle 줄 하나만 다르다 — 설명 객체 · 다른 키 · 빈 줄은 그대로다.
+    expect(
+      readFile(fixtureArbPath),
+      arbBefore.replaceFirst(titleLineBefore, '  "appTitle": "My App",'),
+    );
+  });
+
+  group('T-22-ID-03 영어 ARB 에 쓸 자리가 없으면 어느 파일도 쓰기 전에 실패한다', () {
+    /// 단계를 검사(Todo 확인) · 실행하고 결과와 터미널을 돌려준다 — 입력은
+    /// [inputs] 순서로 답한다.
+    Future<(StepOutcome, ScriptedTerminal)> checkAndApply(
+      List<String?> inputs,
+    ) async {
+      final terminal = ScriptedTerminal(inputs);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        runner: FakeCommandRunner()..on(_gitStatusKey, _cleanTree),
+        terminal: terminal,
+      );
+      final step = IdentityStep();
+      expect(await step.check(context), isA<Todo>());
+      return (await step.apply(context), terminal);
+    }
+
+    test('T-22-ID-03 org · name 부터 진행할 때 ARB 가 없으면 실패하고 파일 변경 0', () async {
+      writeIdentityFixture(root);
+      File('$root/$fixtureArbPath').deleteSync();
+      final Map<String, List<int>> before = snapshotTree(root);
+
+      final (StepOutcome outcome, _) = await checkAndApply(const <String?>[
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          contains(fixtureArbPath),
+        ),
+      );
+      expect(snapshotTree(root), before);
+    });
+
+    test('T-22-ID-03 표시 이름만 쓸 때 ARB 에 appTitle 문자열 값이 없으면 묻기 전에 실패하고 '
+        '파일 변경 0', () async {
+      const arbWithoutTitle =
+          '{\n'
+          '  "@@locale": "en",\n'
+          '  "@appTitle": {\n'
+          '    "description": "App name on the home screen"\n'
+          '  },\n'
+          '  "commonOk": "OK"\n'
+          '}\n';
+      writeIdentityFixture(root, applicationId: 'com.acme.my_app');
+      File('$root/$fixtureArbPath').writeAsStringSync(arbWithoutTitle);
+      final Map<String, List<int>> before = snapshotTree(root);
+
+      final (StepOutcome outcome, ScriptedTerminal terminal) =
+          await checkAndApply(const <String?>['Acme Studio']);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          contains(fixtureArbPath),
+        ),
+      );
+      expect(terminal.asks, isEmpty);
+      expect(snapshotTree(root), before);
+    });
+  });
+
   test('buildDevSteps 는 Xcode 준비 → 개발 도구 → 사용자 설정 파일 → 앱 정체성 순서로 시작한다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
@@ -1151,6 +1301,7 @@ void main() {
             '(${paths.xcconfig} 의 PRODUCT_BUNDLE_IDENTIFIER 를 앱 ID 에 맞춤)',
             '(${paths.json} 의 appName 을 표시 이름으로 바꿈)',
             '(${paths.xcconfig} 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+            arbPlanLine,
           ]);
           expect(outcome, isA<Applied>());
           expect(screen.asks, <String>[IdentityStep.displayNameQuestion]);
@@ -1182,6 +1333,34 @@ void main() {
       );
     }
 
+    for (final (Flavor flavor, String displayName, String expectedTitle)
+        in <(Flavor, String, String)>[
+          (Flavor.stg, 'My App Stg', 'My App'),
+          (Flavor.prod, 'My App', 'My App'),
+          // 접미사를 지운 dev 표시 이름은 막지 않고 그대로 기본 이름이 된다.
+          (Flavor.dev, 'MyApp', 'MyApp'),
+        ]) {
+      test('T-22-ID-02: ${flavor.name} 표시 이름 $displayName → 영어 ARB appTitle '
+          '$expectedTitle', () async {
+        writeIdentityFixture(root, applicationId: renamedApplicationId);
+        if (flavor != Flavor.dev) writeFlavorUserFiles(flavor);
+        final paths = FlavorPaths(flavor);
+        final WizardContext context = buildFlavorContext(flavor, <String?>[
+          displayName,
+        ]);
+        final step = IdentityStep();
+
+        expect(await step.check(context), isA<Todo>());
+        expect(await step.apply(context), isA<Applied>());
+
+        expect(readJsonString('$root/${paths.json}', 'appName'), displayName);
+        expect(
+          readJsonString('$root/$fixtureArbPath', 'appTitle'),
+          expectedTitle,
+        );
+      });
+    }
+
     test('T-20-FLAVOR-10: dev 문맥 정체성 단계의 계획 줄 · 표시 이름 제안은 그대로다', () async {
       writeIdentityFixture(root, applicationId: renamedApplicationId);
       final WizardContext context = buildFlavorContext(
@@ -1199,6 +1378,7 @@ void main() {
         containsAllInOrder(<String>[
           '(config/dev.json 의 appName 을 표시 이름으로 바꿈)',
           '(ios/Flutter/dev.xcconfig 의 DISPLAY_NAME 을 표시 이름으로 바꿈)',
+          arbPlanLine,
         ]),
       );
       expect(
