@@ -9,8 +9,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
@@ -22,6 +24,8 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/home/presentation/home_screen.dart';
 import 'package:flutter_starter_kit/features/notifications/presentation/pending_notification_route_listener.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_ja.dart';
+import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -55,10 +59,57 @@ const FeatureFlagValues _flagsOff = FeatureFlagValues(<FeatureFlag, Object>{
   FeatureFlag.announcementMessageJa: '',
 });
 
+/// 280 폭에서 반드시 말줄임되는 한국어 앱 이름 — 앱의 실제 이름 길이와 무관하게 한다.
+const String _longTitleKo = '아주 긴 이름을 가진 스타터 킷 앱의 홈 화면 제목';
+
+/// 280 폭에서 반드시 말줄임되는 일본어 앱 이름.
+const String _longTitleJa = 'とても長い名前を持つスターターキットアプリのホーム画面タイトル';
+
+/// `appTitle` 만 [_longTitleKo] 로 바꾸고 나머지는 [AppLocalizationsKo] 그대로 쓰는 앱 문구.
+class _LongTitleLocalizationsKo extends AppLocalizationsKo {
+  @override
+  String get appTitle => _longTitleKo;
+}
+
+/// `appTitle` 만 [_longTitleJa] 로 바꾸고 나머지는 [AppLocalizationsJa] 그대로 쓰는 앱 문구.
+class _LongTitleLocalizationsJa extends AppLocalizationsJa {
+  @override
+  String get appTitle => _longTitleJa;
+}
+
+/// [locale] 의 긴 제목 앱 문구를 돌려준다(ko · ja 만).
+AppLocalizations _buildLongTitleLocalizations(Locale locale) =>
+    switch (locale.languageCode) {
+      'ko' => _LongTitleLocalizationsKo(),
+      'ja' => _LongTitleLocalizationsJa(),
+      _ => throw UnsupportedError('긴 제목 문구가 없는 언어: $locale'),
+    };
+
+/// 긴 제목 앱 문구를 ko · ja 에 내주는 앱 문구 delegate.
+class _LongTitleLocalizationsDelegate
+    extends LocalizationsDelegate<AppLocalizations> {
+  /// 상태 없는 delegate 를 만든다.
+  const _LongTitleLocalizationsDelegate();
+
+  @override
+  bool isSupported(Locale locale) =>
+      const <String>{'ko', 'ja'}.contains(locale.languageCode);
+
+  /// 첫 프레임부터 문구가 있도록 동기로 완료한다.
+  @override
+  Future<AppLocalizations> load(Locale locale) =>
+      SynchronousFuture<AppLocalizations>(_buildLongTitleLocalizations(locale));
+
+  @override
+  bool shouldReload(_LongTitleLocalizationsDelegate old) => false;
+}
+
 /// [HomeScreen] 을 GoRouter 안(`/login` · `/settings` stub)에서 띄운다.
 ///
 /// [authState] 가 `authStateProvider` 값이다 — `Stream.value(user)` 면 data,
 /// 끝나지 않는 stream 이면 loading, `Stream.error` 면 error 다.
+/// [appLocalizationsDelegate] 는 앱 문구 delegate 이고 기본값은 ARB 에서 만든
+/// [AppLocalizations.delegate] 다.
 Future<GoRouter> _pumpHome(
   WidgetTester tester, {
   required Stream<fb.User?> Function() authState,
@@ -66,6 +117,8 @@ Future<GoRouter> _pumpHome(
   Locale locale = const Locale('en'),
   ThemeData? theme,
   Size size = const Size(400, 800),
+  LocalizationsDelegate<AppLocalizations> appLocalizationsDelegate =
+      AppLocalizations.delegate,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -110,7 +163,12 @@ Future<GoRouter> _pumpHome(
       child: MaterialApp.router(
         theme: theme ?? AppTheme.light(),
         locale: locale,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: [
+          appLocalizationsDelegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
       ),
@@ -126,6 +184,8 @@ Future<GoRouter> _pumpGuest(
   Locale locale = const Locale('en'),
   ThemeData? theme,
   Size size = const Size(400, 800),
+  LocalizationsDelegate<AppLocalizations> appLocalizationsDelegate =
+      AppLocalizations.delegate,
 }) {
   final user = _buildUser(isAnonymous: true);
   return _pumpHome(
@@ -134,6 +194,7 @@ Future<GoRouter> _pumpGuest(
     currentUser: user,
     locale: locale,
     theme: theme,
+    appLocalizationsDelegate: appLocalizationsDelegate,
     size: size,
   );
 }
@@ -325,8 +386,15 @@ void main() {
         'T-171-HOME-09: 게스트 $code 280x800 — 넘침 0 · 제목 한 줄 말줄임 · 버튼 hit-test',
         (tester) async {
           final locale = Locale(code);
-          final l10n = lookupAppLocalizations(locale);
-          await _pumpGuest(tester, locale: locale, size: const Size(280, 800));
+          // 제목은 앱 이름 길이와 무관하게 말줄임되는 긴 이름을 주입한다 — 짧은 이름을
+          // 넣은 프로젝트에서도 말줄임 · hit-test 계약을 그대로 본다.
+          final AppLocalizations l10n = _buildLongTitleLocalizations(locale);
+          await _pumpGuest(
+            tester,
+            locale: locale,
+            size: const Size(280, 800),
+            appLocalizationsDelegate: const _LongTitleLocalizationsDelegate(),
+          );
 
           expect(tester.takeException(), isNull);
           final title = find.descendant(
