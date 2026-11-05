@@ -1070,4 +1070,139 @@ void main() {
     expect(errorLines, hasLength(1), reason: stderrText);
     expect(errorLines.single, contains('FileSystemException'));
   });
+
+  group('T-23-GEN-01: readL10nConfig 가 l10n.yaml 두 줄을 읽는다', () {
+    test('T-23-GEN-01: 따옴표 값 · # 주석 줄이 있어도 다섯 값을 돌려준다', () {
+      File('${project.path}/l10n.yaml').writeAsStringSync(
+        '# 앱 문구 설정\n'
+        'arb-dir: "lib/l10n/"\n'
+        "template-arb-file: 'app_en.arb' # template\n"
+        'output-dir: lib/l10n/generated\n',
+      );
+
+      final gen.L10nConfig config = gen.readL10nConfig(project.path);
+
+      expect(config.arbDir, 'lib/l10n');
+      expect(config.templateArbFile, 'app_en.arb');
+      expect(config.templatePath, 'lib/l10n/app_en.arb');
+      expect(config.arbFilePrefix, 'app_');
+      expect(config.templateLocale, 'en');
+    });
+
+    test('T-23-GEN-01: l10n.yaml 이 없으면 GeneratorException', () {
+      expect(
+        () => gen.readL10nConfig(project.path),
+        throwsGeneratorError(<String>['l10n.yaml 을 찾지 못했다', 'l10n.yaml']),
+      );
+    });
+
+    for (final (String label, String body) in <(String, String)>[
+      ('arb-dir 없음', 'template-arb-file: app_en.arb\n'),
+      ('template-arb-file 값이 빔', 'arb-dir: lib/l10n\ntemplate-arb-file:\n'),
+    ]) {
+      test('T-23-GEN-01: $label 이면 GeneratorException', () {
+        File('${project.path}/l10n.yaml').writeAsStringSync(body);
+
+        expect(
+          () => gen.readL10nConfig(project.path),
+          throwsGeneratorError(<String>['arb-dir 또는 template-arb-file 이 없다']),
+        );
+      });
+    }
+  });
+
+  group('T-23-GEN-02: listArbFiles 가 ARB 파일만 경로 순으로 돌려준다', () {
+    const config = gen.L10nConfig('lib/l10n', 'app_en.arb');
+
+    test('T-23-GEN-02: .arb 만 · 경로 순 · 다른 확장자 제외', () {
+      final arbDir = Directory('${project.path}/lib/l10n')
+        ..createSync(recursive: true);
+      for (final name in <String>[
+        'app_zh_Hant.arb',
+        'app_pt_BR.arb',
+        'app_ko.arb',
+        'app_pt.arb',
+        'app_ja.arb',
+        'app_ko.json',
+        'app_ko.arb.bak',
+      ]) {
+        File('${arbDir.path}/$name').writeAsStringSync('{}');
+      }
+
+      final List<File> files = gen.listArbFiles(project.path, config);
+
+      expect(
+        <String>[for (final file in files) file.uri.pathSegments.last],
+        <String>[
+          'app_ja.arb',
+          'app_ko.arb',
+          'app_pt.arb',
+          'app_pt_BR.arb',
+          'app_zh_Hant.arb',
+        ],
+      );
+      expect(files.first.path, '${project.path}/lib/l10n/app_ja.arb');
+    });
+
+    test('T-23-GEN-02: ARB 디렉터리가 없으면 GeneratorException', () {
+      expect(
+        () => gen.listArbFiles(project.path, config),
+        throwsGeneratorError(<String>['ARB 디렉터리 lib/l10n 를 찾지 못했다']),
+      );
+    });
+
+    test('T-23-GEN-02: template 이름에서 locale 을 못 읽으면 GeneratorException', () {
+      Directory('${project.path}/lib/l10n').createSync(recursive: true);
+
+      expect(
+        () => gen.listArbFiles(
+          project.path,
+          const gen.L10nConfig('lib/l10n', 'en.arb'),
+        ),
+        throwsGeneratorError(<String>['template ARB 이름에서 locale 을 읽을 수 없다']),
+      );
+    });
+  });
+
+  test('T-23-GEN-03: localeFromArbFileName 이 파일 이름에서 locale 을 읽는다', () {
+    expect(
+      gen.localeFromArbFileName('app_pt_BR.arb', 'app_', 'lib/l10n'),
+      'pt_BR',
+    );
+    expect(
+      gen.localeFromArbFileName('app_zh_Hant.arb', 'app_', 'lib/l10n'),
+      'zh_Hant',
+    );
+    expect(gen.localeFromArbFileName('app_ko.arb', 'app_', 'lib/l10n'), 'ko');
+    for (final name in <String>['app-ko.arb', 'app_k.arb']) {
+      expect(
+        () => gen.localeFromArbFileName(name, 'app_', 'lib/l10n'),
+        throwsGeneratorError(<String>[
+          'ARB 파일 이름의 locale 을 읽을 수 없다',
+          'lib/l10n/$name',
+        ]),
+        reason: name,
+      );
+    }
+  });
+
+  test('T-23-GEN-04: hasLauncherNameWhitespaceIssue 는 앞뒤 공백 · 이어진 공백만 잡는다', () {
+    const table = <(String, bool)>[
+      ('마이  앱', true),
+      (' 마이앱', true),
+      ('마이앱 ', true),
+      ('\t마이앱', true),
+      ('마이\t\t앱', true),
+      ('마이앱', false),
+      ('My App', false),
+      ('마이\t앱', false),
+    ];
+    for (final (String name, bool expected) in table) {
+      expect(
+        gen.hasLauncherNameWhitespaceIssue(name),
+        expected,
+        reason: jsonEncode(name),
+      );
+    }
+  });
 }

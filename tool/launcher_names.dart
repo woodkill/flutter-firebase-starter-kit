@@ -439,8 +439,9 @@ String toLprojName(String arbLocale) {
 }
 
 /// `l10n.yaml` 에서 읽은 ARB 위치.
-final class _L10nConfig {
-  const _L10nConfig(this.arbDir, this.templateArbFile);
+final class L10nConfig {
+  /// [arbDir] 디렉터리 · [templateArbFile] 파일 이름으로 설정을 만든다.
+  const L10nConfig(this.arbDir, this.templateArbFile);
 
   /// 프로젝트 루트 기준 ARB 디렉터리(`lib/l10n`).
   final String arbDir;
@@ -453,13 +454,13 @@ final class _L10nConfig {
 
   /// ARB 파일 이름에서 locale 앞에 오는 부분(`app_en.arb` → `app_`).
   ///
-  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [_readArbNames] 가 먼저 검사한다.
+  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [listArbFiles] 가 먼저 검사한다.
   String get arbFilePrefix =>
       templateArbFile.substring(0, templateArbFile.indexOf('_') + 1);
 
   /// template ARB 의 locale(`app_en.arb` → `en`).
   ///
-  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [_readArbNames] 가 먼저 검사한다.
+  /// 파일 이름 꼴(`<prefix>_<locale>.arb`)은 [listArbFiles] 가 먼저 검사한다.
   String get templateLocale => templateArbFile.substring(
     arbFilePrefix.length,
     templateArbFile.length - '.arb'.length,
@@ -475,7 +476,9 @@ GeneratorException _inputError(String problem, String file, String fix) =>
 const String _l10nYamlPath = 'l10n.yaml';
 
 /// `l10n.yaml` 의 `arb-dir` · `template-arb-file` 두 줄만 줄 단위로 읽는다.
-_L10nConfig _readL10nConfig(String projectRoot) {
+///
+/// 파일이 없거나 두 값 가운데 하나라도 비면 [GeneratorException] 을 던진다.
+L10nConfig readL10nConfig(String projectRoot) {
   final file = File('$projectRoot/$_l10nYamlPath');
   if (!file.existsSync()) {
     throw _inputError(
@@ -506,7 +509,7 @@ _L10nConfig _readL10nConfig(String projectRoot) {
     );
   }
   if (arbDir.endsWith('/')) arbDir = arbDir.substring(0, arbDir.length - 1);
-  return _L10nConfig(arbDir, template);
+  return L10nConfig(arbDir, template);
 }
 
 /// yaml 값의 바깥 따옴표 한 쌍을 뗀다.
@@ -520,7 +523,9 @@ String _unquote(String value) {
 }
 
 /// ARB 파일 이름 [fileName] 에서 [prefix] 뒤 locale 을 읽는다 — 꼴이 어긋나면 실패.
-String _localeFromArbFileName(String fileName, String prefix, String arbDir) {
+///
+/// 실패는 `<arbDir>/<fileName>` 을 적은 [GeneratorException] 이다.
+String localeFromArbFileName(String fileName, String prefix, String arbDir) {
   const extension = '.arb';
   final String locale =
       fileName.startsWith(prefix) && fileName.endsWith(extension)
@@ -541,8 +546,18 @@ String _localeFromArbFileName(String fileName, String prefix, String arbDir) {
 /// 이어진 공백 — Android string 리소스가 한 칸으로 접는다.
 final RegExp _repeatedWhitespace = RegExp(r'\s{2,}');
 
-/// ARB 디렉터리의 파일마다 locale → `appTitle`(없으면 null)을 모은다.
-Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
+/// 언어별 이름 [name] 의 앞뒤에 공백이 있거나 공백이 이어지면 true.
+///
+/// Android string 리소스는 앞뒤 공백을 지우고 이어진 공백을 한 칸으로 접지만
+/// iOS 는 그대로 보여, 이런 이름은 두 플랫폼 이름이 갈린다.
+bool hasLauncherNameWhitespaceIssue(String name) =>
+    name != name.trim() || _repeatedWhitespace.hasMatch(name);
+
+/// [config] 의 ARB 디렉터리에서 `.arb` 파일을 경로 순으로 돌려준다.
+///
+/// template ARB 이름이 `<prefix>_<locale>.arb` 꼴이 아니거나 디렉터리가 없으면
+/// [GeneratorException] 을 던진다. 파일 내용은 읽지 않는다.
+List<File> listArbFiles(String projectRoot, L10nConfig config) {
   final String template = config.templateArbFile;
   if (!template.contains('_') || !template.endsWith('.arb')) {
     throw _inputError(
@@ -551,7 +566,6 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
       'template-arb-file 을 <prefix>_<locale>.arb 꼴(예: app_en.arb)로 적는다',
     );
   }
-  final String prefix = config.arbFilePrefix;
   final dir = Directory('$projectRoot/${config.arbDir}');
   if (!dir.existsSync()) {
     throw _inputError(
@@ -560,18 +574,23 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
       'arb-dir 을 ARB 파일이 있는 디렉터리(프로젝트 루트 기준)로 고친다',
     );
   }
-  final List<File> files =
-      dir
-          .listSync()
-          .whereType<File>()
-          .where((File file) => file.path.endsWith('.arb'))
-          .toList()
-        ..sort((File a, File b) => a.path.compareTo(b.path));
+  return dir
+      .listSync()
+      .whereType<File>()
+      .where((File file) => file.path.endsWith('.arb'))
+      .toList()
+    ..sort((File a, File b) => a.path.compareTo(b.path));
+}
+
+/// ARB 디렉터리의 파일마다 locale → `appTitle`(없으면 null)을 모은다.
+Map<String, String?> _readArbNames(String projectRoot, L10nConfig config) {
+  final List<File> files = listArbFiles(projectRoot, config);
+  final String prefix = config.arbFilePrefix;
   final names = <String, String?>{};
   for (final file in files) {
     final String fileName = file.uri.pathSegments.last;
     final relativePath = '${config.arbDir}/$fileName';
-    final String locale = _localeFromArbFileName(
+    final String locale = localeFromArbFileName(
       fileName,
       prefix,
       config.arbDir,
@@ -619,7 +638,7 @@ Map<String, String?> _readArbNames(String projectRoot, _L10nConfig config) {
     }
     if (locale != config.templateLocale &&
         name is String &&
-        (name != name.trim() || _repeatedWhitespace.hasMatch(name))) {
+        hasLauncherNameWhitespaceIssue(name)) {
       // 생성기가 쓰는 언어별 이름에서 Android string 리소스는 앞뒤 공백을 지우고
       // 이어진 공백을 한 칸으로 접지만 iOS 는 그대로 보여 두 플랫폼 이름이 갈린다.
       // template 이름은 생성기가 쓰지 않고 config 기본 이름과의 대조만 받는다.
@@ -677,7 +696,7 @@ Future<GenerationResult> generateLauncherNames(Options options) async {
   final String baseName = stripFlavorSuffix(options.configName, suffix);
   final String appliedSuffix = baseName == options.configName ? '' : suffix;
 
-  final _L10nConfig config = _readL10nConfig(options.projectRoot);
+  final L10nConfig config = readL10nConfig(options.projectRoot);
   final Map<String, String?> arbNames = _readArbNames(
     options.projectRoot,
     config,
