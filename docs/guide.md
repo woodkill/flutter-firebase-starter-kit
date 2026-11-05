@@ -1695,15 +1695,19 @@ fvm dart run flutter_native_splash:create
 
 ### 단계
 
-**① 언어별 이름을 넣는다.**
-- 그 언어 ARB(예: `lib/l10n/app_ko.arb`)에 `"appTitle": "<그 언어 이름>"` 한 줄을 더한다.
-- 이름이 기본 이름과 같은 언어에는 `appTitle` 을 두지 않는다.
+**① 언어별 이름을 넣는다 — 위저드 「언어별 앱 이름」 단계가 묻는다.**
+- `./setup.sh --flavor dev` 의 「언어별 앱 이름」 단계가 영어 아닌 ARB(`lib/l10n/app_ko.arb` · `app_ja.arb` · 더한 언어) 마다 이름을 묻는다([위저드 실행](setup.md#위저드-실행)).
+  - 기본 이름 그대로 쓰려면 Enter 를 누른다 — 위저드가 그 언어 ARB 의 `appTitle` 에 같은 값을 쓰고 홈 화면 이름은 기본 이름 그대로다.
+  - 접미사 없는 이름을 입력한다 — 접미사는 아래 규칙대로 빌드가 붙인다.
+  - 위저드가 ARB 를 쓴 뒤 다음 `fvm flutter pub get` · 빌드가 `lib/l10n/generated/` 를 다시 만든다 — 그 변경도 함께 커밋한다(위저드 실행의 끝 요약에는 아직 보이지 않는다).
 - config `appName` 이 ` Dev` · ` Stg` 로 끝나면(위저드 제안값 그대로면 그렇다) 모든 언어 이름 뒤에 같은 접미사가 붙는다.
   - 표시 이름에서 접미사를 지웠으면 붙지 않는다. 앱 안 제목도 같은 규칙을 따른다.
 - prod 표시 이름에는 접미사가 없어 언어 이름에도 붙지 않는다.
+- 뒤에 이름을 바꾸려면 그 언어 ARB 의 `appTitle` 값을 고친 뒤 `fvm flutter gen-l10n` 을 실행한다.
+  - 값이 있는 언어는 위저드가 다시 묻지 않는다.
 - 영어 이름(기본 이름)을 바꾸려면 있는 flavor 모두의 config `appName` · xcconfig `DISPLAY_NAME` 을 새 기본 이름으로 고친 뒤 `./setup.sh --flavor dev` 를 실행한다.
   - 접미사는 그대로 둔다(예: `config/dev.json` 의 `"appName": "<새 이름> Dev"` · `ios/Flutter/dev.xcconfig` 의 `DISPLAY_NAME = <새 이름> Dev`).
-  - 위저드 「앱 정체성」 이 영어 `appTitle` 을 새 기본 이름으로 맞춘다. 표시 이름이 정해진 뒤에는 위저드가 이름을 묻지 않으므로 파일을 먼저 고친다.
+  - 위저드 「앱 정체성」 이 영어 `appTitle` 과, 옛 기본 이름과 같은 다른 언어 `appTitle` 을 새 기본 이름으로 맞춘다 — 표시 이름이 정해진 뒤에는 위저드가 이름을 묻지 않으므로 파일을 먼저 고친다.
 - 이름을 넣은 뒤 생성 문구 파일을 다시 만든다.
 
   ```bash
@@ -1711,7 +1715,7 @@ fvm dart run flutter_native_splash:create
   ```
 
 - 한국어 이름을 넣으면 홈 화면 golden 2장이 AppBar 제목만큼 바뀐다.
-  - 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고, 아래 명령으로 다시 만든다.
+  - 위저드가 단계 직후와 끝 요약에 아래 명령을 안내한다 — 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고 다시 만든다.
 
   ```bash
   fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
@@ -1720,7 +1724,7 @@ fvm dart run flutter_native_splash:create
 **② 새 언어를 더한다.**
 - `lib/l10n/app_<언어 코드>.arb` 를 `"@@locale": "<언어 코드>"` 와 함께 만들고 그 언어로 옮긴 문구를 넣는다.
   - 옮기지 않은 키는 영어 문구로 보인다. `fvm flutter gen-l10n` 이 그 수를 `untranslated message(s)` 로 알린다.
-- 이름이 기본 이름과 다르면 그 ARB 에 `appTitle` 도 넣는다(①).
+- `./setup.sh --flavor dev` 를 다시 실행하면 「언어별 앱 이름」 단계가 그 언어 이름을 묻는다(①).
 - `lib/core/l10n/locale_display_names.dart` 의 `kLocaleEndonyms` 에 그 언어로 쓴 언어 이름을 더한다(예: `'fr': 'Français'`).
   - 설정 화면의 언어 선택창이 이 이름을 보인다.
 - 생성 문구 파일을 다시 만든다.
@@ -1781,13 +1785,14 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
   - 오류는 `<무엇이 틀렸나> — <파일> — <고칠 방법>` 순서다(예: `ARB 의 appTitle 가 비어 있다`).
   - 그 파일의 JSON 문법 · `appTitle` 값(빈 값 · 문자열 아님 · 앞뒤 공백이나 이어진 공백) · 파일 이름 꼴 `app_<언어>[_<문자 체계>][_<지역>].arb` 을 오류의 고칠 방법대로 고친다.
 - **`fvm flutter gen-l10n` 이 `"ja": 1 untranslated message(s).` 를 낸다.**
-  - 이름이 기본 이름과 같아 `appTitle` 을 두지 않은 언어의 알림이다. 그대로 둬도 된다.
+  - 위저드 「언어별 앱 이름」 단계를 거치지 않고 손으로 더한 언어의 알림이다 — `./setup.sh --flavor dev` 를 다시 실행해 이름을 넣으면 사라지고, 그대로 둬도 된다.
 - **홈 화면 이름이 그대로다.**
   - 기기가 옛 이름을 기억하고 있다. 앱을 지우고 다시 설치한다.
 
 ### 되돌리기
 
 - 언어별 이름은 그 ARB 의 `appTitle` 줄을 지우고 `fvm flutter gen-l10n` 한 뒤 다시 빌드한다.
+  - 위저드를 다시 실행하면 그 언어 이름을 다시 묻는다.
 - 더한 언어는 그 ARB 파일 · `lib/l10n/generated/app_localizations_<언어 코드>.dart` · `kLocaleEndonyms` 항목을 지우고 `fvm flutter gen-l10n` 한 뒤, 언어 선택창 golden 2장을 ② 의 명령으로 다시 만든다.
 
 ## 인증 메일 발송 모드 켜고 끄기
@@ -3298,7 +3303,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 14 | `flutter_native_splash.yaml` · `assets/images/splash/logo.png` · `logo_dark.png` | 스플래시 색 · 로고 | 낮음 | 내 값 · `fvm dart run flutter_native_splash:create` 로 다시 만든다 |
 | 15 | 스플래시 생성물(`android/app/src/main/res/drawable*/launch_background.xml` · `values*/styles.xml` · `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Base.lproj/LaunchScreen.storyboard`) | 14 를 다시 만든 결과 | 낮음 | 다시 만들어 덮어쓴다 |
 | 16 | 앱 아이콘(`android/app/src/main/res/mipmap-*/ic_launcher.png` · `ios/Runner/Assets.xcassets/AppIcon.appiconset/`) | 내 아이콘 | 낮음 | 내 파일(`git checkout --ours -- <파일>`) |
-| 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 · 언어별 앱 이름(`appTitle` — 영어 값은 위저드가 기본 이름으로 쓴다) | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
+| 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 · 언어별 앱 이름(`appTitle` — 영어 값은 앱 정체성이 · 다른 언어 값은 언어별 앱 이름 단계가 쓴다) | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
 | 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 데모 파일은 규칙 1(`git rm`) · 고친 테스트는 「데모를 지웠다면」 규칙 3 대로 충돌 블록을 푼다 |
