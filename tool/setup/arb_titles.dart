@@ -13,6 +13,7 @@ import '../launcher_names.dart'
         localeFromArbFileName,
         readL10nConfig;
 import 'config_files.dart';
+import 'git_tree.dart' show normalizeRepoPath;
 
 /// template(영어) 밖 ARB 파일 하나 — locale 과 두 경로.
 final class LocalizedArb {
@@ -23,6 +24,8 @@ final class LocalizedArb {
   final String locale;
 
   /// 프로젝트 루트 기준 경로(`lib/l10n/app_ko.arb`) — 화면 문구에 쓴다.
+  ///
+  /// `arb-dir` 앞의 `./` 는 떼어 git 이 보이는 경로와 같은 꼴이다.
   final String relativePath;
 
   /// 읽기 · 쓰기에 쓰는 절대 경로.
@@ -45,7 +48,7 @@ List<LocalizedArb> listLocalizedArbs(String projectRoot) {
             config.arbFilePrefix,
             config.arbDir,
           ),
-          '${config.arbDir}/${file.uri.pathSegments.last}',
+          normalizeRepoPath('${config.arbDir}/${file.uri.pathSegments.last}'),
           file.path,
         ),
   ];

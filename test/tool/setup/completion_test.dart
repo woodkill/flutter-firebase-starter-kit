@@ -43,19 +43,21 @@ void writeSummaryFixtureFile(String root, String relativePath, String content) {
 
 /// 끝 요약 fixture 를 [root] 에 쓴다 — Gradle 파일은 두지 않는다.
 ///
-/// `l10n.yaml` · 영어 ARB(`appTitle` = [englishTitle]) · ja ARB · `appTitle` 이
-/// [koTitle] 인 ko ARB(null 이면 키 없음)를 두고, [withGoldenTest] 가 true 면 홈
-/// 화면 golden 시험 파일(빈 파일)을 둔다.
+/// `arb-dir` 이 [arbDir] 인 `l10n.yaml` · 영어 ARB(`appTitle` = [englishTitle]) ·
+/// ja ARB · `appTitle` 이 [koTitle] 인 ko ARB(null 이면 키 없음)를 두고,
+/// [withGoldenTest] 가 true 면 홈 화면 golden 시험 파일(빈 파일)을 둔다. ARB
+/// 파일은 언제나 `lib/l10n/` 아래에 둔다.
 void writeCompletionFixture(
   String root, {
   String? koTitle = '마이앱',
   String englishTitle = 'My App',
+  String arbDir = 'lib/l10n',
   bool withGoldenTest = true,
 }) {
   writeSummaryFixtureFile(
     root,
     'l10n.yaml',
-    'arb-dir: lib/l10n\ntemplate-arb-file: app_en.arb\n',
+    'arb-dir: $arbDir\ntemplate-arb-file: app_en.arb\n',
   );
   writeSummaryFixtureFile(
     root,
@@ -315,4 +317,29 @@ void main() {
       ]),
     );
   });
+  test(
+    'T-23-SUM-06 l10n.yaml 의 arb-dir 이 ./ 로 시작해도 ko ARB 변경을 알아보고 golden 안내 한 줄',
+    () async {
+      writeCompletionFixture(root, arbDir: './lib/l10n');
+      final FakeCommandRunner runner = buildStatusRunner(
+        ' M lib/l10n/app_ko.arb\n',
+      );
+      final terminal = ScriptedTerminal(const <String?>[]);
+
+      await showCompletionSummary(
+        buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+      );
+
+      expect(
+        terminal.output.toString(),
+        joinOutputLines(<String>[
+          '',
+          providersHintLine,
+          ...buildCommitHintLines(summaryKoArbPath),
+          '',
+          goldenSummaryLine,
+        ]),
+      );
+    },
+  );
 }

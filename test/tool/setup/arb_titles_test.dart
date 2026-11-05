@@ -80,6 +80,22 @@ void main() {
       expect(File(arbs.last.absolutePath).existsSync(), isTrue);
     });
 
+    test('T-23-ARB-01: arb-dir 앞의 ./ 는 상대 경로에서 뗀다', () {
+      writeArbTree(tree.path, <String>['en', 'ko']);
+      writeTreeFile(
+        tree.path,
+        'l10n.yaml',
+        'arb-dir: ./lib/l10n\ntemplate-arb-file: app_en.arb\n',
+      );
+
+      expect(
+        listLocalizedArbs(
+          tree.path,
+        ).map((LocalizedArb arb) => arb.relativePath),
+        <String>[koArbPath],
+      );
+    });
+
     test('T-23-ARB-01: 영어 ARB 만 있으면 빈 목록', () {
       writeArbTree(tree.path, <String>['en']);
 

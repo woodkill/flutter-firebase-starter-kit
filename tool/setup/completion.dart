@@ -103,7 +103,7 @@ Future<void> _writeGoldenHint(
 }
 
 /// ko 실효 제목을 정하는 두 ARB — [AppNamesStep.goldenLocale] ARB 와 영어
-/// (template) ARB — 의 저장소 상대 경로.
+/// (template) ARB — 의 저장소 상대 경로(git 출력과 같은 꼴).
 ///
 /// ko ARB 가 없거나 목록을 읽지 못하면 빈 목록이다.
 List<String> _findGoldenTitleArbPaths(WizardContext context) {
@@ -111,7 +111,10 @@ List<String> _findGoldenTitleArbPaths(WizardContext context) {
     final L10nConfig config = readL10nConfig(context.projectRoot);
     for (final LocalizedArb arb in listLocalizedArbs(context.projectRoot)) {
       if (arb.locale == AppNamesStep.goldenLocale) {
-        return <String>[arb.relativePath, config.templatePath];
+        return <String>[
+          arb.relativePath,
+          normalizeRepoPath(config.templatePath),
+        ];
       }
     }
   } on GeneratorException {
