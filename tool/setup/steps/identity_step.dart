@@ -22,7 +22,8 @@ import 'configure_step.dart';
 /// 에 위저드가 직접 쓰고, 영어 ARB([arbPath])의 `appTitle` 에는 그 flavor
 /// 접미사를 뗀 기본 이름을 쓴다(빌드의 홈 화면 이름 생성기와 같은 규칙). 앱 ID 가
 /// 이미 바뀐 저장소에서 사용자 xcconfig 에 남은 킷 번들 ID 는 묻지 않고 앱 ID 에
-/// 맞춘다.
+/// 맞춘다. 표시 이름이 이미 정해졌는데 영어 ARB `appTitle` 만 그 기본 이름과
+/// 다르면 묻지 않고 ARB 를 맞춘다.
 ///
 /// 경로 · 표시 이름 접미사는 고른 flavor 를 따른다. 앱 ID 는 flavor 가 함께
 /// 쓰므로 이름 바꾸기는 모든 flavor 를 바꾸지만, 표시 이름은 그 flavor 의
@@ -118,6 +119,9 @@ final class IdentityStep implements Step {
   String _reason = '';
   String _applicationId = '';
 
+  /// 직전 검사가 읽은 표시 이름의 기본 이름(flavor 접미사를 뗀 config 값).
+  String _baseName = '';
+
   /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 줄 변경.
   List<rename.FileChange> _xcconfigResidue = const <rename.FileChange>[];
 
@@ -131,7 +135,8 @@ final class IdentityStep implements Step {
   List<String> get dependsOn => const <String>['user_files'];
 
   // 확인 표는 org · name 부터 진행하는 모드에서만 보인다 — 표시 이름만 쓰는
-  // 모드 · 번들 ID 만 맞추는 모드 · 실패 전용 모드에는 안내가 붙지 않는다.
+  // 모드 · 번들 ID 만 맞추는 모드 · 영어 ARB 만 맞추는 모드 · 실패 전용 모드에는
+  // 안내가 붙지 않는다.
   @override
   bool get isCostlyOrIrreversible => _mode == _IdentityMode.full;
 
@@ -171,6 +176,24 @@ final class IdentityStep implements Step {
     if (_isDisplayNameDefault(context)) {
       _mode = _IdentityMode.displayNameOnly;
       _reason = '표시 이름이 킷 기본값입니다';
+      return Todo(_reason);
+    }
+    // 표시 이름이 기본값이 아니면 config appName 은 이미 읽힌 값이다.
+    final String appName =
+        readJsonString(context.resolve(context.paths.json), 'appName') ?? '';
+    _baseName = stripFlavorSuffix(appName, context.flavor.displayNameSuffix);
+    if (_baseName.trim().isEmpty) {
+      // 기본 이름이 비면 영어 ARB 에 쓸 값이 없다 — 표시 이름을 다시 묻는다.
+      _mode = _IdentityMode.displayNameOnly;
+      _reason =
+          '${context.paths.json} 의 appName("$appName")에서 flavor 접미사를 빼면 '
+          '빈 이름입니다';
+      return Todo(_reason);
+    }
+    final String? titleMismatch = _findArbTitleMismatch(context, _baseName);
+    if (titleMismatch != null) {
+      _mode = _IdentityMode.titleOnly;
+      _reason = titleMismatch;
       return Todo(_reason);
     }
     if (_xcconfigResidue.isNotEmpty) {
@@ -214,6 +237,7 @@ final class IdentityStep implements Step {
         ...displayNameLines,
       ],
       _IdentityMode.bundleIdOnly => bundleIdLines,
+      _IdentityMode.titleOnly => <String>[...bundleIdLines, arbLine],
       _IdentityMode.unreadable ||
       _IdentityMode.inconsistent ||
       _IdentityMode.done => const <String>[],
@@ -228,6 +252,7 @@ final class IdentityStep implements Step {
         _IdentityMode.full => await _applyFull(context),
         _IdentityMode.displayNameOnly => _applyDisplayNameOnly(context),
         _IdentityMode.bundleIdOnly => _applyBundleIdOnly(),
+        _IdentityMode.titleOnly => _applyTitleOnly(context),
         _IdentityMode.unreadable ||
         _IdentityMode.inconsistent => Failed(_reason),
         _IdentityMode.done => const Applied(),
@@ -382,6 +407,18 @@ final class IdentityStep implements Step {
     return const Applied();
   }
 
+  /// 영어 ARB `appTitle` 을 직전 검사가 읽은 기본 이름에 맞춘다 — 묻지 않는다.
+  ///
+  /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 도 함께 맞춘다. ARB 에
+  /// `appTitle` 문자열 값이 없으면 어느 파일도 바꾸지 않고 실패한다.
+  StepOutcome _applyTitleOnly(WizardContext context) {
+    final String? missingTitle = _findMissingArbTitle(context);
+    if (missingTitle != null) return Failed(missingTitle);
+    rename.applyChanges(_xcconfigResidue);
+    _writeArbTitle(context, _baseName);
+    return const Applied();
+  }
+
   /// [value] 가 표시 이름 규칙(앞뒤 공백을 뗀 뒤 영문 · 숫자 · 공백, 빈 값 아님)에 맞는지 본다.
   static bool isValidDisplayName(String value) {
     final String trimmed = value.trim();
@@ -503,6 +540,22 @@ final class IdentityStep implements Step {
       return '${paths.xcconfig} 에 DISPLAY_NAME 이 없습니다';
     }
     return _findMissingArbTitle(context);
+  }
+
+  /// 영어 ARB `appTitle` 이 [baseName] 과 다르면 두 값을 적은 사유를 돌려준다 —
+  /// 같으면 null.
+  ///
+  /// ARB 파일이나 `appTitle` 문자열 값이 없으면 그 사실을 사유로 돌려준다.
+  static String? _findArbTitleMismatch(WizardContext context, String baseName) {
+    final String? missingTitle = _findMissingArbTitle(context);
+    if (missingTitle != null) return missingTitle;
+    final String? arbTitle = readJsonString(
+      context.resolve(arbPath),
+      'appTitle',
+    );
+    if (arbTitle == baseName) return null;
+    return '$arbPath 의 appTitle("$arbTitle")이 표시 이름의 '
+        '기본 이름("$baseName")과 다릅니다';
   }
 
   /// 영어 ARB 에 `appTitle` 문자열 값이 없으면 그 사유를 돌려준다 — 있으면 null.
@@ -674,6 +727,11 @@ enum _IdentityMode {
 
   /// 앱 ID · 표시 이름은 바뀌었고 사용자 xcconfig 의 번들 ID 만 킷 값.
   bundleIdOnly,
+
+  /// 앱 ID · 표시 이름은 정해졌고 영어 ARB `appTitle` 만 표시 이름의 기본 이름과
+  /// 다름 — 묻지 않고 ARB 를 맞추고, 사용자 xcconfig 의 킷 번들 ID 가 남았으면
+  /// 함께 맞춘다.
+  titleOnly,
 
   /// Gradle 파일에서 앱 ID 를 읽지 못함.
   unreadable,

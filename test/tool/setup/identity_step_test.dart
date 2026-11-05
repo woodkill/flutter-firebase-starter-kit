@@ -1216,6 +1216,206 @@ void main() {
     });
   });
 
+  group('T-22-ID-04 ~ 08 앱 ID · 표시 이름은 정해졌고 영어 ARB appTitle 만 다를 때', () {
+    const renamedId = 'com.acme.my_app';
+    const settledDisplayName = 'My App Dev';
+    const settledBaseName = 'My App';
+
+    /// 앱 ID · 표시 이름이 정해진 저장소를 만든다 — 영어 ARB `appTitle` 은
+    /// [appTitle] 이고, [isBundleIdRenamed] 가 false 면 사용자 xcconfig 번들 ID 는
+    /// example 의 킷 값 그대로다.
+    void writeSettledFixture({
+      required String appTitle,
+      bool isBundleIdRenamed = true,
+    }) {
+      writeIdentityFixture(root, applicationId: renamedId, appTitle: appTitle);
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        settledDisplayName,
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        settledDisplayName,
+      );
+      if (isBundleIdRenamed) {
+        replaceXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'PRODUCT_BUNDLE_IDENTIFIER',
+          'com.acme.myApp.dev',
+        );
+      }
+    }
+
+    /// [inputs] 로 답하는 문맥과 단언에 쓸 실행기 · 터미널을 만든다.
+    ({
+      WizardContext context,
+      FakeCommandRunner runner,
+      ScriptedTerminal terminal,
+    })
+    buildSettledContext([List<String?> inputs = const <String?>[]]) {
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(inputs);
+      return (
+        context: buildTestContext(
+          projectRoot: root,
+          runner: runner,
+          terminal: terminal,
+        ),
+        runner: runner,
+        terminal: terminal,
+      );
+    }
+
+    String? readArbTitle() =>
+        readJsonString('$root/$fixtureArbPath', 'appTitle');
+
+    test('T-22-ID-04 검사는 두 값을 적은 Todo 이고 실행은 묻지 않고 영어 ARB 만 맞춘 뒤 ✓', () async {
+      writeSettledFixture(appTitle: fixtureKitAppTitle);
+      final userFilesBefore = <String, List<int>>{
+        for (final String path in <String>[
+          UserFilesStep.jsonUserPath,
+          UserFilesStep.xcconfigUserPath,
+        ])
+          path: File('$root/$path').readAsBytesSync(),
+      };
+      final settled = buildSettledContext();
+      final step = IdentityStep();
+
+      final CheckResult before = await step.check(settled.context);
+
+      expect(
+        before,
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          allOf(
+            contains(fixtureArbPath),
+            contains('"$fixtureKitAppTitle"'),
+            contains('"$settledBaseName"'),
+          ),
+        ),
+      );
+      expect(step.isCostlyOrIrreversible, isFalse);
+
+      final StepOutcome outcome = await step.apply(settled.context);
+
+      expect(outcome, isA<Applied>());
+      expect(settled.terminal.asks, isEmpty);
+      expect(settled.runner.calls, isEmpty);
+      expect(readArbTitle(), settledBaseName);
+      for (final MapEntry<String, List<int>> entry in userFilesBefore.entries) {
+        expect(
+          File('$root/${entry.key}').readAsBytesSync(),
+          entry.value,
+          reason: entry.key,
+        );
+      }
+      expect(await step.check(settled.context), isA<Done>());
+    });
+
+    for (final (String appTitle, bool isDone) in <(String, bool)>[
+      (settledBaseName, true),
+      ('My Apq', false),
+    ]) {
+      test('T-22-ID-05 영어 ARB appTitle 이 $appTitle 이면 '
+          '${isDone ? '✓' : '✗'}', () async {
+        writeSettledFixture(appTitle: appTitle);
+
+        final CheckResult result = await IdentityStep().check(
+          buildSettledContext().context,
+        );
+
+        expect(
+          result,
+          isDone
+              ? isA<Done>()
+              : isA<Todo>().having(
+                  (Todo todo) => todo.reason,
+                  'reason',
+                  contains('"$appTitle"'),
+                ),
+        );
+      });
+    }
+
+    test(
+      'T-22-ID-06 사용자 xcconfig 의 킷 번들 ID 도 남았으면 한 번의 실행으로 둘 다 맞춘다',
+      () async {
+        writeSettledFixture(
+          appTitle: fixtureKitAppTitle,
+          isBundleIdRenamed: false,
+        );
+        String? readBundleId() => readXcconfigValue(
+          '$root/${UserFilesStep.xcconfigUserPath}',
+          'PRODUCT_BUNDLE_IDENTIFIER',
+        );
+        // 전제: 번들 ID 는 킷 값이다.
+        expect(readBundleId(), '${rename.currentIosBundleId}.dev');
+        final settled = buildSettledContext();
+        final step = IdentityStep();
+
+        expect(await step.check(settled.context), isA<Todo>());
+        expect(await step.apply(settled.context), isA<Applied>());
+
+        expect(settled.terminal.asks, isEmpty);
+        expect(readBundleId(), 'com.acme.myApp.dev');
+        expect(readArbTitle(), settledBaseName);
+        expect(await step.check(settled.context), isA<Done>());
+      },
+    );
+
+    test('T-22-ID-07 계획 줄은 남은 번들 ID 줄과 영어 ARB 줄 하나다', () async {
+      final step = IdentityStep();
+      final WizardContext context = buildSettledContext().context;
+
+      writeSettledFixture(appTitle: fixtureKitAppTitle);
+      await step.check(context);
+      expect(step.plannedCommandLines(context), <String>[arbPlanLine]);
+
+      writeSettledFixture(
+        appTitle: fixtureKitAppTitle,
+        isBundleIdRenamed: false,
+      );
+      await step.check(context);
+      expect(step.plannedCommandLines(context), <String>[
+        '(${UserFilesStep.xcconfigUserPath} 의 PRODUCT_BUNDLE_IDENTIFIER 를 앱 ID 에 맞춤)',
+        arbPlanLine,
+      ]);
+    });
+
+    test('T-22-ID-08 config 표시 이름이 flavor 접미사뿐이면 빈 영어 이름을 쓰지 않고 '
+        '표시 이름을 다시 묻는다', () async {
+      writeSettledFixture(appTitle: fixtureKitAppTitle);
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        Flavor.dev.displayNameSuffix,
+      );
+      final settled = buildSettledContext(const <String?>['Acme Studio Dev']);
+      final step = IdentityStep();
+
+      expect(
+        await step.check(settled.context),
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          contains(UserFilesStep.jsonUserPath),
+        ),
+      );
+      expect(await step.apply(settled.context), isA<Applied>());
+
+      expect(settled.terminal.asks, <String>[IdentityStep.displayNameQuestion]);
+      expect(
+        readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+        'Acme Studio Dev',
+      );
+      expect(readArbTitle(), 'Acme Studio');
+      expect(await step.check(settled.context), isA<Done>());
+    });
+  });
+
   test('buildDevSteps 는 Xcode 준비 → 개발 도구 → 사용자 설정 파일 → 앱 정체성 순서로 시작한다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
