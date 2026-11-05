@@ -9,6 +9,11 @@
 // 서로 다르면 위저드 「앱 정체성」 단계 전에 빌드한 앱의 Android · iOS 런처 이름이
 // 갈린다.
 //
+// 다른 언어의 홈 화면 이름은 ARB `appTitle` 에서 빌드 때 만든다. 「홈 화면 이름 생성
+// 배선」 group 은 Gradle 생성 task · Xcode Run Script 단계가 저장소 루트의
+// `tool/launcher_names.dart` 를 부르는 연결과, 정적 설정 파일에 언어 목록 · 언어별
+// 이름을 적지 않는다는 약속을 잠근다 — 언어를 더할 때 바뀌는 파일은 ARB 하나다.
+//
 // 주석을 걷어낸 뒤 본다 — 설명 주석이 값 문자열을 언급하면 단언이 공허하게 참이
 // 되기 때문이다(`test/helpers/source_text.dart` 머리 주석).
 
@@ -38,6 +43,36 @@ RegExp plistStringPattern(String key, String value) => RegExp(
   '<key>${RegExp.escape(key)}</key>\\s*'
   '<string>${RegExp.escape(value)}</string>',
 );
+
+/// 행 주석 · 블록 주석을 걷어낸 Android 앱 모듈 Gradle 빌드 파일을 읽는다.
+String _readGradleCode() =>
+    stripBlockComments(stripSlashComments(readTrackedFile(_gradlePath)));
+
+/// [source] 에서 [opener](여는 괄호로 끝나는 호출 머리)부터 짝이 맞는 닫는 괄호
+/// 앞까지의 인자 원문을 돌려준다.
+///
+/// 인자 안에 `get()` 같은 괄호가 있어도 짝을 세어 호출 전체를 읽는다. [opener] 가
+/// 없거나 괄호 짝이 맞지 않으면 빈 문자열이다(호출자가 양성 대조를 먼저 세운다).
+String _readCallArguments(String source, String opener) {
+  final int start = source.indexOf(opener);
+  if (start == -1) {
+    return '';
+  }
+  final int argumentStart = start + opener.length;
+  var depth = 1;
+  for (var i = argumentStart; i < source.length; i++) {
+    final String char = source[i];
+    if (char == '(') {
+      depth++;
+    } else if (char == ')') {
+      depth--;
+      if (depth == 0) {
+        return source.substring(argumentStart, i);
+      }
+    }
+  }
+  return '';
+}
 
 void main() {
   group('홈 화면 런처 이름 배선', () {
@@ -179,6 +214,190 @@ void main() {
           displayName,
           appName,
           reason: '$flavor 예시의 DISPLAY_NAME 과 appName 이 다르면 런처 이름이 갈린다',
+        );
+      }
+    });
+  });
+
+  group('홈 화면 이름 생성 배선', () {
+    test(
+      'T-22-WIRE-01: Gradle 생성 task 가 Flutter SDK dart 로 생성기 android 모드를 부르고 결과를 생성 res 로 붙인다',
+      () {
+        final String gradle = _readGradleCode();
+        for (final token in <String>[
+          'abstract class GenerateLauncherNamesTask',
+          'onVariants',
+          'addGeneratedSourceDirectory(',
+          '"../tool/launcher_names.dart"',
+          '"../l10n.yaml"',
+          '"../lib/l10n"',
+          '@get:OutputDirectory',
+        ]) {
+          expect(
+            countOccurrences(gradle, token),
+            1,
+            reason: 'Gradle 에 $token 이 정확히 1번 있어야 한다',
+          );
+        }
+        for (final token in <String>[
+          'ExecOperations',
+          'flutter.sdk',
+          '/bin/dart',
+        ]) {
+          expect(
+            countOccurrences(gradle, token),
+            greaterThanOrEqualTo(1),
+            reason: 'Gradle 에 $token 이 있어야 한다',
+          );
+        }
+        expect(
+          RegExp(r'getProperty\(\s*"flutter\.sdk"\s*\)').hasMatch(gradle),
+          isTrue,
+          reason: 'dart 경로는 local.properties 의 flutter.sdk 에서 읽어야 한다',
+        );
+        expect(
+          RegExp(
+            r'addGeneratedSourceDirectory\(\s*task,\s*'
+            r'GenerateLauncherNamesTask::outputDirectory\s*\)',
+          ).hasMatch(gradle),
+          isTrue,
+          reason: '생성 task 의 출력 디렉터리를 variant 의 생성 res 로 붙여야 한다',
+        );
+        expect(
+          RegExp(
+            r'commandLine\(\s*dartExecutable\.get\(\),\s*'
+            r'generator\.get\(\)\.asFile\.absolutePath,\s*"android",',
+          ).hasMatch(gradle),
+          isTrue,
+          reason: '생성기 경로 바로 뒤 첫 인자는 "android" 여야 한다',
+        );
+      },
+    );
+
+    test('T-22-WIRE-02: 생성기는 dart run 이 아니라 주입한 ExecOperations 로 바로 실행한다', () {
+      final String gradle = _readGradleCode();
+      // 양성 대조 — 실행 호출이 각각 1곳에 있다.
+      expect(countOccurrences(gradle, 'commandLine('), 1);
+      expect(countOccurrences(gradle, 'execOperations.exec'), 1);
+      final String arguments = _readCallArguments(gradle, 'commandLine(');
+      expect(
+        countOccurrences(arguments, '"android"'),
+        1,
+        reason: '명령 인자 전체를 읽어야 한다(양성 대조)',
+      );
+
+      expect(
+        RegExp(r'commandLine\([^)]*"run"').hasMatch(gradle),
+        isFalse,
+        reason: 'dart run 은 빌드 중 패키지 해석을 끼워 넣는다',
+      );
+      expect(
+        countOccurrences(arguments, '"run"'),
+        0,
+        reason: '명령 인자 어디에도 "run" 이 없어야 한다',
+      );
+      expect(
+        countOccurrences(gradle, 'project.exec'),
+        0,
+        reason: 'Gradle 9 에서 없어진 project.exec 대신 ExecOperations 를 쓴다',
+      );
+    });
+
+    test('T-22-WIRE-03: 파일 머리에서 import 한 Java 클래스를 본문은 짧은 이름으로만 쓴다', () {
+      final String gradle = _readGradleCode();
+      expect(
+        countExactLines(gradle, 'import java.io.ByteArrayOutputStream'),
+        1,
+      );
+      expect(countExactLines(gradle, 'import java.util.Properties'), 1);
+
+      final String body = gradle
+          .split('\n')
+          .where((String line) => !line.startsWith('import'))
+          .join('\n');
+      // 양성 대조 — 본문이 두 클래스를 짧은 이름으로 쓴다.
+      expect(countOccurrences(body, 'ByteArrayOutputStream()'), 1);
+      expect(countOccurrences(body, 'Properties()'), greaterThanOrEqualTo(1));
+
+      expect(
+        countOccurrences(body, 'java.io.'),
+        0,
+        reason: 'Kotlin 스크립트 본문의 java.io 완전 이름은 import 로 옮긴다',
+      );
+      expect(
+        countOccurrences(body, 'java.util.Properties('),
+        0,
+        reason: 'Kotlin 스크립트 본문의 java.util.Properties 완전 이름은 import 로 옮긴다',
+      );
+    });
+
+    test('T-22-WIRE-04: dartDefines 는 android 블록보다 앞의 파일 최상위에서 만든다', () {
+      final String gradle = _readGradleCode();
+      final int definesAt = gradle.indexOf('val dartDefines');
+      final int? androidAt = RegExp(
+        r'^android\s*\{',
+        multiLine: true,
+      ).firstMatch(gradle)?.start;
+      expect(definesAt, greaterThanOrEqualTo(0));
+      expect(androidAt, isNotNull, reason: '줄 머리 android 블록이 있어야 한다');
+      expect(
+        RegExp(r'^val dartDefines\b', multiLine: true).hasMatch(gradle),
+        isTrue,
+        reason: '생성 task 등록도 읽으므로 dartDefines 는 최상위 선언이어야 한다',
+      );
+      expect(
+        definesAt < androidAt!,
+        isTrue,
+        reason: 'dartDefines 는 android 블록보다 앞에 있어야 한다',
+      );
+    });
+
+    test('T-22-WIRE-05: Android 13 앱별 언어 설정 키는 Gradle · manifest 에 두지 않는다', () {
+      // 이 시험 소스가 두 낱말을 그대로 담지 않게 조각을 잇는다.
+      final perAppLocaleKeys = <String>[
+        '${'locale'}Config',
+        'generate${'Locale'}Config',
+      ];
+      final String gradle = _readGradleCode();
+      final String manifest = stripXmlComments(readTrackedFile(_manifestPath));
+      // 양성 대조 — 두 파일에서 같은 API 가 기존 설정을 잡는다.
+      expect(countOccurrences(gradle, 'resValues = true'), 1);
+      expect(
+        countOccurrences(manifest, 'android:label='),
+        greaterThanOrEqualTo(1),
+      );
+
+      for (final key in perAppLocaleKeys) {
+        expect(
+          countOccurrences(gradle, key),
+          0,
+          reason: 'Gradle 에 $key 가 없어야 한다',
+        );
+        expect(
+          countOccurrences(manifest, key),
+          0,
+          reason: 'manifest 에 $key 가 없어야 한다',
+        );
+      }
+    });
+
+    test('T-22-WIRE-06: 정적 Info.plist 는 언어 목록을 적지 않고 SDK 표시 이름은 기본 이름 하나다', () {
+      final String plist = stripXmlComments(readTrackedFile(_infoPlistPath));
+      // 양성 대조 — 같은 꼴의 키를 같은 API 가 잡는다.
+      expect(countOccurrences(plist, '<key>CFBundleDisplayName</key>'), 1);
+      expect(
+        countOccurrences(plist, '<key>CFBundleLocalizations</key>'),
+        0,
+        reason: '지원 언어 목록은 빌드된 Info.plist 에만 넣는다',
+      );
+      expect(countOccurrences(plist, 'CFBundleLocalizations'), 0);
+
+      for (final key in <String>['FacebookDisplayName', 'NidAppName']) {
+        expect(countOccurrences(plist, '<key>$key</key>'), 1);
+        expect(
+          plistStringPattern(key, r'$(DISPLAY_NAME)').hasMatch(plist),
+          isTrue,
+          reason: '$key 는 flavor xcconfig 의 DISPLAY_NAME 하나여야 한다',
         );
       }
     });
