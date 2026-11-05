@@ -451,6 +451,11 @@ void _writeSixProviderFixture(String root, _Values values) {
           'DISPLAY_NAME = $displayName',
         ),
   );
+  writeFixture(
+    root,
+    'l10n.yaml',
+    'arb-dir: lib/l10n\ntemplate-arb-file: app_en.arb\n',
+  );
   // 앱 정체성이 표시 이름과 함께 쓴 영어 ARB — 시험 상수 본문.
   writeFixture(
     root,

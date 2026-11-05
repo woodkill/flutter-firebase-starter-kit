@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 import '../../../bin/rename.dart' as rename;
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/config_files.dart';
+import '../../../tool/setup/confirm.dart' show summaryConfirmQuestion;
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
 import '../../../tool/setup/redactor.dart';
@@ -1703,6 +1704,154 @@ void main() {
           ),
         );
       });
+    });
+
+    test('T-23-ID-07 영어 ARB 만 맞출 때 다른 언어 복사본 갱신은 아무것도 묻지 않는다', () async {
+      writeSettledFixture(
+        appTitle: fixtureKitAppTitle,
+        localizedTitles: const <String, String?>{
+          'ja': fixtureKitAppTitle,
+          'ko': fixtureKitAppTitle,
+        },
+      );
+      final settled = buildSettledContext();
+      final step = IdentityStep();
+
+      await step.check(settled.context);
+      expect(step.plannedCommandLines(settled.context), <String>[
+        arbPlanLine,
+        '(lib/l10n/app_ja.arb · app_ko.arb 의 appTitle 도 옛 기본 이름과 같아 새 이름으로 바꿈)',
+      ]);
+      expect(await step.apply(settled.context), isA<Applied>());
+
+      expect(settled.terminal.asks, isEmpty);
+      for (final path in <String>[fixtureJaArbPath, fixtureKoArbPath]) {
+        expect(
+          readJsonString('$root/$path', 'appTitle'),
+          settledBaseName,
+          reason: path,
+        );
+      }
+      expect(await step.check(settled.context), isA<Done>());
+    });
+  });
+
+  group('T-23-ID-04 ~ 06 org · name 부터 · 표시 이름 다시 쓰기도 다른 언어 복사본을 바꾼다', () {
+    /// 영어 · [paths] ARB 의 `appTitle` 을 읽는다.
+    List<String?> readTitles(List<String> paths) => <String?>[
+      for (final String path in paths)
+        readJsonString('$root/$path', 'appTitle'),
+    ];
+
+    test('T-23-ID-04 org · name 부터 진행하면 영어 · ko · ja 가 모두 새 기본 이름이 되고 '
+        '추가 질문이 없다', () async {
+      writeIdentityFixture(
+        root,
+        localizedTitles: const <String, String?>{
+          'ja': fixtureKitAppTitle,
+          'ko': fixtureKitAppTitle,
+        },
+      );
+      final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+      final terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      expect(code, wizardExitDone);
+      expect(
+        terminal.output.toString(),
+        contains(
+          '(lib/l10n/app_ja.arb · app_ko.arb 의 appTitle 도 옛 기본 이름과 같아 새 이름으로 바꿈)',
+        ),
+      );
+      // 입력 다섯 개에 질문 다섯 개 — 복사본 갱신에 따로 묻는 것이 없다.
+      expect(terminal.asks, <String>[
+        stepConfirmQuestion,
+        IdentityStep.orgQuestion,
+        IdentityStep.nameQuestion,
+        IdentityStep.previewChoiceQuestion,
+        summaryConfirmQuestion,
+      ]);
+      expect(
+        readTitles(<String>[
+          fixtureArbPath,
+          fixtureJaArbPath,
+          fixtureKoArbPath,
+        ]),
+        <String>['My App', 'My App', 'My App'],
+      );
+    });
+
+    test('T-23-ID-05 표시 이름만 다시 쓸 때도 영어 값과 같은 ko appTitle 을 함께 바꾼다', () async {
+      writeIdentityFixture(
+        root,
+        applicationId: 'com.acme.my_app',
+        localizedTitles: const <String, String?>{'ko': fixtureKitAppTitle},
+      );
+      final runner = FakeCommandRunner();
+      final terminal = ScriptedTerminal(const <String?>['y', 'My App Dev']);
+
+      final int code = await runIdentityStep(runner, terminal);
+
+      expect(code, wizardExitDone);
+      expect(
+        terminal.output.toString(),
+        contains('(lib/l10n/app_ko.arb 의 appTitle 도 옛 기본 이름과 같아 새 이름으로 바꿈)'),
+      );
+      expect(terminal.asks, <String>[
+        stepConfirmQuestion,
+        IdentityStep.displayNameQuestion,
+      ]);
+      expect(readTitles(<String>[fixtureArbPath, fixtureKoArbPath]), <String>[
+        'My App',
+        'My App',
+      ]);
+    });
+
+    test('T-23-ID-06 org · name 부터 진행할 때 복사본 ARB 에 커밋하지 않은 변경이 있으면 '
+        '그 경로를 보이고 어느 파일도 쓰지 않는다', () async {
+      writeIdentityFixture(
+        root,
+        localizedTitles: const <String, String?>{'ko': fixtureKitAppTitle},
+      );
+      final Map<String, List<int>> before = snapshotTree(root);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        runner: FakeCommandRunner()
+          ..on(
+            _gitStatusKey,
+            const CommandResult(0, ' M lib/l10n/app_ko.arb\n', ''),
+          ),
+        terminal: ScriptedTerminal(const <String?>[
+          'com.acme',
+          'my_app',
+          '1',
+          'y',
+        ]),
+      );
+      final step = IdentityStep();
+
+      expect(await step.check(context), isA<Todo>());
+      final StepOutcome outcome = await step.apply(context);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          allOf(
+            contains('고칠 파일에 커밋하지 않은 변경이 있습니다'),
+            contains('    $fixtureKoArbPath'),
+          ),
+        ),
+      );
+      expect(snapshotTree(root), before);
     });
   });
 

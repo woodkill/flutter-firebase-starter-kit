@@ -449,10 +449,11 @@ final class IdentityStep implements Step {
       ))
         if (!configPaths.contains(change.filePath)) change,
     ];
-    final List<String> dirty = await findDirtyTrackedFiles(
-      context,
-      _listTargetPaths(context, changes),
-    );
+    // 영어 값을 따르던 다른 언어 ARB 도 함께 고치므로 같은 검사에 넣는다.
+    final List<String> dirty = await findDirtyTrackedFiles(context, <String>[
+      ..._listTargetPaths(context, changes),
+      ..._arbCopyPaths,
+    ]);
     if (dirty.isNotEmpty) {
       return Failed(
         '고칠 파일에 커밋하지 않은 변경이 있습니다 — $dirtyTreeGuidance\n'

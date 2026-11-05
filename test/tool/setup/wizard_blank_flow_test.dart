@@ -259,6 +259,7 @@ void _writeBlankFixture(_Fixture fixture) {
       'functions/src/index.ts',
       'const kitSecret = defineSecret("$declaredSecret");\n',
     )
+    ..write('l10n.yaml', 'arb-dir: lib/l10n\ntemplate-arb-file: app_en.arb\n')
     // 킷 영어 ARB(lib/l10n/app_en.arb) — appTitle 은 킷 기본 이름(시험 상수 본문).
     ..write(
       IdentityStep.arbPath,
