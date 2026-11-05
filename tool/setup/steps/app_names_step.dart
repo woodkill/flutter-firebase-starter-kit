@@ -38,6 +38,18 @@ final class AppNamesStep implements Step {
   /// 확인 표 뒤 진행 선택지.
   static const String proceedOption = '이대로 진행';
 
+  /// 입력에 공백이 이어질 때의 안내.
+  static const String repeatedWhitespaceMessage = '  낱말 사이 공백은 한 칸으로 둡니다';
+
+  /// 기본 이름도 비어 있어 입력이 빈 값일 때의 안내.
+  static const String emptyNameMessage = '  빈 이름은 쓸 수 없습니다';
+
+  /// 한 언어가 끝까지 규칙에 맞지 않아 쓰지 않았을 때의 실패 요약.
+  static const String invalidFormatFailure = '언어별 앱 이름 형식이 맞지 않아 진행하지 않았습니다';
+
+  /// 같은 언어를 다시 묻는 최대 횟수.
+  static const int maxInputAttempts = 3;
+
   _AppNamesMode _mode = _AppNamesMode.unreadable;
   String _reason = '';
 
@@ -230,41 +242,78 @@ final class AppNamesStep implements Step {
     for (var i = 0; i < _targets.length; i++) {
       final String? name = _askName(terminal, _targets[i], labels[i]);
       if (name == null) return const Declined();
+      if (name.isEmpty) return const Failed(invalidFormatFailure);
       names[i] = name;
     }
 
     final notes = <String>[
       if (showsSuffix) '$flavorName 빌드에서는 뒤에 "$suffix" 가 붙어 보입니다',
     ];
-    terminal.writeLine('');
-    writeSummary(
-      terminal,
-      title: confirmTitle,
-      rows: <SummaryRow>[
-        for (var i = 0; i < _targets.length; i++)
-          SummaryRow(labels[i], names[i]),
-      ],
-      notes: notes,
-    );
-    terminal.writeLine('');
-    final int? choice = terminal.choose(confirmQuestion, <String>[
-      proceedOption,
-      for (final _NameTarget target in _targets) '${target.arb.locale} 고치기',
-    ]);
-    if (choice != 0) return const Declined();
+    // 「<코드> 고치기」 는 그 언어만 다시 묻고 표를 다시 보인다.
+    while (true) {
+      terminal.writeLine('');
+      writeSummary(
+        terminal,
+        title: confirmTitle,
+        rows: <SummaryRow>[
+          for (var i = 0; i < _targets.length; i++)
+            SummaryRow(labels[i], names[i]),
+        ],
+        notes: notes,
+      );
+      terminal.writeLine('');
+      final int? choice = terminal.choose(confirmQuestion, <String>[
+        proceedOption,
+        for (final _NameTarget target in _targets) '${target.arb.locale} 고치기',
+      ]);
+      if (choice == null) return const Declined();
+      if (choice == 0) break;
+      final int index = choice - 1;
+      final String? name = _askName(terminal, _targets[index], labels[index]);
+      if (name == null) return const Declined();
+      if (name.isEmpty) return const Failed(invalidFormatFailure);
+      names[index] = name;
+    }
 
     return await _writeNames(context, names);
   }
 
-  /// [target] 언어의 이름을 묻는다 — 입력 끝이면 null.
+  /// [target] 언어의 이름을 규칙에 맞을 때까지 [maxInputAttempts] 번까지 묻는다.
   ///
   /// 지금 값이 규칙에 어긋나면 그 값을 질문 글에 보이고, 기본값은 늘 기본 이름이다.
+  /// 입력 끝이면 null, 끝까지 틀리면 빈 문자열을 돌려준다.
   String? _askName(Terminal terminal, _NameTarget target, String label) {
     final Object? current = target.currentValue;
     final question = current == null
         ? '  $label 앱 이름'
         : '  $label 앱 이름(지금 값 ${jsonEncode(current)})';
-    return terminal.ask(question, defaultValue: _baseName)?.trim();
+    for (var attempt = 0; attempt < maxInputAttempts; attempt++) {
+      final String? answer = terminal.ask(question, defaultValue: _baseName);
+      if (answer == null) return null;
+      final String name = answer.trim();
+      final String? problem = _findInputProblem(name);
+      if (problem == null) return name;
+      terminal.writeLine(problem);
+    }
+    return '';
+  }
+
+  /// 입력 [name] 이 받을 수 없는 이름이면 다시 물을 때의 안내 — 받으면 null.
+  ///
+  /// 접미사는 빌드가 붙이므로 어느 flavor 접미사로 끝나는 이름도 받지 않는다.
+  /// 공백 규칙은 빌드 생성기의 판정을 그대로 쓴다.
+  static String? _findInputProblem(String name) {
+    if (name.isEmpty) return emptyNameMessage;
+    for (final MapEntry<String, String> entry
+        in flavorDisplayNameSuffixes.entries) {
+      final String suffix = entry.value;
+      final String flavorName = entry.key;
+      if (suffix.isNotEmpty && name.endsWith(suffix)) {
+        return '  "$suffix" 는 $flavorName 빌드가 붙이므로 접미사 없는 이름을 입력하세요';
+      }
+    }
+    if (hasLauncherNameWhitespaceIssue(name)) return repeatedWhitespaceMessage;
+    return null;
   }
 
   /// 쓰기 전 검사를 모두 통과하면 대상 ARB 마다 [names] 를 쓴다.

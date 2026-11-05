@@ -356,4 +356,344 @@ void main() {
       '  ko (한국어) 앱 이름',
     ]);
   });
+
+  const jaQuestion = '  ja (日本語) 앱 이름';
+  const koQuestion = '  ko (한국어) 앱 이름';
+
+  test('T-23-NAMES-06 접미사로 끝나는 입력은 안내 뒤 그 언어만 다시 묻는다', () async {
+    writeAppNamesFixture(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱 Dev',
+      '마이앱 Stg',
+      '마이앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    final output = terminal.output.toString();
+    expect(output, contains('  " Dev" 는 dev 빌드가 붙이므로 접미사 없는 이름을 입력하세요\n'));
+    expect(output, contains('  " Stg" 는 stg 빌드가 붙이므로 접미사 없는 이름을 입력하세요\n'));
+    expect(countAsks(terminal, jaQuestion), 1);
+    expect(countAsks(terminal, koQuestion), 3);
+    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "마이앱",'));
+    expect(output, contains('  ✓ 언어별 앱 이름 — ja マイアプリ · ko 마이앱'));
+  });
+
+  test('T-23-NAMES-07 이어진 공백은 안내 뒤 다시 묻고 기본 이름과 같은 입력은 그대로 기록한다', () async {
+    writeAppNamesFixture(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'My App',
+      '마이  앱',
+      '마이앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    final output = terminal.output.toString();
+    expect(output, contains('  낱말 사이 공백은 한 칸으로 둡니다\n'));
+    expect(countAsks(terminal, jaQuestion), 1);
+    expect(countAsks(terminal, koQuestion), 2);
+    expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "My App",'));
+    expect(output, contains('  ✓ 언어별 앱 이름 — ja My App · ko 마이앱'));
+  });
+
+  test('T-23-NAMES-08 한 언어가 3회 틀리면 실패하고 어떤 ARB 도 쓰지 않는다', () async {
+    writeAppNamesFixture(root);
+    final Map<String, List<int>> before = snapshotTree(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイ  アプリ',
+      'マイ  アプリ',
+      'マイ  アプリ',
+      '2',
+    ]);
+    expect(
+      await runAppNamesStep(buildCleanRunner(), terminal),
+      wizardExitStopped,
+    );
+    expect(
+      terminal.output.toString(),
+      contains('  실패 — 언어별 앱 이름 형식이 맞지 않아 진행하지 않았습니다\n'),
+    );
+    expect(countAsks(terminal, jaQuestion), 3);
+    expect(countAsks(terminal, koQuestion), 0);
+    expect(snapshotTree(root), before);
+  });
+
+  test('T-23-NAMES-08 실패 뒤 다시 시도를 고르면 처음부터 다시 묻는다', () async {
+    writeAppNamesFixture(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイ  アプリ',
+      'マイ  アプリ',
+      'マイ  アプリ',
+      '1',
+      'マイアプリ',
+      '마이앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(countAsks(terminal, jaQuestion), 4);
+    expect(countAsks(terminal, koQuestion), 1);
+    expect(
+      terminal.output.toString(),
+      contains('  ✓ 언어별 앱 이름 — ja マイアプリ · ko 마이앱'),
+    );
+  });
+
+  test('T-23-NAMES-09 확인 표의 고치기는 그 언어만 다시 묻고 표를 다시 보인다', () async {
+    writeAppNamesFixture(root);
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      '3',
+      '마이 앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    final output = terminal.output.toString();
+    expect(confirmHeading.allMatches(output).length, 2);
+    expect(countAsks(terminal, jaQuestion), 1);
+    expect(countAsks(terminal, koQuestion), 2);
+    expect(
+      RegExp(r'^  ko \(한국어\) +마이 앱$', multiLine: true).hasMatch(output),
+      isTrue,
+    );
+    expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "マイアプリ",'));
+    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "마이 앱",'));
+    expect(output, contains('  ✓ 언어별 앱 이름 — ja マイアプリ · ko 마이 앱'));
+  });
+
+  test('T-23-NAMES-10 이어진 공백 값은 Todo 이고 그 언어만 다시 물어 값을 바꾼다', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': 'マイアプリ', 'ko': '마이  앱'},
+    );
+    expect(
+      await checkStep(AppNamesStep()),
+      isTodo('lib/l10n/app_ko.arb 의 appTitle "마이  앱" 의 공백이 이어집니다'),
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', '마이앱', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(collectNameAsks(terminal), <String>[
+      '  ko (한국어) 앱 이름(지금 값 "마이  앱")',
+    ]);
+    expect(
+      readFile('lib/l10n/app_ko.arb'),
+      buildLocalizedArb('ko', titleJson: '"마이앱"'),
+    );
+    expect(await checkStep(AppNamesStep()), isDone('ja マイアプリ · ko 마이앱'));
+  });
+
+  test('T-23-NAMES-10 앞뒤 공백 값 · 빈 값도 Todo 이고 다시 물어 끝까지 간다', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': 'マイアプリ', 'ko': ' 마이앱'},
+    );
+    expect(
+      await checkStep(AppNamesStep()),
+      isTodo('lib/l10n/app_ko.arb 의 appTitle " 마이앱" 의 앞뒤에 공백이 있습니다'),
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', '마이앱', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(await checkStep(AppNamesStep()), isDone('ja マイアプリ · ko 마이앱'));
+
+    writeFixtureFile(
+      root,
+      'lib/l10n/app_ko.arb',
+      buildLocalizedArb('ko', titleJson: '""'),
+    );
+    expect(
+      await checkStep(AppNamesStep()),
+      isTodo('lib/l10n/app_ko.arb 의 appTitle 이 비어 있습니다'),
+    );
+    final again = ScriptedTerminal(const <String?>['y', '', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), again), wizardExitDone);
+    expect(collectNameAsks(again), <String>['  ko (한국어) 앱 이름(지금 값 "")']);
+    expect(await checkStep(AppNamesStep()), isDone('ja マイアプリ · ko My App'));
+  });
+
+  test('T-23-NAMES-10 문자열 아닌 값은 Todo 이고 값 전체를 문자열로 바꾼다', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': 'マイアプリ'},
+    );
+    writeFixtureFile(
+      root,
+      'lib/l10n/app_ko.arb',
+      buildLocalizedArb('ko', titleJson: '12'),
+    );
+    expect(
+      await checkStep(AppNamesStep()),
+      isTodo('lib/l10n/app_ko.arb 의 appTitle 이 문자열이 아닙니다'),
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', '마이앱', '1']);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(collectNameAsks(terminal), <String>['  ko (한국어) 앱 이름(지금 값 12)']);
+    expect(
+      readFile('lib/l10n/app_ko.arb'),
+      buildLocalizedArb('ko', titleJson: '"마이앱"'),
+    );
+    expect(await checkStep(AppNamesStep()), isDone('ja マイアプリ · ko 마이앱'));
+  });
+
+  test('T-23-NAMES-10 접미사로 끝나는 기존 값은 Done 이고 묻지 않는다', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': 'マイアプリ', 'ko': '마이앱 Dev'},
+    );
+    expect(await checkStep(AppNamesStep()), isDone('ja マイアプリ · ko 마이앱 Dev'));
+    final terminal = ScriptedTerminal(const <String?>[]);
+    expect(
+      await runAppNamesStep(FakeCommandRunner(), terminal),
+      wizardExitDone,
+    );
+    expect(terminal.asks, isEmpty);
+  });
+
+  test('T-23-NAMES-11 영어 ARB 만 있으면 Done 이고 질문 · 명령 · 계획 줄이 없다', () async {
+    writeAppNamesFixture(root, localizedTitles: const <String, String?>{});
+    final step = AppNamesStep();
+    final WizardContext context = buildTestContext(projectRoot: root);
+    expect(
+      await step.check(context),
+      isDone('lib/l10n 에 영어 ARB 만 있어 물을 언어가 없습니다'),
+    );
+    expect(step.plannedCommandLines(context), isEmpty);
+
+    final runner = FakeCommandRunner();
+    final terminal = ScriptedTerminal(const <String?>[]);
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+    expect(terminal.asks, isEmpty);
+    expect(runner.calls, isEmpty);
+  });
+
+  test('T-23-NAMES-12 변형 locale 은 파일 이름 순으로 묻고 언어 부분의 원어 이름을 쓴다', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{
+        'ja': null,
+        'ko': null,
+        'pt': null,
+        'pt_BR': null,
+        'zh_Hant': null,
+      },
+      endonyms: const <String, String>{
+        'en': 'English',
+        'ko': '한국어',
+        'ja': '日本語',
+        'pt': 'Português',
+        'zh': '中文',
+      },
+    );
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      'Meu App',
+      'Meu App BR',
+      '我的應用',
+      '1',
+    ]);
+    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(collectNameAsks(terminal), <String>[
+      '  ja (日本語) 앱 이름',
+      '  ko (한국어) 앱 이름',
+      '  pt (Português) 앱 이름',
+      '  pt_BR (Português) 앱 이름',
+      '  zh_Hant (中文) 앱 이름',
+    ]);
+    expect(
+      await checkStep(AppNamesStep()),
+      isDone(
+        'ja マイアプリ · ko 마이앱 · pt Meu App · pt_BR Meu App BR · '
+        'zh_Hant 我的應用',
+      ),
+    );
+  });
+
+  test('T-23-NAMES-13 입력이 끝나면 위저드가 멈추고 파일을 바꾸지 않는다', () async {
+    writeAppNamesFixture(root);
+    final Map<String, List<int>> before = snapshotTree(root);
+    final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ']);
+    expect(
+      await runAppNamesStep(buildCleanRunner(), terminal),
+      wizardExitStopped,
+    );
+    expect(terminal.output.toString(), contains(stopLine));
+    expect(snapshotTree(root), before);
+  });
+
+  test('T-23-NAMES-14 고칠 ARB 에 미커밋 변경이 있으면 실패하고 쓰지 않는다', () async {
+    writeAppNamesFixture(root);
+    final Map<String, List<int>> before = snapshotTree(root);
+    final runner = FakeCommandRunner()
+      ..on(
+        _gitStatusKey,
+        const CommandResult(0, ' M lib/l10n/app_ko.arb\n', ''),
+      );
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      '1',
+      '2',
+    ]);
+    expect(await runAppNamesStep(runner, terminal), wizardExitStopped);
+    expect(
+      terminal.output.toString(),
+      contains(
+        '  실패 — 고칠 파일에 커밋하지 않은 변경이 있습니다 — 커밋하거나 되돌린 뒤 다시 시도하세요\n'
+        '    lib/l10n/app_ko.arb\n',
+      ),
+    );
+    expect(snapshotTree(root), before);
+  });
+
+  test('T-23-NAMES-15 l10n.yaml 이 없으면 Todo 이고 실행은 질문 없이 같은 사유로 실패한다', () async {
+    writeAppNamesFixture(root, withL10nYaml: false);
+    final Map<String, List<int>> before = snapshotTree(root);
+    expect(
+      await checkStep(AppNamesStep()),
+      isTodo(startsWith('언어별 ARB 목록을 읽지 못했습니다 — ')),
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', '2']);
+    expect(
+      await runAppNamesStep(buildCleanRunner(), terminal),
+      wizardExitStopped,
+    );
+    expect(
+      terminal.output.toString(),
+      contains('  실패 — 언어별 ARB 목록을 읽지 못했습니다 — '),
+    );
+    expect(collectNameAsks(terminal), isEmpty);
+    expect(snapshotTree(root), before);
+  });
+
+  test('T-23-NAMES-15 올바른 JSON 이 아닌 ARB 는 Todo 이고 실행은 질문 없이 실패한다', () async {
+    writeAppNamesFixture(root);
+    writeFixtureFile(root, 'lib/l10n/app_ko.arb', '{ "@@locale": "ko", ');
+    final Map<String, List<int>> before = snapshotTree(root);
+    const brokenReason = 'lib/l10n/app_ko.arb 이 올바른 JSON 이 아닙니다';
+    expect(await checkStep(AppNamesStep()), isTodo(contains(brokenReason)));
+    final terminal = ScriptedTerminal(const <String?>['y', '2']);
+    expect(
+      await runAppNamesStep(buildCleanRunner(), terminal),
+      wizardExitStopped,
+    );
+    expect(terminal.output.toString(), contains('  실패 — $brokenReason'));
+    expect(collectNameAsks(terminal), isEmpty);
+    expect(snapshotTree(root), before);
+  });
+
+  test('T-23-NAMES-15 단계 제목 · 의존 · 비용 표시 값', () {
+    final step = AppNamesStep();
+    expect(step.title, AppNamesStep.stepTitle);
+    expect(step.title, '언어별 앱 이름');
+    expect(step.id, 'app_names');
+    expect(step.dependsOn, <String>['identity']);
+    expect(step.isCostlyOrIrreversible, isFalse);
+  });
 }
