@@ -5,6 +5,7 @@ import 'apis_step.dart';
 import 'apns_step.dart';
 import 'app_check_step.dart';
 import 'app_icon_step.dart';
+import 'app_names_step.dart';
 import 'apple_android_step.dart';
 import 'apple_step.dart';
 import 'billing_step.dart';
@@ -127,6 +128,7 @@ List<Step> _buildCommonSteps({
     ToolsStep(),
     UserFilesStep(),
     IdentityStep(),
+    AppNamesStep(),
     LoginStep(),
     FirebaseProjectStep(),
     BillingStep(),

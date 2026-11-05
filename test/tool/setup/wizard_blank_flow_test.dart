@@ -475,7 +475,7 @@ final class _Run {
   void onEffect(Command command, void Function() effect) =>
       runner.effects[FakeCommandRunner.buildKey(command)] = effect;
 
-  /// 기본 20단계 · 끝 요약으로 위저드를 돌린다.
+  /// 기본 21단계 · 끝 요약으로 위저드를 돌린다.
   Future<int> run() =>
       runWizard(context, buildDevSteps(), onCompleted: showCommitHint);
 
@@ -1068,7 +1068,7 @@ void main() {
   tearDown(() => fixture.delete());
 
   test(
-    'T-19-FLOW-06: 백지 → 20단계 끝까지(출시용은 지금 안 함) · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
+    'T-19-FLOW-06: 백지 → 21단계 끝까지(출시용은 지금 안 함) · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,
@@ -1231,7 +1231,7 @@ void main() {
   );
 
   test(
-    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 20단계 끝까지',
+    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 21단계 끝까지',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,

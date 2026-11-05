@@ -356,12 +356,12 @@ void main() {
     },
   );
 
-  test('buildDevSteps 는 앱 정체성 다음에 로그인 단계를 둔다', () {
+  test('buildDevSteps 는 언어별 앱 이름 다음에 로그인 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
         .toList();
 
     expect(ids, contains('login'));
-    expect(ids.indexOf('login'), ids.indexOf('identity') + 1);
+    expect(ids.indexOf('login'), ids.indexOf('app_names') + 1);
   });
 }

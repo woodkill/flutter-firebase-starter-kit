@@ -296,7 +296,7 @@ final class _Harness {
   void onRest(RestRequest request, RestResponse response) =>
       rest.on(request.method, request.url.toString(), response);
 
-  /// config 의 켠 로그인 수단으로 만든 단계 목록(로그인 수단 0개면 기본 20단계)
+  /// config 의 켠 로그인 수단으로 만든 단계 목록(로그인 수단 0개면 기본 21단계)
   /// 으로 위저드를 돌린다 — 로그인 수단이 바뀌면 같은 함수로 목록을 다시 만든다.
   Future<int> run({Future<void> Function(WizardContext)? onCompleted}) =>
       runWizard(
@@ -996,7 +996,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('T-19-FLOW-01: buildDevSteps() id 순서가 20단계 그대로다', () {
+  test('T-19-FLOW-01: buildDevSteps() id 순서가 21단계 그대로다', () {
     expect(
       <String>[for (final Step step in buildDevSteps()) step.id],
       <String>[
@@ -1004,6 +1004,7 @@ void main() {
         'tools',
         'user_files',
         'identity',
+        'app_names',
         'login',
         'firebase_project',
         'billing',
@@ -1024,7 +1025,7 @@ void main() {
     );
   });
 
-  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 18줄 · 출시용 ✗ · ? 끝 목록 · '
+  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 19줄 · 출시용 ✗ · ? 끝 목록 · '
       '질문 · 쓰기 0', () async {
     final h = _Harness(root, const <String?>[]);
     _registerFinished(h);
@@ -1035,7 +1036,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(18),
+      hasLength(19),
     );
     // 지문 없는 홈 — Play Integrity 만 할 수 없는 ✗(점검표 · 끝 목록 한 줄씩).
     expect(lines.where((String line) => line.startsWith('  ✗ ')), <String>[
@@ -1391,7 +1392,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(22),
+      hasLength(23),
     );
     expect(
       lines.where(

@@ -998,6 +998,7 @@ void main() {
         'tools',
         'user_files',
         'identity',
+        'app_names',
         'login',
         'firebase_project',
         'billing',
