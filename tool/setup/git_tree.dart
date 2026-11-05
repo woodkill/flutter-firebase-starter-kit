@@ -66,7 +66,7 @@ Future<List<String>> findDirtyTrackedFiles(
 ) async {
   final targets = <String>[
     for (final String path in relativePaths)
-      if (_normalizeTarget(path).isNotEmpty) _normalizeTarget(path),
+      if (normalizeRepoPath(path).isNotEmpty) normalizeRepoPath(path),
   ];
   final List<String> changed = await listChangedTrackedFiles(context);
   return <String>[
@@ -78,8 +78,11 @@ Future<List<String>> findDirtyTrackedFiles(
   ];
 }
 
-/// 비교용으로 항목의 앞 `./` 와 끝 `/` 를 뗀다.
-String _normalizeTarget(String path) {
+/// 저장소 상대 경로를 git 출력과 같은 꼴로 맞춘다 — 앞 `./` 와 끝 `/` 를 뗀다.
+///
+/// `l10n.yaml` 의 `arb-dir: ./lib/l10n` 처럼 사람이 쓴 경로를 git 이 보이는
+/// `lib/l10n/…` 와 비교하거나 git 에 넘길 때 쓴다.
+String normalizeRepoPath(String path) {
   String normalized = path.trim();
   while (normalized.startsWith('./')) {
     normalized = normalized.substring(2);
@@ -88,6 +91,32 @@ String _normalizeTarget(String path) {
     normalized = normalized.substring(0, normalized.length - 1);
   }
   return normalized;
+}
+
+/// 커밋된 상태(HEAD)의 [relativePath] 파일 내용을 보이는 git 명령을 만든다.
+Command buildShowCommittedFileCommand(
+  String relativePath, {
+  String? workingDirectory,
+}) => Command('git', <String>[
+  'show',
+  'HEAD:${normalizeRepoPath(relativePath)}',
+], workingDirectory: workingDirectory);
+
+/// 커밋된 상태(HEAD)의 [relativePath] 파일 내용을 읽는다.
+///
+/// 저장소가 아니거나 · HEAD 가 없거나 · HEAD 에 그 파일이 없는 등 git 이
+/// 실패하면 null 이다 — 부르는 쪽이 「알 수 없음」 으로 다룬다.
+Future<String?> readCommittedFile(
+  WizardContext context,
+  String relativePath,
+) async {
+  final CommandResult result = await context.runner.capture(
+    buildShowCommittedFileCommand(
+      relativePath,
+      workingDirectory: context.projectRoot,
+    ),
+  );
+  return result.isSuccess ? result.stdout : null;
 }
 
 /// `git status --porcelain` 한 줄에서 경로를 꺼낸다 — `XY 경로` 또는 `XY 원래 -> 새`.

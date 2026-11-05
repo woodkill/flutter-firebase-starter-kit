@@ -92,15 +92,24 @@ String? findInvalidArbTitle(String absolutePath, String displayPath) {
 /// 아니면 null 이다.
 String? readArbTitle(String absolutePath) {
   try {
-    final Object? decoded = jsonDecode(File(absolutePath).readAsStringSync());
+    return parseArbTitle(File(absolutePath).readAsStringSync());
+  } on FileSystemException {
+    return null;
+  }
+}
+
+/// ARB 본문 [source] 의 최상위 `appTitle` 문자열 값을 읽는다.
+///
+/// 올바른 JSON 객체가 아니거나 · 키가 없거나 · 값이 문자열이 아니면 null 이다.
+String? parseArbTitle(String source) {
+  try {
+    final Object? decoded = jsonDecode(source);
     if (decoded is Map<String, Object?>) {
       final Object? title = decoded[appTitleKey];
       if (title is String) return title;
     }
     return null;
   } on FormatException {
-    return null;
-  } on FileSystemException {
     return null;
   }
 }

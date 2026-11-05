@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../launcher_names.dart' show GeneratorException;
+import '../launcher_names.dart'
+    show GeneratorException, L10nConfig, readL10nConfig;
 import 'arb_titles.dart';
 import 'command_runner.dart';
 import 'git_tree.dart';
@@ -26,8 +27,8 @@ const String providersHintLine = '로그인 수단을 바꾸려면: ./setup.sh -
 /// golden 갱신 안내를 보인다.
 ///
 /// 빈 줄 · [providersHintLine] 뒤에 [showCommitHint] 와 같은 커밋 안내를 보이고,
-/// 이번 실행이 바꾼 ko ARB 의 이름이 기본 이름과 다르면 빈 줄 뒤
-/// [AppNamesStep.goldenHintLine] 한 줄을 더한다. 바뀐 추적 파일 목록은 한 번만
+/// 이번 실행이 ko ARB 나 영어 ARB 를 바꿔 ko 실효 제목이 커밋된 상태와 다르면 빈
+/// 줄 뒤 [AppNamesStep.goldenHintLine] 한 줄을 더한다. 바뀐 추적 파일 목록은 한 번만
 /// 읽는다. 위저드는 golden 갱신 명령을 실행하지 않는다.
 Future<void> showCompletionSummary(WizardContext context) async {
   context.terminal
@@ -57,7 +58,7 @@ Future<void> _showChangedFiles(
 }) async {
   final List<String> changed = await listChangedTrackedFiles(context);
   await _writeCommitHint(context, changed);
-  if (withGoldenHint) _writeGoldenHint(context, changed);
+  if (withGoldenHint) await _writeGoldenHint(context, changed);
 }
 
 /// 바뀐 추적 파일 [changed] 에 옮긴 Kotlin 새 파일을 더해 커밋 안내를 쓴다.
@@ -84,31 +85,39 @@ Future<void> _writeCommitHint(
   );
 }
 
-/// 바뀐 추적 파일 [changed] 에 ko ARB 가 있고 golden 이 다시 찍혀야 하면 빈 줄
-/// 뒤 [AppNamesStep.goldenHintLine] 한 줄을 쓴다.
+/// 바뀐 추적 파일 [changed] 에 ko ARB 나 영어(template) ARB 가 있고 golden 이
+/// 다시 찍혀야 하면 빈 줄 뒤 [AppNamesStep.goldenHintLine] 한 줄을 쓴다.
 ///
-/// ko ARB 경로를 찾지 못하면(ARB 목록을 읽지 못하거나 ko ARB 가 없으면) 쓰지
+/// 두 ARB 경로를 찾지 못하면(ARB 목록을 읽지 못하거나 ko ARB 가 없으면) 쓰지
 /// 않는다. 판정은 [AppNamesStep.needsGoldenHint] 를 그대로 쓴다.
-void _writeGoldenHint(WizardContext context, List<String> changed) {
-  final String? arbPath = _findGoldenLocaleArbPath(context);
-  if (arbPath == null || !changed.contains(arbPath)) return;
-  if (!AppNamesStep.needsGoldenHint(context)) return;
+Future<void> _writeGoldenHint(
+  WizardContext context,
+  List<String> changed,
+) async {
+  final List<String> arbPaths = _findGoldenTitleArbPaths(context);
+  if (!arbPaths.any(changed.contains)) return;
+  if (!await AppNamesStep.needsGoldenHint(context)) return;
   context.terminal
     ..writeLine('')
     ..writeLine(AppNamesStep.goldenHintLine);
 }
 
-/// [AppNamesStep.goldenLocale] ARB 의 저장소 상대 경로 — 없거나 목록을 읽지
-/// 못하면 null.
-String? _findGoldenLocaleArbPath(WizardContext context) {
+/// ko 실효 제목을 정하는 두 ARB — [AppNamesStep.goldenLocale] ARB 와 영어
+/// (template) ARB — 의 저장소 상대 경로.
+///
+/// ko ARB 가 없거나 목록을 읽지 못하면 빈 목록이다.
+List<String> _findGoldenTitleArbPaths(WizardContext context) {
   try {
+    final L10nConfig config = readL10nConfig(context.projectRoot);
     for (final LocalizedArb arb in listLocalizedArbs(context.projectRoot)) {
-      if (arb.locale == AppNamesStep.goldenLocale) return arb.relativePath;
+      if (arb.locale == AppNamesStep.goldenLocale) {
+        return <String>[arb.relativePath, config.templatePath];
+      }
     }
   } on GeneratorException {
-    return null;
+    return const <String>[];
   }
-  return null;
+  return const <String>[];
 }
 
 /// 앱 정체성이 옮긴 Kotlin 패키지 디렉터리의 추적하지 않는 파일을 모은다.

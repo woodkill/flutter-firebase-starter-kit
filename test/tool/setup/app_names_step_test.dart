@@ -12,6 +12,22 @@ import 'fakes.dart';
 const String _gitStatusKey = 'git status --porcelain --untracked-files=no';
 const CommandResult _cleanTree = CommandResult(0, '', '');
 
+/// 영어(template) ARB 의 저장소 상대 경로.
+const String englishArbPath = 'lib/l10n/app_en.arb';
+
+/// ko ARB 의 저장소 상대 경로.
+const String koArbPath = 'lib/l10n/app_ko.arb';
+
+/// 커밋된 상태(HEAD)의 [relativePath] 파일을 읽는 git 명령 키를 만든다.
+String buildGitShowKey(String relativePath) => 'git show HEAD:$relativePath';
+
+/// HEAD 에 파일이 없을 때 git 이 돌려주는 실패 결과.
+const CommandResult missingInHead = CommandResult(
+  128,
+  '',
+  "fatal: path does not exist in 'HEAD'",
+);
+
 /// 시험 fixture 의 기본 원어 이름 표 — 킷 lib 표와 같은 세 항목.
 const Map<String, String> kitEndonyms = <String, String>{
   'en': 'English',
@@ -33,8 +49,8 @@ const String goldenTestFixturePath =
 
 /// 단계 실행 직후 화면에 보일 golden 갱신 안내 줄(들여쓰기 포함).
 const String goldenHintText =
-    '  ko 이름이 기본 이름과 다르므로 홈 화면 golden 2장이 다시 찍혀야 합니다: '
-    'fvm flutter test --update-goldens '
+    '  ko 앱 이름(홈 화면 제목)이 마지막 커밋과 달라 홈 화면 golden 2장이 다시 '
+    '찍혀야 합니다: fvm flutter test --update-goldens '
     'test/features/home/home_announcement_golden_test.dart';
 
 /// [root] 아래 [relativePath] 에 [content] 를 쓴다 — 상위 디렉터리는 만든다.
@@ -171,8 +187,26 @@ void main() {
       File('$root/$relativePath').readAsStringSync();
 
   /// 깨끗한 작업 트리를 돌려주는 가짜 실행기를 만든다.
-  FakeCommandRunner buildCleanRunner() =>
-      FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+  ///
+  /// ko · 영어 ARB 의 커밋된 상태(HEAD)는 부르는 순간의 fixture 파일 내용이다 —
+  /// 파일이 없으면 HEAD 에도 없다. [committedFiles] 의 경로는 그 값으로 바꾸고,
+  /// 값이 null 이면 HEAD 에 없는 파일로 둔다.
+  FakeCommandRunner buildCleanRunner({
+    Map<String, String?> committedFiles = const <String, String?>{},
+  }) {
+    final runner = FakeCommandRunner()..on(_gitStatusKey, _cleanTree);
+    for (final path in <String>[koArbPath, englishArbPath]) {
+      final file = File('$root/$path');
+      final String? content = committedFiles.containsKey(path)
+          ? committedFiles[path]
+          : (file.existsSync() ? file.readAsStringSync() : null);
+      runner.on(
+        buildGitShowKey(path),
+        content == null ? missingInHead : CommandResult(0, content, ''),
+      );
+    }
+    return runner;
+  }
 
   /// 앱 정체성 대역 · 언어별 앱 이름 단계로 위저드를 돌린다.
   Future<int> runAppNamesStep(
@@ -715,7 +749,7 @@ void main() {
       output.split('\n').where((String line) => line == goldenHintText).length;
 
   test(
-    'T-23-NAMES-16 ko 가 기본 이름과 다르면 실행 직후 ✓ 줄 앞에 golden 안내 한 줄 · 실행 0',
+    'T-23-NAMES-16 ko 제목이 커밋된 상태와 달라지면 실행 직후 ✓ 줄 앞에 golden 안내 한 줄 · 실행 0',
     () async {
       writeAppNamesFixture(root);
       final FakeCommandRunner runner = buildCleanRunner();
@@ -735,24 +769,67 @@ void main() {
       );
       expect(doneIndex, greaterThan(hintIndex));
       expect(hintIndex, greaterThan(-1));
-      // 위저드는 안내만 하고 golden 갱신 명령을 실행하지 않는다.
+      // 위저드는 안내만 하고 golden 갱신 명령을 실행하지 않는다 — 커밋된 ko 에
+      // 이름이 없어 영어 ARB 의 커밋된 이름까지 읽는다.
       expect(runner.calls.map((FakeCall call) => call.key), <String>[
         _gitStatusKey,
+        buildGitShowKey(koArbPath),
+        buildGitShowKey(englishArbPath),
       ]);
       expect(runner.countCalls(RunMode.capture, _gitStatusKey), 1);
     },
   );
 
-  /// 직접 판정용 문맥을 만든다.
-  WizardContext buildHintContext() => buildTestContext(projectRoot: root);
+  /// [runner] 로 직접 판정용 문맥을 만든다.
+  WizardContext buildHintContext(FakeCommandRunner runner) =>
+      buildTestContext(projectRoot: root, runner: runner);
 
-  test('T-23-NAMES-17 ko 를 Enter 로 기본 이름 그대로 두면 안내 0 · 판정 false', () async {
+  test('T-23-NAMES-17 ko 를 Enter 로 커밋된 기본 이름 그대로 두면 안내 0 · 판정 false', () async {
     writeAppNamesFixture(root);
+    final FakeCommandRunner committed = buildCleanRunner();
     final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '', '1']);
-    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
-    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "My App"'));
+    expect(await runAppNamesStep(committed, terminal), wizardExitDone);
+    expect(readFile(koArbPath), contains('"appTitle": "My App"'));
     expect(countGoldenHints(terminal.output.toString()), 0);
-    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(committed)),
+      isFalse,
+    );
+  });
+
+  test('T-23-NAMES-17 기본 이름이 커밋된 영어 이름과 다르면 ko 를 Enter 로 두어도 안내한다', () async {
+    // 앱 정체성이 기본 이름을 바꾼 뒤(아직 커밋 전) ko 를 Enter 로 둔 경우다.
+    writeAppNamesFixture(root);
+    final FakeCommandRunner runner = buildCleanRunner(
+      committedFiles: <String, String?>{
+        englishArbPath: buildEnglishArb('StarterKit'),
+      },
+    );
+    final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '', '1']);
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+    expect(readFile(koArbPath), contains('"appTitle": "My App"'));
+    expect(countGoldenHints(terminal.output.toString()), 1);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(runner)),
+      isTrue,
+    );
+  });
+
+  test('T-23-NAMES-17 ko 이름이 이미 커밋돼 있고 다른 언어만 물으면 안내 0 · 판정 false', () async {
+    writeAppNamesFixture(
+      root,
+      localizedTitles: const <String, String?>{'ja': null, 'ko': '마이앱'},
+    );
+    final FakeCommandRunner runner = buildCleanRunner();
+    final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '1']);
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+    expect(collectNameAsks(terminal), <String>['  ja (日本語) 앱 이름']);
+    expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "マイアプリ"'));
+    expect(countGoldenHints(terminal.output.toString()), 0);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(runner)),
+      isFalse,
+    );
   });
 
   test('T-23-NAMES-17 ja 만 다른 값이면 안내 0 · 판정 false', () async {
@@ -760,37 +837,90 @@ void main() {
       root,
       localizedTitles: const <String, String?>{'ja': null, 'ko': 'My App'},
     );
+    final FakeCommandRunner runner = buildCleanRunner();
     final terminal = ScriptedTerminal(const <String?>['y', 'マイアプリ', '1']);
-    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
     expect(readFile('lib/l10n/app_ja.arb'), contains('"appTitle": "マイアプリ"'));
     expect(countGoldenHints(terminal.output.toString()), 0);
-    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(runner)),
+      isFalse,
+    );
   });
 
-  test('T-23-NAMES-17 golden 시험 파일이 없으면 ko 가 달라도 안내 0 · 판정 false', () async {
+  test('T-23-NAMES-17 golden 시험 파일이 없으면 ko 가 달라도 안내 0 · git 조회 0', () async {
     writeAppNamesFixture(root, withGoldenTest: false);
+    final FakeCommandRunner runner = buildCleanRunner();
     final terminal = ScriptedTerminal(const <String?>[
       'y',
       'マイアプリ',
       '마이앱',
       '1',
     ]);
-    expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
-    expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "마이앱"'));
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+    expect(readFile(koArbPath), contains('"appTitle": "마이앱"'));
     expect(countGoldenHints(terminal.output.toString()), 0);
-    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(runner)),
+      isFalse,
+    );
+    expect(
+      runner.calls.where((FakeCall call) => call.key.startsWith('git show')),
+      isEmpty,
+    );
   });
 
-  test('T-23-NAMES-17 판정은 ko 가 다르고 golden 시험 파일이 있을 때만 true · 안내 줄 원문', () {
+  test('T-23-NAMES-17 커밋된 상태를 읽지 못하면 ko 가 달라도 안내 0 · 판정 false', () async {
+    writeAppNamesFixture(root);
+    final FakeCommandRunner runner = buildCleanRunner(
+      committedFiles: const <String, String?>{
+        koArbPath: null,
+        englishArbPath: null,
+      },
+    );
+    final terminal = ScriptedTerminal(const <String?>[
+      'y',
+      'マイアプリ',
+      '마이앱',
+      '1',
+    ]);
+    expect(await runAppNamesStep(runner, terminal), wizardExitDone);
+    expect(countGoldenHints(terminal.output.toString()), 0);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(runner)),
+      isFalse,
+    );
+  });
+
+  test('T-23-NAMES-17 판정은 ko 실효 제목이 커밋된 것과 다를 때만 true · 안내 줄 원문', () async {
     writeAppNamesFixture(
       root,
-      localizedTitles: const <String, String?>{'ja': null, 'ko': '마이앱'},
+      localizedTitles: const <String, String?>{'ja': null, 'ko': '우리앱'},
     );
-    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isTrue);
+    final FakeCommandRunner changed = buildCleanRunner(
+      committedFiles: <String, String?>{
+        koArbPath: buildLocalizedArb('ko', titleJson: '"마이앱"'),
+      },
+    );
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(changed)),
+      isTrue,
+    );
     expect('  ${AppNamesStep.goldenHintLine}', goldenHintText);
+    // 커밋된 ko 이름이 있으면 영어 ARB 의 커밋된 이름은 읽지 않는다.
+    expect(changed.calls.map((FakeCall call) => call.key), <String>[
+      buildGitShowKey(koArbPath),
+    ]);
+
+    // 커밋된 ko 이름이 지금과 같으면 false 다.
+    final FakeCommandRunner same = buildCleanRunner();
+    expect(await AppNamesStep.needsGoldenHint(buildHintContext(same)), isFalse);
 
     // l10n.yaml 을 읽지 못하면 판정은 false 다.
     File('$root/l10n.yaml').deleteSync();
-    expect(AppNamesStep.needsGoldenHint(buildHintContext()), isFalse);
+    expect(
+      await AppNamesStep.needsGoldenHint(buildHintContext(changed)),
+      isFalse,
+    );
   });
 }

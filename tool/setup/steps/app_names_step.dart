@@ -63,14 +63,19 @@ final class AppNamesStep implements Step {
 
   /// golden 이 다시 찍혀야 할 때 보이는 안내 문장(들여쓰기 없음).
   static const String goldenHintLine =
-      'ko 이름이 기본 이름과 다르므로 홈 화면 golden 2장이 다시 찍혀야 합니다: $goldenCommand';
+      'ko 앱 이름(홈 화면 제목)이 마지막 커밋과 달라 홈 화면 golden 2장이 다시 '
+      '찍혀야 합니다: $goldenCommand';
 
-  /// [goldenLocale] 의 `appTitle` 이 기본 이름과 달라 golden 이 다시 찍혀야 하면 true.
+  /// [goldenLocale] 의 실효 제목이 커밋된 상태(HEAD)와 달라 golden 이 다시
+  /// 찍혀야 하면 true.
   ///
-  /// 파일을 다시 읽어 판정한다. [goldenTestPath] 시험 파일이 없거나 · `l10n.yaml`
-  /// 을 읽지 못하거나 · [goldenLocale] ARB 가 없거나 그 `appTitle` 문자열이
-  /// 없으면 false 다.
-  static bool needsGoldenHint(WizardContext context) {
+  /// 실효 제목은 [goldenLocale] ARB 의 `appTitle` 이 있으면 그 값, 없으면 영어
+  /// (template) ARB 의 `appTitle` 이다 — 홈 화면 golden 이 그리는 AppBar 제목과
+  /// 같다. 작업 트리 쪽은 파일을, 커밋된 쪽은 `git show HEAD:<경로>` 를 읽는다.
+  /// [goldenTestPath] 시험 파일이 없거나 · `l10n.yaml` 을 읽지 못하거나 ·
+  /// [goldenLocale] ARB 가 없거나 · 어느 쪽 실효 제목을 정하지 못하거나 · git
+  /// 조회가 실패하면 false 다.
+  static Future<bool> needsGoldenHint(WizardContext context) async {
     if (!File(context.resolve(goldenTestPath)).existsSync()) return false;
     final L10nConfig config;
     final List<LocalizedArb> arbs;
@@ -80,13 +85,43 @@ final class AppNamesStep implements Step {
     } on GeneratorException {
       return false;
     }
-    for (final arb in arbs) {
-      if (arb.locale != goldenLocale) continue;
-      final String? title = readArbTitle(arb.absolutePath);
-      return title != null &&
-          title != readArbTitle(context.resolve(config.templatePath));
-    }
-    return false;
+    final LocalizedArb? goldenArb = arbs
+        .where((LocalizedArb arb) => arb.locale == goldenLocale)
+        .firstOrNull;
+    if (goldenArb == null) return false;
+    final String? current =
+        readArbTitle(goldenArb.absolutePath) ??
+        readArbTitle(context.resolve(config.templatePath));
+    if (current == null) return false;
+    final String? committed = await _readCommittedTitle(
+      context,
+      goldenArb.relativePath,
+      config.templatePath,
+    );
+    return committed != null && committed != current;
+  }
+
+  /// 커밋된 상태(HEAD)의 실효 제목 — [goldenArbPath] 의 `appTitle`, 없으면
+  /// [templatePath] 의 `appTitle` 이다.
+  ///
+  /// 어느 파일이든 git 이 읽지 못하면(HEAD 에 없음 포함) null 이다.
+  static Future<String?> _readCommittedTitle(
+    WizardContext context,
+    String goldenArbPath,
+    String templatePath,
+  ) async {
+    final String? goldenSource = await readCommittedFile(
+      context,
+      goldenArbPath,
+    );
+    if (goldenSource == null) return null;
+    final String? goldenTitle = parseArbTitle(goldenSource);
+    if (goldenTitle != null) return goldenTitle;
+    final String? templateSource = await readCommittedFile(
+      context,
+      templatePath,
+    );
+    return templateSource == null ? null : parseArbTitle(templateSource);
   }
 
   _AppNamesMode _mode = _AppNamesMode.unreadable;
@@ -383,7 +418,7 @@ final class AppNamesStep implements Step {
       writeArbTitle(_targets[i].arb.absolutePath, names[i]);
     }
     // 실행 블록 끝(✓ 줄 바로 앞)에 golden 안내만 보이고 명령은 실행하지 않는다.
-    if (needsGoldenHint(context)) {
+    if (await needsGoldenHint(context)) {
       context.terminal.writeLine('  $goldenHintLine');
     }
     return const Applied();

@@ -1714,8 +1714,9 @@ fvm dart run flutter_native_splash:create
   fvm flutter gen-l10n
   ```
 
-- 한국어 이름을 넣으면 홈 화면 golden 2장이 AppBar 제목만큼 바뀐다.
-  - 위저드가 단계 직후와 끝 요약에 아래 명령을 안내한다 — 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고 다시 만든다.
+- 한국어 화면의 앱 이름이 마지막 커밋과 달라지면 홈 화면 golden 2장이 AppBar 제목만큼 바뀐다.
+  - 한국어 화면의 앱 이름은 `lib/l10n/app_ko.arb` 의 `appTitle` 이고, 그 키가 없으면 영어 `appTitle`(기본 이름)이다 — 「앱 정체성」 에서 기본 이름만 바꿔도 달라진다.
+  - 위저드가 「언어별 앱 이름」 단계 직후와 끝 요약에 아래 명령을 안내한다 — 테스트 파일 옆 `failures/` 의 비교 이미지로 제목만 바뀌었는지 보고 다시 만든다.
 
   ```bash
   fvm flutter test --update-goldens test/features/home/home_announcement_golden_test.dart
