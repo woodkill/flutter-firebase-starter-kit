@@ -1774,6 +1774,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
   - 세 flavor 의 기본 이름은 같아야 한다 — 다르면 위저드는 ARB 를 맞추지 않고 다른 기본 이름이 든 파일과 값을 적고 멈춘다. 그 파일의 표시 이름을 같은 기본 이름으로 고치고 다시 실행한다.
   - config `appName` 과 xcconfig `DISPLAY_NAME` 이 다르면 위저드가 표시 이름을 다시 묻고 두 곳과 영어 `appTitle` 에 같은 값을 쓴다.
+    - 제안값은 config `appName` 이다. 다른 flavor 에 정해진 기본 이름이 있으면 그 이름에 이 flavor 접미사를 붙인 값이다.
 - **Android 빌드가 `config/<flavor>.json 의 appName 이 빌드에 들어오지 않았다` 로 멈춘다.**
   - `--dart-define-from-file=config/<flavor>.json` 없이 빌드했다. 그 옵션을 붙여 다시 빌드한다.
 - **빌드가 ARB 파일 경로를 적은 `error: launcher_names:` 오류로 멈춘다.**

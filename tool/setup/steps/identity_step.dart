@@ -27,7 +27,9 @@ import 'configure_step.dart';
 /// 이미 바뀐 저장소에서 사용자 xcconfig 에 남은 킷 번들 ID 는 묻지 않고 앱 ID 에
 /// 맞춘다. 표시 이름이 이미 정해졌는데 영어 ARB `appTitle` 만 그 기본 이름과
 /// 다르면 묻지 않고 ARB 를 맞춘다. JSON `appName` 과 xcconfig `DISPLAY_NAME` 이
-/// 서로 다르면 표시 이름을 다시 묻고 두 곳에 같은 값을 쓴다.
+/// 서로 다르면 표시 이름을 다시 묻고 두 곳에 같은 값을 쓴다. 다시 물을 때 다른
+/// flavor 의 기본 이름이 없으면 킷 기본값이 아닌 이 flavor JSON `appName` 을
+/// 제안한다.
 ///
 /// 영어 ARB `appTitle` 은 세 flavor 가 함께 쓴다. 그래서 다른 flavor 사용자
 /// 파일에 이미 정해진 표시 이름이 있으면 그 기본 이름을 표시 이름 제안값에 쓰고,
@@ -191,9 +193,10 @@ final class IdentityStep implements Step {
       return Todo(_reason);
     }
     _xcconfigResidue = residue.userXcconfig;
-    if (_isDisplayNameDefault(context)) {
+    final String? defaultDisplayName = _describeDefaultDisplayName(context);
+    if (defaultDisplayName != null) {
       _mode = _IdentityMode.displayNameOnly;
-      _reason = '표시 이름이 킷 기본값입니다';
+      _reason = defaultDisplayName;
       return Todo(_reason);
     }
     // 표시 이름이 기본값이 아니면 config appName · xcconfig DISPLAY_NAME 은
@@ -435,11 +438,7 @@ final class IdentityStep implements Step {
     final String? missingTarget = _findMissingDisplayNameTarget(context);
     if (missingTarget != null) return Failed(missingTarget);
 
-    // 다른 flavor 에 정해진 기본 이름이 있으면 그 이름을, 없으면 앱 ID 이름을 쓴다.
-    final String suggestedBase =
-        _findOtherFlavorBaseName(context) ??
-        rename.toTitleCase(_applicationId.split('.').last);
-    final suggested = '$suggestedBase${context.flavor.displayNameSuffix}';
+    final String suggested = _suggestDisplayName(context);
     final String? displayName = _askValid(
       context.terminal,
       question: displayNameQuestion,
@@ -456,6 +455,30 @@ final class IdentityStep implements Step {
     rename.applyChanges(_xcconfigResidue);
     _writeDisplayName(context, displayName);
     return const Applied();
+  }
+
+  /// 표시 이름을 다시 물을 때의 제안값을 고른다.
+  ///
+  /// 우선순위는 다른 flavor 에 정해진 기본 이름 + 이 flavor 접미사 → 이 flavor
+  /// JSON `appName`(킷 기본값이 아니고, 표시 이름 규칙에 맞고, 접미사를 떼도
+  /// 이름이 남을 때) → 앱 ID 이름 + 접미사다. 이미 적힌 값이 있으면 Enter 만
+  /// 쳐도 그 값을 지키게 하기 위함이다.
+  String _suggestDisplayName(WizardContext context) {
+    final String suffix = context.flavor.displayNameSuffix;
+    final String? otherBaseName = _findOtherFlavorBaseName(context);
+    if (otherBaseName != null) return '$otherBaseName$suffix';
+    final String? appName = _readJsonAppName(
+      context.resolve(context.paths.json),
+    );
+    // 접미사 판정은 검사와 같이 읽은 값 그대로 한다 — 접미사뿐인 값(" Dev")을
+    // 다듬어 "Dev" 로 제안하지 않는다.
+    if (appName != null &&
+        !_isKitAppName(appName) &&
+        isValidDisplayName(appName) &&
+        stripFlavorSuffix(appName, suffix).trim().isNotEmpty) {
+      return appName.trim();
+    }
+    return '${rename.toTitleCase(_applicationId.split('.').last)}$suffix';
   }
 
   /// 직전 검사가 모은 사용자 xcconfig 의 킷 번들 ID 줄만 앱 ID 에 맞춘다.
@@ -662,11 +685,8 @@ final class IdentityStep implements Step {
     for (final Flavor other in Flavor.values) {
       if (other == context.flavor) continue;
       final paths = FlavorPaths(other);
-      final String jsonPath = context.resolve(paths.json);
-      final String? appName = File(jsonPath).existsSync()
-          ? readJsonString(jsonPath, 'appName')
-          : null;
-      if (appName != null && !appName.startsWith(rename.currentAppName)) {
+      final String? appName = _readJsonAppName(context.resolve(paths.json));
+      if (appName != null && !_isKitAppName(appName)) {
         entries.add((
           source: '${paths.json} 의 appName("$appName")',
           baseName: stripFlavorSuffix(appName, other.displayNameSuffix),
@@ -694,6 +714,14 @@ final class IdentityStep implements Step {
   /// [path] xcconfig 의 `DISPLAY_NAME` 을 읽는다 — 파일이나 변수가 없으면 null.
   static String? _readXcconfigDisplayName(String path) =>
       File(path).existsSync() ? readXcconfigValue(path, 'DISPLAY_NAME') : null;
+
+  /// [path] JSON 의 `appName` 문자열 값을 읽는다 — 파일이나 값이 없으면 null.
+  static String? _readJsonAppName(String path) =>
+      File(path).existsSync() ? readJsonString(path, 'appName') : null;
+
+  /// [appName] 이 킷 기본값(킷 이름으로 시작)인지 본다.
+  static bool _isKitAppName(String appName) =>
+      appName.startsWith(rename.currentAppName);
 
   /// 다른 flavor 사용자 파일에 이미 정해진 첫 기본 이름 — 없으면 null.
   static String? _findOtherFlavorBaseName(WizardContext context) {
@@ -818,7 +846,7 @@ final class IdentityStep implements Step {
   /// [applicationId] 를 org · name 으로 나눠 `rename.collectChanges` 를 한 번
   /// 부르면 각 수집기가 옛 값이 남은 대상만 돌려준다 — 끝난 저장소는 둘 다
   /// 빈 목록이다. 사용자 config appName 은 옛 값과 관계없이 표시 이름이 다르면
-  /// 늘 등록하므로 버린다(표시 이름은 [_isDisplayNameDefault] 가 따로 본다).
+  /// 늘 등록하므로 버린다(표시 이름은 [_describeDefaultDisplayName] 가 따로 본다).
   /// 사용자 xcconfig 번들 ID 는 추적 파일 몫에서 빼서 따로 돌려준다 — 사용자
   /// 파일 잔여는 위저드가 직접 맞춘다. 있는 파일만 수집되므로 없는 stg · prod
   /// 사용자 파일은 건너뛴다. dev 실행은 있는 모든 flavor 의 사용자 xcconfig 를,
@@ -885,25 +913,36 @@ final class IdentityStep implements Step {
     multiLine: true,
   ).firstMatch(content)?.group(1);
 
-  /// 표시 이름이 킷 기본값(appName 이 킷 이름으로 시작 · DISPLAY_NAME 이 example 값)인지 본다.
-  bool _isDisplayNameDefault(WizardContext context) {
+  /// 고른 flavor 의 표시 이름 가운데 킷 기본값(`appName` 이 킷 이름으로 시작 ·
+  /// `DISPLAY_NAME` 이 example 값)이거나 없는 곳을 적은 사유를 돌려준다 — 둘 다
+  /// 정해졌으면 null.
+  ///
+  /// 사유에는 실제로 기본값이거나 없는 파일만 저장소 상대 경로로 적는다.
+  String? _describeDefaultDisplayName(WizardContext context) {
     final FlavorPaths paths = context.paths;
-    final String jsonPath = context.resolve(paths.json);
-    final String xcconfigPath = context.resolve(paths.xcconfig);
-    final String examplePath = context.resolve(paths.xcconfigExample);
-    final String? appName = File(jsonPath).existsSync()
-        ? readJsonString(jsonPath, 'appName')
-        : null;
-    if (appName == null || appName.startsWith(rename.currentAppName)) {
-      return true;
-    }
-    final String? displayName = File(xcconfigPath).existsSync()
-        ? readXcconfigValue(xcconfigPath, 'DISPLAY_NAME')
-        : null;
-    final String? exampleDisplayName = File(examplePath).existsSync()
-        ? readXcconfigValue(examplePath, 'DISPLAY_NAME')
-        : null;
-    return displayName == null || displayName == exampleDisplayName;
+    final String? appName = _readJsonAppName(context.resolve(paths.json));
+    final String? displayName = _readXcconfigDisplayName(
+      context.resolve(paths.xcconfig),
+    );
+    final String? exampleDisplayName = _readXcconfigDisplayName(
+      context.resolve(paths.xcconfigExample),
+    );
+    final jsonTarget = '${paths.json} 의 appName';
+    final xcconfigTarget = '${paths.xcconfig} 의 DISPLAY_NAME';
+    final missing = <String>[
+      if (appName == null) jsonTarget,
+      if (displayName == null) xcconfigTarget,
+    ];
+    final kitDefault = <String>[
+      if (appName != null && _isKitAppName(appName)) jsonTarget,
+      if (displayName != null && displayName == exampleDisplayName)
+        xcconfigTarget,
+    ];
+    final parts = <String>[
+      if (kitDefault.isNotEmpty) '${kitDefault.join(' · ')} 이 킷 기본값입니다',
+      if (missing.isNotEmpty) '${missing.join(' · ')} 이 없습니다',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
   }
 }
 

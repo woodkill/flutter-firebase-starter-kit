@@ -551,7 +551,14 @@ void main() {
       final int code = await runIdentityStep(FakeCommandRunner(), terminal);
 
       expect(code, wizardExitDone);
-      expect(terminal.output.toString(), contains('표시 이름이 킷 기본값입니다'));
+      // 사유 줄은 실제로 기본값인 xcconfig 만 적는다 — 정해진 appName 은 적지 않는다.
+      expect(
+        terminal.output.toString(),
+        contains(
+          '▶ 앱 정체성\n'
+          '  ${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 이 킷 기본값입니다\n',
+        ),
+      );
       expect(terminal.asks, <String>[
         stepConfirmQuestion,
         IdentityStep.displayNameQuestion,
@@ -850,7 +857,13 @@ void main() {
             'Android 앱 ID 가 킷 기본값입니다',
             true,
           ),
-          ('표시 이름만 기본값', 'com.acme.my_app', '표시 이름이 킷 기본값입니다', false),
+          (
+            '표시 이름만 기본값',
+            'com.acme.my_app',
+            '${UserFilesStep.jsonUserPath} 의 appName · '
+                '${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 이 킷 기본값입니다',
+            false,
+          ),
         ]) {
       test('T-19-ID-14 $label', () async {
         writeIdentityFixture(root, applicationId: applicationId);
@@ -1545,7 +1558,8 @@ void main() {
             isA<Todo>().having(
               (Todo todo) => todo.reason,
               'reason',
-              '표시 이름이 킷 기본값입니다',
+              '${paths.json} 의 appName · ${paths.xcconfig} 의 DISPLAY_NAME 이 '
+                  '킷 기본값입니다',
             ),
           );
           expect(lines, <String>[
@@ -2044,5 +2058,98 @@ void main() {
         expect(await step.check(context), isA<Done>());
       });
     }
+
+    /// dev 표시 이름 세 곳(JSON · xcconfig · 영어 ARB)을 읽는다.
+    ({String? appName, String? displayName, String? appTitle})
+    readDevDisplayNames() => (
+      appName: readJsonString('$root/${UserFilesStep.jsonUserPath}', 'appName'),
+      displayName: readXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+      ),
+      appTitle: readJsonString('$root/$fixtureArbPath', 'appTitle'),
+    );
+
+    test('다른 flavor 가 없으면 Enter 만 쳐도 이미 적힌 JSON appName 을 제안값으로 '
+        '세 곳에 쓴다', () async {
+      writeDivergedFixture('Alpha');
+      final terminal = ScriptedTerminal(const <String?>['']);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        terminal: terminal,
+      );
+      final step = IdentityStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(await step.apply(context), isA<Applied>());
+
+      expect(readDevDisplayNames(), (
+        appName: 'Beta Dev',
+        displayName: 'Beta Dev',
+        appTitle: 'Beta',
+      ));
+      expect(await step.check(context), isA<Done>());
+    });
+
+    test('JSON appName 은 정해지고 xcconfig DISPLAY_NAME 만 example 값이면 그 '
+        'xcconfig 만 적고 JSON appName 을 제안한다', () async {
+      writeDivergedFixture('Alpha');
+      final String? exampleDisplayName = readXcconfigValue(
+        UserFilesStep.xcconfigExamplePath,
+        'DISPLAY_NAME',
+      );
+      replaceXcconfigValue(
+        '$root/${UserFilesStep.xcconfigUserPath}',
+        'DISPLAY_NAME',
+        exampleDisplayName!,
+      );
+      final terminal = ScriptedTerminal(const <String?>['']);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        terminal: terminal,
+      );
+      final step = IdentityStep();
+
+      expect(
+        await step.check(context),
+        isA<Todo>().having(
+          (Todo todo) => todo.reason,
+          'reason',
+          '${UserFilesStep.xcconfigUserPath} 의 DISPLAY_NAME 이 킷 기본값입니다',
+        ),
+      );
+      expect(await step.apply(context), isA<Applied>());
+
+      expect(readDevDisplayNames(), (
+        appName: 'Beta Dev',
+        displayName: 'Beta Dev',
+        appTitle: 'Beta',
+      ));
+    });
+
+    test('JSON appName 이 flavor 접미사뿐이면 그 값을 제안하지 않고 앱 ID 이름을 '
+        '제안한다', () async {
+      writeDivergedFixture('Alpha');
+      replaceJsonString(
+        '$root/${UserFilesStep.jsonUserPath}',
+        'appName',
+        Flavor.dev.displayNameSuffix,
+      );
+      final terminal = ScriptedTerminal(const <String?>['']);
+      final WizardContext context = buildTestContext(
+        projectRoot: root,
+        terminal: terminal,
+      );
+      final step = IdentityStep();
+
+      expect(await step.check(context), isA<Todo>());
+      expect(await step.apply(context), isA<Applied>());
+
+      expect(readDevDisplayNames(), (
+        appName: 'My App Dev',
+        displayName: 'My App Dev',
+        appTitle: 'My App',
+      ));
+    });
   });
 }
