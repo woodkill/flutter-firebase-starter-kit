@@ -423,7 +423,12 @@ void main() {
     expect(await runAppNamesStep(buildCleanRunner(), terminal), wizardExitDone);
     final output = terminal.output.toString();
     expect(output, contains('  " Dev" 는 dev 빌드가 붙이므로 접미사 없는 이름을 입력하세요\n'));
-    expect(output, contains('  " Stg" 는 stg 빌드가 붙이므로 접미사 없는 이름을 입력하세요\n'));
+    // stg 빌드가 붙이는지는 이 단계가 읽지 않는 stg config 에 달렸다 — 사실만 알린다.
+    expect(
+      output,
+      contains('  이름 끝의 " Stg" 는 flavor 접미사와 겹쳐 받지 않습니다 — 접미사 없는 이름을 입력하세요\n'),
+    );
+    expect(output, isNot(contains('stg 빌드가 붙이므로')));
     expect(countAsks(terminal, jaQuestion), 1);
     expect(countAsks(terminal, koQuestion), 3);
     expect(readFile('lib/l10n/app_ko.arb'), contains('"appTitle": "마이앱",'));
@@ -1179,6 +1184,41 @@ void main() {
       );
       expect(readFile(koArbPath), contains('"appTitle": "My App",'));
       expect(output, contains('  ✓ 언어별 앱 이름 — ja My App · ko My App'));
+    },
+  );
+
+  test(
+    'T-23-NAMES-19 stg 에서 물으면 " Stg" 입력만 빌드가 붙인다고 하고 " Dev" 입력은 사실만 알린다',
+    () async {
+      writeAppNamesFixture(root);
+      writeFixtureFile(
+        root,
+        'config/stg.json',
+        '{\n  "appName": "My App Stg"\n}\n',
+      );
+      final terminal = ScriptedTerminal(const <String?>[
+        'y',
+        'マイアプリ',
+        '마이앱 Stg',
+        '마이앱 Dev',
+        '마이앱',
+        '1',
+      ]);
+      expect(
+        await runAppNamesStepFor(Flavor.stg, buildCleanRunner(), terminal),
+        wizardExitDone,
+      );
+      final output = terminal.output.toString();
+      expect(output, contains('  " Stg" 는 stg 빌드가 붙이므로 접미사 없는 이름을 입력하세요\n'));
+      expect(
+        output,
+        contains(
+          '  이름 끝의 " Dev" 는 flavor 접미사와 겹쳐 받지 않습니다 — 접미사 없는 이름을 입력하세요\n',
+        ),
+      );
+      expect(output, isNot(contains('dev 빌드가 붙이므로')));
+      expect(countAsks(terminal, koQuestion), 3);
+      expect(readFile(koArbPath), contains('"appTitle": "마이앱",'));
     },
   );
 
