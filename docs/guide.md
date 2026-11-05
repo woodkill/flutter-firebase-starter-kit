@@ -51,9 +51,11 @@
    - 분기는 `showsDeveloperGuide` 기본값 const `!kReleaseMode` 하나다.
 4. 본문은 `Expanded` 안에 들어가 높이가 정해져 있다.
    - 내용이 길면 스크롤 위젯으로 감싼다(280 dp 폭 · 가로 회전에서도 넘치지 않게).
-5. **앱 이름** — config `appName`(`config/{flavor}.json` → `--dart-define-from-file`) 하나를 바꾸면 OS 최근 앱 화면의 제목(`onGenerateTitle`)과 홈 AppBar 제목이 함께 바뀐다.
+5. **앱 이름** — 홈 AppBar 제목과 Android 최근 앱 화면 제목(`onGenerateTitle`)은 앱 언어의 ARB `appTitle` 이고, config `appName` 이 ` Dev` · ` Stg` 로 끝나면 같은 접미사를 붙인다.
    - 두 곳이 `resolveAppTitle`(`lib/core/l10n/app_title.dart`) 한 함수를 쓴다.
-   - 값이 비어 있으면 로케일별 ARB `appTitle` 이다.
+   - 홈 화면 이름도 같은 조건이다 — 표시 이름에서 접미사를 지우면 두 곳 모두 접미사가 없다.
+   - 영어 `appTitle` 은 config `appName`(`config/{flavor}.json`)에서 접미사를 뗀 값과 같아야 한다 — 위저드 「앱 정체성」 이 함께 쓴다.
+   - 언어별 이름은 [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기) 를 본다.
    - 게스트 홈은 AppBar 오른쪽에 「로그인」 · 설정 아이콘이 있어 280 dp 에서 긴 이름은 한 줄로 말줄임된다.
 6. 본문을 바꾸면 홈을 그리는 시험 두 곳도 맞춘다.
    - 앱 기동 시험 `test/widget_test.dart` 는 홈에 개발자 안내 카드 제목이 보이는지 본다 — 카드를 지웠으면 그 단언을 새 본문 내용으로 바꾼다.
@@ -3237,6 +3239,7 @@ git update-index --skip-worktree lib/core/firebase/firebase_options_dev.dart ios
 
 **앱 ID 는 `bin/rename.dart` 로 바꾼다.**
 - 이 도구는 Android `applicationId` · `namespace` · Kotlin 소스 디렉터리, iOS 번들 ID, `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX`, 내 config 파일(`config/dev.json` · `config/stg.json` · `config/prod.json`)의 `appName` 을 바꾼다.
+  - 이 도구는 iOS `DISPLAY_NAME` 과 영어 ARB `appTitle` 은 바꾸지 않는다 — 단독으로 실행했으면 `./setup.sh` 의 「앱 정체성」 단계로 두 값을 맞춘다(그 전 Android 빌드는 이름 불일치로 멈춘다).
 - iOS 번들 ID 는 `ios/Runner.xcodeproj/project.pbxproj` 와 내 xcconfig 파일(`ios/Flutter/dev.xcconfig` · `ios/Flutter/stg.xcconfig` · `ios/Flutter/prod.xcconfig`)의 `PRODUCT_BUNDLE_IDENTIFIER` 에서 바뀌고, 킷의 `*.example.xcconfig` 는 바꾸지 않는다.
 - 키 없이 빌드하기 위한 Firebase placeholder 파일(`android/app/src/stg/google-services.json` · `android/app/src/prod/google-services.json` 의 `package_name`, `ios/config/dev/GoogleService-Info.plist` · `ios/config/stg/GoogleService-Info.plist` · `ios/config/prod/GoogleService-Info.plist` 의 `BUNDLE_ID`)도 새 앱 ID 로 바뀌어 rename 뒤에도 `--flavor stg` · `--flavor prod` 빌드가 그대로 된다.
 - `scripts/firebase-configure.sh` 가 실 값으로 바꾼 파일은 건드리지 않는다.
@@ -3281,9 +3284,9 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 4 | `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX` | 내 프로젝트 식별자 3개(`bin/rename.dart` 가 바꾼다) — 프로젝트 ID 는 `config/<flavor>.json` 의 `firebaseProjectId` 가 있으면 그 값을 먼저 쓰고, 상수는 그 값이 없을 때만 쓴다 | 중간 (스크립트 개선) | 같은 줄이 충돌하면 파일을 열어 상수 3줄만 내 값으로 남기고 나머지는 킷 값을 받는다 |
 | 5 | `.firebaserc` | 내 Firebase 프로젝트 ID | 낮음 | 내 값 |
 | 6 | `firebase.json` 의 `flutter.platforms` 프로젝트 ID · 앱 ID | 고치지 않는다(위저드는 이 값을 채우지 않아 킷 값이 남는다 — 빌드는 iOS 항목에서 `uploadDebugSymbols` 가 `true` 인지와 두 ID 가 있는지만 보고, dSYM 은 「크래시 기호 올리기」 대로 빌드한 flavor 의 plist 앱으로 올라간다) | 중간 (`functions` · `emulators` · `hosting` · `extensions` 설정) | 다른 줄은 자동 병합 · 프로젝트 ID · 앱 ID 줄이 충돌하면 킷 값을 받는다(어느 값이든 빌드 동작은 같고, 킷 값이면 그 줄은 다음 판부터 자동 병합된다) |
-| 7 | `android/app/build.gradle.kts` 의 `namespace` · `applicationId` · flavor 접미사 · `release` 서명 설정 | 앱 ID(`bin/rename.dart`) · 릴리스 서명 | 중간 (Android Gradle Plugin · Flutter 상향) | 앱 ID · 서명 줄은 내 값 · 나머지는 킷 값 |
+| 7 | `android/app/build.gradle.kts` 의 `namespace` · `applicationId` · flavor 접미사 · `release` 서명 설정 | 앱 ID(`bin/rename.dart`) · 릴리스 서명 | 중간 (Android Gradle Plugin · Flutter 상향) | 앱 ID · 서명 줄은 내 값 · 나머지(홈 화면 앱 이름을 만드는 task 블록 · `app_name` 리소스 줄 포함)는 킷 값 |
 | 8 | `android/app/src/main/kotlin/` 아래 앱 패키지 디렉터리의 `*.kt` | 패키지 경로(`bin/rename.dart` 가 디렉터리를 옮긴다) | 낮음 | 킷이 옛 경로의 파일을 고쳐 규칙 1 의 충돌이 나면 옛 경로를 `git rm` 하고 그 변경을 새 경로 파일에 옮겨 적는다 |
-| 9 | `ios/Runner.xcodeproj/project.pbxproj` | 번들 ID(`bin/rename.dart`) · Xcode 가 저장하는 설정 | 중간 (Flutter · Xcode 상향 · 플러그인) | 충돌이 잦다. 번들 ID 줄은 내 값 · 나머지는 킷 값을 받고 Xcode 로 열어 확인한다 |
+| 9 | `ios/Runner.xcodeproj/project.pbxproj` | 번들 ID(`bin/rename.dart`) · Xcode 가 저장하는 설정 | 중간 (Flutter · Xcode 상향 · 플러그인) | 충돌이 잦다. 번들 ID 줄은 내 값 · 나머지(Runner 의 「Localize Launcher Name」 빌드 단계 포함)는 킷 값을 받고 Xcode 로 열어 확인한다 |
 | 10 | `ios/Flutter/*.example.xcconfig` · `config/*.example.json` | 고치지 않는다(복사 원본) | 높음 | 충돌 없음(고치지 않았다면) |
 | 11 | `pubspec.yaml` 의 `version:` | 앱 버전 · 빌드 번호 | 없음 (킷은 이 줄을 고치지 않는다) | 충돌 없음 |
 | 12 | `pubspec.yaml` 의 `description:` · `dependencies` · `flutter:` 아래 `assets` · `fonts` · `config` | 앱 설명 · 의존성 추가 · 앱 자산 · 글꼴 추가 · 빌드 대상 켜기 | 높음 (의존성 상향 · 자산 추가) | 다른 줄은 자동 병합 · 같은 줄은 내 값 · 같은 자리에 양쪽이 서로 다른 항목을 더해 충돌하면 양쪽 줄을 모두 남긴다 |
@@ -3291,13 +3294,13 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 14 | `flutter_native_splash.yaml` · `assets/images/splash/logo.png` · `logo_dark.png` | 스플래시 색 · 로고 | 낮음 | 내 값 · `fvm dart run flutter_native_splash:create` 로 다시 만든다 |
 | 15 | 스플래시 생성물(`android/app/src/main/res/drawable*/launch_background.xml` · `values*/styles.xml` · `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Base.lproj/LaunchScreen.storyboard`) | 14 를 다시 만든 결과 | 낮음 | 다시 만들어 덮어쓴다 |
 | 16 | 앱 아이콘(`android/app/src/main/res/mipmap-*/ic_launcher.png` · `ios/Runner/Assets.xcassets/AppIcon.appiconset/`) | 내 아이콘 | 낮음 | 내 파일(`git checkout --ours -- <파일>`) |
-| 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
+| 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 · 언어별 앱 이름(`appTitle` — 영어 값은 위저드가 기본 이름으로 쓴다) | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
 | 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 데모 파일은 규칙 1(`git rm`) · 고친 테스트는 「데모를 지웠다면」 규칙 3 대로 충돌 블록을 푼다 |
 | 21 | `lib/core/theme/` 토큰 (브랜드 색은 `config/*.json` 의 `brandColor`) | 테마 토큰 | 중간 | 내 값 |
 | 22 | `android/app/src/main/res/drawable/ic_notification.xml` · `values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor` | 알림 아이콘 · 색 | 낮음 | 내 값 |
-| 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 |
+| 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 · 언어별 `CFBundleDisplayName` 은 빌드가 ARB `appTitle` 로 `<언어>.lproj/InfoPlist.strings` 에 얹는다(내 다른 키는 남는다) |
 | 24 | `android/app/src/main/AndroidManifest.xml` | 권한 · 메타데이터 | 중간 | 자동 병합을 먼저 보고, 충돌은 직접 합친다 |
 | 25 | `firestore.rules` · `storage.rules` · `firestore.indexes.json` (+ `functions/test/rules/`) | 허용 필드 · 크기 제한 · 인덱스 | 중간 | 직접 합친 뒤 `functions/` 에서 `pnpm test:rules` |
 | 26 | `functions/src/shared/region.ts` 의 `REGION` · `lib/core/config/app_config.dart` 의 `defaultFunctionsRegion` | 리전(`./setup.sh` 가 두 곳과 `config/dev.json` 의 `functionsRegion` 을 함께 바꾼다) | 중간 (`app_config.dart` 는 새 config 키마다 바뀐다) | 같은 줄이 충돌하면 리전 상수 줄만 내 값으로 남기고 나머지는 킷 값을 받는다 |
@@ -3671,7 +3674,7 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 | `android.builtInKotlin=true` | `android/gradle.properties` | 앱 모듈이 AGP 의 내장 Kotlin 을 쓴다. `false` 로 되돌리지 않는다 — 끄는 옵션은 AGP 10.0 에서 사라진다 |
 | `android.newDsl=false` | `android/gradle.properties` | 옛 DSL 을 쓴다. 켜는 조건은 아래 「남은 단계」 |
 | `id("org.jetbrains.kotlin.android") version "2.4.0" apply false` | `android/settings.gradle.kts` | 지우면 AGP 가 함께 가져오는 KGP 2.2.10 이 쓰이고, Flutter 3.47.x 오류 하한 2.2.20 보다 낮아 빌드가 멈춘다(https://github.com/flutter/flutter/issues/192167) |
-| `resValues = true` | `android/app/build.gradle.kts` | AGP 9 는 리소스 값 기능이 기본으로 꺼져 있다. 지우면 그 아래 `resValue(...)` 5곳 때문에 설정 단계에서 빌드가 멈춘다(아래 「문제 해결」 첫 항목) |
+| `resValues = true` | `android/app/build.gradle.kts` | AGP 9 는 리소스 값 기능이 기본으로 꺼져 있다. 지우면 그 아래 `resValue(...)` 6곳 때문에 설정 단계에서 빌드가 멈춘다(아래 「문제 해결」 첫 항목) |
 
 **남은 단계가 필요해지는 조건**
 
@@ -3700,7 +3703,7 @@ fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.js
 **문제 해결**
 
 - `defaultConfig contains custom resource values, but the feature is disabled.` 로 설정 단계에서 빌드가 멈춘다 → `android/app/build.gradle.kts` 의 `android { buildFeatures { resValues = true } }` 가 빠졌다(merge 등).
-  - 되살린다 — 그 아래 `resValue(...)` 5곳이 Facebook · Naver 값을 리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
+  - 되살린다 — 그 아래 `resValue(...)` 6곳이 Facebook · Naver 값과 앱 이름(`app_name`)을 리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
 - 스크립트 컴파일 오류 `'var jvmTarget: String' is deprecated. Please migrate to the compilerOptions DSL.` → 옛 Kotlin 옵션 블록(`kotlinOptions { jvmTarget = … }`)이 들어왔다.
   - 지우고 `flutter {}` 앞에 `kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }` 를 둔다.
 - Android Studio 로 `android/` 를 열 때 AGP 9.1 을 지원하지 않는다는 안내가 나온다 →
