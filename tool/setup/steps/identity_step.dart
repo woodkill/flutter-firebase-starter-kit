@@ -19,7 +19,9 @@ import 'configure_step.dart';
 ///
 /// 계산 · 검증 · 변경은 `bin/rename.dart` 의 공개 함수를 그대로 부른다. 확인은
 /// 단계 진행 확인과 값 요약 표 한 번으로 끝나고 rename 도구 자체의 확인 질문은
-/// 거치지 않는다. 표시 이름은 rename 뒤 사용자 파일의 `appName` · `DISPLAY_NAME`
+/// 거치지 않는다. rename 변경 가운데 사용자 config `appName` 치환은 적용하지
+/// 않는다 — 다른 flavor 에 정해진 표시 이름을 덮지 않기 위함이다. 표시 이름은
+/// rename 뒤 고른 flavor 사용자 파일의 `appName` · `DISPLAY_NAME`
 /// 에 위저드가 직접 쓰고, 영어 ARB([arbPath])의 `appTitle` 에는 그 flavor
 /// 접미사를 뗀 기본 이름을 쓴다(빌드의 홈 화면 이름 생성기와 같은 규칙). 앱 ID 가
 /// 이미 바뀐 저장소에서 사용자 xcconfig 에 남은 킷 번들 ID 는 묻지 않고 앱 ID 에
@@ -120,6 +122,10 @@ final class IdentityStep implements Step {
   static const String baseNameConflictGuidance =
       '영어 appTitle 은 세 flavor 가 함께 쓰므로 세 flavor 의 표시 이름은 flavor '
       '접미사를 뗀 기본 이름이 같아야 합니다';
+
+  /// 세 flavor 의 기본 이름이 어긋나 표시 이름 하나로 풀 수 없을 때의 안내.
+  static const String alignFlavorsGuidance =
+      '세 flavor 사용자 파일의 표시 이름을 같은 기본 이름으로 맞춘 뒤 다시 실행하세요';
 
   /// 같은 질문을 다시 묻는 최대 횟수.
   static const int maxInputAttempts = 3;
@@ -224,9 +230,7 @@ final class IdentityStep implements Step {
       final String? conflict = _findBaseNameConflict(context, _baseName);
       if (conflict != null) {
         _mode = _IdentityMode.nameConflict;
-        _reason =
-            '$conflict — 세 flavor 사용자 파일의 표시 이름을 같은 기본 이름으로 '
-            '맞춘 뒤 다시 실행하세요';
+        _reason = '$conflict — $alignFlavorsGuidance';
         return Todo(_reason);
       }
       _mode = _IdentityMode.titleOnly;
@@ -391,12 +395,21 @@ final class IdentityStep implements Step {
     final String? conflict = _findDisplayNameConflict(context, displayName);
     if (conflict != null) return Failed(conflict);
 
-    final List<rename.FileChange> changes = rename.collectChanges(
-      context.projectRoot,
-      org,
-      name,
-      projectIdPrefix: prefix,
-    );
+    // 사용자 config appName 은 이 단계가 직접 쓴다 — rename 은 그 값을 늘
+    // toTitleCase(name) 으로 바꾸므로, 그대로 적용하면 다른 flavor 에 이미 정해진
+    // 표시 이름을 덮어써 세 flavor 의 기본 이름이 갈린다(_collectRenameResidue 와
+    // 같은 기준으로 뺀다). 킷 기본값인 다른 flavor 는 그 flavor 의 다음 실행이
+    // 이 flavor 의 기본 이름을 제안한다.
+    final Set<String> configPaths = _resolveUserConfigPaths(context);
+    final changes = <rename.FileChange>[
+      for (final rename.FileChange change in rename.collectChanges(
+        context.projectRoot,
+        org,
+        name,
+        projectIdPrefix: prefix,
+      ))
+        if (!configPaths.contains(change.filePath)) change,
+    ];
     final List<String> dirty = await findDirtyTrackedFiles(
       context,
       _listTargetPaths(context, changes),
@@ -701,8 +714,27 @@ final class IdentityStep implements Step {
     return null;
   }
 
+  /// 다른 flavor 사용자 파일들끼리 기본 이름이 다르면 처음 어긋난 두 파일과
+  /// 값을 적은 사유를 돌려준다 — 모두 같거나 대조할 값이 하나 이하면 null.
+  static String? _findOtherFlavorsDisagreement(WizardContext context) {
+    final List<({String source, String baseName})> entries =
+        _collectOtherFlavorBaseNames(context);
+    if (entries.isEmpty) return null;
+    final first = entries.first;
+    for (final entry in entries.skip(1)) {
+      if (entry.baseName != first.baseName) {
+        return '${first.source}의 기본 이름 "${first.baseName}" 과 '
+            '${entry.source}의 기본 이름 "${entry.baseName}" 이 다릅니다';
+      }
+    }
+    return null;
+  }
+
   /// 표시 이름 [displayName] 의 기본 이름이 다른 flavor 와 다르면 고칠 방법까지
   /// 적은 사유를 돌려준다 — 같으면 null.
+  ///
+  /// 다른 flavor 들끼리도 기본 이름이 다르면 어느 표시 이름을 넣어도 한쪽과
+  /// 어긋나므로, 그 두 파일을 적고 세 flavor 파일을 먼저 맞추라고 안내한다.
   static String? _findDisplayNameConflict(
     WizardContext context,
     String displayName,
@@ -712,6 +744,11 @@ final class IdentityStep implements Step {
       stripFlavorSuffix(displayName, context.flavor.displayNameSuffix),
     );
     if (conflict == null) return null;
+    final String? disagreement = _findOtherFlavorsDisagreement(context);
+    if (disagreement != null) {
+      return '$disagreement — $baseNameConflictGuidance — '
+          '$alignFlavorsGuidance';
+    }
     return '$conflict. 같은 기본 이름의 표시 이름으로 다시 실행하세요';
   }
 
@@ -795,10 +832,7 @@ final class IdentityStep implements Step {
     final int nameStart = applicationId.lastIndexOf('.');
     // org 가 없는 앱 ID 는 이름 바꾸기 규칙 밖이라 대조하지 않는다.
     if (nameStart <= 0) return _noRenameResidue;
-    final configPaths = <String>{
-      for (final String fileName in rename.userConfigFileNames)
-        context.resolve('config/$fileName'),
-    };
+    final Set<String> configPaths = _resolveUserConfigPaths(context);
     final xcconfigPaths = <String>{
       for (final String fileName in rename.userXcconfigFileNames)
         context.resolve('ios/Flutter/$fileName'),
@@ -824,6 +858,16 @@ final class IdentityStep implements Step {
     }
     return (tracked: tracked, userXcconfig: userXcconfig);
   }
+
+  /// rename 이 `appName` 을 바꾸는 사용자 config 파일(`config/{dev,stg,prod}.json`)
+  /// 의 절대 경로 집합을 만든다.
+  ///
+  /// 사용자 config `appName` 은 표시 이름이라 이 단계가 고른 flavor 것만 직접
+  /// 쓴다 — rename 변경 목록에서 이 경로의 변경은 검사 · 적용 모두 뺀다.
+  static Set<String> _resolveUserConfigPaths(WizardContext context) => <String>{
+    for (final String fileName in rename.userConfigFileNames)
+      context.resolve('config/$fileName'),
+  };
 
   /// 추적 파일 잔여 [residue] 를 설명하는 문장을 만든다 — 없으면 null.
   String? _describeTrackedResidue(

@@ -1714,6 +1714,9 @@ void main() {
     String? readArbTitle() =>
         readJsonString('$root/$fixtureArbPath', 'appTitle');
 
+    String? readFlavorAppName(Flavor flavor) =>
+        readJsonString('$root/${FlavorPaths(flavor).json}', 'appName');
+
     test('stg 표시 이름이 킷 기본값이면 dev 의 기본 이름으로 제안하고 Enter 면 '
         '영어 ARB 를 그대로 둔다', () async {
       writeDevSettledFixture();
@@ -1819,6 +1822,105 @@ void main() {
         'Foo Dev',
       );
       expect(readArbTitle(), 'Foo');
+      // 이름 바꾸기가 다른 flavor 에 정해진 표시 이름을 덮지 않는다.
+      expect(readFlavorAppName(Flavor.stg), 'Foo Stg');
+    });
+
+    /// org · name 부터 진행하는 dev 실행(com.acme · my_app · 제안값 그대로)의
+    /// 문맥을 만든다.
+    WizardContext buildDevFullContext() => buildTestContext(
+      projectRoot: root,
+      runner: FakeCommandRunner()..on(_gitStatusKey, _cleanTree),
+      terminal: ScriptedTerminal(const <String?>[
+        'com.acme',
+        'my_app',
+        '1',
+        'y',
+      ]),
+    );
+
+    test('org · name 부터 진행해도 stg · prod 에 정해진 표시 이름은 그대로라 세 flavor '
+        '모두 ✓', () async {
+      writeIdentityFixture(root);
+      writeSettledFlavor(Flavor.stg, 'Foo Stg');
+      writeSettledFlavor(Flavor.prod, 'Foo');
+      final WizardContext dev = buildDevFullContext();
+      final step = IdentityStep();
+
+      expect(await step.check(dev), isA<Todo>());
+      expect(await step.apply(dev), isA<Applied>());
+
+      expect(readFlavorAppName(Flavor.dev), 'Foo Dev');
+      expect(readFlavorAppName(Flavor.stg), 'Foo Stg');
+      expect(readFlavorAppName(Flavor.prod), 'Foo');
+      expect(readArbTitle(), 'Foo');
+      for (final flavor in Flavor.values) {
+        expect(
+          await IdentityStep().check(buildContext(flavor).context),
+          isA<Done>(),
+          reason: flavor.name,
+        );
+      }
+    });
+
+    test('org · name 부터 진행할 때 킷 기본값인 다른 flavor 는 그대로 두고, 그 flavor '
+        '실행이 dev 의 기본 이름을 제안한다', () async {
+      writeIdentityFixture(root);
+      writeExampleFlavor(Flavor.stg);
+      final String? stgExampleName = readFlavorAppName(Flavor.stg);
+      expect(stgExampleName, startsWith(rename.currentAppName));
+      final WizardContext dev = buildDevFullContext();
+      final devStep = IdentityStep();
+
+      expect(await devStep.check(dev), isA<Todo>());
+      expect(await devStep.apply(dev), isA<Applied>());
+
+      expect(readFlavorAppName(Flavor.dev), 'My App Dev');
+      expect(readFlavorAppName(Flavor.stg), stgExampleName);
+      final stg = buildContext(Flavor.stg, const <String?>['']);
+      final stgStep = IdentityStep();
+      expect(await stgStep.check(stg.context), isA<Todo>());
+      expect(await stgStep.apply(stg.context), isA<Applied>());
+      expect(readFlavorAppName(Flavor.stg), 'My App Stg');
+      expect(readArbTitle(), 'My App');
+      for (final flavor in <Flavor>[Flavor.dev, Flavor.stg]) {
+        expect(
+          await IdentityStep().check(buildContext(flavor).context),
+          isA<Done>(),
+          reason: flavor.name,
+        );
+      }
+    });
+
+    test('다른 flavor 들끼리 기본 이름이 다르면 두 파일을 적고 세 flavor 파일을 '
+        '맞추라고 안내하며 어느 파일도 바꾸지 않는다', () async {
+      writeIdentityFixture(root, applicationId: renamedId);
+      writeSettledFlavor(Flavor.stg, 'Foo Stg');
+      writeSettledFlavor(Flavor.prod, 'Bar');
+      final Map<String, List<int>> before = snapshotTree(root);
+      final dev = buildContext(Flavor.dev, const <String?>['']);
+      final step = IdentityStep();
+
+      expect(await step.check(dev.context), isA<Todo>());
+      final StepOutcome outcome = await step.apply(dev.context);
+
+      expect(
+        outcome,
+        isA<Failed>().having(
+          (Failed failed) => failed.summary,
+          'summary',
+          allOf(
+            contains('${const FlavorPaths(Flavor.stg).json} 의 appName'),
+            contains('${const FlavorPaths(Flavor.prod).json} 의 appName'),
+            contains('"Foo"'),
+            contains('"Bar"'),
+            contains('세 flavor 사용자 파일의 표시 이름을 같은 기본 이름으로 맞춘 뒤 다시 실행하세요'),
+            isNot(contains('같은 기본 이름의 표시 이름으로 다시 실행하세요')),
+            isNot(contains(root)),
+          ),
+        ),
+      );
+      expect(snapshotTree(root), before);
     });
 
     test('세 flavor 의 appName · DISPLAY_NAME 을 모두 새 기본 이름으로 고치고 다시 '
