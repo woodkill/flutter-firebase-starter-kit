@@ -131,9 +131,9 @@ class _TermsRow extends StatelessWidget {
     final spacing = context.appSpacing;
 
     final badge = Container(
-      // IN-03: 매직 넘버 대신 spacing 스케일에서 유도한다 — 세로 여백은
-      // xs 의 절반(2), 모서리 반경은 xs(4). 사용자가 AppSpacing 을 교체하면
-      // 배지도 함께 따라간다.
+      // IN-03: 매직 넘버 대신 토큰에서 유도한다 — 세로 여백은 간격 xs 의
+      // 절반(2), 모서리 반경은 둥글기 xs(4). 사용자가 토큰을 바꾸면 배지도
+      // 함께 따라간다.
       padding: EdgeInsets.symmetric(
         horizontal: spacing.sm,
         vertical: spacing.xs / 2,
@@ -142,7 +142,7 @@ class _TermsRow extends StatelessWidget {
         color: isRequired
             ? colorScheme.errorContainer
             : colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(spacing.xs),
+        borderRadius: BorderRadius.circular(context.appRadius.xs),
       ),
       child: Text(
         isRequired ? l10n.termsRequired : l10n.termsOptional,

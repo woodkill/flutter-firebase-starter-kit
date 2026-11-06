@@ -22,7 +22,7 @@ import 'social_sign_in_section.dart';
 /// 로그인 유도 Bottom Sheet 을 표시한다 (Phase 10 D-10).
 ///
 /// 익명 또는 미인증 사용자가 보호 기능을 탭할 때 [AuthRequired] 가 호출한다.
-/// Material 3 기본 drag handle + top rounded corner (28dp) 적용.
+/// Material 3 기본 drag handle + 위 모서리 둥글기 `AppRadius.xl`(28) 적용.
 /// 최대 높이는 화면의 90% (quick 260911-0t3 — 0.75 에서 상향). 이는 상한일
 /// 뿐이며, 콘텐츠가 작으면 sheet 는 그보다 낮은 콘텐츠 높이로 줄어든다.
 Future<void> showLoginPromptSheet(BuildContext context) {
@@ -31,8 +31,10 @@ Future<void> showLoginPromptSheet(BuildContext context) {
     isScrollControlled: true,
     showDragHandle: true,
     backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(context.appRadius.xl),
+      ),
     ),
     constraints: BoxConstraints(
       maxHeight: MediaQuery.sizeOf(context).height * 0.9,

@@ -124,7 +124,7 @@ void main() {
         );
 
         final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline));
-        expect(icon.size, 64, reason: '명명 상수 _notFoundIconSize 값 고정');
+        expect(icon.size, 64, reason: '아이콘 크기 토큰 xxl(64) 고정');
       },
     );
   });

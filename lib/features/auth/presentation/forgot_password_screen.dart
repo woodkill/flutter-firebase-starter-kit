@@ -204,14 +204,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                 ),
                 decoration: BoxDecoration(
                   color: colors.primaryContainer,
-                  borderRadius: BorderRadius.circular(spacing.sm),
+                  borderRadius: BorderRadius.circular(context.appRadius.sm),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.check_circle_outline,
                       color: colors.onPrimaryContainer,
-                      size: 20,
+                      size: context.appIconSizes.sm,
                     ),
                     SizedBox(width: spacing.sm),
                     Expanded(

@@ -120,8 +120,11 @@ class _AuthInProgressOverlayState extends State<AuthInProgressOverlay> {
     return Positioned.fill(
       child: AbsorbPointer(
         child: ColoredBox(
-          // M3 scrim 토큰 — Modal 컨텍스트 표준 dim.
-          color: context.colorScheme.scrim.withValues(alpha: 0.32),
+          // 킷 가림막 투명도 토큰 — `ColorScheme.scrim` 위에 얹어 아래 화면을
+          // 어둡게 덮는다.
+          color: context.colorScheme.scrim.withValues(
+            alpha: context.appOpacity.scrim,
+          ),
           // Positioned.fill 의 tight 제약이라 child 가 없어도 화면 전체를 덮는다.
           child: shouldShowIndicator
               ? _ProgressIndicatorLabel(label: widget.label)

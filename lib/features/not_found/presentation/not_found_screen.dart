@@ -7,12 +7,6 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 
-/// 404 화면의 안내 아이콘 크기 (IN-01 — 매직 넘버 명명).
-///
-/// [AppSpacing] 스케일(4px 기반)의 배수가 아닌 독립 illustration 치수이므로
-/// spacing 토큰을 재사용하지 않고 전용 상수로 둔다.
-const double _notFoundIconSize = 64;
-
 /// 잘못된 경로 진입 시 보이는 명시적 404 화면 — home 으로 조용히 넘기지 않는다(IN-05).
 ///
 /// [GoRouter.errorBuilder] 가 띄우는 root 화면이다. GoRouterState 를 받지
@@ -40,7 +34,7 @@ class NotFoundScreen extends StatelessWidget {
           children: [
             Icon(
               Icons.error_outline,
-              size: _notFoundIconSize,
+              size: context.appIconSizes.xxl,
               color: colorScheme.onSurfaceVariant,
             ),
             Gap(spacing.lg),

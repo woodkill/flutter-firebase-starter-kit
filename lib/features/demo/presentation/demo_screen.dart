@@ -31,10 +31,10 @@ import '../../notifications/data/test_push_client.dart';
 import '../../onboarding/presentation/onboarding_notifier.dart';
 
 // IN-03 — 매직 넘버를 저장소의 지배적 규약 2가지(설계 토큰 유도 / 파일 상단
-// 명명 상수)로 정리한다. 아래 값들은 `spacing.*` 스케일(4/8/12/16/24/32/48)
-// 에서 유도되지 않는 컴포넌트 고유 치수이므로 명명 상수로 승격한다. 이
-// 프로젝트에는 `AppIconSizes` / `AppComponentSizes` extension 이 없으므로
-// 토큰 신설 대신 상수 규약(splash_screen.dart 의 `_kLogoSize` 선례) 을 따른다.
+// 명명 상수)로 정리한다. 아이콘 크기 · 모서리 둥글기는 `AppIconSizes` ·
+// `AppRadius` 토큰을 쓰고, 아래 값들은 토큰 단계에서 유도되지 않는 컴포넌트
+// 고유 치수(스와치 · 스페이싱 막대 · 썸네일)라 파일 상단 명명 상수로 둔다
+// (splash_screen.dart 의 `_kLogoSize` 선례).
 
 /// 컬러 스와치 한 변의 길이 (logical pixel, IN-03).
 const double _kSwatchSize = 40;
@@ -44,9 +44,6 @@ const double _kSpacingBarHeight = 24;
 
 /// photoUrl 썸네일 한 변의 길이 (logical pixel, IN-03).
 const double _kThumbnailSize = 48;
-
-/// 환경 카드 leading 아이콘의 크기 (logical pixel, IN-03).
-const double _kEnvCardIconSize = 32;
 
 /// 개발 · 데모 화면 — release 가 아닌 빌드에서만 등록된다(D-14).
 ///
@@ -496,7 +493,7 @@ class _ColorSwatch extends StatelessWidget {
             height: _kSwatchSize,
             decoration: BoxDecoration(
               color: color,
-              borderRadius: BorderRadius.circular(spacing.sm),
+              borderRadius: BorderRadius.circular(context.appRadius.sm),
               border: borderColor != null
                   ? Border.all(color: borderColor!)
                   : null,
@@ -674,7 +671,7 @@ class _SpacingBar extends StatelessWidget {
           height: _kSpacingBarHeight,
           decoration: BoxDecoration(
             color: context.colorScheme.primary,
-            borderRadius: BorderRadius.circular(spacing.xs),
+            borderRadius: BorderRadius.circular(context.appRadius.xs),
           ),
         ),
         Gap(spacing.sm),
@@ -736,8 +733,7 @@ class _AccountDebugSection extends ConsumerWidget {
             icon: Icons.image,
             label: l10n.authAccountPhotoUrl,
             child: ClipRRect(
-              // IN-03: 반경은 spacing 스케일에서 유도한다 (sm = 8).
-              borderRadius: BorderRadius.circular(spacing.sm),
+              borderRadius: BorderRadius.circular(context.appRadius.sm),
               child: CachedNetworkImage(
                 imageUrl: user.photoUrl!,
                 width: _kThumbnailSize,
@@ -1186,7 +1182,7 @@ class _EnvironmentCard extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(spacing.xs),
+          borderRadius: BorderRadius.circular(context.appRadius.xs),
         ),
         child: Text(
           value,
@@ -1209,7 +1205,7 @@ class _EnvironmentCard extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: _kEnvCardIconSize,
+                size: context.appIconSizes.lg,
                 color: context.colorScheme.primary,
               ),
               Gap(spacing.lg),

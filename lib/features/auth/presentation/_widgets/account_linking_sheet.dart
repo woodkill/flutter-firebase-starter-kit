@@ -152,8 +152,10 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(context.appRadius.xl),
+        ),
       ),
       constraints: BoxConstraints(maxHeight: size.height * 0.75),
       builder: (_) => AccountLinkingSheet(

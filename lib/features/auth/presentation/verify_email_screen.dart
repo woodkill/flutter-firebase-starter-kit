@@ -33,6 +33,7 @@ class VerifyEmailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final spacing = context.appSpacing;
+    final iconSizes = context.appIconSizes;
     final colors = context.colorScheme;
     final typography = context.appTypography;
 
@@ -68,12 +69,12 @@ class VerifyEmailScreen extends ConsumerWidget {
         data: (state) => Column(
           children: [
             Gap(spacing.xxl),
-            // 상단 메일 아이콘 (48dp, primary)
+            // 상단 메일 아이콘 (아이콘 크기 xl, primary)
             Semantics(
               label: l10n.authVerifyEmailTitle,
               child: Icon(
                 Icons.mark_email_unread_outlined,
-                size: 48,
+                size: iconSizes.xl,
                 color: colors.primary,
               ),
             ),
@@ -95,14 +96,14 @@ class VerifyEmailScreen extends ConsumerWidget {
               ),
               decoration: BoxDecoration(
                 color: colors.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(spacing.sm),
+                borderRadius: BorderRadius.circular(context.appRadius.sm),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.info_outline,
-                    size: 16,
+                    size: iconSizes.xs,
                     color: colors.onSurfaceVariant,
                   ),
                   Gap(spacing.xs),

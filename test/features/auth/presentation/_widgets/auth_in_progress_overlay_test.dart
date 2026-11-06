@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_starter_kit/core/theme/app_opacity.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/auth_in_progress_overlay.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -160,6 +161,42 @@ void main() {
       await tester.pump(_indicatorDelay);
 
       expect(find.text('サインイン処理中…'), findsOneWidget);
+    });
+
+    testWidgets('가림막 투명도는 AppOpacity.scrim 토큰을 따른다', (tester) async {
+      // 첫 pump 로 그려 AnimatedTheme 보간 없이 최종 값을 본다.
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: _delegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('ko'),
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[
+              const AppOpacity().copyWith(scrim: 0.5),
+            ],
+          ),
+          home: const Scaffold(
+            body: SizedBox.expand(
+              child: Stack(children: <Widget>[AuthInProgressOverlay()]),
+            ),
+          ),
+        ),
+      );
+
+      final overlay = find.byType(AuthInProgressOverlay);
+      final scrim = find.descendant(
+        of: overlay,
+        matching: find.byType(ColoredBox),
+      );
+      expect(
+        tester.widget<ColoredBox>(scrim).color,
+        Theme.of(
+          tester.element(overlay),
+        ).colorScheme.scrim.withValues(alpha: 0.5),
+      );
+
+      // 표시 지연 타이머를 소진한다.
+      await tester.pump(_indicatorDelay);
     });
   });
 

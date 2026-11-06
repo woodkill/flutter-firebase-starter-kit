@@ -7,8 +7,8 @@ import '../../../../core/theme/theme_extensions.dart';
 /// 하단 페이지 인디케이터 도트 (Phase 10 D-04).
 ///
 /// 활성 도트는 [ColorScheme.primary] 색상, 비활성 도트는
-/// [ColorScheme.onSurfaceVariant] 의 30% 투명도. 가로로 [count] 개를
-/// 중앙 정렬하며 도트 사이 [AppSpacing.sm] 간격을 둔다.
+/// [ColorScheme.onSurfaceVariant] 의 [AppOpacity.inactive] 투명도. 가로로
+/// [count] 개를 중앙 정렬하며 도트 사이 [AppSpacing.sm] 간격을 둔다.
 ///
 /// 접근성: `Semantics(label: onboardingPageIndicator, liveRegion: true)` 로
 /// 페이지 변경 시 스크린 리더가 안내한다. 라벨은 **반드시 ARB 키**를 거친다
@@ -50,7 +50,9 @@ class OnboardingIndicator extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: i == activeIndex
                     ? colorScheme.primary
-                    : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                    : colorScheme.onSurfaceVariant.withValues(
+                        alpha: context.appOpacity.inactive,
+                      ),
               ),
             ),
           ],
