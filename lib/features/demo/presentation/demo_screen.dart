@@ -20,6 +20,7 @@ import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/providers/locale_provider.dart';
+import '../../../core/theme/app_button_styles.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
@@ -1026,7 +1027,7 @@ class _DevToolsSection extends ConsumerWidget {
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleTriggerError(context, ref),
-          style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
+          style: colorScheme.destructiveOutlinedButtonStyle,
           child: Text(l10n.devToolsTriggerError),
         ),
         Gap(spacing.md),
@@ -1040,7 +1041,7 @@ class _DevToolsSection extends ConsumerWidget {
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleForceSignOut(context, ref),
-          style: OutlinedButton.styleFrom(foregroundColor: colorScheme.error),
+          style: colorScheme.destructiveOutlinedButtonStyle,
           child: Text(l10n.devToolsForceSignOut),
         ),
       ],

@@ -51,5 +51,22 @@ void main() {
       final btn = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(btn.onPressed, isNull);
     });
+
+    test('큰 버튼 높이는 48 이다', () {
+      expect(kPrimaryCtaHeight, 48);
+    });
+
+    for (final isLoading in <bool>[false, true]) {
+      testWidgets('isLoading=$isLoading 에서도 버튼 높이가 kPrimaryCtaHeight 다', (
+        tester,
+      ) async {
+        await pumpCta(tester, isLoading: isLoading, onPressed: () {});
+
+        expect(
+          tester.getSize(find.byType(FilledButton)).height,
+          kPrimaryCtaHeight,
+        );
+      });
+    }
   });
 }

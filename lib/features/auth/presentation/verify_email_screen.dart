@@ -147,7 +147,7 @@ class VerifyEmailScreen extends ConsumerWidget {
             // 이중 탭을 막는 것과 대칭.
             SizedBox(
               width: double.infinity,
-              height: 48,
+              height: kPrimaryCtaHeight,
               child: OutlinedButton(
                 onPressed: state.cooldownRemaining > 0 || state.isResending
                     ? null

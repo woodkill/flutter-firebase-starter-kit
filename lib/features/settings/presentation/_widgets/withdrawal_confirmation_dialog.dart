@@ -33,6 +33,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/error/app_exception.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
+import '../../../../core/theme/app_button_styles.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../auth/application/session_ending.dart';
@@ -289,10 +290,7 @@ class _WithdrawalConfirmationDialogState
             button: true,
             label: l10n.withdrawalConfirmActionSemantic,
             child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: errorColor,
-                foregroundColor: context.colorScheme.onError,
-              ),
+              style: context.colorScheme.destructiveFilledButtonStyle,
               onPressed: (_verbatimMatch && !isLoading && !isAccountDeleted)
                   ? _onConfirm
                   : null,

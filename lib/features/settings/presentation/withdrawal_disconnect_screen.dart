@@ -26,6 +26,7 @@ import '../../../core/auth/provider_id.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
+import '../../../core/theme/app_button_styles.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
@@ -587,10 +588,7 @@ class _FinalBar extends StatelessWidget {
             onTap: enabled ? onDelete : null,
             excludeSemantics: true,
             child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: scheme.error,
-                foregroundColor: scheme.onError,
-              ),
+              style: scheme.destructiveFilledButtonStyle,
               onPressed: enabled ? onDelete : null,
               child: Text(l10n.withdrawalConfirmAction),
             ),

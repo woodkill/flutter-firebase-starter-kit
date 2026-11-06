@@ -77,48 +77,46 @@ class _AnnouncementSurface extends StatelessWidget {
       container: true,
       child: Material(
         color: scheme.secondaryContainer,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: spacing.lg,
-                end: spacing.xs,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(top: spacing.md),
-                    child: ExcludeSemantics(
-                      child: Icon(Icons.campaign_outlined, color: foreground),
-                    ),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(bottom: Divider.createBorderSide(context)),
+          ),
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              start: spacing.lg,
+              end: spacing.xs,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: EdgeInsets.only(top: spacing.md),
+                  child: ExcludeSemantics(
+                    child: Icon(Icons.campaign_outlined, color: foreground),
                   ),
-                  Gap(spacing.md),
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: spacing.md),
-                      child: Text(
-                        message,
-                        semanticsLabel:
-                            '${l10n.homeAnnouncementLabel}: $message',
-                        style: context.appTypography.bodyMedium.copyWith(
-                          color: foreground,
-                        ),
+                ),
+                Gap(spacing.md),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: spacing.md),
+                    child: Text(
+                      message,
+                      semanticsLabel: '${l10n.homeAnnouncementLabel}: $message',
+                      style: context.appTypography.bodyMedium.copyWith(
+                        color: foreground,
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: onDismiss,
-                    tooltip: l10n.homeAnnouncementDismiss,
-                    icon: const Icon(Icons.close),
-                    color: foreground,
-                  ),
-                ],
-              ),
+                ),
+                IconButton(
+                  onPressed: onDismiss,
+                  tooltip: l10n.homeAnnouncementDismiss,
+                  icon: const Icon(Icons.close),
+                  color: foreground,
+                ),
+              ],
             ),
-            Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
-          ],
+          ),
         ),
       ),
     );

@@ -23,6 +23,7 @@ import '../../../core/l10n/intl_extensions.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/locale_provider.dart';
 import '../../../core/router/app_routes.dart';
+import '../../../core/theme/app_button_styles.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../auth/application/session_ending.dart';
@@ -312,9 +313,7 @@ class AccountScreen extends ConsumerWidget {
             child: Text(l10n.commonCancel),
           ),
           TextButton(
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(ctx).colorScheme.error,
-            ),
+            style: ctx.colorScheme.destructiveTextButtonStyle,
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(l10n.authAccountSignOut),
           ),

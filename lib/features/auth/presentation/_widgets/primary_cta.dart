@@ -3,12 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
 
+/// 큰 버튼의 높이 (dp) — [PrimaryCta] 와 그 옆에 서는 버튼이 함께 쓴다.
+///
+/// Material 3 버튼의 기본 높이는 40 이고, 48 은 킷이 정한 값이다.
+/// 소셜 로그인 버튼 높이 `kBrandButtonHeight`(48)와 맞춘다 — 상수를 따로 두므로
+/// 한쪽을 바꾸면 다른 쪽도 함께 본다.
+const double kPrimaryCtaHeight = 48;
+
 /// Phase 6 인증 화면 공통 Primary CTA 버튼.
 ///
 /// [isLoading] 이 true 이면 라벨을 [CircularProgressIndicator] 로 교체하고
-/// 버튼을 disabled 상태로 만든다 (D-31). 버튼 크기(높이 48dp +
-/// width double.infinity) 는 변하지 않는다 (06-UI-SPEC.md / Component
-/// Inventory / Buttons).
+/// 버튼을 disabled 상태로 만든다 (D-31). 버튼 크기(높이 [kPrimaryCtaHeight] ·
+/// 폭 `double.infinity`)는 로딩 중에도 변하지 않는다.
 class PrimaryCta extends StatelessWidget {
   /// [PrimaryCta] 를 생성한다.
   const PrimaryCta({
@@ -32,7 +38,7 @@ class PrimaryCta extends StatelessWidget {
     final colors = context.colorScheme;
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: kPrimaryCtaHeight,
       child: FilledButton(
         onPressed: isLoading ? null : onPressed,
         child: isLoading

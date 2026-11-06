@@ -4,6 +4,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/auth/presentation/_widgets/primary_cta.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_notifier.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
@@ -233,5 +234,18 @@ void main() {
         );
       },
     );
+
+    testWidgets('재전송 버튼은 위 확인 버튼과 같은 큰 버튼 높이다', (tester) async {
+      await _pumpVerifyEmail(tester);
+
+      expect(
+        tester.getSize(find.byType(OutlinedButton)).height,
+        kPrimaryCtaHeight,
+      );
+      expect(
+        tester.getSize(find.byType(FilledButton)).height,
+        kPrimaryCtaHeight,
+      );
+    });
   });
 }

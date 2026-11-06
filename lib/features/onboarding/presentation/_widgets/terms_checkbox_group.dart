@@ -63,7 +63,6 @@ class TermsCheckboxGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final colorScheme = context.colorScheme;
     final typography = context.appTypography;
     final spacing = context.appSpacing;
 
@@ -76,11 +75,7 @@ class TermsCheckboxGroup extends StatelessWidget {
           title: Text(l10n.termsAcceptAll, style: typography.labelLarge),
           controlAffinity: ListTileControlAffinity.leading,
         ),
-        Divider(
-          color: colorScheme.outlineVariant,
-          indent: spacing.lg,
-          endIndent: spacing.lg,
-        ),
+        Divider(indent: spacing.lg, endIndent: spacing.lg),
         _TermsRow(
           value: service,
           onChanged: onServiceChanged,
