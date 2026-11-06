@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.10] - 2026-11-06
+
 ### 사용자 조치
 
 - merge 뒤 `functions/` 의 `pnpm run lint` 가 필드 객체를 먼저 넘긴 logger 호출(`logger.info({event: "…"}, "…")` 꼴)을 거부한다. 내가 더한 함수 파일에 그런 호출이 있으면 인자 순서만 `logger.info("…", {event: "…"})` 로 바꾼다(메시지 · 필드 내용은 그대로).
@@ -188,7 +190,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.9...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.10...HEAD
+[1.0.0-rc.10]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.10
 [1.0.0-rc.9]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.9
 [1.0.0-rc.8]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.8
 [1.0.0-rc.7]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.7
