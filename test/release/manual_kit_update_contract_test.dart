@@ -13,7 +13,7 @@
 // T-174-DOCS-04: 새 판 받기 · 충돌 풀기 · 바꾸지 않는 것 · 확인 · 문제 해결 ·
 //   되돌리기의 명령 줄과 토큰(git 메시지 원문 · rename 사용 순서 포함)이 있고,
 //   `git apply -3` 은 「쓰지 않는다」 문장 1회 · 되돌리기의 bash 블록은 2개다.
-// T-174-DOCS-05: 사용자 소유 표면 표가 헤더 · 37행 · 등급 단어로 시작하는 넷째 칸을
+// T-174-DOCS-05: 사용자 소유 표면 표가 헤더 · 38행 · 등급 단어로 시작하는 넷째 칸을
 //   갖고, 표 앞 문단의 MAJOR 기준 문장이 CHANGELOG 판 번호 규칙과 같은 문자열이다.
 // T-174-DOCS-06: README 판 · 업데이트 · Issues 절에 Use this template · 킷 업데이트
 //   반영 절 링크 · Issues 안내가 있고 금지 패턴이 0 건이며, 빠른 시작이 template →
@@ -151,7 +151,7 @@ const String _surfaceTableHeader =
     '| # | 파일 | 사용자가 바꾸는 것 | 킷이 고칠 가능성 | 충돌 시 조치 |';
 
 /// 사용자 소유 표면 표 데이터 행 수.
-const int _surfaceTableRowCount = 37;
+const int _surfaceTableRowCount = 38;
 
 /// 인증 메일 · 결과 페이지 표면 행 — 행을 찾는 파일 표기 → 넷째 칸 등급 단어.
 const Map<String, String> _emailSurfaceRowGrades = <String, String>{
@@ -394,7 +394,7 @@ void main() {
       ], reason: '되돌리기는 merge 도중 · merge 뒤 bash 블록 2개로 나뉜다');
     });
 
-    test('T-174-DOCS-05: 사용자 소유 표면 표 37행 · 등급 · MAJOR 기준이 CHANGELOG 와 같다', () {
+    test('T-174-DOCS-05: 사용자 소유 표면 표 38행 · 등급 · MAJOR 기준이 CHANGELOG 와 같다', () {
       final List<String> table = collectTableLines(
         section,
         _surfaceTableHeader,

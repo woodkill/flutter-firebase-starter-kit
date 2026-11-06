@@ -106,9 +106,10 @@
   - **Dev Tools 는 debug 빌드만**(`kDebugMode`) — 온보딩 초기화 · 테스트 오류 · 테스트 Analytics · 테스트 알림 · 강제 로그아웃.
     - ID 토큰 복사도 debug 빌드만이다.
     - profile 데모에서는 보이지 않는다.
-- **진입 2곳:** 설정 맨 아래 「개발자」 묶음의 「개발자 · 데모 화면」 행(게스트 포함 · `SettingsScreen.showsDemoRow` 기본값 `!kReleaseMode`)과 홈 개발자 안내 카드의 「데모 화면 열기」 버튼.
+- **진입 2곳:** 설정 맨 아래 「개발자」 묶음의 첫 행 「개발자 · 데모 화면」(게스트 포함 · `SettingsScreen.showsDemoRow` 기본값 `!kReleaseMode`)과 홈 개발자 안내 카드의 「데모 화면 열기」 버튼.
   - 둘 다 데모 위젯을 import 하지 않고 경로 문자열 (`context.push(AppRoutes.developerDemo)`)만 쓴다 — release 바이너리에 데모 코드가 남지 않게 하려는 것이다.
   - `home_body.dart` 를 바꿔 카드가 사라져도 설정 행은 남는다.
+  - 「개발자」 묶음에는 내 개발용 행도 데모 행 뒤에 둘 수 있다 — [바꿀 수 있는 지점](#바꿀-수-있는-지점) 의 「설정 「개발자」 묶음에 개발용 행 더하기」 다.
 - **데모에 production 배선을 넣지 않는다.**
   - 데모 화면이 알림 리스너 · 공지 배너 · 라우트 상수 · 테마 provider 를 import 하면 `test/features/home/home_listener_source_guard_test.dart` 의 시험이 실패한다.
   - 테마 · 언어 바꾸기는 설정 한 곳이다.
@@ -120,8 +121,8 @@
      - `AppRoutes` 의 데모 상수 3개(`developerDemo` · `developerDemoName` · `developerDemoSegment`)는 남겨도 테스트가 그대로 통과한다.
      - 상수까지 지우면 쓰는 곳도 함께 고친다 — `test/core/router/app_routes_test.dart` T-172-ROUTES-01~03 의 데모 항목 1줄씩(`hasLength` 14 → 13 · 14 → 13 · 6 → 5, 테스트 이름 · reason 의 개수도), `test/core/router/auth_guard_test.dart` T-171-ROUTER-06 삭제, `settings_screen_test.dart` · `home_body_test.dart` 하네스의 데모 stub GoRoute(`path: AppRoutes.developerDemo`) 삭제, `home_body.dart` doc 의 `[AppRoutes.developerDemo]` 참조 삭제.
      - 상수를 지우면 그 상수를 쓰는 2단계의 진입점 2곳(`settings_screen.dart` · `home_body.dart`)과 4단계에서 정리할 테스트(`app_router_observers_test.dart` · `test/features/demo/`)가 그 단계를 마칠 때까지 컴파일되지 않는다 — 4단계까지 이어서 하고, 확인(analyze · `grep`)은 4단계 끝에서 한 번에 한다.
-  2. 진입점 2곳 — `settings_screen.dart` 의 「개발자」 묶음(`showsDemoRow`)과
-     `home_body.dart` 카드의 버튼 — 을 지운다.
+  2. 진입점 2곳 — `settings_screen.dart` 「개발자」 묶음의 `const _DemoRow(),` 한 줄과 `_DemoRow` 클래스, `home_body.dart` 카드의 버튼 — 을 지운다.
+     - 「개발자」 묶음 자체(`showsDemoRow` 조건과 heading)는 지우지 않는다 — `developer_rows.dart` 에 내 개발용 행이 있으면 묶음이 그 행들로 남고, 없으면 묶음째 화면에서 빠진다.
   3. `lib/features/demo/` 폴더를 지운다.
   4. 테스트를 정리한다 — 아래 항목을 위에서부터 차례로 따라 한다.
      - `test/features/demo/` — 폴더째(3파일) 지운다.
@@ -130,11 +131,14 @@
      - `test/features/home/home_listener_source_guard_test.dart` — T-171-HOME-15
        를 지우고, T-171-HOME-16 기대 집합에서 `demo_screen.dart`(상수
        `_demoScreenPath`)를 뺀다.
-     - `test/features/settings/presentation/settings_screen_test.dart` — T-171-SETTINGS-06 · 07 은 지운다.
-       - 데모 행 · 「개발자」 묶음을 보는 01 · 11 · 13 · 15 · 17 ②~④ · T-17-NOTIF-12 는 지우지 말고, 그 기대를 빼거나 기준을 새 마지막 행(정식은 알림 스위치 · 게스트는 언어 행 — 13 · 15 는 둘 다, 01 은 게스트로 본다)으로 바꾼다.
-       - 17 ③ 은 거기에 더해 (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는 값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제 단언(`maxScrollExtent > 0`)이 실패한다.
+     - `test/features/settings/presentation/settings_screen_test.dart` — T-171-SETTINGS-07 은 지운다.
+       - 데모 행을 보는 01 · 11 · 13 · 15 는 지우지 말고, 데모 행 기대를 빼거나 기준을 새 마지막 행(정식은 알림 스위치 · 게스트는 언어 행 — 13 · 15 는 둘 다, 01 은 게스트로 본다)으로 바꾼다.
+       - 「개발자」 heading 을 보는 01 · 11 의 기대는 `findsNothing` 으로 바꾸고, T-17-NOTIF-12 는 알림 섹션까지 스크롤하게 바꾼 뒤 「개발자」 위치 비교를 빼고, 17 ④ 는 묶음 제목 목록에서 「개발자」 를 뺀다 — 시험 하네스는 개발용 행을 넘기지 않아(`developerRows` 에 빈 목록) 데모 행이 빠지면 묶음째 숨는다.
+       - 18 ① 은 데모 행 기대와 데모 행 위치 비교만 뺀다 — 넘긴 개발용 행이 「개발자」 heading 아래 마지막 행으로 뜨는지는 그대로 본다.
+       - 06 · 17 ② · 18 ② 는 그대로 둔다 — 17 ② 는 데모 행이 아니라 목록의 마지막 행을 찾는다.
+       - 17 ③ 은 (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는 값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제 단언(`maxScrollExtent > 0`)이 실패한다.
        - 전제 단언은 지우지 않는다(지우면 (b) geometry 단언이 스크롤 없이 통과해 회귀 가드가 빈다).
-       - 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로, (b) reason 문자열의 「말단 행(데모 행)」 은 「말단 행(알림 스위치)」 로 고친다.
+       - 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로 고친다.
      - `test/features/settings/presentation/notifications_section_test.dart` —
        T-17-NOTIF-05 위치 테스트(「… 개발자 위에 있다」)는 지우지 말고 「개발자」
        기준 단언만 뺀다.
@@ -155,7 +159,7 @@
        ```
        마지막 줄(`git status`)의 출력이 정확히 10장(설정 `settings_171_*` 8 · 홈
        `home_171_*` 2 · 모두 `M`)인지 확인한다.
-     - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는 곳이 없어진 import · 선언 · 지역 변수를 lib · test 모두에서 지운다(라우터 테스트의 `demo_screen.dart` · 테스트 전용 import · mock 클래스와 그 뒤 2차로 드러나는 `auth_repository.dart` import, source guard 의 `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤 `home_body.dart` 의 `go_router` · `settings_screen.dart` 의 `foundation.dart` 등).
+     - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는 곳이 없어진 import · 선언 · 지역 변수를 lib · test 모두에서 지운다(라우터 테스트의 `demo_screen.dart` · 테스트 전용 import · mock 클래스와 그 뒤 2차로 드러나는 `auth_repository.dart` import, source guard 의 `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤 `home_body.dart` 의 `go_router` 등).
        - 하나를 지우면 다른 것이 새로 드러날 수 있으므로 analyze 는 0 건이 될 때까지 되풀이한다.
        - analyze 가 0 건이면 `grep -rn developerDemo lib test` 도 본다 — 1단계에서 상수까지 지웠다면 0 건이어야 한다.
        - 상수를 남겼다면 `lib/core/router/app_routes.dart` 의 상수 3개와 1단계에 적은 상수 참조처(`app_routes_test.dart` · `auth_guard_test.dart` T-171-ROUTER-06 · 두 하네스의 데모 stub GoRoute · `home_body.dart` doc)만 남는다.
@@ -2465,6 +2469,7 @@ bash scripts/deploy_functions.sh dev --apply
 | 앱 링크(딥링크)로 여는 화면 | Android 앱은 알림 data 의 `route` 를 앱 시작 경로로 받지 않도록 `lib/core/router/app_router.dart` 의 `overridePlatformDefaultLocation: true` 로 늘 스플래시에서 시작한다. MainActivity 에 App Links 를 붙이면 이 설정을 함께 다시 본다 |
 | 기기 토큰 만료 기간 | `kFcmTokenTtl`(`lib/features/notifications/domain/fcm_token.dart`) 하나. TTL 정책은 `expireAt` 필드 기준이라 다시 켜지 않아도 된다. 60일 넘게 늘리면 rules 의 `duration.value(60, 'd')` 도 고친다 |
 | 알림 섹션 위치 | `lib/features/settings/presentation/settings_screen.dart` 의 `const NotificationsSection()` 한 줄 |
+| 설정 「개발자」 묶음에 개발용 행 더하기 | `lib/features/settings/presentation/developer_rows.dart` 의 `buildAppDeveloperRows()` 목록에 행 위젯을 더한다(행 위젯 파일은 `lib/features/<내 feature>/` 에 둔다). 행은 「개발자 · 데모 화면」 행 뒤에 뜨고 release 빌드에서는 묶음째 빠지며, flavor 처럼 행마다 다른 조건은 목록 안에 `if (AppConfig.isDev)` 꼴로 더한다. 묶음은 화면에서만 빠지고 행 코드는 release 앱에 남을 수 있으므로 비밀 값을 행에 넣지 않는다 |
 | Storage 경로 · 크기 · 형식 | `storage.rules` 의 그 줄(예: 5MB = `5 * 1024 * 1024`) + rules 시험 경계 경우 → `pnpm test:rules`. 크기를 바꾸면 `kProfilePhotoMaxBytes` 도, 경로를 바꾸면 `profilePhotoPath` 도 고친다 |
 | 올리는 사진 크기 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
 | 사진 고르는 중 앱이 종료되면 | 킷은 되찾지 않는다 — Android 는 갤러리가 떠 있는 동안 메모리가 모자라 앱이 종료되면 고른 사진이 사라진다. 필요하면 계정 정보 화면에 들어올 때 `ImagePicker.retrieveLostData()`(Android 전용)를 한 번 보고, 파일이 있으면 `ProfilePhotoRepository` 의 올리기 단계를 이어 간다 |
@@ -3327,6 +3332,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 35 | `functions/src/email/copy.json` · `functions/src/email/templates/*.hbs` | 메일 · 결과 페이지 문구 · 메일 본문 | 중간 | 직접 합친 뒤 `functions/` 에서 `pnpm test` |
 | 36 | `extensions/firestore-send-email.env.<projectId>` (git 밖 · 예시는 `extensions/firestore-send-email.env.example`) | 발송 서비스 값(`DATABASE_REGION` · `DEFAULT_FROM` · `SMTP_CONNECTION_URI` · `SMTP_PASSWORD`) | 높음 (새 파라미터 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<projectId>` 로 새 키를 내 파일에 옮겨 적는다 |
 | 37 | `functions/.env.<projectId>` (git 밖) | 함수 환경 값(`SEND_TEST_PUSH_ENABLED` 등) — `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` · `EMAIL_RESULT_PAGE_URL` 네 줄은 `scripts/deploy_email.sh` 가 쓴다 | 없음 | 충돌 없음 |
+| 38 | `lib/features/settings/presentation/developer_rows.dart` | 설정 「개발자」 묶음에 더하는 개발용 행 목록(`buildAppDeveloperRows()`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
 
 ### 확인 방법
 

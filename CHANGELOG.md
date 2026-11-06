@@ -17,6 +17,11 @@
 ### 사용자 조치
 
 - merge 뒤 `functions/` 의 `pnpm run lint` 가 필드 객체를 먼저 넘긴 logger 호출(`logger.info({event: "…"}, "…")` 꼴)을 거부한다. 내가 더한 함수 파일에 그런 호출이 있으면 인자 순서만 `logger.info("…", {event: "…"})` 로 바꾼다(메시지 · 필드 내용은 그대로).
+- 「홈 화면 바꾸기」 ③ 의 지우는 법으로 데모 화면을 지운 저장소는 이 판을 받을 때 `lib/features/settings/presentation/settings_screen.dart` 의 생성자 · 「개발자」 묶음 자리에서 `CONFLICT (content)` 가 난다. 충돌 블록마다 킷 쪽(`=======` 와 `>>>>>>>` 사이)을 받은 뒤 「개발자」 묶음의 `const _DemoRow(),` 한 줄만 다시 지우고, `import 'package:flutter/foundation.dart';` 줄이 없으면 다시 넣은 다음 `git add` 한다. `test/features/settings/presentation/settings_screen_test.dart` 가 충돌하면 `git checkout --theirs -- <그 파일>` 로 킷 판을 받은 뒤 `docs/guide.md` 「홈 화면 바꾸기」 ③ 「지우는 법」 4단계의 그 파일 항목(상수까지 지웠다면 1단계의 하네스 항목도)을 다시 따르고 `git add` 한다. 새 파일 `lib/features/settings/presentation/developer_rows.dart` 는 충돌 없이 들어온다. 데모 화면을 지우지 않았다면 할 일이 없다.
+
+### Added
+
+- 설정 화면 「개발자」 묶음에 내 개발용 행을 더하는 자리가 생긴다. `lib/features/settings/presentation/developer_rows.dart` 의 `buildAppDeveloperRows()`(킷 판은 빈 목록)에 행을 더하면 「개발자 · 데모 화면」 행 뒤에 뜨고 release 빌드에서는 묶음째 빠진다. 이 파일은 사용자 소유 표면 38행(킷이 고칠 가능성 `없음`)이다. 데모를 지우는 법은 「개발자」 묶음 전체 대신 `const _DemoRow(),` 한 줄과 `_DemoRow` 클래스를 지우는 꼴이 되고, 데모 행도 내 행도 없으면 「개발자」 제목도 뜨지 않는다(`docs/guide.md` 「홈 화면 바꾸기」 ③ 「지우는 법」). 킷 설정 시험과 golden 은 개발용 행 없이 그려 내 행이 섞이지 않는다. 바뀐 파일은 `lib/features/settings/presentation/settings_screen.dart` · `developer_rows.dart`(새) · `docs/guide.md` · 시험이고, 데모를 지우지 않았다면 merge 로 끝난다(지웠다면 위 「사용자 조치」).
 
 ### Fixed
 
