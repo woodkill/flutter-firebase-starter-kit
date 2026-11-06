@@ -3,7 +3,8 @@
 // - 포그라운드 수신(`onMessage`)은 Android 에서만 로컬 알림을 띄운다 — iOS 는
 //   presentation options 로 OS 가 표시한다(중복 0 · D-01).
 // - 로컬 알림 래퍼는 채널 `general` · 아이콘 `ic_notification` · importance
-//   high · 색 #673AB7 · payload = `data.route` 로 플러그인을 부른다(UI-SPEC (O)).
+//   high · 색 = 브랜드 원색(테마 brand · 기본 #673AB7) · payload =
+//   `data.route` 로 플러그인을 부른다(UI-SPEC (O)).
 //
 // - 탭 3경로(로컬 알림 payload · 백그라운드 `onMessageOpenedApp` · 종료
 //   `getInitialMessage` + 로컬 launch details)가 pending 으로 모이고, 홈
@@ -22,6 +23,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
+import 'package:flutter_starter_kit/core/theme/app_colors.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_tap_handler.dart';
 import 'package:flutter_starter_kit/features/notifications/application/pending_notification_route.dart';
 import 'package:flutter_starter_kit/features/notifications/data/local_notifications_service.dart';
@@ -402,7 +405,8 @@ void main() {
     });
 
     test('T-17-PUSH-02: showRemote → 채널 general · 아이콘 ic_notification · '
-        'importance high · 색 #673AB7 · payload route', () async {
+        'importance high · 색 = 브랜드 원색(테마 brand · 기본 #673AB7) · '
+        'payload route', () async {
       await service.showRemote(title: 'T', body: 'B', route: '/settings');
 
       final captured = verify(
@@ -420,6 +424,14 @@ void main() {
       expect(android.icon, 'ic_notification');
       expect(android.importance, Importance.high);
       expect(android.priority, Priority.high);
+      expect(android.color, AppTheme.brandColor);
+      expect(
+        android.color,
+        AppTheme.light(
+          seedColor: AppTheme.brandColor,
+        ).extension<AppColors>()!.brand,
+      );
+      // 시험 환경은 brandColor 를 주입하지 않으므로 킷 기본 색이다.
       expect(android.color, const Color(0xFF673AB7));
     });
 

@@ -1,16 +1,21 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// 앱 전용 시맨틱 컬러 토큰을 제공하는 [ThemeExtension].
+import 'app_theme.dart';
+
+/// 앱 전용 컬러 토큰을 제공하는 [ThemeExtension].
 ///
-/// [ColorScheme]에 포함되지 않는 앱 고유 시맨틱 컬러(success, warning, info)를
-/// 정의한다. [fromBrightness] 팩토리로 라이트/다크 모드별 컬러를 생성한다.
+/// 브랜드 원색 [brand] 와 [ColorScheme]에 포함되지 않는 앱 고유 시맨틱 컬러
+/// 6종(success, warning, info 와 그 위 글자 색)을 정의한다. [fromBrightness]
+/// 팩토리로 라이트/다크 모드별 컬러를 생성한다.
 ///
 /// 사용 예:
 /// ```dart
 /// final colors = Theme.of(context).extension<AppColors>()!;
 /// // 또는 ThemeX extension 사용:
 /// final colors = context.appColors;
+/// // 브랜드 hex 그대로가 필요한 곳(로고 · 지도 강조 등):
+/// final brand = context.appColors.brand;
 /// ```
 class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
   /// [AppColors] 인스턴스를 생성한다.
@@ -21,11 +26,16 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
     required this.onSuccess,
     required this.onWarning,
     required this.onInfo,
+    this.brand = AppTheme.seedColor,
   });
 
   /// [brightness]에 따라 라이트/다크 시맨틱 컬러를 생성한다.
-  factory AppColors.fromBrightness(Brightness brightness) {
-    return switch (brightness) {
+  ///
+  /// [brand] 를 넘기지 않으면 config `brandColor` 의 색([AppTheme.brandColor])을
+  /// 넣는다. 넘긴 색은 불투명 [Color] 로 정규화한다 — [MaterialColor] 를 넘겨도
+  /// `==` 가 런타임 타입에 흔들리지 않는다.
+  factory AppColors.fromBrightness(Brightness brightness, {Color? brand}) {
+    final AppColors semantic = switch (brightness) {
       Brightness.light => const AppColors(
         success: Color(0xFF2E7D32),
         warning: Color(0xFFF57F17),
@@ -43,6 +53,9 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
         onInfo: Color(0xFF000000),
       ),
     };
+    return semantic.copyWith(
+      brand: Color((brand ?? AppTheme.brandColor).toARGB32()),
+    );
   }
 
   /// 성공 상태를 나타내는 컬러.
@@ -63,6 +76,12 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
   /// [info] 위에 표시되는 텍스트/아이콘 컬러.
   final Color onInfo;
 
+  /// 브랜드 원색 — config `brandColor` 의 hex 그대로다.
+  ///
+  /// [ColorScheme.primary] 와 달리 시드에서 다시 계산하지 않는다. 라이트 · 다크가
+  /// 같은 값이고, 위에 올릴 글자 색 · 대비는 쓰는 쪽이 정한다.
+  final Color brand;
+
   @override
   AppColors copyWith({
     Color? success,
@@ -71,6 +90,7 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
     Color? onSuccess,
     Color? onWarning,
     Color? onInfo,
+    Color? brand,
   }) {
     return AppColors(
       success: success ?? this.success,
@@ -79,6 +99,7 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
       onSuccess: onSuccess ?? this.onSuccess,
       onWarning: onWarning ?? this.onWarning,
       onInfo: onInfo ?? this.onInfo,
+      brand: brand ?? this.brand,
     );
   }
 
@@ -93,6 +114,7 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
       onSuccess: Color.lerp(onSuccess, other.onSuccess, t) ?? onSuccess,
       onWarning: Color.lerp(onWarning, other.onWarning, t) ?? onWarning,
       onInfo: Color.lerp(onInfo, other.onInfo, t) ?? onInfo,
+      brand: Color.lerp(brand, other.brand, t) ?? brand,
     );
   }
 
@@ -105,11 +127,12 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
           other.info == info &&
           other.onSuccess == onSuccess &&
           other.onWarning == onWarning &&
-          other.onInfo == onInfo;
+          other.onInfo == onInfo &&
+          other.brand == brand;
 
   @override
   int get hashCode =>
-      Object.hash(success, warning, info, onSuccess, onWarning, onInfo);
+      Object.hash(success, warning, info, onSuccess, onWarning, onInfo, brand);
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
@@ -120,6 +143,7 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
       ..add(ColorProperty('info', info))
       ..add(ColorProperty('onSuccess', onSuccess))
       ..add(ColorProperty('onWarning', onWarning))
-      ..add(ColorProperty('onInfo', onInfo));
+      ..add(ColorProperty('onInfo', onInfo))
+      ..add(ColorProperty('brand', brand));
   }
 }

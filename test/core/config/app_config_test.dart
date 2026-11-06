@@ -486,8 +486,20 @@ void main() {
         expect(parsed == null, input != expected, reason: '유효 판정이 공유 표와 다르다');
         final resolved = parsed ?? AppTheme.seedColor;
         expect(resolved.toARGB32(), _argbFromHex(expected));
+        // 앱의 브랜드 원색 헬퍼도 같은 판정이고, 런타임 타입까지 같은 Color 다.
+        expect(
+          AppTheme.resolveBrandColor(input),
+          Color(_argbFromHex(expected)),
+        );
       });
     }
+
+    test('AppTheme.brandColor 는 config brandColor 를 푼 색이다', () {
+      expect(
+        AppTheme.brandColor,
+        AppTheme.resolveBrandColor(AppConfig.brandColor),
+      );
+    });
 
     test('기본값 #673AB7 은 Colors.deepPurple 과 같은 색이다 (외관 변경 0)', () {
       expect(

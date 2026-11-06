@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,6 +26,75 @@ void main() {
         final dark = AppColors.fromBrightness(Brightness.dark);
 
         expect(dark.success, equals(const Color(0xFF81C784)));
+      });
+    });
+
+    group('brand', () {
+      test('넘긴 brand 가 라이트 · 다크 모두 그대로 들어간다', () {
+        const yellow = Color(0xFFF2B134);
+        final light = AppColors.fromBrightness(Brightness.light, brand: yellow);
+        final dark = AppColors.fromBrightness(Brightness.dark, brand: yellow);
+
+        expect(light.brand, equals(yellow));
+        expect(dark.brand, equals(yellow));
+      });
+
+      test('MaterialColor 를 넘겨도 불투명 Color 로 정규화한다', () {
+        final colors = AppColors.fromBrightness(
+          Brightness.light,
+          brand: Colors.teal,
+        );
+
+        expect(colors.brand, equals(Color(Colors.teal.toARGB32())));
+        expect(colors.brand.runtimeType, equals(Color));
+      });
+
+      test('brand 를 생략하면 config 의 브랜드 원색이다', () {
+        final colors = AppColors.fromBrightness(Brightness.light);
+
+        expect(colors.brand, equals(AppTheme.brandColor));
+        // 시험 환경은 brandColor 를 주입하지 않으므로 킷 기본 색이다.
+        expect(colors.brand, equals(const Color(0xFF673AB7)));
+      });
+
+      test('라이트 · 다크의 brand 가 같다', () {
+        expect(
+          AppColors.fromBrightness(Brightness.light).brand,
+          equals(AppColors.fromBrightness(Brightness.dark).brand),
+        );
+      });
+
+      test('copyWith(brand:) 는 brand 만 바꾸고 == 가 달라진다', () {
+        final original = AppColors.fromBrightness(Brightness.light);
+        final AppColors copied = original.copyWith(
+          brand: const Color(0xFFF2B134),
+        );
+
+        expect(copied.brand, equals(const Color(0xFFF2B134)));
+        expect(copied.success, equals(original.success));
+        expect(copied.onInfo, equals(original.onInfo));
+        expect(copied == original, isFalse);
+      });
+
+      test('lerp t=0/1 이 양끝 brand 다', () {
+        final from = AppColors.fromBrightness(Brightness.light);
+        final AppColors to = from.copyWith(brand: const Color(0xFFF2B134));
+
+        expect(from.lerp(to, 0).brand, equals(from.brand));
+        expect(to.brand, equals(from.lerp(to, 1).brand));
+      });
+
+      test('brand 없이 만든 const AppColors 의 brand 는 킷 기본 시드 색이다', () {
+        const colors = AppColors(
+          success: Color(0xFF2E7D32),
+          warning: Color(0xFFF57F17),
+          info: Color(0xFF1565C0),
+          onSuccess: Color(0xFFFFFFFF),
+          onWarning: Color(0xFF000000),
+          onInfo: Color(0xFFFFFFFF),
+        );
+
+        expect(colors.brand.toARGB32(), equals(AppTheme.seedColor.toARGB32()));
       });
     });
 
@@ -197,13 +267,14 @@ void main() {
       expect(text, isNot(contains("Instance of 'AppColors'")));
     });
 
-    test('debugFillProperties 가 6개 토큰을 모두 등록한다', () {
+    test('debugFillProperties 가 7개 토큰을 모두 등록한다', () {
       final builder = DiagnosticPropertiesBuilder();
       AppColors.fromBrightness(Brightness.dark).debugFillProperties(builder);
 
       expect(
         builder.properties.map((p) => p.name).toSet(),
         containsAll(<String>[
+          'brand',
           'success',
           'warning',
           'info',

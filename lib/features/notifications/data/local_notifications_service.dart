@@ -1,19 +1,11 @@
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../application/notification_route.dart';
 
 part 'local_notifications_service.g.dart';
-
-/// 알림 강조색 — UI-SPEC §Color 예외 1건(OS 알림 색).
-///
-/// OS 가 그리는 알림이라 Flutter 테마 토큰을 읽을 수 없어 리소스 상수
-/// `@color/notification_color`(#673AB7 = `AppTheme.seedColor`)와 같은 값을
-/// 상수로 둔다.
-const Color _kNotificationColor = Color(0xFF673AB7);
 
 /// 알림 id 상한(배타) — Android 알림 id 는 int32 다.
 const int _kMaxNotificationId = 0x7FFFFFFF;
@@ -29,6 +21,9 @@ const int _kMaxNotificationId = 0x7FFFFFFF;
 /// 작은 아이콘은 `res/drawable/ic_notification.xml` 이다 — manifest
 /// `default_notification_icon` 과 같은 리소스라 교체하면 백그라운드 ·
 /// 포그라운드 알림이 함께 바뀐다(커스터마이징 포인트).
+///
+/// 강조색은 config `brandColor`(`AppTheme.brandColor`)다 — 백그라운드 알림
+/// 색도 빌드가 같은 값으로 만든다.
 ///
 /// 플러그인 호출 실패는 best-effort 로 접는다. 진단은 `kDebugMode` 로그에
 /// 예외 타입 이름만 남긴다 — 알림 본문이 섞이지 않게 한다.
@@ -101,7 +96,10 @@ class LocalNotificationsService {
           _channelName,
           channelDescription: _channelDescription,
           icon: 'ic_notification',
-          color: _kNotificationColor,
+          // OS 가 그리는 알림이라 BuildContext 의 테마 대신 같은 값의 브랜드 원색을
+          // 읽는다 — 테마 `AppColors.brand` · Android `@color/notification_color`
+          // (build.gradle.kts 가 같은 config `brandColor` 로 만든다)와 같은 색.
+          color: AppTheme.brandColor,
           importance: Importance.high,
           priority: Priority.high,
         ),

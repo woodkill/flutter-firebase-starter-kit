@@ -6,6 +6,9 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/planning_docs.dart';
+import '../../helpers/source_text.dart';
+
 void main() {
   group('AppTheme', () {
     group('seedColor', () {
@@ -166,5 +169,71 @@ void main() {
         isTrue,
       );
     });
+  });
+
+  // ─── 브랜드 원색 토큰 ─────────────────────────────────────
+  //
+  // 테마에 넘긴 시드가 그대로 `AppColors.brand` 가 된다 — `colorScheme.primary`
+  // 처럼 다시 계산하지 않고, 라이트 · 다크가 같은 값이다.
+  group('AppColors.brand = 넘긴 시드', () {
+    test('light · dark 의 brand 는 넘긴 시드 색이다', () {
+      const yellow = Color(0xFFF2B134);
+
+      expect(
+        AppTheme.light(seedColor: yellow).extension<AppColors>()!.brand,
+        equals(yellow),
+      );
+      expect(
+        AppTheme.dark(seedColor: yellow).extension<AppColors>()!.brand,
+        equals(yellow),
+      );
+    });
+
+    test('MaterialColor 시드도 불투명 Color 로 정규화해 넣는다', () {
+      final expected = Color(Colors.teal.toARGB32());
+
+      expect(
+        AppTheme.light(seedColor: Colors.teal).extension<AppColors>()!.brand,
+        equals(expected),
+      );
+      expect(
+        AppTheme.dark(seedColor: Colors.teal).extension<AppColors>()!.brand,
+        equals(expected),
+      );
+    });
+
+    test('시드를 생략한 테마의 brand 는 AppTheme.brandColor 다', () {
+      // 시험 환경은 brandColor 를 주입하지 않으므로 둘 다 킷 기본 색이다.
+      expect(
+        AppTheme.light().extension<AppColors>()!.brand,
+        equals(AppTheme.brandColor),
+      );
+    });
+
+    test(
+      'lib/app.dart 가 AppTheme.brandColor 를 라이트 · 다크 테마 시드로 넘긴다',
+      () {
+        final String code = stripSlashComments(readTrackedFile('lib/app.dart'));
+
+        expect(
+          RegExp(
+            r'final\s+Color\s+seed\s*=\s*AppTheme\.brandColor\s*;',
+          ).allMatches(code),
+          hasLength(1),
+        );
+        expect(
+          RegExp(
+            r'AppTheme\.light\(\s*seedColor:\s*seed\s*\)',
+          ).allMatches(code),
+          hasLength(1),
+        );
+        expect(
+          RegExp(r'AppTheme\.dark\(\s*seedColor:\s*seed\s*\)').allMatches(code),
+          hasLength(1),
+        );
+      },
+      // 가이드가 adopter 에게 app.dart 시드 손질을 안내하므로 유지보수자 트리에서만 본다.
+      skip: skipUnlessMaintainerTree(),
+    );
   });
 }
