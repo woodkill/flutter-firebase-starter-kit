@@ -9,7 +9,8 @@
 //   합쳤다. T-171-SETTINGS-11~13(정식 구성 · 계정 행 push · 같은 목록의 알림
 //   분기) · T-171-SETTINGS-17(옛 SS1 AppBar 제목 · SS8 360dp 말단 스크롤 · SS10
 //   3버튼 내비 hit-test + SafeArea geometry · SS11 heading 계약을 최종 설정
-//   화면에서 다시 잠금 — 말단 행 = non-release 테스트 VM 의 데모 행) · T-17-NOTIF-12
+//   화면에서 다시 잠금 — 말단 행 = 목록의 마지막 행(`_findLastRow`) · 킷
+//   하네스에서는 데모 행) · T-17-NOTIF-12
 //   의 위치 단언을 「알림 섹션이 일반 섹션 아래 · 개발자 위」 로 고쳤다(옛 단언 =
 //   계정 연결 아래 · Danger zone 위 — 두 섹션은 계정 화면으로 옮겨 갔다).
 // Phase 17.1 Plan 17.1-09 Task 2 — T-171-SETTINGS-14(정식 ko 280 a11y guideline
@@ -226,6 +227,16 @@ const UserProviderRecord _kNoPhotoRecord = (
   customPhotoUrl: null,
 );
 
+/// 자리 시험(T-171-SETTINGS-18)이 넘기는 개발용 행의 key.
+const ValueKey<String> _kAdopterRowKey = ValueKey<String>(
+  'adopter-developer-row',
+);
+
+/// 자리 시험(T-171-SETTINGS-18)이 `developerRows` 로 넘기는 개발용 행 1개.
+const List<Widget> _kAdopterRows = <Widget>[
+  ListTile(key: _kAdopterRowKey, title: Text('Adopter developer row')),
+];
+
 Future<void> _pumpSettingsScreen(
   WidgetTester tester, {
   required User? user,
@@ -259,7 +270,7 @@ Future<void> _pumpSettingsScreen(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const SettingsScreen(),
+        home: const SettingsScreen(developerRows: []),
       ),
     ),
   );
@@ -284,6 +295,17 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+/// 설정 ListView 의 마지막 행(children 목록의 마지막 위젯)을 찾는다.
+Finder _findLastRow(WidgetTester tester) {
+  final delegate = tester
+      .widget<ListView>(find.byType(ListView))
+      .childrenDelegate;
+  if (delegate case SliverChildListDelegate(:final children)) {
+    return find.byWidget(children.last);
+  }
+  fail('설정 ListView 가 children 목록 delegate 가 아니다: $delegate');
+}
+
 /// 게스트(익명) 설정 화면을 GoRouter 안에서 pump 하고 provider container 를
 /// 돌려준다 (Phase 17.1 T-171-SETTINGS).
 ///
@@ -296,7 +318,7 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
 Future<ProviderContainer> _pumpGuestSettings(
   WidgetTester tester, {
   Locale locale = const Locale('ko'),
-  Widget screen = const SettingsScreen(),
+  Widget screen = const SettingsScreen(developerRows: []),
   List<Override> extraOverrides = const <Override>[],
 }) {
   return _pumpRoutedSettings(
@@ -318,7 +340,7 @@ Future<ProviderContainer> _pumpMemberSettings(
   WidgetTester tester, {
   required User? user,
   Locale locale = const Locale('ko'),
-  Widget screen = const SettingsScreen(),
+  Widget screen = const SettingsScreen(developerRows: []),
 }) {
   return _pumpRoutedSettings(
     tester,
@@ -338,6 +360,9 @@ Future<ProviderContainer> _pumpMemberSettings(
 ///   (초기값만 [locale] 로 고정) — 시트 저장이 실제 저장 경로를 탄다.
 /// - `MaterialApp.locale` 을 `localeProvider` 에 묶는다(앱 `app.dart` 와 같게).
 /// - `/login` · 계정 화면 · 데모 경로는 stub 화면.
+/// - 하네스의 설정 화면은 `developerRows` 에 빈 목록을 넘긴다 — 내 개발용 행
+///   (Firebase · provider · flavor 에 기댈 수 있다)이 킷 설정 시험 · golden 에
+///   섞이지 않게.
 Future<ProviderContainer> _pumpRoutedSettings(
   WidgetTester tester, {
   required bool isAnonymous,
@@ -625,7 +650,7 @@ void main() {
       expect(en.settingsTitle, 'Settings');
     });
 
-    testWidgets('T-171-SETTINGS-17 ② (옛 SS8): 360dp — 스크롤로 말단 행(데모 행) '
+    testWidgets('T-171-SETTINGS-17 ② (옛 SS8): 360dp — 스크롤로 말단 행 '
         '도달 · hit-test 가능', (tester) async {
       _useViewport(tester, const Size(360, 640));
       await _pumpMemberSettings(
@@ -634,8 +659,8 @@ void main() {
         locale: const Locale('en'),
       );
 
-      await _scrollTo(tester, find.text(en.demoScreenTitle));
-      expect(find.text(en.demoScreenTitle).hitTestable(), findsOneWidget);
+      await _scrollTo(tester, _findLastRow(tester));
+      expect(_findLastRow(tester).hitTestable(), findsOneWidget);
     });
 
     testWidgets('T-171-SETTINGS-17 ③ (옛 SS10): 3버튼 내비 48dp viewPadding — '
@@ -674,26 +699,21 @@ void main() {
       );
       expect(scrollable.position.maxScrollExtent, greaterThan(0));
 
-      await _scrollTo(tester, find.text(en.demoScreenTitle));
+      await _scrollTo(tester, _findLastRow(tester));
       await tester.drag(find.byType(ListView), const Offset(0, -2000));
       await tester.pumpAndSettle();
 
-      final lastTile = find
-          .ancestor(
-            of: find.text(en.demoScreenTitle),
-            matching: find.byType(ListTile),
-          )
-          .hitTestable();
+      final lastRow = _findLastRow(tester).hitTestable();
 
       // (a) hit-test 가능 — inset 아래에서도 실제로 탭 대상이 된다.
-      expect(lastTile, findsOneWidget);
+      expect(lastRow, findsOneWidget);
 
       // (b) geometry — SafeArea 제거 시 실패하는 유일한 관측량.
       expect(
-        tester.getRect(lastTile).bottom,
+        tester.getRect(lastRow).bottom,
         lessThanOrEqualTo(safeBottom),
         reason:
-            '말단 행(데모 행)의 bottom 이 $safeBottom (= 화면 높이 $screenHeight '
+            '말단 행의 bottom 이 $safeBottom (= 화면 높이 $screenHeight '
             '− 하단 system inset $bottomInset) 을 넘으면 실 단말의 3버튼 '
             '내비게이션 바에 가려져 탭 불가가 된다. 이 단언은 '
             'settings_screen.dart 의 `body: SafeArea(...)` (`3674ec3`, '
@@ -701,7 +721,7 @@ void main() {
       );
 
       // (c) 진입 path — 탭이 실제로 데모 경로를 연다.
-      await tester.tap(lastTile);
+      await tester.tap(lastRow);
       await tester.pumpAndSettle();
       expect(find.text('DEMO ROUTE'), findsOneWidget);
     });
@@ -815,6 +835,56 @@ void main() {
           if (_countAccountRouteNavigations(readTrackedFile(path)) > 0) path,
       ];
       expect(navigating, [settingsPath]);
+    });
+  });
+
+  group('설정 「개발자」 묶음 개발용 행 자리 (T-171-SETTINGS-18)', () {
+    final ko = lookupAppLocalizations(const Locale('ko'));
+    final en = lookupAppLocalizations(const Locale('en'));
+
+    testWidgets('T-171-SETTINGS-18 ①: 넘긴 개발용 행 — 「개발자」 heading 아래 '
+        '데모 행 뒤 · 목록의 마지막 행', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+        screen: const SettingsScreen(developerRows: _kAdopterRows),
+      );
+
+      final heading = find.text(en.settingsDeveloperSection);
+      final adopterRow = find.byKey(_kAdopterRowKey);
+      expect(heading, findsOneWidget);
+      expect(find.text(en.demoScreenTitle), findsOneWidget);
+      expect(adopterRow, findsOneWidget);
+
+      final headingY = tester.getTopLeft(heading).dy;
+      final adopterY = tester.getTopLeft(adopterRow).dy;
+      expect(headingY, lessThan(adopterY));
+      final demoY = tester.getTopLeft(find.text(en.demoScreenTitle)).dy;
+      expect(headingY, lessThan(demoY));
+      expect(demoY, lessThan(adopterY));
+
+      expect(tester.widget(_findLastRow(tester)).key, _kAdopterRowKey);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-18 ②: showsDemoRow false(release) — 넘긴 개발용 '
+        '행이 있어도 「개발자」 heading · 데모 행 · 개발용 행 0', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpGuestSettings(
+        tester,
+        screen: const SettingsScreen(
+          showsDemoRow: false,
+          developerRows: _kAdopterRows,
+        ),
+      );
+
+      expect(find.text(ko.settingsDeveloperSection), findsNothing);
+      expect(find.text(ko.demoScreenTitle), findsNothing);
+      expect(find.byKey(_kAdopterRowKey), findsNothing);
+      expect(find.text('Adopter developer row'), findsNothing);
+      expect(find.text(ko.settingsLanguage), findsOneWidget);
     });
   });
 
@@ -993,7 +1063,7 @@ void main() {
         'heading · 데모 행 0 · 언어 행이 마지막 (D-14)', (tester) async {
       await _pumpGuestSettings(
         tester,
-        screen: const SettingsScreen(showsDemoRow: false),
+        screen: const SettingsScreen(showsDemoRow: false, developerRows: []),
       );
 
       expect(find.text(ko.settingsDeveloperSection), findsNothing);

@@ -6,7 +6,8 @@
 //   「게스트로 이용 중 / 로그인 · 가입」 행(탭 = 로그인 화면).
 // - 「일반」: 테마 · 언어 행 → 아래 시트 선택창 (D-04 · Q1-A · Q2-A).
 // - 알림 섹션: 정식만 (D-07 · 17 D-02 정정 — 알림 토큰 = 정식 사용자).
-// - 「개발자」 데모 행: release 가 아닌 빌드만 (D-14 · D-15).
+// - 「개발자」 묶음(데모 행 · `developer_rows.dart` 의 개발용 행): release 가 아닌
+//   빌드만 (D-14 · D-15).
 // 「내 계정」 상세(사진 · 이메일 · 가입 수단 · 연결된 계정) · 계정 연결 ·
 // Danger zone · 연결 해제 결과 매핑은 계정 정보 화면(account_screen.dart)에만
 // 있다 (D-02 — Phase 16 D-05~D-08 · 16.7 · 16.8 · 16.10 · 17 D-03 · D-18 의
@@ -30,27 +31,39 @@ import '_widgets/choice_sheet.dart';
 import '_widgets/notifications_section.dart';
 import '_widgets/profile_avatar.dart';
 import '_widgets/settings_heading.dart';
+import 'developer_rows.dart';
 
 /// 설정 화면 (Phase 17.1 D-02 · D-03 · D-04 · D-07 · D-15).
 ///
 /// 정식 · 게스트가 같은 목록을 쓴다 — 맨 위 행 · 「일반」(테마 · 언어) ·
-/// (정식만) 알림 섹션 · (release 가 아닌 빌드) 「개발자」 데모 행. 게스트 판정은
-/// `authStateProvider` 값의 `isAnonymous` 다.
+/// (정식만) 알림 섹션 · (release 가 아닌 빌드) 「개발자」 묶음(데모 행 ·
+/// `developer_rows.dart` 의 개발용 행). 게스트 판정은 `authStateProvider` 값의
+/// `isAnonymous` 다.
 ///
 /// 정식 사용자의 맨 위 행은 계정 행([_AccountRow])이고 탭하면 계정 정보 화면
 /// (`AppRoutes.account`)으로 간다 — 계정 상세 · 계정 연결 · 회원탈퇴는 그 화면에
 /// 있다 (D-02).
 class SettingsScreen extends ConsumerWidget {
   /// [SettingsScreen] 을 생성한다.
-  const SettingsScreen({this.showsDemoRow = !kReleaseMode, super.key});
+  const SettingsScreen({
+    this.showsDemoRow = !kReleaseMode,
+    this.developerRows,
+    super.key,
+  });
 
-  /// release 가 아닌 빌드에서 데모 행을 보인다(D-14 · D-15) · 테스트는 false 로
-  /// release 를 검증한다.
+  /// release 가 아닌 빌드에서 「개발자」 묶음 전체(데모 행 + 개발용 행)를
+  /// 보인다(D-14 · D-15) · 테스트는 false 로 release 를 검증한다.
   ///
-  /// 기본값은 const `!kReleaseMode` 라 release 빌드는 데모 행 · 「개발자」
-  /// heading 을 그리지 않는다. 라우터의 `const SettingsScreen()` 호출부는 그대로
-  /// 컴파일된다.
+  /// 기본값은 const `!kReleaseMode` 라 release 빌드는 「개발자」 heading · 데모
+  /// 행 · 개발용 행을 그리지 않는다. 묶음에 행이 하나도 없으면 heading 도 그리지
+  /// 않는다. 라우터의 `const SettingsScreen()` 호출부는 그대로 컴파일된다.
   final bool showsDemoRow;
+
+  /// 「개발자」 묶음에서 데모 행 뒤에 펼칠 개발용 행.
+  ///
+  /// null 이면 [buildAppDeveloperRows] 결과를 쓴다. 킷 설정 시험 · golden 은 빈
+  /// 목록을 넘겨 내 개발용 행이 섞이지 않는다.
+  final List<Widget>? developerRows;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -64,6 +77,10 @@ class SettingsScreen extends ConsumerWidget {
           data: (authUser) => authUser?.isAnonymous ?? false,
           orElse: () => false,
         );
+    final developerSectionRows = <Widget>[
+      const _DemoRow(),
+      ...developerRows ?? buildAppDeveloperRows(),
+    ];
     return _SettingsListScaffold(
       children: [
         if (isAnonymous) const _GuestRow() else const _AccountRow(),
@@ -73,10 +90,10 @@ class SettingsScreen extends ConsumerWidget {
         const _LanguageRow(),
         // 17 D-02 정정 — 알림 섹션(heading 「알림」 포함)은 정식 사용자만.
         if (!isAnonymous) ...[Gap(spacing.xxl), const NotificationsSection()],
-        if (showsDemoRow) ...[
+        if (showsDemoRow && developerSectionRows.isNotEmpty) ...[
           Gap(spacing.xxl),
           SettingsHeading(label: l10n.settingsDeveloperSection),
-          const _DemoRow(),
+          ...developerSectionRows,
         ],
       ],
     );
@@ -96,8 +113,9 @@ class _SettingsListScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.settingsTitle)),
-      // SafeArea — 최하단 행(Phase 16 당시 회원탈퇴 · 지금은 데모 행 또는 알림
-      // 섹션)이 시스템 내비게이션 바에 가려져 탭 불가가 되는 것을 방지한다. Android 15(API 35)+ 는 edge-to-edge 가
+      // SafeArea — 최하단 행(「개발자」 묶음의 마지막 행 · release 에서는 알림
+      // 섹션 또는 언어 행)이 시스템 내비게이션 바에 가려져 탭 불가가 되는 것을
+      // 방지한다. Android 15(API 35)+ 는 edge-to-edge 가
       // 강제되어 Scaffold body 가 내비게이션 바 영역까지 확장되며, 3버튼
       // 내비게이션(48dp)은 ListView 하단 padding(spacing.md=12dp)보다 크다.
       // AuthScaffold / TermsDetailScreen 의 `body: SafeArea(child: scrollable)`

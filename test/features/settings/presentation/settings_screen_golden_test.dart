@@ -157,6 +157,9 @@ _MockFbUser _memberAuthUser(String uid) {
 /// override 는 UI-SPEC §Golden 캡처 계약 「설정 정식」 — repository mock · 활성
 /// strategy 6 · 정식 `authStateProvider`(`isAnonymous` false) · 사용자 fixture ·
 /// 테마 시스템 · 언어 [locale] 고정(알림 꺼짐은 harness 고정).
+///
+/// 설정 화면은 `developerRows` 에 빈 목록을 넘긴다 — 내 개발용 행(Firebase ·
+/// provider · flavor 에 기댈 수 있다)이 킷 설정 시험 · golden 에 섞이지 않게.
 Future<void> _pumpMemberSettingsScreen(
   WidgetTester tester, {
   required User user,
@@ -166,7 +169,7 @@ Future<void> _pumpMemberSettingsScreen(
 }) {
   return pumpGoldenRoute(
     tester,
-    route: (_) => const SettingsScreen(),
+    route: (_) => const SettingsScreen(developerRows: []),
     overrides: [
       authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
@@ -243,7 +246,7 @@ void main() {
         when(() => anon.uid).thenReturn('anon-uid');
         await pumpGoldenRoute(
           tester,
-          route: (_) => const SettingsScreen(),
+          route: (_) => const SettingsScreen(developerRows: []),
           overrides: [
             authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
             activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),

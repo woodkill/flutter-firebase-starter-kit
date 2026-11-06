@@ -122,7 +122,7 @@ Future<void> _pumpSettings(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const SettingsScreen(),
+        home: const SettingsScreen(developerRows: []),
       ),
     ),
   );
@@ -267,7 +267,7 @@ void main() {
             locale: const Locale('ko'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const SettingsScreen(),
+            home: const SettingsScreen(developerRows: []),
           ),
         ),
       );
@@ -358,7 +358,7 @@ void main() {
             locale: const Locale('ko'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const SettingsScreen(),
+            home: const SettingsScreen(developerRows: []),
           ),
         ),
       );
