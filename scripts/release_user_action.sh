@@ -63,8 +63,6 @@ LOW_PATTERNS=$(cat <<'LOW_PATTERNS_END'
 16 ^android/app/src/main/res/mipmap-[^/]+/ic_launcher\.png$
 16 ^ios/Runner/Assets\.xcassets/AppIcon\.appiconset/
 22 ^android/app/src/main/res/drawable/ic_notification\.xml$
-22 ^android/app/src/main/res/values/colors\.xml$
-22 ^lib/features/notifications/data/local_notifications_service\.dart$
 28 ^ios/Runner/Runner\.entitlements$
 LOW_PATTERNS_END
 )

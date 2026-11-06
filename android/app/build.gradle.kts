@@ -39,8 +39,8 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    // Phase 17.6 — see ROADMAP.md · 아래 defaultConfig 의 resValue 6곳(Facebook 2 · Naver 3 · 앱 이름 1)이
-    // 이 기능을 쓴다. AGP 9 기본값은 꺼짐이라 켜지 않으면 설정 단계에서 빌드가 멈춘다.
+    // Phase 17.6 — see ROADMAP.md · 아래 defaultConfig 의 resValue 7곳(Facebook 2 · Naver 3 · 앱 이름 1 ·
+    // 알림 색 1)이 이 기능을 쓴다. AGP 9 기본값은 꺼짐이라 켜지 않으면 설정 단계에서 빌드가 멈춘다.
     buildFeatures {
         resValues = true
     }
@@ -119,6 +119,19 @@ android {
         // resValue 와 같은 빈 문자열이다.
         resValue("string", "app_name", dartDefines["appName"] ?: "")
         manifestPlaceholders["appName"] = "@string/app_name"
+
+        // 알림 강조색 — config json 의 brandColor 로 color 리소스 notification_color 를
+        // 만든다. AndroidManifest.xml 의 FCM default_notification_color 가 이 리소스를
+        // 가리킨다(앱이 뒤에 있거나 꺼져 있을 때 OS 가 그리는 알림). 앱 안 알림은 Dart
+        // AppTheme.brandColor 로 같은 값이다. 판정은 Dart AppConfig.parseBrandColor 와
+        // 같다 — # + 16진수 6자리 전체 일치만 받고 앞뒤 공백을 trim 하지 않는다. 비었거나
+        // 틀리면 킷 기본 #673AB7 = AppTheme.seedColor(Colors.deepPurple 500)다.
+        val brandColor = dartDefines["brandColor"] ?: ""
+        resValue(
+            "color",
+            "notification_color",
+            if (Regex("#[0-9A-Fa-f]{6}").matches(brandColor)) brandColor else "#673AB7",
+        )
     }
 
     flavorDimensions += "environment"

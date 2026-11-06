@@ -76,8 +76,6 @@ const List<(int, String)> _lowSamples = <(int, String)>[
   (16, 'android/app/src/main/res/mipmap-hdpi/ic_launcher.png'),
   (16, 'ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json'),
   (22, 'android/app/src/main/res/drawable/ic_notification.xml'),
-  (22, 'android/app/src/main/res/values/colors.xml'),
-  (22, 'lib/features/notifications/data/local_notifications_service.dart'),
   (28, 'ios/Runner/Runner.entitlements'),
 ];
 
@@ -421,7 +419,7 @@ void main() {
   test('T-174-UA-03: 패턴 블록 꼴 · 행 집합 · fixture 표본이 스크립트와 맞는다', () {
     final List<(int, RegExp)> low = _readLowPatterns();
     final List<(int, RegExp)> info = _readInfoPatterns();
-    expect(low, hasLength(17));
+    expect(low, hasLength(15));
     expect(_collectRows(low), _lowRows);
     expect(info, hasLength(5));
     expect(_collectRows(info), _infoRows);
@@ -481,7 +479,7 @@ void main() {
       lines.where((String l) => l == 'LOW_ROWS 3 5 8 14 15 16 22 28'),
       hasLength(1),
     );
-    expect(_selectLines(lines, 'LOW_ROW_CONTROL '), hasLength(17));
+    expect(_selectLines(lines, 'LOW_ROW_CONTROL '), hasLength(15));
     expect(_selectLines(lines, 'LOW_ROW_HIT '), isEmpty);
     expect(lines.where((String l) => l == 'LOW_ROW_HITS 0'), hasLength(1));
     expect(lines.last, 'USER_ACTION_VERDICT none low_hits=0');

@@ -2,18 +2,22 @@
 //
 // FCM · 사진 선택이 요구하는 Android · iOS 플랫폼 설정을 소스 계약으로 잠근다.
 // 백그라운드 · 종료 상태 FCM 알림은 Flutter 가 아니라 OS 가 그리므로 manifest
-// meta-data 값이 곧 알림 외관이다(UI-SPEC §(O)). iOS 설정은 실기기 검증이
+// meta-data 값이 곧 알림 외관이다(UI-SPEC §(O)). 그 알림 색 리소스는
+// build.gradle.kts 가 config `brandColor` 로 빌드 때 만든다. iOS 설정은 실기기 검증이
 // Phase 18 iOS batch 로 이월되므로(D-07) 코드에 반영됐는지만 여기서 확인한다.
 //
 // 주석을 걷어낸 뒤 센다 — 설명 주석이 값 문자열을 언급하면 단언이 공허하게
 // 참이 되기 때문이다(`test/helpers/source_text.dart` 머리 주석).
 
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/source_text.dart';
 
 const String _manifestPath = 'android/app/src/main/AndroidManifest.xml';
-const String _colorsPath = 'android/app/src/main/res/values/colors.xml';
 const String _iconPath =
     'android/app/src/main/res/drawable/ic_notification.xml';
 const String _infoPlistPath = 'ios/Runner/Info.plist';
@@ -61,7 +65,7 @@ void main() {
           '@color/notification_color',
         ).hasMatch(manifest),
         isTrue,
-        reason: '백그라운드 알림 색 = colors.xml 상수',
+        reason: '백그라운드 알림 색 = build.gradle.kts 가 brandColor 로 만든 리소스',
       );
       expect(
         metaDataPattern(
@@ -74,16 +78,82 @@ void main() {
       );
     });
 
-    test('T-17-PLATFORM-02 알림 색은 #673AB7 상수이고 아이콘은 흰색 단색 vector 다', () {
-      final String colors = stripXmlComments(readTrackedFile(_colorsPath));
-      expect(countOccurrences(colors, 'name="notification_color"'), 1);
+    test('T-17-PLATFORM-02 알림 색 리소스는 build.gradle.kts 가 brandColor 로 만들고 '
+        '아이콘은 흰색 단색 vector 다', () {
+      final String gradle = stripSlashComments(readTrackedFile(_gradlePath));
       expect(
         RegExp(
-          r'<color\s+name="notification_color">#673AB7</color>',
-        ).hasMatch(colors),
-        isTrue,
-        reason: '= AppTheme.seedColor (Colors.deepPurple 500) 표기 그대로',
+          r'resValue\(\s*"color",\s*"notification_color",',
+        ).allMatches(gradle),
+        hasLength(1),
+        reason: 'notification_color 리소스는 gradle 의 resValue 하나가 만든다',
       );
+      expect(
+        countOccurrences(gradle, 'dartDefines["brandColor"]'),
+        greaterThanOrEqualTo(1),
+        reason: '알림 색의 원천은 config brandColor 다',
+      );
+
+      // 기본값 = Dart 의 킷 기본 시드 색.
+      final RegExpMatch? fallback = RegExp(
+        r'else\s+"(#[0-9A-Fa-f]{6})"',
+      ).firstMatch(gradle);
+      expect(fallback, isNotNull, reason: 'gradle 에 기본 색 리터럴이 있어야 한다');
+      expect(
+        0xFF000000 | int.parse(fallback!.group(1)!.substring(1), radix: 16),
+        AppTheme.seedColor.toARGB32(),
+        reason: 'gradle 기본 색 = AppTheme.seedColor',
+      );
+
+      // 판정 꼴 = 공유 표(Dart · 메일 · 결과 페이지와 같은 판정).
+      final RegExpMatch? rule = RegExp(
+        r'Regex\("([^"]+)"\)\.matches\(brandColor\)',
+      ).firstMatch(gradle);
+      expect(rule, isNotNull, reason: 'gradle 에 brandColor 판정 꼴이 있어야 한다');
+      // Kotlin `Regex.matches` 는 입력 전체 일치다.
+      final gradleRule = RegExp('^(?:${rule!.group(1)!})\$');
+      final table =
+          (jsonDecode(File('hosting/test/shared_rules.json').readAsStringSync())
+                  as Map<String, dynamic>)['brandColor']
+              as List<dynamic>;
+      expect(table, isNotEmpty);
+      for (final Map<String, dynamic> row
+          in table.cast<Map<String, dynamic>>()) {
+        final input = row['input'] as String;
+        final expected = row['expected'] as String;
+        expect(
+          gradleRule.hasMatch(input),
+          input == expected,
+          reason: 'gradle 판정이 공유 표와 다르다: "$input"',
+        );
+      }
+
+      // res/values* 의 어느 xml 도 notification_color 를 정의하지 않는다 —
+      // 정의가 남으면 생성 리소스와 두 원천이 된다.
+      final List<File> valueXmls = Directory('android/app/src/main/res')
+          .listSync()
+          .whereType<Directory>()
+          .where(
+            (Directory d) => d.uri.pathSegments.reversed
+                .firstWhere((String seg) => seg.isNotEmpty)
+                .startsWith('values'),
+          )
+          .expand((Directory d) => d.listSync().whereType<File>())
+          .where((File f) => f.path.endsWith('.xml'))
+          .toList();
+      final List<String> xmlBodies = valueXmls
+          .map((File f) => stripXmlComments(f.readAsStringSync()))
+          .toList();
+      // 양성 대조 — 실제로 values 디렉터리의 xml 을 읽었다.
+      expect(xmlBodies, isNotEmpty);
+      expect(xmlBodies.any((String body) => body.contains('<style')), isTrue);
+      for (var i = 0; i < valueXmls.length; i++) {
+        expect(
+          countOccurrences(xmlBodies[i], 'name="notification_color"'),
+          0,
+          reason: '${valueXmls[i].path} 가 notification_color 를 정의한다',
+        );
+      }
 
       final String icon = stripXmlComments(readTrackedFile(_iconPath));
       expect(icon, contains('<vector'));

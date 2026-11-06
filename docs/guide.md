@@ -1172,6 +1172,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
+  - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
 
@@ -1179,7 +1180,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 | Extension | 파일 | 담는 것 |
 |---|---|---|
-| `AppColors` | `lib/core/theme/app_colors.dart` | `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 |
+| `AppColors` | `lib/core/theme/app_colors.dart` | 브랜드 원색 `brand` 와 `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 |
 | `AppTypography` | `lib/core/theme/app_typography.dart` | M3 `TextTheme` 15 스타일의 **override 레이어** |
 | `AppSpacing` | `lib/core/theme/app_spacing.dart` | 4 의 배수 간격 스케일 7단계 |
 | `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 토큰 — `sm` 20 1단계 |
@@ -1212,12 +1213,11 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ### 1. 시드 컬러 교체 — M3 팔레트 전체 전환
 
-앱의 시드 색은 config 의 `brandColor` 다. `lib/app.dart` 가 이 값을 읽어 라이트 · 다크
-테마에 같은 시드로 넘긴다.
+앱의 시드 색은 config 의 `brandColor` 다. `lib/app.dart` 가 `AppTheme.brandColor`(config
+`brandColor` 를 읽은 색)를 라이트 · 다크 테마에 같은 시드로 넘긴다.
 
 ```dart
-final Color seed =
-    AppConfig.parseBrandColor(AppConfig.brandColor) ?? AppTheme.seedColor;
+final Color seed = AppTheme.brandColor;
 ```
 
 **① config 의 `brandColor` 를 바꾼다.**
@@ -1241,8 +1241,13 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 시드 하나에서 `ColorScheme.fromSeed` 가 M3 팔레트 **전체**(primary /
   secondary / tertiary / surface / error 및 각 `on-` 쌍)를 파생하므로,
   개별 색을 일일이 지정하지 않아도 된다.
+- 로고 · 지도 강조 · 일러스트처럼 브랜드 hex 그대로가 필요한 곳은 `context.appColors.brand` 를 쓴다.
+  - `colorScheme.primary` 는 시드에서 다시 계산한 색이라 `brandColor` 와 다르다. `brand` 는 라이트 · 다크가 같은 값이므로 위에 올릴 글자 색 · 대비는 쓰는 쪽이 정한다.
+- 알림 색도 같은 `brandColor` 다 — 앱 안 알림과, 앱이 뒤에 있거나 꺼져 있을 때 Android 가 그리는 알림이 모두 이 색이다.
+  - Android 알림 색은 빌드가 리소스 `notification_color` 로 만들므로 `brandColor` 를 바꾼 뒤 다시 빌드해야 바뀐다.
 - 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접 넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` / `darkTheme: AppTheme.dark(seedColor: Colors.teal),`).
   - **라이트와 다크에 같은 시드를 넘긴다** — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋난다.
+  - 이때 `context.appColors.brand` 는 넘긴 시드를 따르고, 알림 색은 config `brandColor` 를 따른다.
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
@@ -1303,6 +1308,7 @@ import 'core/theme/app_typography.dart';
 
 **`AppColors`** 는 `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 (`success` / `warning` / `info` + 각각의 `onSuccess` / `onWarning` / `onInfo`) 을 담는다.
 - `AppColors.fromBrightness(Brightness)` 로 라이트/다크 기본 토큰을 만들고 `copyWith` 로 개별 색만 바꾼다.
+- `brand` 는 1번의 브랜드 원색이고, `AppColors.fromBrightness(Brightness)` 는 `brand` 를 넘기지 않으면 config `brandColor` 의 색을 넣는다.
 
 ```dart
 AppColors.fromBrightness(Brightness.light)
@@ -2463,7 +2469,7 @@ bash scripts/deploy_functions.sh dev --apply
 | 알림 채널 id | `kNotificationChannelId` + Android manifest 의 `default_notification_channel_id` 두 곳. 이미 설치된 기기의 채널 중요도는 OS 가 사용자 설정을 앞세우므로 바꾸려면 새 id 를 쓴다 |
 | 알림 채널 이름 · 설명 | ARB `notificationChannelGeneralName` · `notificationChannelGeneralDescription` |
 | 알림 아이콘 | `android/app/src/main/res/drawable/ic_notification.xml` 하나 — 흰색 단색 vector 로 브랜드 실루엣을 넣는다(색을 넣어도 OS 는 투명도만 쓴다) |
-| 알림 색 | `android/app/src/main/res/values/colors.xml` 의 `notification_color` + `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor` 두 곳(지금 `#673AB7`). 시드 색을 바꾸면 함께 바꾼다 |
+| 알림 색 | config 의 `brandColor` 하나 — 앱 안 알림과, 앱이 뒤에 있거나 꺼져 있을 때 Android 가 그리는 알림이 모두 이 색이다(빌드가 리소스 `notification_color` 를 만든다). 바꾸는 법은 [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 1번이고, 바꾼 뒤 다시 빌드한다 |
 | 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` · `TEST_PUSH_COPY` + 앱 `normalizeFcmLocale` 이 받는 언어 + `firestore.rules` fcmTokens 의 `locale` 허용 목록. ARB 와 별개다 |
 | 알림 탭으로 열 화면 | 새 화면은 홈 GoRoute 의 `routes` 안에 두고, 경로를 `kNotificationRoutableRoutes` 에 더한다 — 단계 · 넣지 않는 화면 · 정식 사용자 전용 화면은 [④ 알림 탭으로 열 화면](#-알림-탭으로-열-화면--허용-목록). 경로는 문자열이 정확히 같아야 하므로 query · 경로 변수는 쓸 수 없다 |
 | 앱 링크(딥링크)로 여는 화면 | Android 앱은 알림 data 의 `route` 를 앱 시작 경로로 받지 않도록 `lib/core/router/app_router.dart` 의 `overridePlatformDefaultLocation: true` 로 늘 스플래시에서 시작한다. MainActivity 에 App Links 를 붙이면 이 설정을 함께 다시 본다 |
@@ -3301,7 +3307,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 4 | `scripts/firebase-configure.sh` 의 `PROJECT_ID_PREFIX` · `IOS_BUNDLE_ID_PREFIX` · `ANDROID_PACKAGE_PREFIX` | 내 프로젝트 식별자 3개(`bin/rename.dart` 가 바꾼다) — 프로젝트 ID 는 `config/<flavor>.json` 의 `firebaseProjectId` 가 있으면 그 값을 먼저 쓰고, 상수는 그 값이 없을 때만 쓴다 | 중간 (스크립트 개선) | 같은 줄이 충돌하면 파일을 열어 상수 3줄만 내 값으로 남기고 나머지는 킷 값을 받는다 |
 | 5 | `.firebaserc` | 내 Firebase 프로젝트 ID | 낮음 | 내 값 |
 | 6 | `firebase.json` 의 `flutter.platforms` 프로젝트 ID · 앱 ID | 고치지 않는다(위저드는 이 값을 채우지 않아 킷 값이 남는다 — 빌드는 iOS 항목에서 `uploadDebugSymbols` 가 `true` 인지와 두 ID 가 있는지만 보고, dSYM 은 「크래시 기호 올리기」 대로 빌드한 flavor 의 plist 앱으로 올라간다) | 중간 (`functions` · `emulators` · `hosting` · `extensions` 설정) | 다른 줄은 자동 병합 · 프로젝트 ID · 앱 ID 줄이 충돌하면 킷 값을 받는다(어느 값이든 빌드 동작은 같고, 킷 값이면 그 줄은 다음 판부터 자동 병합된다) |
-| 7 | `android/app/build.gradle.kts` 의 `namespace` · `applicationId` · flavor 접미사 · `release` 서명 설정 | 앱 ID(`bin/rename.dart`) · 릴리스 서명 | 중간 (Android Gradle Plugin · Flutter 상향) | 앱 ID · 서명 줄은 내 값 · 나머지(홈 화면 앱 이름을 만드는 task 블록 · `app_name` 리소스 줄 포함)는 킷 값 |
+| 7 | `android/app/build.gradle.kts` 의 `namespace` · `applicationId` · flavor 접미사 · `release` 서명 설정 | 앱 ID(`bin/rename.dart`) · 릴리스 서명 | 중간 (Android Gradle Plugin · Flutter 상향) | 앱 ID · 서명 줄은 내 값 · 나머지(홈 화면 앱 이름을 만드는 task 블록 · `app_name` 리소스 줄 · 알림 색 `notification_color` 리소스 줄 포함)는 킷 값 |
 | 8 | `android/app/src/main/kotlin/` 아래 앱 패키지 디렉터리의 `*.kt` | 패키지 경로(`bin/rename.dart` 가 디렉터리를 옮긴다) | 낮음 | 킷이 옛 경로의 파일을 고쳐 규칙 1 의 충돌이 나면 옛 경로를 `git rm` 하고 그 변경을 새 경로 파일에 옮겨 적는다 |
 | 9 | `ios/Runner.xcodeproj/project.pbxproj` | 번들 ID(`bin/rename.dart`) · Xcode 가 저장하는 설정 | 중간 (Flutter · Xcode 상향 · 플러그인) | 충돌이 잦다. 번들 ID 줄은 내 값 · 나머지(Runner 의 「Localize Launcher Name」 빌드 단계 포함)는 킷 값을 받고 Xcode 로 열어 확인한다 |
 | 10 | `ios/Flutter/*.example.xcconfig` · `config/*.example.json` | 고치지 않는다(복사 원본) | 높음 | 충돌 없음(고치지 않았다면) |
@@ -3315,8 +3321,8 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
 | 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 데모 파일은 규칙 1(`git rm`) · 고친 테스트는 「데모를 지웠다면」 규칙 3 대로 충돌 블록을 푼다 |
-| 21 | `lib/core/theme/` 토큰 (브랜드 색은 `config/*.json` 의 `brandColor`) | 테마 토큰 | 중간 | 내 값 |
-| 22 | `android/app/src/main/res/drawable/ic_notification.xml` · `values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor` | 알림 아이콘 · 색 | 낮음 | 내 값 |
+| 21 | `lib/core/theme/` 토큰 (브랜드 색 · 알림 색은 `config/*.json` 의 `brandColor`) | 테마 토큰 | 중간 | 내 값 |
+| 22 | `android/app/src/main/res/drawable/ic_notification.xml` | 알림 아이콘 | 낮음 | 내 값 |
 | 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 · 언어별 `CFBundleDisplayName` 은 빌드가 ARB `appTitle` 로 `<언어>.lproj/InfoPlist.strings` 에 얹는다(내 다른 키는 남는다) |
 | 24 | `android/app/src/main/AndroidManifest.xml` | 권한 · 메타데이터 | 중간 | 자동 병합을 먼저 보고, 충돌은 직접 합친다 |
 | 25 | `firestore.rules` · `storage.rules` · `firestore.indexes.json` (+ `functions/test/rules/`) | 허용 필드 · 크기 제한 · 인덱스 | 중간 | 직접 합친 뒤 `functions/` 에서 `pnpm test:rules` |
@@ -3692,7 +3698,7 @@ Flutter 를 올렸거나 킷 업데이트를 merge 한 뒤 Android 빌드 로그
 | `android.builtInKotlin=true` | `android/gradle.properties` | 앱 모듈이 AGP 의 내장 Kotlin 을 쓴다. `false` 로 되돌리지 않는다 — 끄는 옵션은 AGP 10.0 에서 사라진다 |
 | `android.newDsl=false` | `android/gradle.properties` | 옛 DSL 을 쓴다. 켜는 조건은 아래 「남은 단계」 |
 | `id("org.jetbrains.kotlin.android") version "2.4.0" apply false` | `android/settings.gradle.kts` | 지우면 AGP 가 함께 가져오는 KGP 2.2.10 이 쓰이고, Flutter 3.47.x 오류 하한 2.2.20 보다 낮아 빌드가 멈춘다(https://github.com/flutter/flutter/issues/192167) |
-| `resValues = true` | `android/app/build.gradle.kts` | AGP 9 는 리소스 값 기능이 기본으로 꺼져 있다. 지우면 그 아래 `resValue(...)` 6곳 때문에 설정 단계에서 빌드가 멈춘다(아래 「문제 해결」 첫 항목) |
+| `resValues = true` | `android/app/build.gradle.kts` | AGP 9 는 리소스 값 기능이 기본으로 꺼져 있다. 지우면 그 아래 `resValue(...)` 7곳 때문에 설정 단계에서 빌드가 멈춘다(아래 「문제 해결」 첫 항목) |
 
 **남은 단계가 필요해지는 조건**
 
@@ -3721,7 +3727,7 @@ fvm flutter build apk --debug --flavor dev --dart-define-from-file=config/dev.js
 **문제 해결**
 
 - `defaultConfig contains custom resource values, but the feature is disabled.` 로 설정 단계에서 빌드가 멈춘다 → `android/app/build.gradle.kts` 의 `android { buildFeatures { resValues = true } }` 가 빠졌다(merge 등).
-  - 되살린다 — 그 아래 `resValue(...)` 6곳이 Facebook · Naver 값과 앱 이름(`app_name`)을 리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
+  - 되살린다 — 그 아래 `resValue(...)` 7곳이 Facebook · Naver 값과 앱 이름(`app_name`) · 알림 색(`notification_color`)을 리소스로 넣는데, AGP 9 는 이 기능이 기본으로 꺼져 있다.
 - 스크립트 컴파일 오류 `'var jvmTarget: String' is deprecated. Please migrate to the compilerOptions DSL.` → 옛 Kotlin 옵션 블록(`kotlinOptions { jvmTarget = … }`)이 들어왔다.
   - 지우고 `flutter {}` 앞에 `kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 } }` 를 둔다.
 - Android Studio 로 `android/` 를 열 때 AGP 9.1 을 지원하지 않는다는 안내가 나온다 →
