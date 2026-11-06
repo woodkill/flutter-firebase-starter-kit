@@ -129,6 +129,7 @@ bash scripts/publish_kit.sh release --apply # GitHub Release 생성
    ```
 
    - 마지막 줄이 `USER_ACTION_VERDICT none low_hits=0` 이면 `### 사용자 조치` 를 두지 않는다.
+   - `낮음` 행 파일을 지우거나 표에서 빼는 변경은 TARGET 의 표 · 스크립트로 보는 이 명령에 걸리지 않는다 — `[Unreleased]` 에 그 변경의 `### 사용자 조치` 가 있으면 그대로 두고 판 번호는 CHANGELOG 판 번호 규칙의 MAJOR 기준으로 정한다.
    - `USER_ACTION_VERDICT review low_hits=<N>` 이면 `LOW_ROW_HIT row=<행> <경로>` 줄마다 그 변경을 읽고 사용자가 merge 뒤 손봐야 하는지 정한다 — 걸린 줄은 후보이고 그것만으로 MAJOR 판이 되지는 않는다.
    - `OTHER_ROW_HIT row=<행> <경로>` 줄은 표의 `중간` · `높음` 행 파일이다 — 이 줄만 있으면 MAJOR 판이 아니고 그 행의 「충돌 시 조치」 칸대로 merge 로 끝난다.
    - exit 3 과 `LOW_ROW_FAIL <종류>: <사유>` 줄로 끝나면 판정을 멈춘다 — 종류가 `table` 이면 `docs/guide.md` 「사용자 소유 표면」 표의 `낮음` 행이, `control` 이면 `낮음` 행 파일의 위치가 스크립트의 경로 꼴과 어긋난 것이므로 스크립트의 `LOW_PATTERNS` · `INFO_PATTERNS` 와 `test/release/release_user_action_script_test.dart` 를 표에 맞춰 먼저 고치고, `git` 이면 인자를 확인한다.

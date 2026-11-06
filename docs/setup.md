@@ -228,7 +228,7 @@
 | `functionsRegion` | Cloud Functions 리전 — example 값 `asia-northeast3` | 아니요 | 바꿀 때는 `functions/src/shared/region.ts` 의 `REGION` 도 함께 바꾼다([stg · prod 설정](#stg--prod-설정)) |
 | `splashMinDurationMs` | 스플래시 최소 노출 시간(ms) — example 값 `2000` | 아니요 | 첫 화면 전환 시점 조정용 |
 | `enabledAuthProviders` | 로그인 화면에 켤 소셜 로그인 — 쉼표로 구분 | — (켤 provider 목록 · 비우면 소셜 0개 = 기본값) | example 값이 빈 문자열이라 clone 직후 로그인 화면에는 「이메일로 계속」 만 보인다. 값은 빌드 때 들어가므로 바꾼 뒤 다시 빌드한다 |
-| `brandColor` | 앱 · 결과 페이지 · 메일의 브랜드 색 — `#RRGGBB`, example 값 `#673AB7` | 아니요 | 비우거나 형식이 틀리면 `#673AB7` 로 동작한다. 앱은 이 색을 seed 로 Material 3 색을 계산하고 결과 페이지 · 메일은 이 색을 그대로 칠한다. 바꾼 뒤 다시 빌드한다 |
+| `brandColor` | 앱 · 알림 · 결과 페이지 · 메일의 브랜드 색 — `#RRGGBB`, example 값 `#673AB7` | 아니요 | 비우거나 형식이 틀리면 `#673AB7` 로 동작한다. 앱은 이 색을 seed 로 Material 3 색을 계산하고, 앱의 `context.appColors.brand` · 알림 색 · 결과 페이지 · 메일은 이 색을 그대로 쓴다. 바꾼 뒤 다시 빌드한다 |
 | `emailDelivery` | 인증 · 재설정 메일을 보내는 쪽 — `firebase` 또는 `kit` | — (비우면 `firebase` = 기본값) | 기본값은 Firebase 가 보내고 추가 설정이 없다. `kit` 은 발송 서비스 · 확장 설정이 필요하다. 그 밖의 값은 배포 스크립트가 거부한다 |
 | `appCheckDebugToken` | debug 빌드의 App Check 디버그 토큰 — `./setup.sh` 가 만들어 넣고 Firebase 의 iOS · Android 앱에 등록한다. example 값은 빈 문자열 | 예 | 비우면 앱이 실행될 때 토큰을 만들어 로그에 출력한다 — 그 토큰을 Firebase Console 의 App Check 에 등록해야 회원탈퇴 같은 보호된 기능이 동작한다. release 빌드는 이 값을 쓰지 않는다. 다른 키처럼 저장소에 올리지 않는다 |
 
