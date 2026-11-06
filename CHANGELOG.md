@@ -16,7 +16,7 @@
 
 ### 사용자 조치
 
-- 알림 색을 손으로 바꾼 저장소(`android/app/src/main/res/values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor`)는 이 판을 받을 때 두 파일에서 충돌이 난다. `colors.xml` 은 킷이 지운 파일이라 `CONFLICT (modify/delete)` 가 난다 — 그 파일에서 `notification_color` 줄을 지우고, 남은 `<color>` 가 없으면 `git rm android/app/src/main/res/values/colors.xml`, 있으면 `git add android/app/src/main/res/values/colors.xml` 한다(그 줄을 남겨도 빌드는 되지만 빌드가 `brandColor` 로 만든 값이 이겨 쓰이지 않는다). `local_notifications_service.dart` 는 `CONFLICT (content)` 가 난다 — 충돌 블록마다 킷 쪽(`=======` 와 `>>>>>>>` 사이)만 남기고 `git add` 한다. 그 뒤 손으로 넣었던 색을 `config/dev.json` · `config/stg.json` · `config/prod.json` 의 `brandColor` 에 `#RRGGBB` 로 쓰고 다시 빌드한다 — 이 판부터 알림 색은 `brandColor` 하나를 따르므로 알림 색을 브랜드 색과 다르게 두었다면 두 색이 하나가 된다. 알림 색을 손으로 바꾸지 않았다면 할 일이 없다.
+- 알림 색을 손으로 바꾼 저장소(`android/app/src/main/res/values/colors.xml` 의 `notification_color` · `lib/features/notifications/data/local_notifications_service.dart` 의 `_kNotificationColor`)는 이 판을 받을 때 두 파일에서 충돌이 난다. `colors.xml` 은 킷이 지운 파일이라 `CONFLICT (modify/delete)` 가 난다 — 그 파일에서 `notification_color` 줄과 그 위 알림 색 설명 주석을 지우고, 남은 `<color>` 가 없으면 `git rm android/app/src/main/res/values/colors.xml`, 있으면 `git add android/app/src/main/res/values/colors.xml` 한다(그 줄을 남겨도 빌드는 되지만 빌드가 `brandColor` 로 만든 값이 이겨 쓰이지 않는다). `local_notifications_service.dart` 는 `CONFLICT (content)` 가 난다 — 충돌 블록마다 킷 쪽(`=======` 와 `>>>>>>>` 사이)만 남기고 `git add` 한다. 그 뒤 손으로 넣었던 색을 `config/dev.json` · `config/stg.json` · `config/prod.json` 의 `brandColor` 에 `#RRGGBB` 로 쓰고 다시 빌드한다 — 이 판부터 알림 색은 `brandColor` 하나를 따르므로 알림 색을 브랜드 색과 다르게 두었다면 두 색이 하나가 된다. 알림 색을 손으로 바꾸지 않았다면 할 일이 없다.
 
 ### Added
 
