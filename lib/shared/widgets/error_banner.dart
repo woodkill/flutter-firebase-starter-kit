@@ -37,7 +37,7 @@ class ErrorBanner extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: colors.errorContainer,
-          borderRadius: BorderRadius.circular(spacing.sm),
+          borderRadius: BorderRadius.circular(context.appRadius.sm),
         ),
         child: Row(
           children: [

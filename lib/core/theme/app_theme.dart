@@ -3,14 +3,16 @@ import 'package:flutter/material.dart';
 import '../config/app_config.dart';
 import 'app_colors.dart';
 import 'app_icon_sizes.dart';
+import 'app_opacity.dart';
+import 'app_radius.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 
 /// 앱의 라이트/다크 [ThemeData]를 조립하는 유틸리티 클래스.
 ///
 /// [seedColor]를 기반으로 [ColorScheme.fromSeed]를 사용하여 M3 팔레트를 생성하고,
-/// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] ThemeExtension을
-/// 등록한다.
+/// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
+/// [AppOpacity] ThemeExtension을 등록한다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
 /// [AppColors.brand] 에는 넘긴 시드를 불투명 [Color] 로 정규화해 그대로 넣는다.
 /// [fontFamily] 를 테마 글꼴로 건다.
@@ -62,8 +64,8 @@ abstract final class AppTheme {
 
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
-  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] 4개
-  /// ThemeExtension을 포함한다.
+  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
+  /// [AppOpacity] 6개 ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
   /// [fontFamily] 를 테마 글꼴로 건다.
@@ -78,14 +80,16 @@ abstract final class AppTheme {
         AppTypography.empty,
         const AppSpacing(),
         const AppIconSizes(),
+        const AppRadius(),
+        const AppOpacity(),
       ],
     );
   }
 
   /// 다크 모드 [ThemeData]를 생성한다.
   ///
-  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes] 4개
-  /// ThemeExtension을 포함한다.
+  /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
+  /// [AppOpacity] 6개 ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
@@ -104,6 +108,8 @@ abstract final class AppTheme {
         AppTypography.empty,
         const AppSpacing(),
         const AppIconSizes(),
+        const AppRadius(),
+        const AppOpacity(),
       ],
     );
   }

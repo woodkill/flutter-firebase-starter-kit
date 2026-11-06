@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
+import 'package:flutter_starter_kit/core/theme/app_radius.dart';
+import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/form_error_banner.dart'
     show FormErrorBanner;
@@ -88,6 +90,56 @@ void main() {
       expect(
         tester.getSize(find.byIcon(Icons.error_outline)),
         const Size(28, 28),
+      );
+    });
+
+    testWidgets('기본 테마에서 모서리는 AppRadius.sm 기본값 8 이다', (tester) async {
+      final container = find.descendant(
+        of: find.byType(ErrorBanner),
+        matching: find.byType(Container),
+      );
+
+      await pumpKo(tester, const ErrorBanner(exception: ServiceUnavailable()));
+      expect(
+        tester.widget<Container>(container).decoration,
+        isA<BoxDecoration>().having(
+          (d) => d.borderRadius,
+          'borderRadius',
+          BorderRadius.circular(8),
+        ),
+      );
+    });
+
+    testWidgets('둥글기 sm · 간격 sm 을 함께 바꾼 테마에서 모서리는 둥글기 값이다', (tester) async {
+      // 첫 pump 로 그려 AnimatedTheme 보간 없이 최종 값을 본다.
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[
+              const AppRadius().copyWith(sm: 2),
+              const AppSpacing().copyWith(sm: 10),
+            ],
+          ),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          locale: const Locale('ko'),
+          home: const Scaffold(
+            body: ErrorBanner(exception: ServiceUnavailable()),
+          ),
+        ),
+      );
+
+      final container = find.descendant(
+        of: find.byType(ErrorBanner),
+        matching: find.byType(Container),
+      );
+      expect(
+        tester.widget<Container>(container).decoration,
+        isA<BoxDecoration>().having(
+          (d) => d.borderRadius,
+          'borderRadius',
+          BorderRadius.circular(2),
+        ),
       );
     });
   });

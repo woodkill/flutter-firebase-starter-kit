@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
 import 'app_icon_sizes.dart';
+import 'app_opacity.dart';
+import 'app_radius.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 
@@ -15,7 +17,7 @@ import 'app_typography.dart';
 /// 사용한다 — 사용자가 `AppTypography` extension 으로 부분 override 한 경우까지
 /// 반영하는 유일한 경로이기 때문이다.
 ///
-/// 네 토큰 getter 는 extension 이 등록되지 않은 테마에서도 테마 기본값으로
+/// 여섯 토큰 getter 는 extension 이 등록되지 않은 테마에서도 테마 기본값으로
 /// 폴백하므로, 사용자 자체 [ThemeData] 나 맨몸 `MaterialApp()` 에서도
 /// 크래시하지 않는다.
 ///
@@ -71,6 +73,20 @@ extension ThemeX on BuildContext {
   /// 폴백한다.
   AppIconSizes get appIconSizes =>
       Theme.of(this).extension<AppIconSizes>() ?? const AppIconSizes();
+
+  /// 현재 테마의 [AppRadius] ThemeExtension을 반환한다.
+  ///
+  /// extension 이 등록되지 않은 테마(`copyWith(extensions:)` 에 이 토큰을 빼고
+  /// 넘긴 테마 포함)에서는 기본값([AppRadius])으로 폴백한다.
+  AppRadius get appRadius =>
+      Theme.of(this).extension<AppRadius>() ?? const AppRadius();
+
+  /// 현재 테마의 [AppOpacity] ThemeExtension을 반환한다.
+  ///
+  /// extension 이 등록되지 않은 테마(`copyWith(extensions:)` 에 이 토큰을 빼고
+  /// 넘긴 테마 포함)에서는 기본값([AppOpacity])으로 폴백한다.
+  AppOpacity get appOpacity =>
+      Theme.of(this).extension<AppOpacity>() ?? const AppOpacity();
 
   /// 현재 테마의 [ColorScheme]을 반환한다.
   ColorScheme get colorScheme => Theme.of(this).colorScheme;

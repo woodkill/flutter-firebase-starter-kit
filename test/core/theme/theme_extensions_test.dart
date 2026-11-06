@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
+import 'package:flutter_starter_kit/core/theme/app_opacity.dart';
+import 'package:flutter_starter_kit/core/theme/app_radius.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
@@ -88,6 +90,48 @@ void main() {
       );
 
       expect(iconSizes, equals(custom));
+    });
+
+    testWidgets('context.appRadius가 등록된 토큰을 돌려준다', (tester) async {
+      late AppRadius radius;
+      final custom = const AppRadius().copyWith(sm: 6);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[custom],
+          ),
+          home: Builder(
+            builder: (context) {
+              radius = context.appRadius;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(radius, equals(custom));
+    });
+
+    testWidgets('context.appOpacity가 등록된 토큰을 돌려준다', (tester) async {
+      late AppOpacity opacity;
+      final custom = const AppOpacity().copyWith(scrim: 0.5);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[custom],
+          ),
+          home: Builder(
+            builder: (context) {
+              opacity = context.appOpacity;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(opacity, equals(custom));
     });
 
     testWidgets('context.colorScheme에 접근할 수 있다', (tester) async {
@@ -313,11 +357,13 @@ void main() {
   // 테스트에서 맨몸 `MaterialApp()` 만 감싸면 즉시
   // `Null check operator used on a null value` 로 크래시했다.
   group('T-03-WR-04: extension 미등록 테마에서도 기본 토큰을 돌려준다', () {
-    testWidgets('맨몸 MaterialApp 에서 세 getter 가 크래시하지 않는다', (tester) async {
+    testWidgets('맨몸 MaterialApp 에서 토큰 getter 가 크래시하지 않는다', (tester) async {
       late AppColors colors;
       late AppSpacing spacing;
       late AppTypography typography;
       late AppIconSizes iconSizes;
+      late AppRadius radius;
+      late AppOpacity opacity;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -327,6 +373,8 @@ void main() {
               spacing = context.appSpacing;
               typography = context.appTypography;
               iconSizes = context.appIconSizes;
+              radius = context.appRadius;
+              opacity = context.appOpacity;
               return const SizedBox.shrink();
             },
           ),
@@ -337,7 +385,43 @@ void main() {
       expect(colors, equals(AppColors.fromBrightness(Brightness.light)));
       expect(spacing, equals(const AppSpacing()));
       expect(iconSizes, equals(const AppIconSizes()));
+      expect(radius, equals(const AppRadius()));
+      expect(opacity, equals(const AppOpacity()));
       expect(typography.bodyMedium.fontSize, isNotNull);
+    });
+
+    testWidgets('네 extension 만 copyWith(extensions:) 에 넘긴 테마에서 '
+        'appRadius · appOpacity 는 기본값으로 폴백한다', (tester) async {
+      late AppRadius? registeredRadius;
+      late AppRadius radius;
+      late AppOpacity opacity;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          // 가이드 「디자인 토큰 바꾸기」 2번 예시의 옛 리스트 — 새 토큰이 빠진다.
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[
+              AppColors.fromBrightness(Brightness.light),
+              const AppSpacing(),
+              const AppIconSizes(),
+              AppTypography.empty,
+            ],
+          ),
+          home: Builder(
+            builder: (context) {
+              registeredRadius = Theme.of(context).extension<AppRadius>();
+              radius = context.appRadius;
+              opacity = context.appOpacity;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(registeredRadius, isNull);
+      expect(radius, equals(const AppRadius()));
+      expect(opacity, equals(const AppOpacity()));
     });
 
     testWidgets('하위 트리의 dark Theme 에서는 dark 기본 토큰으로 폴백한다', (tester) async {

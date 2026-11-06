@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
+import 'package:flutter_starter_kit/core/theme/app_opacity.dart';
+import 'package:flutter_starter_kit/core/theme/app_radius.dart';
 import 'package:flutter_starter_kit/core/theme/app_spacing.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/app_typography.dart';
@@ -42,11 +44,35 @@ void main() {
         expect(theme.extension<AppIconSizes>(), equals(const AppIconSizes()));
       });
 
+      test(
+        'ThemeData에 AppRadius · AppOpacity extension이 const 기본값으로 등록되어 있다',
+        () {
+          final theme = AppTheme.light();
+
+          expect(theme.extension<AppRadius>(), equals(const AppRadius()));
+          expect(theme.extension<AppOpacity>(), equals(const AppOpacity()));
+        },
+      );
+
       test('colorScheme.brightness가 Brightness.light이다', () {
         final theme = AppTheme.light();
 
         expect(theme.colorScheme.brightness, equals(Brightness.light));
       });
+    });
+
+    test('light · dark 의 extensions.keys 는 6종이다', () {
+      const expected = <Object>[
+        AppColors,
+        AppTypography,
+        AppSpacing,
+        AppIconSizes,
+        AppRadius,
+        AppOpacity,
+      ];
+
+      expect(AppTheme.light().extensions.keys, unorderedEquals(expected));
+      expect(AppTheme.dark().extensions.keys, unorderedEquals(expected));
     });
 
     group('dark', () {
@@ -73,6 +99,16 @@ void main() {
 
         expect(theme.extension<AppIconSizes>(), equals(const AppIconSizes()));
       });
+
+      test(
+        'ThemeData에 AppRadius · AppOpacity extension이 const 기본값으로 등록되어 있다',
+        () {
+          final theme = AppTheme.dark();
+
+          expect(theme.extension<AppRadius>(), equals(const AppRadius()));
+          expect(theme.extension<AppOpacity>(), equals(const AppOpacity()));
+        },
+      );
 
       test('colorScheme.brightness가 Brightness.dark이다', () {
         final theme = AppTheme.dark();
