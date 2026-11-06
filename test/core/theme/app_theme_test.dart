@@ -272,4 +272,75 @@ void main() {
       skip: skipUnlessMaintainerTree(),
     );
   });
+
+  group('아래 시트 테마', () {
+    final expectedRadius = BorderRadius.vertical(
+      top: Radius.circular(const AppRadius().xl),
+    );
+
+    for (final (String label, ThemeData Function() build)
+        in <(String, ThemeData Function())>[
+          ('light', AppTheme.light),
+          ('dark', AppTheme.dark),
+        ]) {
+      test('$label — 손잡이를 켜고 배경은 지정하지 않는다', () {
+        final BottomSheetThemeData sheet = build().bottomSheetTheme;
+
+        expect(sheet.showDragHandle, isTrue);
+        expect(sheet.backgroundColor, isNull);
+        expect(sheet.modalBackgroundColor, isNull);
+      });
+
+      test('$label — 위 모서리는 등록한 AppRadius 의 xl 이다', () {
+        final ThemeData theme = build();
+
+        expect(theme.extension<AppRadius>()!.xl, 28);
+        expect(
+          theme.bottomSheetTheme.shape,
+          isA<RoundedRectangleBorder>().having(
+            (RoundedRectangleBorder s) => s.borderRadius,
+            'borderRadius',
+            expectedRadius,
+          ),
+        );
+        expect(
+          expectedRadius,
+          BorderRadius.vertical(
+            top: Radius.circular(theme.extension<AppRadius>()!.xl),
+          ),
+        );
+      });
+
+      test('$label — 버튼 · 구분선 · 진행 표시 테마는 Material 3 기본 그대로다', () {
+        final ThemeData theme = build();
+
+        expect(theme.filledButtonTheme, const FilledButtonThemeData());
+        expect(theme.textButtonTheme, const TextButtonThemeData());
+        expect(theme.outlinedButtonTheme, const OutlinedButtonThemeData());
+        expect(theme.dividerTheme, const DividerThemeData());
+        expect(
+          theme.progressIndicatorTheme,
+          const ProgressIndicatorThemeData(),
+        );
+      });
+    }
+
+    test('copyWith(extensions:) 로 바꾼 AppRadius 는 시트 모서리로 번지지 않는다', () {
+      final ThemeData theme = AppTheme.light().copyWith(
+        extensions: <ThemeExtension<dynamic>>[
+          const AppRadius().copyWith(xl: 8),
+        ],
+      );
+
+      expect(theme.extension<AppRadius>()!.xl, 8);
+      expect(
+        theme.bottomSheetTheme.shape,
+        isA<RoundedRectangleBorder>().having(
+          (RoundedRectangleBorder s) => s.borderRadius,
+          'borderRadius',
+          expectedRadius,
+        ),
+      );
+    });
+  });
 }

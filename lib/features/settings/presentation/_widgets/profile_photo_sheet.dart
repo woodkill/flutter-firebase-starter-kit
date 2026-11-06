@@ -29,7 +29,6 @@ Future<ProfilePhotoSheetAction?> showProfilePhotoSheet(
 }) {
   return showModalBottomSheet<ProfilePhotoSheetAction>(
     context: context,
-    showDragHandle: true,
     builder: (_) => ProfilePhotoSheet(hasCustomPhoto: hasCustomPhoto),
   );
 }

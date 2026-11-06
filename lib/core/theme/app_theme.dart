@@ -13,6 +13,8 @@ import 'app_typography.dart';
 /// [seedColor]를 기반으로 [ColorScheme.fromSeed]를 사용하여 M3 팔레트를 생성하고,
 /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
 /// [AppOpacity] ThemeExtension을 등록한다.
+/// 컴포넌트 테마는 Material 3 기본과 다른 아래 시트 테마 하나만 건다 — 버튼 높이 ·
+/// 구분선 · 진행 표시는 Material 3 기본값을 쓴다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
 /// [AppColors.brand] 에는 넘긴 시드를 불투명 [Color] 로 정규화해 그대로 넣는다.
 /// [fontFamily] 를 테마 글꼴로 건다.
@@ -62,6 +64,22 @@ abstract final class AppTheme {
   /// 바꾸기 · 빼기」 를 본다.
   static const String fontFamily = 'PretendardJP';
 
+  /// Material 3 기본과 다르게 정한 아래 시트 테마를 만든다.
+  ///
+  /// 손잡이를 켠다 — 킷 시트가 모두 손잡이를 쓴다.
+  /// 위 모서리는 extension 으로 등록하는 `const AppRadius()` 의 [AppRadius.xl]
+  /// 이라 `app_radius.dart` 기본값을 고치면 함께 바뀌고, `copyWith(extensions:)`
+  /// 로 바꾼 값은 따라가지 않는다.
+  /// 배경은 지정하지 않아 Material 3 기본(`surfaceContainerLow`)이다.
+  static BottomSheetThemeData _buildBottomSheetTheme() => BottomSheetThemeData(
+    showDragHandle: true,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(const AppRadius().xl),
+      ),
+    ),
+  );
+
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
@@ -69,12 +87,14 @@ abstract final class AppTheme {
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
   /// [fontFamily] 를 테마 글꼴로 건다.
+  /// 아래 시트 테마(손잡이 · 위 모서리)를 건다.
   static ThemeData light({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
 
     return base.copyWith(
+      bottomSheetTheme: _buildBottomSheetTheme(),
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.light, brand: seedColor),
         AppTypography.empty,
@@ -94,6 +114,7 @@ abstract final class AppTheme {
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
   /// [fontFamily] 를 테마 글꼴로 건다.
+  /// 아래 시트 테마(손잡이 · 위 모서리)를 건다.
   static ThemeData dark({Color seedColor = AppTheme.seedColor}) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
@@ -103,6 +124,7 @@ abstract final class AppTheme {
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
 
     return base.copyWith(
+      bottomSheetTheme: _buildBottomSheetTheme(),
       extensions: <ThemeExtension<dynamic>>[
         AppColors.fromBrightness(Brightness.dark, brand: seedColor),
         AppTypography.empty,

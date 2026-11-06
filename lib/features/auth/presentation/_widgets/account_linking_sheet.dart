@@ -40,7 +40,7 @@ typedef ExistingProviderSignInCallback =
 /// 즉시 노출한다.
 ///
 /// **레이아웃 (top → bottom):**
-/// 1. Drag handle (Material 3 기본, `showDragHandle: true`)
+/// 1. Drag handle (앱 테마 `bottomSheetTheme` 가 켠다)
 /// 2. [Gap] lg
 /// 3. 헤더 텍스트 (`accountLinkingSheetTitle` 또는 fallback)
 /// 4. [Gap] sm
@@ -150,13 +150,6 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(context.appRadius.xl),
-        ),
-      ),
       constraints: BoxConstraints(maxHeight: size.height * 0.75),
       builder: (_) => AccountLinkingSheet(
         existingProvider: existingProvider,

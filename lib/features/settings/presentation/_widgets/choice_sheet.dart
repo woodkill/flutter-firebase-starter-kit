@@ -23,7 +23,6 @@ Future<T?> showChoiceSheet<T>(
 }) {
   return showModalBottomSheet<T>(
     context: context,
-    showDragHandle: true,
     builder: (_) =>
         ChoiceSheet<T>(title: title, options: options, selected: selected),
   );
