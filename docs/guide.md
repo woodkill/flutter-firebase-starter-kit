@@ -2362,6 +2362,8 @@ firebase deploy --only storage --project <your-project-id>
 **① 함수 파일과 export.**
 - `functions/src/` 에 `onCall` 함수 파일을 두고 `functions/src/index.ts` 에 export 한 줄을 더한다.
 - 아래 예시는 `functions/src/my_function.ts` 로 그대로 저장해도 `pnpm run build` · `pnpm run lint` 를 통과한다.
+- 로그는 메시지를 먼저 · 필드 객체를 마지막에 넘긴다(`logger.info("메시지", {event: "…", uid})`).
+  - 마지막 인자 객체만 Cloud Logging `jsonPayload` 필드가 되어 `jsonPayload.event="my_function_invoked"` 로 로그를 거를 수 있고, 필드 객체를 먼저 넘긴 호출은 `pnpm run lint` 가 거부한다.
 - region 은 `functions/src/index.ts` 의 전역 설정을 따른다.
 
 ```typescript
@@ -2379,7 +2381,7 @@ export const myFunction = onCall(
       throw new HttpsError("unauthenticated", "errorUnauthenticated");
     }
     const uid = request.auth.uid;
-    logger.info({event: "my_function_invoked", uid}, "myFunction invoked");
+    logger.info("myFunction invoked", {event: "my_function_invoked", uid});
     // secret 값은 MY_SECRET.value() 로 읽는다. 로그에 남기지 않는다.
     return {ok: true};
   },

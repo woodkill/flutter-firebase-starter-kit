@@ -14,6 +14,14 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- merge 뒤 `functions/` 의 `pnpm run lint` 가 필드 객체를 먼저 넘긴 logger 호출(`logger.info({event: "…"}, "…")` 꼴)을 거부한다. 내가 더한 함수 파일에 그런 호출이 있으면 인자 순서만 `logger.info("…", {event: "…"})` 로 바꾼다(메시지 · 필드 내용은 그대로).
+
+### Fixed
+
+- 킷 Cloud Functions 운영 로그의 `event` · `uid` · `code` 같은 필드가 Cloud Logging `jsonPayload` 필드로 남아 `jsonPayload.event="ping_invoked"` 같은 필터와 로그 기반 지표에 쓸 수 있다. 킷 함수의 logger 호출이 필드 객체를 먼저 넘겨 이 필드들이 `textPayload` 문자열 안에 섞이던 문제를 고친다. 바뀐 파일은 `functions/src/` 의 함수 파일 · `functions/test/` 의 시험 · `functions/.eslintrc.js` · `docs/guide.md` 이고, 그 파일들을 고치지 않았다면 merge 로 끝난다(내가 더한 함수 파일은 위 「사용자 조치」).
+
 ## [1.0.0-rc.9] - 2026-11-06
 
 ### 사용자 조치

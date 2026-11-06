@@ -41,6 +41,7 @@ paths:
 - early return으로 중첩 줄이기
 - Cloud Functions 에러: `HttpsError` 사용 (적절한 에러 코드 포함)
 - 클라이언트에 내부 에러 상세 노출 금지 — 로그에만 기록
+- logger 호출은 `logger.<level>("메시지", {필드})` 순서로 쓴다 — 마지막 인자 객체만 Cloud Logging `jsonPayload` 필드가 되고, 필드 객체를 먼저 넘기면 `pnpm run lint`(`no-restricted-syntax`)가 막는다. 필드 값의 `Error` 는 `{}` 로 사라지므로 `fingerprintError(err)` 같은 문자열로 넘긴다
 
 ## Documentation
 - 모든 public 함수/타입에 JSDoc (`@param`, `@returns`) 작성
