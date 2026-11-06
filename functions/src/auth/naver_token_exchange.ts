@@ -115,8 +115,8 @@ function logTokenExchangeFailure(fingerprint: {
   code?: string;
 }): void {
   logger.warn(
-    {event: "naver_web_token_exchange_failed", ...fingerprint},
     "Naver token exchange failed",
+    {event: "naver_web_token_exchange_failed", ...fingerprint},
   );
 }
 
@@ -212,8 +212,8 @@ export async function exchangeNaverAuthCode(args: {
         tokenBody.error :
         "other";
     logger.warn(
-      {event: "naver_web_token_error_response", error: errorCode},
       "Naver token endpoint returned error body",
+      {event: "naver_web_token_error_response", error: errorCode},
     );
     throw idpCredentialRejected();
   }

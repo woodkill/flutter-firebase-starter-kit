@@ -272,12 +272,12 @@ describe("disconnectKakaoProvider — 성공 · 멱등", () => {
     expect(body.get("target_id_type")).toBe("user_id");
     expect(mockGetUser).not.toHaveBeenCalled();
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_succeeded",
         uid: CALLER_UID,
         disconnectedCount: 1,
       },
-      expect.any(String),
     );
     // review IN-05: 원장 불일치 warn 은 신원 0 건일 때만.
     expect(warnMock).not.toHaveBeenCalled();
@@ -292,8 +292,8 @@ describe("disconnectKakaoProvider — 성공 · 멱등", () => {
       disconnectedCount: 1,
     });
     expect(infoMock).toHaveBeenCalledWith(
-      {event: "disconnect_kakao_already_unlinked", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_kakao_already_unlinked", uid: CALLER_UID},
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
@@ -334,7 +334,7 @@ describe("disconnectKakaoProvider — 성공 · 멱등", () => {
       expect(fetchBodyAt(0).get("target_id")).toBe(KAKAO_USER_ID);
       expect(fetchBodyAt(1).get("target_id")).toBe(KAKAO_USER_ID);
       // UAT 서버 로그 event 순서와 같다.
-      expect(infoMock.mock.calls.map((call) => call[0])).toEqual([
+      expect(infoMock.mock.calls.map((call) => call[1])).toEqual([
         {
           event: "disconnect_kakao_succeeded",
           uid: CALLER_UID,
@@ -384,16 +384,16 @@ describe("disconnectKakaoProvider — 미인증 · 0 건", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     // review IN-05: 원장 불일치 표지 — 성공 event 와 같은 {event, uid} 형태.
     expect(warnMock).toHaveBeenCalledWith(
-      {event: "disconnect_kakao_no_identity", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_kakao_no_identity", uid: CALLER_UID},
     );
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_succeeded",
         uid: CALLER_UID,
         disconnectedCount: 0,
       },
-      expect.any(String),
     );
   });
 });
@@ -409,13 +409,13 @@ describe("disconnectKakaoProvider — Kakao 오류 코드 매핑", () => {
     expect(err.details).toEqual({reason: "provider_config"});
     // 로그는 정수 코드 · status 만 — msg 본문 · 회원번호 0.
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_unlink_failed",
         uid: CALLER_UID,
         status: 401,
         code: -401,
       },
-      expect.any(String),
     );
   });
 
@@ -448,12 +448,12 @@ describe("disconnectKakaoProvider — Kakao 오류 코드 매핑", () => {
     expect(err.code).toBe("unavailable");
     expect(err.message).toBe("errorServiceUnavailable");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_unlink_failed",
         uid: CALLER_UID,
         code: "TypeError",
       },
-      expect.any(String),
     );
   });
 
@@ -471,13 +471,13 @@ describe("disconnectKakaoProvider — Kakao 오류 코드 매핑", () => {
     expect(err.code).toBe("unavailable");
     expect(err.message).toBe("errorServiceUnavailable");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_unlink_failed",
         uid: CALLER_UID,
         status: 500,
         code: "other",
       },
-      expect.any(String),
     );
   });
 });
@@ -491,8 +491,8 @@ describe("disconnectKakaoProvider — 원장 결함", () => {
     expect(err.message).toBe("errorUnknown");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_kakao_target_invalid", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_kakao_target_invalid", uid: CALLER_UID},
     );
   });
 
@@ -506,12 +506,12 @@ describe("disconnectKakaoProvider — 원장 결함", () => {
     expect(err.message).toBe("errorUnknown");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_kakao_precheck_failed",
         uid: CALLER_UID,
         code: "unavailable",
       },
-      expect.any(String),
     );
   });
 });

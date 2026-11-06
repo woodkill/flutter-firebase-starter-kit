@@ -42,6 +42,7 @@ export async function mintReloginToken(args: {
     return await getAuth().createCustomToken(args.uid);
   } catch (err: unknown) {
     logger.error(
+      "createCustomToken threw",
       {
         event: "disconnect_relogin_token_failed",
         provider: args.provider,
@@ -49,7 +50,6 @@ export async function mintReloginToken(args: {
         // "Error" — 서명 권한 결핍이면 `auth/insufficient-permission`).
         code: fingerprintError(err),
       },
-      "createCustomToken threw",
     );
     throw serverFailure();
   }

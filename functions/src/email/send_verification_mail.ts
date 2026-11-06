@@ -107,8 +107,8 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
     if (request.auth.token.email_verified === true) {
       // 이미 인증된 주소 — 보낼 메일이 없다. 클라이언트에는 성공과 같다.
       logger.info(
-        {event: "verification_mail_already_verified", uid},
         "sendVerificationMail skipped (already verified)",
+        {event: "verification_mail_already_verified", uid},
       );
       return {ok: true};
     }
@@ -117,8 +117,8 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
     const brand = readMailBrand();
     if (brand === null) {
       logger.error(
-        {event: "email_brand_unset"},
         "EMAIL_APP_NAME is not configured",
+        {event: "email_brand_unset"},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -126,8 +126,8 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
     const resultPageUrl = readResultPageUrl();
     if (resultPageUrl === null) {
       logger.error(
-        {event: "email_result_page_unset"},
         "EMAIL_RESULT_PAGE_URL is not configured",
+        {event: "email_result_page_unset"},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -153,25 +153,25 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
       ]);
     } catch (err: unknown) {
       logger.warn(
+        "rate limit transaction threw",
         {
           event: "verification_mail_rate_limit_failed",
           uid,
           code: fingerprintError(err),
         },
-        "rate limit transaction threw",
       );
       throw new HttpsError("internal", "errorUnknown");
     }
     if (exceeded.length > 0) {
       for (const hit of exceeded) {
         logger.warn(
+          "sendVerificationMail rate limit exceeded",
           {
             event: "verification_mail_rate_limited",
             uid,
             axis: hit.axis,
             count: hit.count,
           },
-          "sendVerificationMail rate limit exceeded",
         );
       }
       throw new HttpsError("resource-exhausted", "errorTooManyRequests");
@@ -190,15 +190,15 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
       await db.collection("mail").add({to: [email], message});
     } catch (err: unknown) {
       logger.warn(
-        {event: "verification_mail_failed", uid, code: fingerprintError(err)},
         "sendVerificationMail failed",
+        {event: "verification_mail_failed", uid, code: fingerprintError(err)},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
 
     logger.info(
-      {event: "verification_mail_queued", uid, locale},
       "sendVerificationMail queued",
+      {event: "verification_mail_queued", uid, locale},
     );
     return {ok: true};
   },

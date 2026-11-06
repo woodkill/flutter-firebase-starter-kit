@@ -220,10 +220,10 @@ async function captureHttpsError(
 function successLogPayload(): Record<string, unknown> | undefined {
   const call = infoMock.mock.calls.find(
     (c: unknown[]) =>
-      (c[0] as {event?: unknown})?.event ===
+      (c[1] as {event?: unknown})?.event ===
       "unlink_custom_token_provider_succeeded",
   );
-  return call?.[0] as Record<string, unknown> | undefined;
+  return call?.[1] as Record<string, unknown> | undefined;
 }
 
 /**
@@ -295,6 +295,7 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
     expect(payload).not.toHaveProperty("signUpProviderId");
     // 성공 로그 — {event, uid, provider, 계수} 뿐.
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "unlink_custom_token_provider_succeeded",
         uid: "uid-U1",
@@ -302,7 +303,6 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
         removedIdentityCount: 1,
         removedLinkedEntryCount: 1,
       }),
-      expect.any(String),
     );
     expect(Object.keys(successLogPayload() ?? {}).sort()).toEqual([
       "event",
@@ -519,12 +519,12 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
 
     expect(err).toMatchObject({code: "internal", message: "errorUnknown"});
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "unlink_transaction_failed",
         uid: "uid-U8",
         code: "aborted",
       }),
-      expect.any(String),
     );
     expect(mockOrdered.deletes).toHaveLength(0);
     expect(mockOrdered.updates).toHaveLength(0);
@@ -546,12 +546,12 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
 
     expect(err).toMatchObject({code: "internal", message: "errorUnknown"});
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "unlink_precheck_failed",
         uid: "uid-U8b",
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     expect(mockOrdered.calls).toHaveLength(0);
   });
@@ -615,12 +615,12 @@ describe("unlinkCustomTokenProvider onCall — Phase 16.8 (U1~U11)", () => {
     expect(payload.linkedProviders).toEqual([]);
     expect(payload["providerLinkedAt.kakao"]).toBe("MOCK_DELETE");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "unlink_custom_token_provider_succeeded",
         removedIdentityCount: 0,
         removedLinkedEntryCount: 1,
       }),
-      expect.any(String),
     );
   });
 });

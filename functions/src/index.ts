@@ -35,11 +35,11 @@ setGlobalOptions({
  */
 export const ping = onCall({enforceAppCheck: true}, (request) => {
   if (!request.auth) {
-    logger.warn({event: "ping_unauthenticated"}, "ping called without auth");
+    logger.warn("ping called without auth", {event: "ping_unauthenticated"});
     throw new HttpsError("unauthenticated", "errorUnauthenticated");
   }
   const uid = request.auth.uid;
-  logger.info({event: "ping_invoked", uid}, "ping invoked");
+  logger.info("ping invoked", {event: "ping_invoked", uid});
   return {
     ok: true,
     region: REGION,

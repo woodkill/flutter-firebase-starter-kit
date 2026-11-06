@@ -168,8 +168,8 @@ export async function fetchNaverProfile(input: {
     // (TimeoutError / TypeError / DNS 실패 등 분류 가능).
     const errCode = err instanceof Error ? err.name : "unknown";
     logger.warn(
-      {event: "naver_fetch_failed", path, code: errCode},
       "Naver REST fetch failed",
+      {event: "naver_fetch_failed", path, code: errCode},
     );
     // TimeoutError / TypeError(network) / DNS 실패 모두 unavailable.
     // WR-01: 4 endpoint 공용 매핑 표 (IdP 도달 실패 = transient).
@@ -178,23 +178,23 @@ export async function fetchNaverProfile(input: {
 
   if (resp.status === 401 || resp.status === 403) {
     logger.warn(
-      {event: "naver_verify_unauthenticated", path, status: resp.status},
       "Naver access token rejected",
+      {event: "naver_verify_unauthenticated", path, status: resp.status},
     );
     throw idpCredentialRejected();
   }
   if (resp.status >= 500) {
     logger.warn(
-      {event: "naver_verify_unavailable", path, status: resp.status},
       "Naver REST 5xx",
+      {event: "naver_verify_unavailable", path, status: resp.status},
     );
     throw idpUnavailable();
   }
   if (!resp.ok) {
     // 4xx 외 (예: 429 rate limit) — unavailable 로 일반화 + status fingerprint.
     logger.warn(
-      {event: "naver_verify_failed", path, status: resp.status},
       "Naver REST non-OK",
+      {event: "naver_verify_failed", path, status: resp.status},
     );
     throw idpUnavailable();
   }
@@ -209,14 +209,14 @@ export async function fetchNaverProfile(input: {
       // 실패다. event · 매핑 모두 fetch reject 분기와 같게 둔다 (event 이름
       // 신설 없음 — 대시보드 축 불변).
       logger.warn(
-        {event: "naver_fetch_failed", path, code: errCode},
         "Naver REST fetch failed",
+        {event: "naver_fetch_failed", path, code: errCode},
       );
       throw idpUnavailable();
     }
     logger.warn(
-      {event: "naver_parse_failed", path, code: errCode},
       "Naver REST JSON parse failed",
+      {event: "naver_parse_failed", path, code: errCode},
     );
     throw serverFailure();
   }
@@ -224,12 +224,12 @@ export async function fetchNaverProfile(input: {
   if (responseBody.resultcode !== "00") {
     // resultcode 는 Naver 공식 코드 ('00' / '024' / '028' 등) — non-PII.
     logger.warn(
+      "Naver resultcode not 00",
       {
         event: "naver_resultcode_non_success",
         path,
         resultcode: responseBody.resultcode,
       },
-      "Naver resultcode not 00",
     );
     throw idpCredentialRejected();
   }
@@ -246,12 +246,12 @@ export async function fetchNaverProfile(input: {
     // 다른 unexpected status 로 분기 (어차피 본 분기는 resultcode='00'
     // 만 도달하지만 ops triage 시 fingerprint 일관성 + 회귀 가드).
     logger.error(
+      "Naver response.id missing",
       {
         event: "naver_response_id_missing",
         path,
         resultcode: responseBody.resultcode,
       },
-      "Naver response.id missing",
     );
     // WR-01: IdP 가 id 없는 응답을 준 경우도 "자격증명 사용 불가" 축으로
     // 통일한다 (4 endpoint 공용 매핑 표).
@@ -370,18 +370,18 @@ export async function verifyNaverProfileAndIssueCustomToken(
     if (err instanceof CustomTokenIssueError) {
       // GAP 4 — 발급 실패. identity_index · users 쓰기는 커밋되지 않았다.
       logger.error(
+        "createCustomToken threw",
         {
           event: "naver_custom_token_create_failed",
           path,
           code: fingerprintError(err.tokenError),
         },
-        "createCustomToken threw",
       );
       throw serverFailure();
     }
     logger.error(
-      {event: "identity_index_failed", path},
       "resolveIdentity threw unexpected error",
+      {event: "identity_index_failed", path},
     );
     throw serverFailure();
   }
@@ -391,15 +391,15 @@ export async function verifyNaverProfileAndIssueCustomToken(
   switch (resolution.conflictKind) {
   case "email_in_use":
     logger.warn(
-      {event: "naver_email_collision", path},
       "Naver email collides with existing account",
+      {event: "naver_email_collision", path},
     );
     // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
     throw buildAccountExistsError(resolution.existingProvider);
   case "anonymous_existing_collision":
     logger.warn(
-      {event: "naver_anonymous_conflict", path},
       "Anonymous user attempted to login with existing Naver identity",
+      {event: "naver_anonymous_conflict", path},
     );
     // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
     // provider slug) 를 details 로 전달.
@@ -411,8 +411,8 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // already-exists 로 보내면 client 가 계정 연결 시트를 열어 다시 같은
     // callable 로 돌아오므로 전용 reason 으로 구분한다.
     logger.warn(
-      {event: "naver_caller_identity_mismatch", path},
       "Signed-in caller used a Naver identity not mapped to it",
+      {event: "naver_caller_identity_mismatch", path},
     );
     throw callerIdentityMismatch();
   case null:
@@ -459,8 +459,8 @@ export async function verifyNaverProfileAndIssueCustomToken(
     // 방어 — issueCustomToken 을 넘겼으므로 conflictKind null 이면 항상
     // 있다. 계약이 깨지면 토큰 없이 성공을 돌려주지 않는다.
     logger.error(
-      {event: "naver_custom_token_create_failed", path, code: "token_missing"},
       "createCustomToken result missing",
+      {event: "naver_custom_token_create_failed", path, code: "token_missing"},
     );
     throw serverFailure();
   }
@@ -498,8 +498,8 @@ export async function verifyNaverProfileAndIssueCustomToken(
 
   // Step 6: structured log — uid + isNewUser 만 (PII 금지 D-51).
   logger.info(
-    {event: "naver_custom_token_issued", path, uid, isNewUser},
     "Naver custom token issued",
+    {event: "naver_custom_token_issued", path, uid, isNewUser},
   );
 
   return {customToken, uid, isNewUser};

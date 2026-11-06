@@ -331,8 +331,8 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "line_jwt_verify_failed"}),
       expect.any(String),
+      expect.objectContaining({event: "line_jwt_verify_failed"}),
     );
   });
 
@@ -356,11 +356,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "line_jwt_verify_failed",
         code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
       }),
-      expect.any(String),
     );
   });
 
@@ -384,11 +384,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "line_jwt_verify_failed",
         code: "ERR_JWT_EXPIRED",
       }),
-      expect.any(String),
     );
   });
 
@@ -418,11 +418,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "line_jwt_verify_failed",
         code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
       }),
-      expect.any(String),
     );
   });
 
@@ -451,11 +451,11 @@ describe("lineCustomToken onCall — Task 1 (Test 1-9)", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "line_jwt_verify_failed",
         code: "ERR_JWKS_NO_MATCHING_KEY",
       }),
-      expect.any(String),
     );
   });
 
@@ -651,8 +651,8 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       details: {existingProvider: "unknown"},
     });
     expect(warnMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "line_email_collision"}),
       expect.any(String),
+      expect.objectContaining({event: "line_email_collision"}),
     );
   });
 
@@ -702,8 +702,8 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
         existingUid,
       );
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "line_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "line_email_collision"}),
       );
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
@@ -756,8 +756,8 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       details: {existingProvider: "line"},
     });
     expect(warnMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "line_anonymous_conflict"}),
       expect.any(String),
+      expect.objectContaining({event: "line_anonymous_conflict"}),
     );
   });
 
@@ -783,8 +783,8 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "identity_index_failed"}),
       expect.any(String),
+      expect.objectContaining({event: "identity_index_failed"}),
     );
     // PII 회귀 — err.message ('firestore unavailable') 본문 logger 미노출.
     // WR-02 — error 만이 아닌 info/warn/debug/log 전체 sentinel 검사.
@@ -829,11 +829,11 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "line_custom_token_create_failed",
         code: "auth/insufficient-permission",
       }),
-      expect.any(String),
     );
     // GAP 4 — 발급 실패 때 identity_index · users 쓰기 0 · 미리 만든 사용자 삭제.
     expect(mockTxSet).not.toHaveBeenCalled();
@@ -969,7 +969,7 @@ describe("lineCustomToken onCall — Task 2 (Test 10-14)", () => {
       expect(acceptedAt.iso).toBe("2026-05-29T14:00:00.000Z");
       expect(options).toEqual({merge: true});
       const termsMirrorInfoCalls = infoMock.mock.calls.filter((args) => {
-        const ev = (args[0] as {terms_mirrored?: boolean})?.terms_mirrored;
+        const ev = (args[1] as {terms_mirrored?: boolean})?.terms_mirrored;
         return ev === true;
       });
       expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);
@@ -1197,8 +1197,8 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
         details: {existingProvider: "google"},
       });
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "line_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "line_email_collision"}),
       );
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 
@@ -1250,8 +1250,8 @@ describe("lineCustomToken — quick 260928-luw LINE email (D-1 · D-2)", () => {
         details: {existingProvider: "google"},
       });
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "line_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "line_email_collision"}),
       );
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
 

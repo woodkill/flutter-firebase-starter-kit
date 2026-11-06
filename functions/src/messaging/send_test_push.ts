@@ -194,12 +194,12 @@ async function pruneTokens(
       pruned += 1;
     } else {
       logger.warn(
+        "token document delete failed",
         {
           event: "send_test_push_prune_failed",
           uid,
           code: fingerprintError(result.reason),
         },
-        "token document delete failed",
       );
     }
   }
@@ -256,19 +256,19 @@ async function enforceRateLimit(
     });
   } catch (err: unknown) {
     logger.warn(
+      "rate limit transaction threw",
       {
         event: "send_test_push_rate_limit_failed",
         uid,
         code: fingerprintError(err),
       },
-      "rate limit transaction threw",
     );
     throw new HttpsError("internal", "errorUnknown");
   }
   if (!allowed) {
     logger.warn(
-      {event: "send_test_push_rate_limited", uid},
       "rate limit exceeded",
+      {event: "send_test_push_rate_limited", uid},
     );
     throw new HttpsError("resource-exhausted", "errorTooManyRequests");
   }
@@ -316,8 +316,8 @@ async function runSendTestPush(
 
   if (!sendTestPushEnabled().value()) {
     logger.info(
-      {event: "send_test_push_disabled", uid},
       "test push disabled in this environment",
+      {event: "send_test_push_disabled", uid},
     );
     throw new HttpsError("failed-precondition", "errorTestPushDisabled", {
       reason: TEST_PUSH_DISABLED_REASON,
@@ -352,12 +352,12 @@ async function runSendTestPush(
         response.responses.forEach((r, index) => {
           if (r.success) return;
           logger.info(
+            "token rejected by FCM",
             {
               event: "send_test_push_token_rejected",
               uid,
               code: fingerprintError(r.error),
             },
-            "token rejected by FCM",
           );
           if (isStaleTokenError(r.error)) toPrune.push(batch[index].ref);
         });
@@ -365,16 +365,16 @@ async function runSendTestPush(
     }
   } catch (err: unknown) {
     logger.error(
-      {event: "send_test_push_failed", uid, code: fingerprintError(err)},
       "test push send failed",
+      {event: "send_test_push_failed", uid, code: fingerprintError(err)},
     );
     throw new HttpsError("internal", "errorUnknown");
   }
 
   const pruned = await pruneTokens(toPrune, uid);
   logger.info(
-    {event: "send_test_push_done", uid, sent, failed, pruned},
     "test push sent",
+    {event: "send_test_push_done", uid, sent, failed, pruned},
   );
   return {sentCount: sent};
 }

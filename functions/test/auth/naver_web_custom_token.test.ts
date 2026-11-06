@@ -322,21 +322,21 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       // OAuth 첫-로그인 — terms mirror 1회.
       expect(mockUserDocSet).toHaveBeenCalledTimes(1);
       expect(infoMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_web_custom_token_issued",
           uid: "anon-web-01",
           isNewUser: true,
           expiresInSec: 3600,
         }),
-        expect.any(String),
       );
       // IN-02 — 공용 helper 이벤트는 이름 불변 · path="web" 으로 1-tap 과 구분.
       expect(infoMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_custom_token_issued",
           path: "web",
         }),
-        expect.any(String),
       );
     },
   );
@@ -435,8 +435,8 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
         expect(grantTypesSent()).not.toContain("delete");
         expect(infoMock).not.toHaveBeenCalledWith(
-          expect.objectContaining({event: "naver_web_custom_token_issued"}),
           expect.any(String),
+          expect.objectContaining({event: "naver_web_custom_token_issued"}),
         );
       },
     );
@@ -471,11 +471,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
 
         expect(result.customToken).toBe("MOCK_NAVER_TOKEN");
         expect(infoMock).toHaveBeenCalledWith(
+          expect.any(String),
           expect.objectContaining({
             event: "naver_web_custom_token_issued",
             expiresInSec: expected,
           }),
-          expect.any(String),
         );
         expect(serializeAllLoggerArgs()).not.toContain(FAKE_ACCESS_TOKEN);
       },
@@ -528,11 +528,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_web_token_error_response",
           error: "invalid_grant",
         }),
-        expect.any(String),
       );
     },
   );
@@ -551,11 +551,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_web_token_error_response",
           error: "other",
         }),
-        expect.any(String),
       );
     },
   );
@@ -574,11 +574,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_web_token_exchange_failed",
           code: "TimeoutError",
         }),
-        expect.any(String),
       );
     },
   );
@@ -605,11 +605,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
       });
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_web_token_exchange_failed",
           code: "TimeoutError",
         }),
-        expect.any(String),
       );
     },
   );
@@ -629,11 +629,11 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         ).rejects.toMatchObject({code, message});
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(warnMock).toHaveBeenCalledWith(
+          expect.any(String),
           expect.objectContaining({
             event: "naver_web_token_exchange_failed",
             status,
           }),
-          expect.any(String),
         );
       },
     );
@@ -671,18 +671,18 @@ describe("naverWebCustomToken onCall (T-16.5-NAVER-WEB-CT)", () => {
         message: "errorInvalidCredentials",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_verify_unauthenticated",
           path: "web",
         }),
-        expect.any(String),
       );
       expect(fetchMock).toHaveBeenCalledTimes(2);
       expect(fetchUrls()).toEqual([NAVER_TOKEN_URL, NAVER_PROFILE_URL]);
       expect(grantTypesSent()).not.toContain("delete");
       expect(infoMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_web_custom_token_issued"}),
         expect.any(String),
+        expect.objectContaining({event: "naver_web_custom_token_issued"}),
       );
     },
   );

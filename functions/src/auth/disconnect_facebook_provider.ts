@@ -187,12 +187,12 @@ export const disconnectFacebookProvider = onCall(
         .map((p) => p.uid);
     } catch (err: unknown) {
       logger.error(
+        "getUser threw",
         {
           event: "disconnect_facebook_precheck_failed",
           uid,
           code: fingerprintError(err),
         },
-        "getUser threw",
       );
       throw serverFailure();
     }
@@ -205,8 +205,8 @@ export const disconnectFacebookProvider = onCall(
       // 원장 데이터 결함 — 값은 로그에 싣지 않는다.
       if (!FACEBOOK_ASID_PATTERN.test(asid)) {
         logger.error(
-          {event: "disconnect_facebook_target_invalid", uid},
           "providerData uid is not a Facebook app-scoped id",
+          {event: "disconnect_facebook_target_invalid", uid},
         );
         throw serverFailure();
       }
@@ -221,12 +221,12 @@ export const disconnectFacebookProvider = onCall(
       } catch (err: unknown) {
         // err.message 미로깅 — err.name 만 fingerprint.
         logger.error(
+          "Graph permissions delete request failed",
           {
             event: "disconnect_facebook_delete_failed",
             uid,
             code: err instanceof Error ? err.name : "unknown",
           },
-          "Graph permissions delete request failed",
         );
         throw idpUnavailable();
       }
@@ -243,19 +243,20 @@ export const disconnectFacebookProvider = onCall(
           continue;
         }
         logger.error(
+          "Graph permissions delete returned unexpected body",
           {
             event: "disconnect_facebook_delete_failed",
             uid,
             status: resp.status,
             code: "unexpected_body",
           },
-          "Graph permissions delete returned unexpected body",
         );
         throw idpUnavailable();
       }
 
       const {code, subcode} = await readGraphError(resp);
       logger.error(
+        "Graph permissions delete rejected",
         {
           event: "disconnect_facebook_delete_failed",
           uid,
@@ -263,7 +264,6 @@ export const disconnectFacebookProvider = onCall(
           code: code ?? "other",
           subcode: subcode ?? "other",
         },
-        "Graph permissions delete rejected",
       );
       if (code === GRAPH_TOKEN_INVALID_CODE) {
         throw providerConfigError();
@@ -278,8 +278,8 @@ export const disconnectFacebookProvider = onCall(
 
     // Step 4: 성공.
     logger.info(
-      {event: "disconnect_facebook_succeeded", uid, disconnectedCount},
       "Facebook permissions deleted",
+      {event: "disconnect_facebook_succeeded", uid, disconnectedCount},
     );
     return {ok: true, disconnectedCount};
   },

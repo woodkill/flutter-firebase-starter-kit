@@ -228,11 +228,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       );
       // 16.5 review IN-02 — helper 이벤트는 웹 경로와 공용이라 path 로 구분.
       expect(infoMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_custom_token_issued",
           path: "app",
         }),
-        expect.any(String),
       );
     },
   );
@@ -249,12 +249,12 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorInvalidCredentials",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_verify_unauthenticated",
           path: "app",
           status: 401,
         }),
-        expect.any(String),
       );
     },
   );
@@ -271,11 +271,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorServiceUnavailable",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_verify_unavailable",
           status: 503,
         }),
-        expect.any(String),
       );
     },
   );
@@ -292,11 +292,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorServiceUnavailable",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_fetch_failed",
           code: "TimeoutError",
         }),
-        expect.any(String),
       );
     },
   );
@@ -322,16 +322,16 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorServiceUnavailable",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_fetch_failed",
           path: "app",
           code: "TimeoutError",
         }),
-        expect.any(String),
       );
       expect(warnMock).not.toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_parse_failed"}),
         expect.any(String),
+        expect.objectContaining({event: "naver_parse_failed"}),
       );
     },
   );
@@ -352,11 +352,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorInvalidCredentials",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_resultcode_non_success",
           resultcode: "024",
         }),
-        expect.any(String),
       );
     },
   );
@@ -382,11 +382,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         // WR-06 회귀 가드: resultcode='00' fingerprint 도 함께 기록
         // 되는지 검증 (Naver API 가 success code 반환했는데 id 누락
         // 케이스를 ops triage 에서 분간 가능해야 한다).
+        expect.any(String),
         expect.objectContaining({
           event: "naver_response_id_missing",
           resultcode: "00",
         }),
-        expect.any(String),
       );
     },
   );
@@ -554,8 +554,8 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       });
 
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "naver_email_collision"}),
       );
       // PII 회귀 — collision email 본문 logger 미노출.
       const allLogCalls = [
@@ -608,8 +608,8 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         details: {existingProvider: "naver"},
       });
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_anonymous_conflict"}),
         expect.any(String),
+        expect.objectContaining({event: "naver_anonymous_conflict"}),
       );
     },
   );
@@ -638,8 +638,8 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       });
 
       expect(errorMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "identity_index_failed"}),
         expect.any(String),
+        expect.objectContaining({event: "identity_index_failed"}),
       );
       // PII 회귀 — err.message ('firestore unavailable') 미노출.
       expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
@@ -719,11 +719,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
         message: "errorServiceUnavailable",
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_verify_failed",
           status: 429,
         }),
-        expect.any(String),
       );
     },
   );
@@ -760,11 +760,11 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       });
 
       expect(errorMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "naver_custom_token_create_failed",
           code: "auth/insufficient-permission",
         }),
-        expect.any(String),
       );
       // GAP 4 — 발급 실패 때 identity_index · users 쓰기 0 · 미리 만든 사용자
       // 삭제 (app · web 공용 helper).
@@ -826,8 +826,8 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
 
       // caller switch 분기 logger event 발동 검증.
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "naver_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "naver_email_collision"}),
       );
       // 옵션 C 의 미도달 invariant — early throw → createCustomToken 미발급.
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
@@ -1132,7 +1132,7 @@ describe("naverCustomToken onCall (T-13-NAVER-CT)", () => {
       expect(options).toEqual({merge: true});
       // info log — terms_mirrored sentinel.
       const termsMirrorInfoCalls = infoMock.mock.calls.filter((args) => {
-        const ev = (args[0] as {terms_mirrored?: boolean})?.terms_mirrored;
+        const ev = (args[1] as {terms_mirrored?: boolean})?.terms_mirrored;
         return ev === true;
       });
       expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);

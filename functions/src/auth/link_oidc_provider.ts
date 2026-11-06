@@ -123,11 +123,11 @@ export function buildLinkOidcProviderCallable(
       } catch (err: unknown) {
         // PII 금지 — fingerprintError helper 만 사용 (err.message 본문 노출 0).
         logger.warn(
+          "verifyIdToken threw",
           {
             event: `link_${provider}_id_token_verify_failed`,
             code: fingerprintError(err),
           },
-          "verifyIdToken threw",
         );
         // details.reason 으로 재로그인 분기를 표시한다 (16.9 review WR-01) —
         // 같은 code 의 IdP 거부 · App Check 차단은 reason 이 없다.
@@ -158,11 +158,11 @@ export function buildLinkOidcProviderCallable(
       } catch (err: unknown) {
         // PII 금지 — jose error code/name 만 fingerprint (Pitfall 3 회피).
         logger.warn(
+          "target ID Token verification failed",
           {
             event: `link_${provider}_target_token_verify_failed`,
             code: fingerprintJoseError(err),
           },
-          "target ID Token verification failed",
         );
         // WR-01 / WR-02: Custom Token endpoint 와 동일한 공용 매핑 표.
         throw mapOidcVerifyError(err);
@@ -182,12 +182,12 @@ export function buildLinkOidcProviderCallable(
 
       // Step 5: structured log + return. PII 금지 — {event, uid, isNewUser} 만.
       logger.info(
+        "linked",
         {
           event: `link_${provider}_provider_succeeded`,
           uid: callerUid,
           isNewUser: false,
         },
-        "linked",
       );
       return {ok: true};
     },

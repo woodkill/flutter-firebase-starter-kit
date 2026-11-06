@@ -101,8 +101,8 @@ const NO_ACCOUNT_CODES: readonly string[] = [
  */
 function respondNoAccount(uid: string): SendPasswordResetMailResponse {
   logger.info(
-    {event: "password_reset_mail_no_account", uid},
     "sendPasswordResetMail skipped",
+    {event: "password_reset_mail_no_account", uid},
   );
   return {ok: true};
 }
@@ -205,8 +205,8 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
     const brand = readMailBrand();
     if (brand === null) {
       logger.error(
-        {event: "email_brand_unset"},
         "EMAIL_APP_NAME is not configured",
+        {event: "email_brand_unset"},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -215,8 +215,8 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
     const resultPageUrl = readResultPageUrl();
     if (resultPageUrl === null) {
       logger.error(
-        {event: "email_result_page_unset"},
         "EMAIL_RESULT_PAGE_URL is not configured",
+        {event: "email_result_page_unset"},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -231,25 +231,25 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       );
     } catch (err: unknown) {
       logger.warn(
+        "rate limit transaction threw",
         {
           event: "password_reset_mail_rate_limit_failed",
           uid,
           code: fingerprintError(err),
         },
-        "rate limit transaction threw",
       );
       throw new HttpsError("internal", "errorUnknown");
     }
     if (exceeded.length > 0) {
       for (const hit of exceeded) {
         logger.warn(
+          "sendPasswordResetMail rate limit exceeded",
           {
             event: "password_reset_mail_rate_limited",
             uid,
             axis: hit.axis,
             count: hit.count,
           },
-          "sendPasswordResetMail rate limit exceeded",
         );
       }
       throw new HttpsError("resource-exhausted", "errorTooManyRequests");
@@ -272,8 +272,8 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       }
       // err.message 에는 이메일이 들어 있다 — code 만 싣는다.
       logger.warn(
-        {event: "password_reset_mail_lookup_failed", uid, code},
         "getUserByEmail threw",
+        {event: "password_reset_mail_lookup_failed", uid, code},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -293,8 +293,8 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
         throw new HttpsError("invalid-argument", "errorInvalidArgument");
       }
       logger.warn(
-        {event: "password_reset_mail_failed", uid, code},
         "generatePasswordResetLink threw",
+        {event: "password_reset_mail_failed", uid, code},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -310,15 +310,15 @@ export const sendPasswordResetMail = onCall<SendPasswordResetMailRequest>(
       await db.collection("mail").add({to: [email], message});
     } catch (err: unknown) {
       logger.warn(
-        {event: "password_reset_mail_failed", uid, code: fingerprintError(err)},
         "sendPasswordResetMail failed",
+        {event: "password_reset_mail_failed", uid, code: fingerprintError(err)},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
 
     logger.info(
-      {event: "password_reset_mail_queued", uid, locale},
       "sendPasswordResetMail queued",
+      {event: "password_reset_mail_queued", uid, locale},
     );
     return {ok: true};
   },

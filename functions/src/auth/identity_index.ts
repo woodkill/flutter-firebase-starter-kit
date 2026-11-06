@@ -195,12 +195,12 @@ async function mirrorRefreshedEmail(
       .set({email, emailVerified}, {merge: true});
   } catch (err: unknown) {
     logger.warn(
+      "account email mirror failed on sign-up provider re-login",
       {
         event: "identity_index_email_mirror_failed",
         uid,
         code: fingerprintError(err),
       },
-      "account email mirror failed on sign-up provider re-login",
     );
   }
 }
@@ -425,8 +425,8 @@ export async function resolveCustomTokenExistingProvider(
   } catch (err: unknown) {
     const code = fingerprintError(err);
     logger.warn(
-      {event: "identity_index_reverse_lookup_failed", code},
       "identity_index reverse lookup failed",
+      {event: "identity_index_reverse_lookup_failed", code},
     );
     return null;
   }
@@ -465,8 +465,8 @@ function callerIdentityMismatchResult(
   indexed: boolean,
 ): IdentityResolution {
   logger.warn(
-    {event: "identity_index_caller_identity_mismatch", provider, indexed},
     "signed-in caller used an identity not mapped to its account",
+    {event: "identity_index_caller_identity_mismatch", provider, indexed},
   );
   return {
     uid: "",
@@ -552,12 +552,12 @@ async function deletePreCreatedUser(uid: string): Promise<void> {
     await getAuth().deleteUser(uid);
   } catch (cleanupErr: unknown) {
     logger.warn(
+      "orphan user cleanup failed",
       {
         event: "identity_index_orphan_cleanup_failed",
         uid,
         code: fingerprintError(cleanupErr),
       },
-      "orphan user cleanup failed",
     );
   }
 }
@@ -863,13 +863,13 @@ export async function resolveIdentity(
           provider,
         );
         logger.warn(
+          "email collision detected in callerUid path",
           {
             event: "identity_index_email_collision_caller_path",
             provider,
             conflictingProviderCount: conflictingProviders.length,
             existingProvider,
           },
-          "email collision detected in callerUid path",
         );
         return {
           uid: "",
@@ -893,12 +893,12 @@ export async function resolveIdentity(
         );
         if (ctExistingProvider) {
           logger.warn(
+            "email collision detected via identity_index reverse lookup",
             {
               event: "identity_index_email_collision_custom_token_path",
               provider,
               existingProvider: ctExistingProvider,
             },
-            "email collision detected via identity_index reverse lookup",
           );
           return {
             uid: "",
@@ -914,8 +914,8 @@ export async function resolveIdentity(
       const errCode = fingerprintError(err);
       if (errCode !== "auth/user-not-found") {
         logger.warn(
-          {event: "identity_index_email_lookup_failed", code: errCode},
           "getUserByEmail failed in callerUid path",
+          {event: "identity_index_email_lookup_failed", code: errCode},
         );
       }
       // graceful — 정상 path 진행 (lookup 실패가 user-facing throw 로 escalate
@@ -982,11 +982,11 @@ export async function resolveIdentity(
             const lookupCode = fingerprintError(lookupErr);
             if (lookupCode !== "auth/user-not-found") {
               logger.warn(
+                "existingProvider inference failed in createUser path",
                 {
                   event: "identity_index_existing_provider_lookup_failed",
                   code: lookupCode,
                 },
-                "existingProvider inference failed in createUser path",
               );
             }
             // existingProvider 는 'unknown' 으로 유지.
@@ -1220,12 +1220,12 @@ export async function resolveIdentity(
       } catch (profileErr: unknown) {
         // Pitfall 7 — err.message 본문 미로깅 (PII 가능성).
         logger.warn(
+          "profile field update failed on new identity",
           {
             event: "identity_index_profile_set_failed",
             uid: callerUid,
             code: fingerprintError(profileErr),
           },
-          "profile field update failed on new identity",
         );
         // 의도적으로 재던지지 않음 — 로그인은 계속 (best-effort).
       }
@@ -1283,31 +1283,31 @@ export async function resolveIdentity(
     const signUp = await readSignUpProviderId(db, result.uid);
     if (signUp.kind === "read_failed") {
       logger.warn(
+        "sign-up provider read failed; profile refresh skipped",
         {
           event: "identity_index_profile_refresh_signup_read_failed",
           uid: result.uid,
           provider,
           code: signUp.code,
         },
-        "sign-up provider read failed; profile refresh skipped",
       );
     } else if (signUp.kind === "missing") {
       logger.warn(
+        "sign-up provider missing; profile refresh skipped",
         {
           event: "identity_index_profile_refresh_signup_missing",
           uid: result.uid,
           provider,
         },
-        "sign-up provider missing; profile refresh skipped",
       );
     } else if (signUp.providerId !== provider) {
       logger.info(
+        "linked provider sign-in; profile refresh skipped",
         {
           event: "identity_index_profile_refresh_skipped_linked",
           uid: result.uid,
           provider,
         },
-        "linked provider sign-in; profile refresh skipped",
       );
     } else {
       // 가입 수단 로그인 — 기존 R10-FOLLOWUP refresh 그대로.
@@ -1336,12 +1336,12 @@ export async function resolveIdentity(
           // fingerprint 만 안전 추출 (WR-07).
           const errCode = fingerprintError(refreshErr);
           logger.warn(
+            "profile refresh failed",
             {
               event: "identity_index_profile_refresh_failed",
               uid: result.uid,
               code: errCode,
             },
-            "profile refresh failed",
           );
           // 의도적으로 재던지지 않음 — outer call 정상 반환 (best-effort).
         }

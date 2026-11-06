@@ -290,13 +290,13 @@ describe("sendTestPush — Phase 17 D-05 · D-31 · D-34", () => {
     }
 
     const done = infoMock.mock.calls.find(
-      (c) => (c[0] as {event?: string}).event === "send_test_push_done",
+      (c) => (c[1] as {event?: string}).event === "send_test_push_done",
     );
     expect(done).toBeDefined();
-    expect(Object.keys(done?.[0] as object).sort()).toEqual(
+    expect(Object.keys(done?.[1] as object).sort()).toEqual(
       ["event", "failed", "pruned", "sent", "uid"],
     );
-    expect(done?.[0]).toEqual(
+    expect(done?.[1]).toEqual(
       expect.objectContaining({uid: "u1", sent: 3, failed: 0, pruned: 0}),
     );
     expect(allLogText()).not.toContain("tok-");
@@ -419,6 +419,7 @@ describe("sendTestPush 방어 — Phase 17 D-35 · D-33 · Phase 16 D-10", () =>
       ["tok-invalid", "tok-unreg"],
     );
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "send_test_push_done",
         uid: "u6",
@@ -426,7 +427,6 @@ describe("sendTestPush 방어 — Phase 17 D-35 · D-33 · Phase 16 D-10", () =>
         failed: 3,
         pruned: 2,
       }),
-      expect.any(String),
     );
     expect(allLogText()).not.toContain("tok-");
   });

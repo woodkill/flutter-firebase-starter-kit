@@ -327,11 +327,11 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     expect(mockMailAdd).not.toHaveBeenCalled();
     expect(mockOrdered.calls).toEqual([]);
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "verification_mail_already_verified",
         uid: "u-verify",
       }),
-      expect.any(String),
     );
   });
 
@@ -345,13 +345,13 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
       message: "errorTooManyRequests",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "verification_mail_rate_limited",
         uid: "u-verify",
         axis: "uid",
         count: 5,
       },
-      expect.any(String),
     );
     expect(mockGenerateVerifyLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
@@ -370,13 +370,13 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
       code: "resource-exhausted",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "verification_mail_rate_limited",
         uid: "u-verify",
         axis: "email",
         count: 5,
       },
-      expect.any(String),
     );
     expect(emailDocId).not.toContain("@");
     expect(mockMailAdd).not.toHaveBeenCalled();
@@ -400,8 +400,8 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "email_brand_unset"}),
       expect.any(String),
+      expect.objectContaining({event: "email_brand_unset"}),
     );
     expect(mockGenerateVerifyLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
@@ -425,12 +425,12 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
     ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
 
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "verification_mail_failed",
         uid: "u-verify",
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     const text = allLogText();
     expect(text).not.toContain(TOKEN_EMAIL);
@@ -456,8 +456,8 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
         message: "errorUnknown",
       });
       expect(errorMock).toHaveBeenCalledWith(
-        {event: "email_result_page_unset"},
         expect.any(String),
+        {event: "email_result_page_unset"},
       );
       expect(mockGenerateVerifyLink).not.toHaveBeenCalled();
       expect(mockMailAdd).not.toHaveBeenCalled();
@@ -496,11 +496,11 @@ describe("sendVerificationMail onCall — Phase 17.5 D-11 (T-175-VMAIL)", () => 
       message: "errorUnknown",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "verification_mail_failed",
         uid: "u-verify",
       }),
-      expect.any(String),
     );
     expect(mockMailAdd).not.toHaveBeenCalled();
     const text = allLogText();

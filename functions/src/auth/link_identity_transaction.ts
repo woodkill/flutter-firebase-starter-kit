@@ -146,8 +146,8 @@ export async function linkCustomTokenIdentity(
         linksOtherIdentityOfProvider(userSnap, provider, providerUserId)
       ) {
         logger.warn(
-          {event: "link_provider_already_linked", uid: callerUid, provider},
           "provider already linked with another identity",
+          {event: "link_provider_already_linked", uid: callerUid, provider},
         );
         throw providerAlreadyLinked();
       }
@@ -187,8 +187,8 @@ export async function linkCustomTokenIdentity(
     }
     const errCode = fingerprintError(err);
     logger.error(
-      {event: "link_transaction_failed", uid: callerUid, code: errCode},
       "runTransaction threw",
+      {event: "link_transaction_failed", uid: callerUid, code: errCode},
     );
     throw serverFailure();
   }

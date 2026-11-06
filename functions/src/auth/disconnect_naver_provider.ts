@@ -197,13 +197,13 @@ async function revokeNaverAccessToken(args: {
   } catch (err: unknown) {
     // err.message 미로깅 — err.name 만 fingerprint.
     logger.error(
+      "Naver token revoke request failed",
       {
         event: "disconnect_naver_revoke_failed",
         uid,
         path,
         code: err instanceof Error ? err.name : "unknown",
       },
-      "Naver token revoke request failed",
     );
     throw idpUnavailable();
   }
@@ -212,6 +212,7 @@ async function revokeNaverAccessToken(args: {
   if (resp.ok && errorCode === undefined) return;
 
   logger.error(
+    "Naver token revoke rejected",
     {
       event: "disconnect_naver_revoke_failed",
       uid,
@@ -219,7 +220,6 @@ async function revokeNaverAccessToken(args: {
       status: resp.status,
       code: errorCode ?? "none",
     },
-    "Naver token revoke rejected",
   );
   if (
     errorCode !== undefined &&
@@ -335,8 +335,8 @@ export const disconnectNaverProvider = onCall<DisconnectNaverProviderRequest>(
     // Step 7: 재로그인 custom token — 응답에만 싣는다 (D-07).
     const customToken = await mintReloginToken({uid, provider: "naver"});
     logger.info(
-      {event: "disconnect_naver_succeeded", uid, path},
       "Naver disconnected",
+      {event: "disconnect_naver_succeeded", uid, path},
     );
     return {ok: true, customToken, uid};
   },

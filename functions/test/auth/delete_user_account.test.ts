@@ -196,19 +196,19 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     expect(result.ok).toBe(true);
     expect(mockDeleteUser).toHaveBeenCalledWith("uid-D1");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_firestore_done",
         uid: "uid-D1",
         identityCount: 1,
       }),
-      expect.any(String),
     );
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_auth_done",
         uid: "uid-D1",
       }),
-      expect.any(String),
     );
   });
 
@@ -235,11 +235,11 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     expect(mockTxDelete).toHaveBeenCalledTimes(3);
     expect(mockDeleteUser).toHaveBeenCalledWith("uid-D2");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_firestore_done",
         identityCount: 2,
       }),
-      expect.any(String),
     );
   });
 
@@ -267,11 +267,11 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     expect(result.ok).toBe(true);
     // Pitfall 1 회피 evidence — already_done 분기 info log.
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_auth_already_done",
         uid: "uid-D3",
       }),
-      expect.any(String),
     );
   });
 
@@ -333,11 +333,11 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
       details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_id_token_verify_failed",
         code: "auth/id-token-revoked",
       }),
-      expect.any(String),
     );
   });
 
@@ -395,12 +395,12 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_auth_failed",
         uid: "uid-D8",
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     // PII redaction sentinel — err.message 본문 절대 미노출.
     const allLogCalls = [
@@ -471,12 +471,12 @@ describe("deleteUserAccount onCall — Task 2.1 (D1-D8)", () => {
     // 실패를 알리는 대신 ops 수거용 전용 event 로 남긴다.
     expect(result.ok).toBe(true);
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_firestore_orphan",
         uid: "uid-D10",
         code: "unavailable",
       }),
-      expect.any(String),
     );
     // PII 금지 — err.message 본문 미노출.
     expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
@@ -571,7 +571,10 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(callOrder).not.toContain("runTransaction:enter");
     expect(callOrder).not.toContain("where:identity_index:get");
     expect(errorMock).toHaveBeenCalledTimes(1);
-    const [payload] = errorMock.mock.calls[0] as [Record<string, unknown>];
+    const [, payload] = errorMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(payload).toMatchObject({
       event: "delete_user_storage_failed",
       uid: "uid-DEL02",
@@ -602,12 +605,12 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(callOrder).not.toContain("runTransaction:enter");
     expect(errorMock).toHaveBeenCalledTimes(1);
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_storage_failed",
         uid: "uid-DEL03",
         failedCount: 2,
       }),
-      expect.any(String),
     );
   });
 
@@ -644,7 +647,10 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(callOrder).toContain("runTransaction:exit");
     expect(mockTxDelete).toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledTimes(1);
-    const [payload] = errorMock.mock.calls[0] as [Record<string, unknown>];
+    const [, payload] = errorMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(payload).toEqual({
       event: "delete_user_fcm_tokens_orphan",
       uid: "uid-DEL05",
@@ -671,8 +677,8 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(callOrder).toContain("runTransaction:enter");
     expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
     expect(infoMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "delete_user_auth_already_done"}),
       expect.any(String),
+      expect.objectContaining({event: "delete_user_auth_already_done"}),
     );
     // PII — 파일 경로 · prefix · 문서 경로가 어떤 로그에도 실리지 않는다.
     const allLogCalls = [
@@ -710,8 +716,8 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       expect(callOrder).toContain("runTransaction:enter");
       expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
-        {event: "delete_user_storage_bucket_missing", uid: "uid-DEL07"},
         expect.any(String),
+        {event: "delete_user_storage_bucket_missing", uid: "uid-DEL07"},
       );
       expect(errorMock).not.toHaveBeenCalled();
       expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(
@@ -731,12 +737,12 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       expect(mockDeleteUser).toHaveBeenCalledWith("uid-DEL08");
       expect(callOrder).toContain("runTransaction:enter");
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         {
           event: "delete_user_storage_already_gone",
           uid: "uid-DEL08",
           failedCount: 2,
         },
-        expect.any(String),
       );
       expect(errorMock).not.toHaveBeenCalled();
     });
@@ -755,6 +761,7 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     expect(callOrder).not.toContain("runTransaction:enter");
     expect(warnMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "delete_user_storage_failed",
         uid: "uid-DEL09",
@@ -762,7 +769,6 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
         code: "503",
         failedCount: 2,
       }),
-      expect.any(String),
     );
   });
 });

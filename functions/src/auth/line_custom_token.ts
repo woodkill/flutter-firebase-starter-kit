@@ -152,8 +152,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // fingerprint 로 노출.
       const errCode = fingerprintJoseError(err);
       logger.warn(
-        {event: "line_jwt_verify_failed", code: errCode},
         "LINE ID Token verification failed",
+        {event: "line_jwt_verify_failed", code: errCode},
       );
       // WR-01 / WR-02: 4 endpoint 공용 매핑. JWKS 도달 실패 (timeout / non-200)
       // 는 자격증명 무효가 아니라 transient (`unavailable`) 로 분류한다 —
@@ -213,18 +213,18 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       if (err instanceof CustomTokenIssueError) {
         // GAP 4 — 발급 실패. identity_index · users 쓰기는 커밋되지 않았다.
         logger.error(
+          "createCustomToken threw",
           {
             event: "line_custom_token_create_failed",
             code: fingerprintError(err.tokenError),
           },
-          "createCustomToken threw",
         );
         throw serverFailure();
       }
       // helper unexpected error (firestore network, internal) → internal 매핑.
       logger.error(
-        {event: "identity_index_failed"},
         "resolveIdentity threw unexpected error",
+        {event: "identity_index_failed"},
       );
       throw serverFailure();
     }
@@ -248,8 +248,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // 강제하고, Phase 9.2 Gap B (callerUid + userInfo.email) path 와의
       // 정책 일관성도 여기서 잠긴다.
       logger.warn(
-        {event: "line_email_collision"},
         "LINE email collides with existing account",
+        {event: "line_email_collision"},
       );
       // 16-13: existingProvider slug 를 details 로 전달 (client sheet 분기 wiring).
       throw buildAccountExistsError(resolution.existingProvider);
@@ -258,8 +258,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // 데이터 손실 / UID hijack 위험 차단. Phase 17 (Account Linking) 가
       // 자동 마이그레이션 처리. 사용자에게는 안전 메시지 (Phase 12.1 D-34).
       logger.warn(
-        {event: "line_anonymous_conflict"},
         "Anonymous user attempted to login with existing LINE identity",
+        {event: "line_anonymous_conflict"},
       );
       // 16-13: anonymous collision 도 resolution.existingProvider (= 호출
       // provider slug) 를 details 로 전달.
@@ -271,8 +271,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // already-exists 로 보내면 client 가 계정 연결 시트를 열어 다시 같은
       // callable 로 돌아오므로 전용 reason 으로 구분한다.
       logger.warn(
-        {event: "line_caller_identity_mismatch"},
         "Signed-in caller used a LINE identity not mapped to it",
+        {event: "line_caller_identity_mismatch"},
       );
       throw callerIdentityMismatch();
     case null:
@@ -311,8 +311,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
       // 방어 — issueCustomToken 을 넘겼으므로 conflictKind null 이면 항상
       // 있다. 계약이 깨지면 토큰 없이 성공을 돌려주지 않는다.
       logger.error(
-        {event: "line_custom_token_create_failed", code: "token_missing"},
         "createCustomToken result missing",
+        {event: "line_custom_token_create_failed", code: "token_missing"},
       );
       throw serverFailure();
     }
@@ -350,8 +350,8 @@ export const lineCustomToken = onCall<LineCustomTokenRequest>(
 
     // Step 4: structured log — uid + isNewUser 만 (PII 금지).
     logger.info(
-      {event: "line_custom_token_issued", uid, isNewUser},
       "LINE custom token issued",
+      {event: "line_custom_token_issued", uid, isNewUser},
     );
 
     return {customToken, uid, isNewUser};

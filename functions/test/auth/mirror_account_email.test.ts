@@ -115,7 +115,7 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
 
     // logger payload — event · uid · hasEmail 만 (이메일 본문 0).
     expect(infoMock).toHaveBeenCalledTimes(1);
-    const payload = infoMock.mock.calls[0][0] as Record<string, unknown>;
+    const payload = infoMock.mock.calls[0][1] as Record<string, unknown>;
     expect(Object.keys(payload).sort()).toEqual(["event", "hasEmail", "uid"]);
     expect(payload).toEqual({
       event: "mirror_account_email_done",
@@ -190,8 +190,8 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
       },
     ]);
     expect(infoMock).toHaveBeenCalledWith(
-      {event: "mirror_account_email_done", uid: "u-no-email", hasEmail: false},
       expect.any(String),
+      {event: "mirror_account_email_done", uid: "u-no-email", hasEmail: false},
     );
   });
 
@@ -264,12 +264,12 @@ describe("mirrorAccountEmail onCall — Phase 17 D-26 (T-17-MIRROR)", () => {
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "mirror_account_email_failed",
         uid: "u-fail",
         code: "unavailable",
       },
-      expect.any(String),
     );
     const logged = serializeLogCalls([
       ...infoMock.mock.calls,

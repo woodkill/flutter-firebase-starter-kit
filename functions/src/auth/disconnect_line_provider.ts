@@ -193,20 +193,20 @@ async function verifyLineAccessTokenChannel(args: {
   } catch (err: unknown) {
     // err.message 미로깅 — URL(토큰 포함)이 실릴 수 있다. err.name 만.
     logger.error(
+      "LINE verify request failed",
       {
         event: "disconnect_line_verify_failed",
         uid,
         code: err instanceof Error ? err.name : "unknown",
       },
-      "LINE verify request failed",
     );
     throw idpUnavailable();
   }
 
   if (!resp.ok) {
     logger.error(
-      {event: "disconnect_line_verify_failed", uid, status: resp.status},
       "LINE verify rejected",
+      {event: "disconnect_line_verify_failed", uid, status: resp.status},
     );
     if (resp.status === 400) throw idpCredentialRejected();
     throw idpUnavailable();
@@ -226,22 +226,22 @@ async function verifyLineAccessTokenChannel(args: {
   const expiresIn = body["expires_in"];
   if (typeof clientId !== "string" || typeof expiresIn !== "number") {
     logger.error(
-      {event: "disconnect_line_verify_invalid", uid},
       "LINE verify body invalid",
+      {event: "disconnect_line_verify_invalid", uid},
     );
     throw serverFailure();
   }
   if (clientId !== LINE_CHANNEL_ID.value()) {
     logger.warn(
-      {event: "disconnect_line_verify_rejected", uid, reason: "channel"},
       "LINE access token issued for another channel",
+      {event: "disconnect_line_verify_rejected", uid, reason: "channel"},
     );
     throw idpCredentialRejected();
   }
   if (!(expiresIn > 0)) {
     logger.warn(
-      {event: "disconnect_line_verify_rejected", uid, reason: "expired"},
       "LINE access token expired",
+      {event: "disconnect_line_verify_rejected", uid, reason: "expired"},
     );
     throw idpCredentialRejected();
   }
@@ -278,20 +278,20 @@ async function fetchLineUserId(args: {
   } catch (err: unknown) {
     // err.message 미로깅 — err.name 만 fingerprint.
     logger.error(
+      "LINE profile request failed",
       {
         event: "disconnect_line_profile_failed",
         uid,
         code: err instanceof Error ? err.name : "unknown",
       },
-      "LINE profile request failed",
     );
     throw idpUnavailable();
   }
 
   if (!resp.ok) {
     logger.error(
-      {event: "disconnect_line_profile_failed", uid, status: resp.status},
       "LINE profile rejected",
+      {event: "disconnect_line_profile_failed", uid, status: resp.status},
     );
     if (resp.status === 401) throw idpCredentialRejected();
     throw idpUnavailable();
@@ -300,8 +300,8 @@ async function fetchLineUserId(args: {
   const userId = await readStringFieldFromBody(resp, "userId");
   if (userId === undefined) {
     logger.error(
-      {event: "disconnect_line_profile_invalid", uid},
       "LINE profile body invalid",
+      {event: "disconnect_line_profile_invalid", uid},
     );
     throw serverFailure();
   }
@@ -341,20 +341,20 @@ async function issueStatelessChannelToken(uid: string): Promise<string> {
     });
   } catch (err: unknown) {
     logger.error(
+      "LINE channel token request failed",
       {
         event: "disconnect_line_channel_token_failed",
         uid,
         code: err instanceof Error ? err.name : "unknown",
       },
-      "LINE channel token request failed",
     );
     throw idpUnavailable();
   }
 
   if (!resp.ok) {
     logger.error(
-      {event: "disconnect_line_channel_token_failed", uid, status: resp.status},
       "LINE channel token rejected",
+      {event: "disconnect_line_channel_token_failed", uid, status: resp.status},
     );
     if (resp.status === 400 || resp.status === 401) {
       throw providerConfigError();
@@ -365,12 +365,12 @@ async function issueStatelessChannelToken(uid: string): Promise<string> {
   const channelToken = await readStringFieldFromBody(resp, "access_token");
   if (channelToken === undefined) {
     logger.error(
+      "LINE channel token body invalid",
       {
         event: "disconnect_line_channel_token_failed",
         uid,
         code: "invalid_body",
       },
-      "LINE channel token body invalid",
     );
     throw serverFailure();
   }
@@ -416,12 +416,12 @@ async function deauthorizeLineUser(args: {
     });
   } catch (err: unknown) {
     logger.error(
+      "LINE deauthorize request failed",
       {
         event: "disconnect_line_deauthorize_failed",
         uid,
         code: err instanceof Error ? err.name : "unknown",
       },
-      "LINE deauthorize request failed",
     );
     throw idpUnavailable();
   }
@@ -429,15 +429,15 @@ async function deauthorizeLineUser(args: {
   if (resp.ok) return;
   if (resp.status === LINE_ALREADY_DEAUTHORIZED_STATUS) {
     logger.info(
-      {event: "disconnect_line_already_deauthorized", uid},
       "LINE already deauthorized",
+      {event: "disconnect_line_already_deauthorized", uid},
     );
     return;
   }
 
   logger.error(
-    {event: "disconnect_line_deauthorize_failed", uid, status: resp.status},
     "LINE deauthorize rejected",
+    {event: "disconnect_line_deauthorize_failed", uid, status: resp.status},
   );
   if (resp.status === 401) throw providerConfigError();
   throw idpUnavailable();
@@ -532,7 +532,7 @@ export const disconnectLineProvider = onCall<DisconnectLineProviderRequest>(
 
     // Step 7: 재로그인 custom token — 응답에만 싣는다 (D-07).
     const customToken = await mintReloginToken({uid, provider: "line"});
-    logger.info({event: "disconnect_line_succeeded", uid}, "LINE disconnected");
+    logger.info("LINE disconnected", {event: "disconnect_line_succeeded", uid});
     return {ok: true, customToken, uid};
   },
 );

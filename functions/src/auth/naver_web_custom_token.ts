@@ -110,13 +110,13 @@ export const naverWebCustomToken = onCall<NaverWebCustomTokenRequest>(
 
     // Step 4: structured log — uid · isNewUser · expiresInSec 만 (D-51).
     logger.info(
+      "Naver web custom token issued",
       {
         event: "naver_web_custom_token_issued",
         uid: result.uid,
         isNewUser: result.isNewUser,
         expiresInSec,
       },
-      "Naver web custom token issued",
     );
     return result;
   },

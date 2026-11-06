@@ -57,9 +57,9 @@ describe("ping onCall", () => {
     //    `as any` 캐스트로 wrap input 이 우회됐어도 함수 본문이 실제로
     //    `request.auth?.uid` 를 읽고 structured event 를 발행했는지 확인.
     expect(infoMock).toHaveBeenCalledTimes(1);
-    const [payload] = infoMock.mock.calls[0] as [
-      Record<string, unknown>,
+    const [, payload] = infoMock.mock.calls[0] as [
       string,
+      Record<string, unknown>,
     ];
     expect(payload).toMatchObject({
       event: "ping_invoked",
@@ -78,9 +78,9 @@ describe("ping onCall", () => {
 
     // BL-02: 미인증 분기는 warn 만 호출되고 info 는 호출되지 않아야 함.
     expect(warnMock).toHaveBeenCalledTimes(1);
-    const [payload] = warnMock.mock.calls[0] as [
-      Record<string, unknown>,
+    const [, payload] = warnMock.mock.calls[0] as [
       string,
+      Record<string, unknown>,
     ];
     expect(payload).toMatchObject({event: "ping_unauthenticated"});
     expect(infoMock).not.toHaveBeenCalled();

@@ -265,8 +265,8 @@ describe("kakaoCustomToken onCall", () => {
     ).rejects.toBeInstanceOf(HttpsError);
     // 분기 진입 검증 — warn mock 으로 catch 블록 도달 확인.
     expect(warnMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "kakao_jwt_verify_failed"}),
       expect.any(String),
+      expect.objectContaining({event: "kakao_jwt_verify_failed"}),
     );
   });
 
@@ -539,8 +539,8 @@ describe("kakaoCustomToken onCall", () => {
       }
 
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "kakao_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "kakao_email_collision"}),
       );
       // PII 회귀 — collision email 본문이 logger payload 에 미노출.
       // WR-02 mirror — debug/log 도 sentinel 배열 포함.
@@ -597,8 +597,8 @@ describe("kakaoCustomToken onCall", () => {
       }
 
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "kakao_anonymous_conflict"}),
         expect.any(String),
+        expect.objectContaining({event: "kakao_anonymous_conflict"}),
       );
     },
   );
@@ -626,8 +626,8 @@ describe("kakaoCustomToken onCall", () => {
       }
 
       expect(errorMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "identity_index_failed"}),
         expect.any(String),
+        expect.objectContaining({event: "identity_index_failed"}),
       );
       // PII 회귀 — err.message ('firestore unavailable') 본문 미노출.
       // WR-02 mirror — error 만이 아닌 info/warn/debug/log 전체 sentinel 검사.
@@ -668,7 +668,7 @@ describe("kakaoCustomToken onCall", () => {
       // R3 throw 분기에 미진입 — kakao_email_collision /
       // kakao_anonymous_conflict warn 호출 0회.
       const r3WarnCalls = warnMock.mock.calls.filter((args) => {
-        const ev = (args[0] as {event?: string})?.event;
+        const ev = (args[1] as {event?: string})?.event;
         return (
           ev === "kakao_email_collision" ||
           ev === "kakao_anonymous_conflict"
@@ -710,11 +710,11 @@ describe("kakaoCustomToken onCall", () => {
       });
 
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "kakao_jwt_verify_failed",
           code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
         }),
-        expect.any(String),
       );
     },
   );
@@ -779,11 +779,11 @@ describe("kakaoCustomToken onCall", () => {
       });
 
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "kakao_jwt_verify_failed",
           code: "TypeError",
         }),
-        expect.any(String),
       );
     },
   );
@@ -865,11 +865,11 @@ describe("kakaoCustomToken onCall", () => {
       });
 
       expect(errorMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "kakao_custom_token_create_failed",
           code: "FirebaseAuthError",
         }),
-        expect.any(String),
       );
       // GAP 4 (debug kakao-custom-token-create-fail) — 발급이 쓰기보다
       // 먼저라 identity_index · users 쓰기 0, 미리 만든 Auth 사용자는 지운다.
@@ -929,11 +929,11 @@ describe("kakaoCustomToken onCall", () => {
       expect(mockDeleteUser).not.toHaveBeenCalled();
       expect(errorMock).toHaveBeenCalledTimes(1);
       expect(errorMock).toHaveBeenCalledWith(
+        expect.any(String),
         {
           event: "kakao_custom_token_create_failed",
           code: "auth/insufficient-permission",
         },
-        expect.any(String),
       );
       // IN-11 — 같은 catch 에 다른 logger 메서드로 원문이 새도 잡도록 다섯
       // 메서드 전부를 훑는다 (RETRO-02 의 allLogCalls 와 같은 꼴). 직렬화는
@@ -993,8 +993,8 @@ describe("kakaoCustomToken onCall", () => {
 
       // caller switch 분기 logger event 발동 검증.
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining({event: "kakao_email_collision"}),
         expect.any(String),
+        expect.objectContaining({event: "kakao_email_collision"}),
       );
       // 옵션 C 의 미도달 invariant — early throw → createCustomToken 미발급.
       expect(mockCreateCustomToken).not.toHaveBeenCalled();
@@ -1299,7 +1299,7 @@ describe("kakaoCustomToken onCall", () => {
       expect(options).toEqual({merge: true});
       // info log — terms_mirrored sentinel (version 만 노출, 본체 미노출).
       const termsMirrorInfoCalls = infoMock.mock.calls.filter((args) => {
-        const ev = (args[0] as {terms_mirrored?: boolean})?.terms_mirrored;
+        const ev = (args[1] as {terms_mirrored?: boolean})?.terms_mirrored;
         return ev === true;
       });
       expect(termsMirrorInfoCalls.length).toBeGreaterThanOrEqual(1);

@@ -336,12 +336,12 @@ describe("linkNaverProvider — 1-tap 연결 · transaction (N1~N3)", () => {
     // 연결은 가입 이벤트가 아니다 (Phase 16.7 D-14 · D-18 · C-06).
     expect(usersData).not.toHaveProperty("signUpProviderId");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "link_naver_provider_succeeded",
         uid: CALLER_UID,
         path: "link_app",
       }),
-      expect.any(String),
     );
   });
 
@@ -402,12 +402,12 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     );
     expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "link_naver_provider_succeeded",
         uid: CALLER_UID,
         path: "link_web",
       }),
-      expect.any(String),
     );
   });
 
@@ -430,12 +430,12 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
     expect(fetchMock.mock.calls[1][0]).toBe(NAVER_PROFILE_URL);
     expect(mockOrdered.calls).toEqual(["get", "get", "set", "set"]);
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "link_naver_provider_succeeded",
         uid: CALLER_UID,
         path: "link_web",
       }),
-      expect.any(String),
     );
   });
 
@@ -452,11 +452,11 @@ describe("linkNaverProvider — 웹 연결 · code 교환 후순위 (N4~N6)", ()
       details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "link_naver_id_token_verify_failed",
         code: "auth/id-token-revoked",
       }),
-      expect.any(String),
     );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(mockOrdered.calls).toEqual([]);
@@ -609,8 +609,8 @@ describe("linkNaverProvider — 실패 매핑 WR-01 (N12 · N13)", () => {
       // 않는다 — client 는 재로그인이 아니라 일시 오류로 안내한다.
       expect((err as HttpsError).details).toBeUndefined();
       expect(logMockFn).toHaveBeenCalledWith(
-        expect.objectContaining(logPayload),
         expect.any(String),
+        expect.objectContaining(logPayload),
       );
       expect(fetchMock).toHaveBeenCalledTimes(1);
       expect(mockOrdered.calls).toEqual([]);
@@ -650,8 +650,8 @@ describe("linkNaverProvider — 실패 매핑 WR-01 (N12 · N13)", () => {
       // reason 이 없다 — Firebase 세션은 정상이다.
       expect((err as HttpsError).details).toBeUndefined();
       expect(warnMock).toHaveBeenCalledWith(
-        expect.objectContaining(logPayload),
         expect.any(String),
+        expect.objectContaining(logPayload),
       );
       // 교환 1회뿐 — /v1/nid/me 는 부르지 않는다.
       expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -673,12 +673,12 @@ describe("linkNaverProvider — transaction 오류 (N14)", () => {
       message: "errorUnknown",
     });
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "link_transaction_failed",
         uid: CALLER_UID,
         code: "Error",
       }),
-      expect.any(String),
     );
     expect(infoMock).not.toHaveBeenCalled();
   });
@@ -706,12 +706,12 @@ describe("linkNaverProvider — provider 당 신원 1개 (N16~N19 · IN-03)", ()
       expect(mockOrdered.calls).toEqual(["get", "get"]);
       expect(mockOrdered.sets).toHaveLength(0);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         {
           event: "link_provider_already_linked",
           uid: CALLER_UID,
           provider: "naver",
         },
-        expect.any(String),
       );
       expect(infoMock).not.toHaveBeenCalled();
     },

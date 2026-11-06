@@ -337,12 +337,12 @@ describe("disconnectNaverProvider — 1-tap 성공 · 소유 대조", () => {
     expect(docOrder).toBeLessThan(revokeOrder);
     expect(revokeOrder).toBeLessThan(mintOrder);
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_succeeded",
         uid: CALLER_UID,
         path: "disconnect_app",
       },
-      expect.any(String),
     );
   });
 
@@ -399,12 +399,12 @@ describe("disconnectNaverProvider — 웹 성공 · revoke 요청 모양", () =>
     expect(fetchBodyAt(2).get("token")).toBe("PII_NAVER_ACCESS_TOKEN");
     expect(mockCreateCustomToken.mock.calls).toEqual([[CALLER_UID]]);
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_succeeded",
         uid: CALLER_UID,
         path: "disconnect_web",
       },
-      expect.any(String),
     );
   });
 
@@ -499,12 +499,12 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "naver_verify_unauthenticated",
         path: "disconnect_app",
         status: 401,
       },
-      expect.any(String),
     );
   });
 
@@ -525,6 +525,7 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     // 로그는 화이트리스트 error 코드 · status 만 — error_description 0.
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_revoke_failed",
         uid: CALLER_UID,
@@ -532,7 +533,6 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
         status: 400,
         code: "unauthorized_client",
       },
-      expect.any(String),
     );
   });
 
@@ -546,6 +546,7 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(infoMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_revoke_failed",
         uid: CALLER_UID,
@@ -553,7 +554,6 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
         status: 200,
         code: "invalid_request",
       },
-      expect.any(String),
     );
   });
 
@@ -566,6 +566,7 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
     expect(err.message).toBe("errorInvalidCredentials");
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_revoke_failed",
         uid: CALLER_UID,
@@ -573,7 +574,6 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
         status: 401,
         code: "none",
       },
-      expect.any(String),
     );
   });
 
@@ -588,13 +588,13 @@ describe("disconnectNaverProvider — 프로필 · revoke 실패 매핑", () => 
     expect(err.message).toBe("errorServiceUnavailable");
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_naver_revoke_failed",
         uid: CALLER_UID,
         path: "disconnect_app",
         code: "TypeError",
       },
-      expect.any(String),
     );
   });
 });
@@ -618,12 +618,12 @@ describe("disconnectNaverProvider — custom token 발급 실패", () => {
     expect(err.code).toBe("internal");
     expect(err.message).toBe("errorUnknown");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_relogin_token_failed",
         provider: "naver",
         code: "auth/insufficient-permission",
       },
-      expect.any(String),
     );
     expect(infoMock).not.toHaveBeenCalled();
   });

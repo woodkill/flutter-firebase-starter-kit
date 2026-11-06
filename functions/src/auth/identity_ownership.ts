@@ -80,19 +80,19 @@ export async function assertIdentityOwnedByCaller(
       undefined;
   } catch (err: unknown) {
     logger.error(
+      "identity_index read threw",
       {
         event: "identity_ownership_read_failed",
         provider,
         code: fingerprintError(err),
       },
-      "identity_index read threw",
     );
     throw serverFailure();
   }
   if (ownerUid !== callerUid) {
     logger.warn(
-      {event: "identity_ownership_mismatch", uid: callerUid, provider},
       "identity not owned by caller",
+      {event: "identity_ownership_mismatch", uid: callerUid, provider},
     );
     throw callerIdentityMismatch();
   }

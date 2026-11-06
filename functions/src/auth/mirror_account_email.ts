@@ -76,15 +76,15 @@ export const mirrorAccountEmail = onCall({enforceAppCheck: true},
     } catch (err: unknown) {
       const code = fingerprintError(err);
       logger.error(
-        {event: "mirror_account_email_failed", uid, code},
         "mirrorAccountEmail failed",
+        {event: "mirror_account_email_failed", uid, code},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
 
     logger.info(
-      {event: "mirror_account_email_done", uid, hasEmail: email !== null},
       "mirrorAccountEmail done",
+      {event: "mirror_account_email_done", uid, hasEmail: email !== null},
     );
     return {ok: true};
   },

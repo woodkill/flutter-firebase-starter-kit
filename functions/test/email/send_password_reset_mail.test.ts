@@ -257,7 +257,7 @@ function adminError(code: string): Error {
 function noAccountInfoCalls(): unknown[][] {
   return infoMock.mock.calls.filter(
     (args) =>
-      (args[0] as {event?: string}).event === "password_reset_mail_no_account",
+      (args[1] as {event?: string}).event === "password_reset_mail_no_account",
   );
 }
 
@@ -274,7 +274,7 @@ function expectNoAccountResponse(result: unknown): void {
   expect(mockOrdered.sets).toHaveLength(3);
   const calls = noAccountInfoCalls();
   expect(calls).toHaveLength(1);
-  expect(calls[0][0]).toEqual({
+  expect(calls[0][1]).toEqual({
     event: "password_reset_mail_no_account",
     uid: UID,
   });
@@ -435,13 +435,13 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     });
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "password_reset_mail_rate_limited",
         uid: UID,
         axis: "email",
         count: 3,
       },
-      expect.any(String),
     );
     // 판정은 계정 조회 · 링크 생성 전 — 없는 주소여도 같은 제한이다.
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
@@ -471,13 +471,13 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
     ).rejects.toMatchObject({code: "resource-exhausted"});
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "password_reset_mail_rate_limited",
         uid: UID,
         axis: "uid",
         count: 5,
       },
-      expect.any(String),
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
   });
@@ -489,13 +489,13 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
     ).rejects.toMatchObject({code: "resource-exhausted"});
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "password_reset_mail_rate_limited",
         uid: UID,
         axis: "ip",
         count: 30,
       },
-      expect.any(String),
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
   });
@@ -510,7 +510,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
     ).rejects.toMatchObject({code: "resource-exhausted"});
     const axes = warnMock.mock.calls.map(
-      (args) => (args[0] as {axis: string}).axis,
+      (args) => (args[1] as {axis: string}).axis,
     );
     expect(axes).toEqual(["uid", "ip", "email"]);
   });
@@ -604,20 +604,20 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     });
 
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "password_reset_mail_failed",
         uid: UID,
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "password_reset_mail_lookup_failed",
         uid: UID,
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     const text = allLogText();
     expect(text).not.toContain(REQUEST_EMAIL);
@@ -636,8 +636,8 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
     ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
     expect(errorMock).toHaveBeenCalledWith(
-      expect.objectContaining({event: "email_brand_unset"}),
       expect.any(String),
+      expect.objectContaining({event: "email_brand_unset"}),
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();
@@ -670,7 +670,7 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     expect(
       errorMock.mock.calls.filter(
         (args) =>
-          (args[0] as {event?: string}).event === "email_result_page_unset",
+          (args[1] as {event?: string}).event === "email_result_page_unset",
       ),
     ).toHaveLength(2);
     expect(mockMailAdd).not.toHaveBeenCalled();
@@ -688,11 +688,11 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
       call(anonymousCallerAuth(UID), {email: REQUEST_EMAIL, locale: "ko"}),
     ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "password_reset_mail_failed",
         uid: UID,
       }),
-      expect.any(String),
     );
     expect(mockMailAdd).not.toHaveBeenCalled();
     const text = allLogText();
@@ -748,12 +748,12 @@ describe("sendPasswordResetMail onCall — Phase 17.5 D-10 (T-175-RMAIL)", () =>
     ).rejects.toMatchObject({code: "internal", message: "errorUnknown"});
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "password_reset_mail_lookup_failed",
         uid: UID,
         code: "auth/internal-error",
       }),
-      expect.any(String),
     );
     expect(mockGenerateResetLink).not.toHaveBeenCalled();
     expect(mockMailAdd).not.toHaveBeenCalled();

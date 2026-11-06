@@ -504,12 +504,12 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
       // logger.warn 1회 호출, payload 에 event/uid/code 포함.
       expect(warnMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_orphan_cleanup_failed",
           uid: "B",
           code: "auth/user-not-found",
         }),
-        expect.any(String),
       );
 
       // PII 회귀 (Pitfall 7) — err.message 본문 ('user not found') 미노출 검증.
@@ -1091,11 +1091,11 @@ describe("resolveIdentity (Phase 12 lookup-first)", () => {
         emailVerified: true,
       });
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_profile_set_failed",
           code: "auth/invalid-photo-url",
         }),
-        expect.any(String),
       );
       // PII 금지 — err.message 본문 미노출.
       expect(serializeLogCalls(warnMock.mock.calls)).not.toContain("bad photo");
@@ -1194,10 +1194,10 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
         conflictKind: null,
       });
       expect(warnMock).not.toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_email_collision_caller_path",
         }),
-        expect.any(String),
       );
     },
   );
@@ -1289,12 +1289,12 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // logger.warn payload 검증 (event + count 만, email 본문 / IdP uid 미노출).
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_email_collision_caller_path",
           provider: "naver",
           conflictingProviderCount: 1,
         }),
-        expect.any(String),
       );
       // PII regression sentinel — email / IdP uid 본문 미노출.
       const allLogCalls = warnMock.mock.calls;
@@ -1371,7 +1371,7 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // lookup_failed event 미호출 (user-not-found 는 silent expected case).
       const lookupFailedCalls = warnMock.mock.calls.filter((args) => {
-        const ev = (args[0] as {event?: string})?.event;
+        const ev = (args[1] as {event?: string})?.event;
         return ev === "identity_index_email_lookup_failed";
       });
       expect(lookupFailedCalls.length).toBe(0);
@@ -1413,11 +1413,11 @@ describe("resolveIdentity Gap B email collision (Phase 9.2, HUMAN-UAT 2026-05-11
 
       // logger.warn 1회 — event + code (PII 미포함).
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_email_lookup_failed",
           code: "auth/internal-error",
         }),
-        expect.any(String),
       );
 
       // PII regression sentinel — email 본문 미노출.
@@ -1654,12 +1654,12 @@ describe("resolveIdentity R10-FOLLOWUP — 재로그인 IdP 프로필 propagate"
       // logger.warn 1회 + payload 에 event/uid/code 포함.
       expect(warnMock).toHaveBeenCalledTimes(1);
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_profile_refresh_failed",
           uid: "existing-fol4",
           code: "auth/internal-error",
         }),
-        expect.any(String),
       );
 
       // PII 회귀 (Pitfall 7) — err.message 본문 ('transient') 미노출.
@@ -1784,12 +1784,12 @@ describe(
         expect(warnMock).not.toHaveBeenCalled();
         expect(infoMock).toHaveBeenCalledTimes(1);
         expect(infoMock).toHaveBeenCalledWith(
+          expect.any(String),
           expect.objectContaining({
             event: "identity_index_profile_refresh_skipped_linked",
             uid: "U-jwe-2",
             provider: "naver",
           }),
-          expect.any(String),
         );
         const logged = serializeJweLogCalls();
         expect(logged).not.toContain("PII_JWE");
@@ -1849,12 +1849,12 @@ describe(
         expect(mockUpdateUser).not.toHaveBeenCalled();
         expect(warnMock).toHaveBeenCalledTimes(1);
         expect(warnMock).toHaveBeenCalledWith(
+          expect.any(String),
           expect.objectContaining({
             event: "identity_index_profile_refresh_signup_missing",
             uid: "U-jwe-4",
             provider: "naver",
           }),
-          expect.any(String),
         );
         const logged = serializeJweLogCalls();
         expect(logged).not.toContain("PII_JWE");
@@ -1889,13 +1889,13 @@ describe(
         expect(mockUpdateUser).not.toHaveBeenCalled();
         expect(warnMock).toHaveBeenCalledTimes(1);
         expect(warnMock).toHaveBeenCalledWith(
+          expect.any(String),
           expect.objectContaining({
             event: "identity_index_profile_refresh_signup_read_failed",
             uid: "U-jwe-5",
             provider: "line",
             code: "unavailable",
           }),
-          expect.any(String),
         );
         // Pitfall 7 — err.message 본문 미노출.
         const logged = serializeJweLogCalls();
@@ -2188,12 +2188,12 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
 
       // 신규 event 발동 — provider + existingProvider slug 만.
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_email_collision_custom_token_path",
           provider: "naver",
           existingProvider: "kakao",
         }),
-        expect.any(String),
       );
 
       // PII regression sentinel — email / 기존 uid 본문 미노출 (D-51).
@@ -2337,11 +2337,11 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       // best-effort — 쿼리 실패가 정당한 로그인을 차단하지 않는다.
       expect(res.conflictKind).toBeNull();
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_reverse_lookup_failed",
           code: "unavailable",
         }),
-        expect.any(String),
       );
       const logged = serializeLogCalls(warnMock.mock.calls);
       expect(logged).not.toContain("PII_REJECT_EMAIL@example.com");
@@ -2564,10 +2564,10 @@ describe("resolveIdentity Phase 16 Plan 16-17 — Custom Token existingProvider 
       });
       // custom-token 역조회 경로의 email_in_use 조기 return 미발동.
       expect(warnMock).not.toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_email_collision_custom_token_path",
         }),
-        expect.any(String),
       );
     },
   );
@@ -2786,8 +2786,8 @@ describe("resolveIdentity — 기존 identity 재로그인은 자기 계정 emai
         "identity_index_email_collision_custom_token_path",
       ]) {
         expect(warnMock).not.toHaveBeenCalledWith(
-          expect.objectContaining({event}),
           expect.any(String),
+          expect.objectContaining({event}),
         );
       }
       // identity 가 이미 자기 계정 매핑임을 알았으므로 역조회 read 추가 0.
@@ -3146,11 +3146,11 @@ describe("resolveIdentity — 비익명 caller 가드 (reauth-login-auto-merge)"
       });
 
       expect(warnMock).toHaveBeenCalledWith(
+        expect.any(String),
         expect.objectContaining({
           event: "identity_index_caller_identity_mismatch",
           provider: "kakao",
         }),
-        expect.any(String),
       );
       const logged = serializeLogCalls(warnMock.mock.calls);
       expect(logged).not.toContain("PII_");
@@ -3572,12 +3572,12 @@ describe("resolveIdentity Phase 17 D-26 — CT 경로 email mirror (T-17-MIRROR-
     expect(res).toEqual({uid: "U-m05h", isNewUser: false, conflictKind: null});
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "identity_index_email_mirror_failed",
         uid: "U-m05h",
         code: "unavailable",
       },
-      expect.any(String),
     );
     const logged = serializeLogCalls([
       ...warnMock.mock.calls,
@@ -3697,12 +3697,12 @@ describe("resolveIdentity GAP 4 — 토큰 발급은 쓰기보다 먼저 (debug 
     expect(mockDeleteUser).toHaveBeenCalledWith("pre-gap4-del");
     expect(warnMock).toHaveBeenCalledTimes(1);
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "identity_index_orphan_cleanup_failed",
         uid: "pre-gap4-del",
         code: "auth/internal-error",
       },
-      expect.any(String),
     );
     expectSentinelNotLogged();
     expectSentinelNotLogged("PII_GAP4_DEL");

@@ -240,12 +240,12 @@ describe("disconnectFacebookProvider — 성공 · 0 건", () => {
     expect(url).not.toContain("?");
     expect(mockCollection).not.toHaveBeenCalled();
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_succeeded",
         uid: CALLER_UID,
         disconnectedCount: 1,
       },
-      expect.any(String),
     );
   });
 
@@ -297,7 +297,7 @@ describe("disconnectFacebookProvider — 성공 · 0 건", () => {
       expect(fetchMock.mock.calls[0][0]).toBe(GRAPH_PERMISSIONS_URL);
       expect(fetchMock.mock.calls[1][0]).toBe(GRAPH_PERMISSIONS_URL);
       // UAT 서버 로그 event 순서와 같다 — delete_failed 0.
-      expect(infoMock.mock.calls.map((call) => call[0])).toEqual([
+      expect(infoMock.mock.calls.map((call) => call[1])).toEqual([
         {
           event: "disconnect_facebook_succeeded",
           uid: CALLER_UID,
@@ -322,12 +322,12 @@ describe("disconnectFacebookProvider — 성공 · 0 건", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_succeeded",
         uid: CALLER_UID,
         disconnectedCount: 0,
       },
-      expect.any(String),
     );
   });
 });
@@ -368,6 +368,7 @@ describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
     expect(err.details).toEqual({reason: "provider_config"});
     // 로그는 정수 코드 · status 만 — Graph message · asid 0.
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_delete_failed",
         uid: CALLER_UID,
@@ -375,7 +376,6 @@ describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
         code: 190,
         subcode: 460,
       },
-      expect.any(String),
     );
   });
 
@@ -428,12 +428,12 @@ describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
     expect(err.code).toBe("unavailable");
     expect(err.message).toBe("errorServiceUnavailable");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_delete_failed",
         uid: CALLER_UID,
         code: "TypeError",
       },
-      expect.any(String),
     );
   });
 
@@ -445,13 +445,13 @@ describe("disconnectFacebookProvider — Graph 오류 코드 매핑", () => {
     expect(err.code).toBe("unavailable");
     expect(err.message).toBe("errorServiceUnavailable");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_delete_failed",
         uid: CALLER_UID,
         status: 200,
         code: "unexpected_body",
       },
-      expect.any(String),
     );
   });
 });
@@ -465,8 +465,8 @@ describe("disconnectFacebookProvider — 원장 결함", () => {
     expect(err.message).toBe("errorUnknown");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_facebook_target_invalid", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_facebook_target_invalid", uid: CALLER_UID},
     );
   });
 
@@ -482,12 +482,12 @@ describe("disconnectFacebookProvider — 원장 결함", () => {
     expect(err.message).toBe("errorUnknown");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_facebook_precheck_failed",
         uid: CALLER_UID,
         code: "auth/internal-error",
       },
-      expect.any(String),
     );
   });
 });

@@ -141,12 +141,12 @@ export const disconnectKakaoProvider = onCall(
       );
     } catch (err: unknown) {
       logger.error(
+        "identity_index query threw",
         {
           event: "disconnect_kakao_precheck_failed",
           uid,
           code: fingerprintError(err),
         },
-        "identity_index query threw",
       );
       throw serverFailure();
     }
@@ -157,8 +157,8 @@ export const disconnectKakaoProvider = onCall(
       // 원장 데이터 결함 — 값은 로그에 싣지 않는다.
       if (targetId === undefined || !KAKAO_USER_ID_PATTERN.test(targetId)) {
         logger.error(
-          {event: "disconnect_kakao_target_invalid", uid},
           "identity_index providerUserId is not a Kakao user id",
+          {event: "disconnect_kakao_target_invalid", uid},
         );
         throw serverFailure();
       }
@@ -180,12 +180,12 @@ export const disconnectKakaoProvider = onCall(
       } catch (err: unknown) {
         // err.message 미로깅 — err.name 만 fingerprint.
         logger.error(
+          "Kakao unlink request failed",
           {
             event: "disconnect_kakao_unlink_failed",
             uid,
             code: err instanceof Error ? err.name : "unknown",
           },
-          "Kakao unlink request failed",
         );
         throw idpUnavailable();
       }
@@ -198,20 +198,20 @@ export const disconnectKakaoProvider = onCall(
       const code = await readKakaoErrorCode(resp);
       if (code === KAKAO_ALREADY_UNLINKED_CODE) {
         logger.info(
-          {event: "disconnect_kakao_already_unlinked", uid},
           "Kakao user already unlinked",
+          {event: "disconnect_kakao_already_unlinked", uid},
         );
         disconnectedCount += 1;
         continue;
       }
       logger.error(
+        "Kakao unlink rejected",
         {
           event: "disconnect_kakao_unlink_failed",
           uid,
           status: resp.status,
           code: code ?? "other",
         },
-        "Kakao unlink rejected",
       );
       if (code === KAKAO_RATE_LIMIT_CODE) {
         throw new HttpsError("resource-exhausted", "errorTooManyRequests");
@@ -229,13 +229,13 @@ export const disconnectKakaoProvider = onCall(
     // 남긴다 — payload 는 성공 event 와 같은 `{event, uid}` 형태.
     if (disconnectedCount === 0) {
       logger.warn(
-        {event: "disconnect_kakao_no_identity", uid},
         "No Kakao identity in identity_index for caller",
+        {event: "disconnect_kakao_no_identity", uid},
       );
     }
     logger.info(
-      {event: "disconnect_kakao_succeeded", uid, disconnectedCount},
       "Kakao disconnected",
+      {event: "disconnect_kakao_succeeded", uid, disconnectedCount},
     );
     return {ok: true, disconnectedCount};
   },

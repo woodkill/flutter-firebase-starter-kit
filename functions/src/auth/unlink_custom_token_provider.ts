@@ -186,8 +186,8 @@ export const unlinkCustomTokenProvider =
         candidateRefs = idxSnaps.docs.map((d) => d.ref);
       } catch (err: unknown) {
         logger.error(
-          {event: "unlink_precheck_failed", uid, code: fingerprintError(err)},
           "getUser or identity_index query threw",
+          {event: "unlink_precheck_failed", uid, code: fingerprintError(err)},
         );
         throw serverFailure();
       }
@@ -253,18 +253,19 @@ export const unlinkCustomTokenProvider =
           throw err;
         }
         logger.error(
+          "runTransaction threw",
           {
             event: "unlink_transaction_failed",
             uid,
             code: fingerprintError(err),
           },
-          "runTransaction threw",
         );
         throw serverFailure();
       }
 
       // Step 5: 구조화 로그 + 반환 — PII 0.
       logger.info(
+        "unlinked",
         {
           event: "unlink_custom_token_provider_succeeded",
           uid,
@@ -272,7 +273,6 @@ export const unlinkCustomTokenProvider =
           removedIdentityCount: counts.removedIdentityCount,
           removedLinkedEntryCount: counts.removedLinkedEntryCount,
         },
-        "unlinked",
       );
       return {ok: true};
     },

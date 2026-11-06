@@ -409,8 +409,8 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
     expect(issueOrder).toBeLessThan(deauthOrder);
     expect(deauthOrder).toBeLessThan(mintOrder);
     expect(infoMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_succeeded", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_line_succeeded", uid: CALLER_UID},
     );
   });
 
@@ -453,12 +453,12 @@ describe("disconnectLineProvider — 성공 · 소유 대조", () => {
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(mockCreateCustomToken.mock.calls).toEqual([[CALLER_UID]]);
     expect(infoMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_already_deauthorized", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_line_already_deauthorized", uid: CALLER_UID},
     );
     expect(infoMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_succeeded", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_line_succeeded", uid: CALLER_UID},
     );
     expect(errorMock).not.toHaveBeenCalled();
   });
@@ -523,8 +523,8 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_profile_failed", uid: CALLER_UID, status: 401},
       expect.any(String),
+      {event: "disconnect_line_profile_failed", uid: CALLER_UID, status: 401},
     );
   });
 
@@ -539,12 +539,12 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
     expect(err.message).toBe("errorServiceUnavailable");
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_profile_failed",
         uid: CALLER_UID,
         code: "TypeError",
       },
-      expect.any(String),
     );
   });
 
@@ -561,8 +561,8 @@ describe("disconnectLineProvider — 프로필 실패 매핑", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(mockDocGet).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_profile_invalid", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_line_profile_invalid", uid: CALLER_UID},
     );
   });
 });
@@ -588,12 +588,12 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
       // verify · 프로필 · 발급 3회뿐 — deauthorize 호출 0.
       expect(fetchMock).toHaveBeenCalledTimes(3);
       expect(errorMock).toHaveBeenCalledWith(
+        expect.any(String),
         {
           event: "disconnect_line_channel_token_failed",
           uid: CALLER_UID,
           status,
         },
-        expect.any(String),
       );
     }
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
@@ -610,12 +610,12 @@ describe("disconnectLineProvider — channel token 발급 실패 매핑", () => 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_channel_token_failed",
         uid: CALLER_UID,
         code: "Error",
       },
-      expect.any(String),
     );
   });
 });
@@ -634,12 +634,12 @@ describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(infoMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_deauthorize_failed",
         uid: CALLER_UID,
         status: 401,
       },
-      expect.any(String),
     );
   });
 
@@ -655,12 +655,12 @@ describe("disconnectLineProvider — deauthorize 실패 매핑", () => {
     expect(mockCreateCustomToken).not.toHaveBeenCalled();
     expect(infoMock).not.toHaveBeenCalled();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_deauthorize_failed",
         uid: CALLER_UID,
         status: 500,
       },
-      expect.any(String),
     );
   });
 });
@@ -686,12 +686,12 @@ describe("disconnectLineProvider — custom token 발급 실패", () => {
     expect(err.code).toBe("internal");
     expect(err.message).toBe("errorUnknown");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_relogin_token_failed",
         provider: "line",
         code: "auth/insufficient-permission",
       },
-      expect.any(String),
     );
     expect(infoMock).not.toHaveBeenCalled();
   });
@@ -721,12 +721,12 @@ describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
     expect(err.message).toBe("errorInvalidCredentials");
     expectNothingAfterVerify();
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_verify_rejected",
         uid: CALLER_UID,
         reason: "channel",
       },
-      expect.any(String),
     );
   });
 
@@ -737,12 +737,12 @@ describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
     expect(expired.code).toBe("unauthenticated");
     expectNothingAfterVerify();
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_verify_rejected",
         uid: CALLER_UID,
         reason: "expired",
       },
-      expect.any(String),
     );
 
     // 400 = 형식 오류 · 만료 · 폐기 (reference 원문).
@@ -762,8 +762,8 @@ describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
     expect(rejected.message).toBe("errorInvalidCredentials");
     expectNothingAfterVerify();
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_verify_failed", uid: CALLER_UID, status: 400},
       expect.any(String),
+      {event: "disconnect_line_verify_failed", uid: CALLER_UID, status: 400},
     );
   });
 
@@ -776,12 +776,12 @@ describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
     expect(rejected.code).toBe("unavailable");
     expectNothingAfterVerify();
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "disconnect_line_verify_failed",
         uid: CALLER_UID,
         code: "TypeError",
       },
-      expect.any(String),
     );
 
     fetchMock.mockReset();
@@ -808,8 +808,8 @@ describe("disconnectLineProvider — verify 채널 귀속 (WR-02)", () => {
       expectNothingAfterVerify();
     }
     expect(errorMock).toHaveBeenCalledWith(
-      {event: "disconnect_line_verify_invalid", uid: CALLER_UID},
       expect.any(String),
+      {event: "disconnect_line_verify_invalid", uid: CALLER_UID},
     );
   });
 

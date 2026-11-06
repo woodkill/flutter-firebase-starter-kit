@@ -305,12 +305,12 @@ describe("linkKakaoProvider — provider 전용 연결 callable", () => {
     // 연결은 가입 이벤트가 아니다 (Phase 16.7 D-14 · D-18).
     expect(usersData).not.toHaveProperty("signUpProviderId");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "link_kakao_provider_succeeded",
         uid: CALLER_UID,
         isNewUser: false,
       },
-      expect.any(String),
     );
   });
 
@@ -443,11 +443,11 @@ describe("linkKakaoProvider — caller 검사 (옛 L3 · L4 · L5 · L7)", () =>
       details: {reason: "reauthentication_required"},
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "link_kakao_id_token_verify_failed",
         code: "auth/id-token-revoked",
       },
-      expect.any(String),
     );
     expect(mockVerifyTargetIdToken).not.toHaveBeenCalled();
     expect(mockOrdered.calls).toEqual([]);
@@ -485,11 +485,11 @@ describe("linkKakaoProvider — caller 검사 (옛 L3 · L4 · L5 · L7)", () =>
     const rejection = await promise.catch((e: unknown) => e);
     expect((rejection as HttpsError).details).toBeUndefined();
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "link_kakao_target_token_verify_failed",
         code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
       },
-      expect.any(String),
     );
     expect(mockOrdered.calls).toEqual([]);
   });

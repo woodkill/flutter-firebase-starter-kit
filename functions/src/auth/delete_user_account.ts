@@ -175,8 +175,8 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     } catch (err: unknown) {
       const errCode = fingerprintError(err);
       logger.warn(
-        {event: "delete_user_id_token_verify_failed", code: errCode},
         "verifyIdToken threw",
+        {event: "delete_user_id_token_verify_failed", code: errCode},
       );
       // details.reason 으로 재로그인 분기를 표시한다 (16.9 review WR-01) —
       // 같은 code 의 IdP 거부 · App Check 차단은 reason 이 없다.
@@ -214,24 +214,24 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
         force: true,
       });
       logger.info(
-        {event: "delete_user_storage_done", uid: callerUid},
         "Storage user prefix deleted",
+        {event: "delete_user_storage_done", uid: callerUid},
       );
     } catch (err: unknown) {
       const failed = Array.isArray(err) ? err : [err];
       if (!Array.isArray(err) && isStorageNotFound(err)) {
         logger.warn(
-          {event: "delete_user_storage_bucket_missing", uid: callerUid},
           "Storage bucket not found — nothing to delete, continuing",
+          {event: "delete_user_storage_bucket_missing", uid: callerUid},
         );
       } else if (failed.length > 0 && failed.every(isStorageNotFound)) {
         logger.warn(
+          "Storage files already gone — continuing",
           {
             event: "delete_user_storage_already_gone",
             uid: callerUid,
             failedCount: failed.length,
           },
-          "Storage files already gone — continuing",
         );
       } else {
         // 대표 오류는 404 가 아닌 첫 항목 — 섞인 배열에서 중단 사유(예: 503)를
@@ -239,13 +239,13 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
         const representative =
           failed.find((e) => !isStorageNotFound(e)) ?? failed[0];
         logger.error(
+          "Storage cleanup failed — withdrawal aborted",
           {
             event: "delete_user_storage_failed",
             uid: callerUid,
             code: fingerprintError(representative),
             failedCount: failed.length,
           },
-          "Storage cleanup failed — withdrawal aborted",
         );
         // 이 시점에 Auth · Firestore 는 아직 온전하다 — 사용자는 재시도 가능.
         throw new HttpsError("unavailable", "errorServiceUnavailable", {
@@ -278,22 +278,22 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     try {
       await getAuth().deleteUser(callerUid);
       logger.info(
-        {event: "delete_user_auth_done", uid: callerUid},
         "Auth user deleted",
+        {event: "delete_user_auth_done", uid: callerUid},
       );
     } catch (err: unknown) {
       const errCode = fingerprintError(err);
       if (errCode === "auth/user-not-found") {
         logger.info(
-          {event: "delete_user_auth_already_done", uid: callerUid},
           "Auth user already deleted (idempotent retry path)",
+          {event: "delete_user_auth_already_done", uid: callerUid},
         );
         // Firestore cleanup 은 계속 진행한다 — 이전 시도가 Auth 삭제 직후
         // 중단됐다면 고아 문서가 남아 있을 수 있고, cleanup 은 멱등하다.
       } else {
         logger.error(
-          {event: "delete_user_auth_failed", uid: callerUid, code: errCode},
           "deleteUser threw",
+          {event: "delete_user_auth_failed", uid: callerUid, code: errCode},
         );
         // 이 시점에 Firestore 는 아직 온전하다 — 사용자는 재시도 가능.
         throw new HttpsError("internal", "errorUnknown");
@@ -334,12 +334,12 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
         });
       }
       logger.info(
+        "Firestore cleaned",
         {
           event: "delete_user_firestore_done",
           uid: callerUid,
           identityCount,
         },
-        "Firestore cleaned",
       );
     } catch (err: unknown) {
       // WR-09: 여기서 실패해도 **계정은 이미 삭제됐다**. 사용자 관점의 목표
@@ -349,12 +349,12 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       // 를 가리키는 고아 문서뿐이다 (로그인 가능한 계정에 데이터만 사라지는
       // 이전 실패 모드보다 명확히 안전하다).
       logger.error(
+        "Auth user deleted but Firestore cleanup failed — orphan docs remain",
         {
           event: "delete_user_firestore_orphan",
           uid: callerUid,
           code: fingerprintError(err),
         },
-        "Auth user deleted but Firestore cleanup failed — orphan docs remain",
       );
     }
 
@@ -370,12 +370,12 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       await db.recursiveDelete(userRef.collection("fcmTokens"));
     } catch (err: unknown) {
       logger.error(
+        "Auth user deleted but FCM token cleanup failed — TTL will expire",
         {
           event: "delete_user_fcm_tokens_orphan",
           uid: callerUid,
           code: fingerprintError(err),
         },
-        "Auth user deleted but FCM token cleanup failed — TTL will expire",
       );
     }
 

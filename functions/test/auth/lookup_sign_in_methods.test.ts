@@ -185,8 +185,8 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
     expect(result.existingProvider).toBeNull();
     // silent — warn/error 호출 안 됨.
     expect(warnMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({event: "lookup_sign_in_methods_failed"}),
       expect.any(String),
+      expect.objectContaining({event: "lookup_sign_in_methods_failed"}),
     );
   });
 
@@ -212,12 +212,12 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
     });
     // D-10 3층 — alarm event log.
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "email_enumeration_suspected",
         uid: "caller-K4",
         count: 10,
       }),
-      expect.any(String),
     );
     // getUserByEmail 호출 안 됨 (rate limit 차단).
     expect(mockGetUserByEmail).not.toHaveBeenCalled();
@@ -252,8 +252,8 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
 
     // PII 금지 sentinel — 모든 logger 호출 payload 에 email 본문 미노출.
     expect(warnMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({email: expect.anything()}),
       expect.any(String),
+      expect.objectContaining({email: expect.anything()}),
     );
     const allLogCalls = [
       ...infoMock.mock.calls,
@@ -359,11 +359,11 @@ describe("lookupSignInMethods onCall — Task 2.2 (K1-K6)", () => {
       message: "errorTooManyRequests",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({
         event: "email_enumeration_suspected",
         axis: "ip",
       }),
-      expect.any(String),
     );
     // PII 금지 — IP 원문 / email 본문 미노출.
     expect(serializeLogCalls(warnMock.mock.calls)).not.toContain(

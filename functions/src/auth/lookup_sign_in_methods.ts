@@ -149,13 +149,13 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
           // PII 금지 — email 본문 / IP 원문 미노출. uid + count + 어느 축이
           // 걸렸는지만 기록한다.
           logger.warn(
+            "rate limit exceeded",
             {
               event: "email_enumeration_suspected",
               uid: callerUid,
               count: uidExceeded ? uidState.count : ipState?.count,
               axis: uidExceeded ? "uid" : "ip",
             },
-            "rate limit exceeded",
           );
           throw new HttpsError(
             "resource-exhausted",
@@ -183,8 +183,8 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
       }
       const errCode = fingerprintError(err);
       logger.warn(
-        {event: "lookup_rate_limit_failed", uid: callerUid, code: errCode},
         "rate limit transaction threw",
+        {event: "lookup_rate_limit_failed", uid: callerUid, code: errCode},
       );
       throw new HttpsError("internal", "errorUnknown");
     }
@@ -227,8 +227,8 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
       }
       // PII 금지 — email 본문 미노출, code fingerprint 만.
       logger.warn(
-        {event: "lookup_sign_in_methods_failed", code: errCode},
         "getUserByEmail threw",
+        {event: "lookup_sign_in_methods_failed", code: errCode},
       );
       throw new HttpsError("internal", "errorUnknown");
     }

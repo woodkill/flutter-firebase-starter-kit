@@ -155,12 +155,12 @@ describe("assertIdentityOwnedByCaller — 소유 대조 (D-08)", () => {
     expect(err.message).toBe("errorReauthUserMismatch");
     expect(err.details).toEqual({reason: "caller_identity_mismatch"});
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "identity_ownership_mismatch",
         uid: CALLER_UID,
         provider: "kakao",
       },
-      expect.any(String),
     );
   });
 
@@ -184,12 +184,12 @@ describe("assertIdentityOwnedByCaller — 소유 대조 (D-08)", () => {
     expect(err.code).toBe("internal");
     expect(err.message).toBe("errorUnknown");
     expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "identity_ownership_read_failed",
         provider: "kakao",
         code: "unavailable",
       },
-      expect.any(String),
     );
   });
 });

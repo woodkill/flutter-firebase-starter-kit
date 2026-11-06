@@ -73,19 +73,19 @@ export async function mirrorTermsAccepted(args: {
   } catch (err: unknown) {
     // PII 금지 — snapshot 본문 / err.message 미노출, code fingerprint 만.
     logger.error(
-      {event: failureEvent, uid, code: fingerprintError(err)},
       "terms acceptance mirror set merge threw",
+      {event: failureEvent, uid, code: fingerprintError(err)},
     );
     throw err;
   }
 
   logger.info(
+    "terms acceptance mirrored",
     {
       event: successEvent,
       uid,
       terms_mirrored: true,
       version: snapshot.version,
     },
-    "terms acceptance mirrored",
   );
 }

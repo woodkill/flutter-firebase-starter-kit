@@ -152,8 +152,8 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
       // PII 금지 — fingerprintError helper 만 사용 (err.message 본문 노출 0).
       const errCode = fingerprintError(err);
       logger.warn(
-        {event: "link_naver_id_token_verify_failed", code: errCode},
         "verifyIdToken threw",
+        {event: "link_naver_id_token_verify_failed", code: errCode},
       );
       // details.reason 으로 재로그인 분기를 표시한다 (16.9 review WR-01) —
       // 같은 code 의 IdP 거부 · App Check 차단은 reason 이 없다.
@@ -195,8 +195,8 @@ export const linkNaverProvider = onCall<LinkNaverProviderRequest>(
 
     // Step 6: structured log + return. PII 금지 — {event, uid, path} 만.
     logger.info(
-      {event: "link_naver_provider_succeeded", uid: callerUid, path},
       "linked",
+      {event: "link_naver_provider_succeeded", uid: callerUid, path},
     );
     return {ok: true};
   },

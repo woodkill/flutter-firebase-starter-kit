@@ -286,12 +286,12 @@ describe("linkLineProvider — provider 전용 연결 callable", () => {
     // 연결은 가입 이벤트가 아니다 (Phase 16.7 D-14 · D-18).
     expect(usersData).not.toHaveProperty("signUpProviderId");
     expect(infoMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "link_line_provider_succeeded",
         uid: CALLER_UID,
         isNewUser: false,
       },
-      expect.any(String),
     );
   });
 
@@ -358,11 +358,11 @@ describe("linkLineProvider — provider 전용 연결 callable", () => {
       message: "errorInvalidCredentials",
     });
     expect(warnMock).toHaveBeenCalledWith(
+      expect.any(String),
       {
         event: "link_line_target_token_verify_failed",
         code: "ERR_JWT_CLAIM_VALIDATION_FAILED",
       },
-      expect.any(String),
     );
     expect(mockOrdered.calls).toEqual([]);
   });
