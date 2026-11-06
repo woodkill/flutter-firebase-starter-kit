@@ -566,7 +566,6 @@ Future<void> showMemoAddSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    showDragHandle: true,
     builder: (_) => const MemoAddSheet(),
   );
 }
@@ -1170,7 +1169,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ## 디자인 토큰 바꾸기
 
-앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
+앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 화면 폭 분기 · 키보드 포커스 테두리 · 컴포넌트 모양(아래 시트 · 삭제 버튼 · 큰 버튼 높이)을 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
 
@@ -1507,6 +1506,30 @@ LayoutBuilder(
 7. **분석과 시험을 돌리고 앱에서 글꼴을 확인한다.**
    - `fvm flutter analyze` 와 `fvm flutter test` 가 통과하는지 본다.
    - 앱을 다시 빌드해 앱 언어를 일본어로 바꾼 뒤 설정 화면 「言語」 행의 선택창에서 「한국어」 가 바꾼 글꼴로 그려지는지 본다.
+
+### 7. 컴포넌트 모양 — 아래 시트 · 삭제 버튼 · 큰 버튼 높이
+
+버튼 높이 · 시트 모서리 같은 컴포넌트 기본값은 Flutter 위젯이 Material 3 값으로 갖고 있고, 킷은 Material 3 와 다르게 정한 것만 아래 자리에 둔다.
+- 위 1 ~ 6번 토큰은 앱 전체가 함께 쓰는 값이고, 컴포넌트 하나의 기본 모양을 바꾸는 자리는 `ThemeData` 의 컴포넌트 테마다.
+- 버튼 · 구분선 · 진행 표시는 Material 3 기본값(버튼 높이 40 · 구분선 굵기 1 · `outlineVariant` · 진행 표시 굵기 4)을 쓴다.
+
+| 자리 | 킷 값 | 고칠 곳 |
+|---|---|---|
+| 아래 시트 | 손잡이를 켠다 · 위 모서리 `AppRadius` 의 `xl`(28) · 배경은 Material 3 기본 `surfaceContainerLow` | `lib/core/theme/app_theme.dart` 의 `bottomSheetTheme` |
+| 삭제 · 로그아웃 · 탈퇴 버튼 | 글자 또는 `FilledButton` 바탕이 `error` | `lib/core/theme/app_button_styles.dart` |
+| 큰 버튼 높이 | 48 — Material 3 버튼 기본 높이는 40 · 소셜 로그인 버튼과 같은 높이 | `lib/features/auth/presentation/_widgets/primary_cta.dart` 의 `kPrimaryCtaHeight` |
+
+1. **아래 시트는 `showModalBottomSheet` 에 모양 인자 없이 연다.**
+   - 손잡이 · 위 모서리 · 배경은 `bottomSheetTheme` 를 따른다. 시트 하나만 다르게 하려면 그 호출에 `shape:` · `backgroundColor:` 를 넘긴다.
+2. **되돌리기 어려운 동작의 버튼은 `style:` 에 `context.colorScheme.destructiveTextButtonStyle` 처럼 버튼 종류에 맞는 도우미를 넘긴다.**
+   - `FilledButton` 은 `destructiveFilledButtonStyle`, `OutlinedButton` 은 `destructiveOutlinedButtonStyle` 이고 `lib/core/theme/app_button_styles.dart` 를 import 한다.
+3. **`PrimaryCta` 와 나란히 서는 버튼은 `SizedBox(height: kPrimaryCtaHeight)` 로 감싼다.**
+   - 나머지 버튼은 Material 3 기본 높이 40 이고, 탭 영역은 높이와 상관없이 48 이다.
+4. **띠 아래에 선만 그으려면 `Divider` 대신 `Container` 의 `decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context)))` 로 감싼다.**
+   - 선 굵기 · 색은 구분선 테마를 따르고, 선 두께만큼 높이가 늘어 내용과 겹치지 않는다.
+
+- `copyWith(extensions:)` 로 `AppRadius` 의 `xl` 을 바꿔도 아래 시트 모서리는 그대로다 — 시트까지 바꾸려면 `lib/core/theme/app_radius.dart` 의 기본값을 고치거나 `bottomSheetTheme` 도 함께 바꾼다.
+- 자체 `ThemeData` 를 쓰면 `AppTheme` 의 `bottomSheetTheme` 를 함께 옮긴다 — 없으면 킷 시트에 손잡이가 그려지지 않는다.
 
 ### 확인 방법
 
@@ -2527,6 +2550,9 @@ bash scripts/deploy_functions.sh dev --apply
 | 사진 고르는 중 앱이 종료되면 | 킷은 되찾지 않는다 — Android 는 갤러리가 떠 있는 동안 메모리가 모자라 앱이 종료되면 고른 사진이 사라진다. 필요하면 계정 정보 화면에 들어올 때 `ImagePicker.retrieveLostData()`(Android 전용)를 한 번 보고, 파일이 있으면 `ProfilePhotoRepository` 의 올리기 단계를 이어 간다 |
 | 보이는 사진 · 이름의 순서 | `lib/features/auth/domain/profile_display.dart` 의 `resolveProfileValue` 한 곳 |
 | 오류 표시 모양 | `lib/shared/widgets/error_banner.dart` · `error_snack_bar.dart` · `async_value_view.dart` — 모든 화면이 이 셋을 거친다 |
+| 아래 시트 모양(손잡이 · 위 모서리 · 배경) | `lib/core/theme/app_theme.dart` 의 `bottomSheetTheme` — [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 7번 |
+| 삭제 · 로그아웃 버튼 색 | `lib/core/theme/app_button_styles.dart` 의 도우미 — 같은 7번 |
+| 큰 버튼 높이 | `lib/features/auth/presentation/_widgets/primary_cta.dart` 의 `kPrimaryCtaHeight` — 같은 7번 |
 | 깨진 화면 대체 문구 | ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`(바꾸면 그 위젯의 golden 그림이 바뀐다) |
 | 시험 알림 끄기 · 함수 빼기 | [알림 시험 발송](#알림-시험-발송) 의 「끄기」 · [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법) 의 지우는 법 |
 | 사진 권한 문구 번역 | `ios/Runner/Info.plist` 의 `NSPhotoLibraryUsageDescription` 은 영어 한 문장이다. 한국어 · 일본어는 `InfoPlist.strings` 를 더해 번역한다 |

@@ -106,6 +106,9 @@
 | 시드 색을 `AppTheme.light` · `AppTheme.dark` 인자로 넣을 수 있다 | `test/core/theme/app_theme_test.dart` | T-03-IN-02 |
 | `AppTheme.light() == AppTheme.light()` | `test/core/theme/app_theme_test.dart` | T-03-WR-02 |
 | 테마 extension 6종의 값 동등성(`==` · `hashCode`) | `test/core/theme/app_colors_test.dart` · `test/core/theme/app_spacing_test.dart` · `test/core/theme/app_typography_test.dart` · `test/core/theme/app_icon_sizes_test.dart` · `test/core/theme/app_radius_test.dart` · `test/core/theme/app_opacity_test.dart` | T-03-WR-02 (앞 세 파일) · `app_icon_sizes_test.dart` · `app_radius_test.dart` · `app_opacity_test.dart` 는 group `값 동등성` |
+| 아래 시트 테마(손잡이 · 위 모서리 = 등록한 `AppRadius` 의 `xl` · 배경 미지정)와 Material 3 기본 그대로 두는 버튼 · 구분선 · 진행 표시 테마 | `test/core/theme/app_theme_test.dart` | 없음 — group `아래 시트 테마` |
+| 삭제 버튼 스타일 도우미가 라이트 · 다크의 `error` · `onError` 를 쓰고 비활성 모양은 위젯 기본에 맡긴다 | `test/core/theme/app_button_styles_test.dart` | 없음 — group `삭제 버튼 스타일` |
+| 큰 버튼 높이 `kPrimaryCtaHeight`(48) | `test/features/auth/presentation/_widgets/primary_cta_test.dart` · `test/features/auth/presentation/verify_email_screen_test.dart` | 없음 — group `PrimaryCta` · `VerifyEmailScreen` 의 높이 시험 |
 | 시맨틱 색의 라이트 · 다크 대비 | `test/core/theme/app_colors_test.dart` | 없음 — group `WCAG AA contrast` |
 | `context.appTypography` 가 로케일별 기하와 override 우선순위를 따른다 | `test/core/theme/theme_extensions_test.dart` | T-03-WR-03 |
 | extension 이 등록되지 않은 테마에서도 기본 토큰을 돌려준다 | `test/core/theme/theme_extensions_test.dart` | T-03-WR-04 |
