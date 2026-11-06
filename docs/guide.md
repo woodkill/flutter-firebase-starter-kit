@@ -1170,30 +1170,32 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ## 디자인 토큰 바꾸기
 
-앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
+앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 화면 폭 분기 · 키보드 포커스 테두리를 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
 
-킷의 디자인 토큰은 **`ThemeExtension` 4종** 이다.
+킷의 디자인 토큰은 **`ThemeExtension` 6종** 이다.
 
 | Extension | 파일 | 담는 것 |
 |---|---|---|
 | `AppColors` | `lib/core/theme/app_colors.dart` | 브랜드 원색 `brand` 와 `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 |
 | `AppTypography` | `lib/core/theme/app_typography.dart` | M3 `TextTheme` 15 스타일의 **override 레이어** |
 | `AppSpacing` | `lib/core/theme/app_spacing.dart` | 4 의 배수 간격 스케일 7단계 |
-| `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 토큰 — `sm` 20 1단계 |
+| `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 6단계(`xs` 16 ~ `xxl` 64) |
+| `AppRadius` | `lib/core/theme/app_radius.dart` | 모서리 둥글기 5단계(Material 3 모양 단계) |
+| `AppOpacity` | `lib/core/theme/app_opacity.dart` | 투명도 — Material 3 상태 · 비활성 값과 킷 가림막 · 비활성 표시 값 |
 
-네 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()` (`lib/core/theme/app_theme.dart`) 이고, 앱이 테마를 넘기는 곳은 `lib/app.dart` 의 `theme: AppTheme.light(seedColor: seed),` / `darkTheme: AppTheme.dark(seedColor: seed),` 두 줄이다.
-- `ColorScheme` 은 시드 색 하나에서 `ColorScheme.fromSeed` 로 파생되고, extension 4종은 `AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()` · `const AppIconSizes()` 순서로 등록된다.
+여섯 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()` (`lib/core/theme/app_theme.dart`) 이고, 앱이 테마를 넘기는 곳은 `lib/app.dart` 의 `theme: AppTheme.light(seedColor: seed),` / `darkTheme: AppTheme.dark(seedColor: seed),` 두 줄이다.
+- `ColorScheme` 은 시드 색 하나에서 `ColorScheme.fromSeed` 로 파생되고, extension 6종은 `AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()` · `const AppIconSizes()` · `const AppRadius()` · `const AppOpacity()` 순서로 등록된다.
 
 이 밖에 반응형은 `AppBreakpoint` + `ResponsiveX`
 (`lib/core/theme/app_breakpoint.dart`) 가, 키보드 focus outline 은
 `BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 가 맡는다.
 
 앱 코드는 `ThemeX` extension(`lib/core/theme/theme_extensions.dart`) 의
-**여섯 getter** 로 토큰을 읽는다.
+**여덟 getter** 로 토큰을 읽는다.
 
 | getter | 반환 | extension 미등록 테마에서의 동작 |
 |---|---|---|
@@ -1201,15 +1203,18 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 | `context.appTypography` | `AppTypography` (합성 결과) | 테마 `textTheme` 기하를 그대로 반영 |
 | `context.appSpacing` | `AppSpacing` | `const AppSpacing()` 으로 폴백 |
 | `context.appIconSizes` | `AppIconSizes` | `const AppIconSizes()` 으로 폴백 |
+| `context.appRadius` | `AppRadius` | `const AppRadius()` 으로 폴백 |
+| `context.appOpacity` | `AppOpacity` | `const AppOpacity()` 으로 폴백 |
 | `context.colorScheme` | `ColorScheme` | `Theme.of` 직통 |
 | `context.textTheme` | `TextTheme` | `Theme.of` 직통 — **extension override 미반영** |
 
-네 토큰 getter 는 extension 이 등록되지 않은 테마에서도 기본 토큰으로 폴백하므로,
+여섯 토큰 getter 는 extension 이 등록되지 않은 테마에서도 기본 토큰으로 폴백하므로,
 자체 `ThemeData` 를 쓰거나 위젯 테스트에서 맨몸 `MaterialApp()` 을 써도 크래시하지
 않는다.
 
 소셜 로그인 버튼(`lib/features/auth/presentation/_widgets/branded_social_button.dart`)은 앱 테마의 색 · 글자 스타일을 읽지 않는다 — 디자인 토큰을 바꿔도 버튼 외관은 그대로다.
 - 버튼 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) 같은 파일 상단 상수는 여섯 provider 버튼이 함께 쓰는 공통 골격이고 각 provider 의 브랜드 가이드에 맞춘 값이라, 디자인 토큰 작업에서는 고치지 않는다.
+- `AppRadius` · `AppOpacity` 를 바꿔도 버튼 모서리(`kBrandButtonRadius`) · 비활성 투명도는 그대로다.
 
 ### 1. 시드 컬러 교체 — M3 팔레트 전체 전환
 
@@ -1272,12 +1277,14 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - `lib/app.dart` 의 `theme:` 줄에서 `AppTheme.light(seedColor: seed)` 뒤에 `copyWith` 를 붙인다(다크도 같은 꼴로 `Brightness.dark` 를 쓴다).
 
 ```dart
-// 타이포그래피 부분 override — extensions 리스트에 4종을 모두 넣는다.
+// 타이포그래피 부분 override — extensions 리스트에 6종을 모두 넣는다.
 theme: AppTheme.light(seedColor: seed).copyWith(
   extensions: <ThemeExtension<dynamic>>[
     AppColors.fromBrightness(Brightness.light),
     const AppSpacing(),
     const AppIconSizes(),
+    const AppRadius(),
+    const AppOpacity(),
     AppTypography.empty.copyWith(
       bodyMedium: const TextStyle(fontSize: 15, height: 1.5),
       titleLarge: const TextStyle(fontWeight: FontWeight.w700),
@@ -1287,19 +1294,21 @@ theme: AppTheme.light(seedColor: seed).copyWith(
 ```
 
 `lib/app.dart` 는 extension 파일을 import 하지 않는다.
-- 위 코드와 3번의 코드를 넣을 때 파일 맨 위 `import 'core/theme/app_theme.dart';` 옆에 아래 네 줄을 더한다.
+- 위 코드와 3번의 코드를 넣을 때 파일 맨 위 `import 'core/theme/app_theme.dart';` 옆에 아래 여섯 줄을 더한다.
 
 ```dart
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_icon_sizes.dart';
+import 'core/theme/app_opacity.dart';
+import 'core/theme/app_radius.dart';
 import 'core/theme/app_spacing.dart';
 import 'core/theme/app_typography.dart';
 ```
 
 > ⚠ **`ThemeData.copyWith(extensions:)` 는 기존 extension map 을 통째로 교체한다** (병합하지 않는다).
-> - 위 리스트에서 `AppTypography` 만 넘기면 `AppColors` · `AppSpacing` · `AppIconSizes` 가 **등록에서 사라진다**.
-> - `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, `copyWith` 로 조정해 둔 색 · 간격 값이 조용히 기본 토큰으로 돌아간다.
-> - **항상 네 원소를 모두 나열한다.**
+> - 위 리스트에서 `AppTypography` 만 넘기면 `AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` 가 **등록에서 사라진다**.
+> - `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, `copyWith` 로 조정해 둔 색 · 간격 · 아이콘 크기 · 둥글기 · 투명도 값이 조용히 기본 토큰으로 돌아간다.
+> - **항상 여섯 원소를 모두 나열한다.**
 
 `copyWith` 에 넘길 수 있는 인자는 M3 15 스타일과 같은 이름이다 — `displayLarge` / `displayMedium` / `displaySmall` / `headlineLarge` / `headlineMedium` / `headlineSmall` / `titleLarge` / `titleMedium` / `titleSmall` / `bodyLarge` / `bodyMedium` / `bodySmall` / `labelLarge` / `labelMedium` / `labelSmall`.
 - 지정하지 않은 속성은 `TextStyle.merge` 로 테마 값이 유지되므로, `fontSize` 만 바꾸고 `fontWeight` 는 테마를 따르는 부분 override 를 할 수 있다.
@@ -1328,19 +1337,56 @@ AppColors.fromBrightness(Brightness.light)
 `const AppSpacing()` 이 기본값이고, `const AppSpacing().copyWith(md: 16)` 처럼
 개별 단계만 조정한다.
 
-**`AppIconSizes`** 는 아이콘 크기 토큰이다.
-- `sm` = 20(본문 줄과 나란히 놓이는 인라인 아이콘 — 공용 `ErrorBanner` 의 `error_outline`) 1단계만 둔다.
-- 기본 아이콘 크기 24 는 `IconThemeData` 가 정하므로 토큰을 두지 않고 `size` 를 생략한다.
-- `const AppIconSizes().copyWith(sm: 18)` 처럼 조정하면 오류 배너 아이콘이 함께 바뀐다.
-- 로그인 · 인증 화면 일부 아이콘은 크기를 숫자로 정해 이 토큰을 따르지 않는다.
+**`AppIconSizes`** 는 아이콘 크기 토큰 6단계다.
 
-세 extension(`AppColors` · `AppSpacing` · `AppIconSizes`) 모두 위 2번의
+| 토큰 | 값 (dp) | 킷이 쓰는 곳 |
+|---|---|---|
+| `xs` | 16 | 메일 확인 화면 안내 줄 |
+| `sm` | 20 | 오류 · 완료 배너 |
+| `md` | 24 | 킷 화면은 쓰지 않는다 |
+| `lg` | 32 | 데모 환경 카드 |
+| `xl` | 48 | 메일 확인 화면 머리 |
+| `xxl` | 64 | 404 화면 |
+
+- `md` 24 는 `IconThemeData` 기본 크기와 같은 값이다.
+  - `md` 를 바꿔도 `size` 를 생략한 아이콘은 그대로다 — 테마 기본 크기까지 바꾸려면 `ThemeData` 의 `iconTheme` 를 바꾼다.
+- `const AppIconSizes().copyWith(sm: 18)` 처럼 개별 단계만 조정한다.
+
+**`AppRadius`** 는 모서리 둥글기 토큰 5단계다 — 값은 Material 3 모양 단계와 같다.
+
+| 토큰 | 값 (dp) | Material 3 이름 | 킷이 쓰는 곳 |
+|---|---|---|---|
+| `xs` | 4 | extraSmall | 약관 동의 배지 |
+| `sm` | 8 | small | 오류 배너 · 안내 상자 |
+| `md` | 12 | medium | 킷 화면은 쓰지 않는다 |
+| `lg` | 16 | large | 킷 화면은 쓰지 않는다 |
+| `xl` | 28 | extraLarge | 아래 시트 위 모서리 |
+
+- 완전히 둥근 모양(알약 꼴)은 토큰 대신 `StadiumBorder` 를 쓴다.
+- 모서리는 간격 토큰과 따로다 — `AppSpacing` 을 바꿔도 모서리는 그대로다.
+
+**`AppOpacity`** 는 투명도 토큰이다.
+
+| 토큰 | 값 | 뜻 |
+|---|---|---|
+| `hover` | 0.08 | Material 3 상태 레이어 — 마우스를 올림 |
+| `focus` | 0.1 | Material 3 상태 레이어 — 포커스 |
+| `pressed` | 0.1 | Material 3 상태 레이어 — 누르는 중 |
+| `dragged` | 0.16 | Material 3 상태 레이어 — 끄는 중 |
+| `disabled` | 0.38 | 비활성 글자 · 아이콘 |
+| `disabledContainer` | 0.12 | 비활성 바탕 · 외곽선 |
+| `scrim` | 0.32 | 킷 가림막(로그인 진행 화면) |
+| `inactive` | 0.3 | 킷 비활성 표시(온보딩에서 현재 페이지가 아닌 점) |
+
+- 킷 화면이 쓰는 값은 `scrim` · `inactive` 둘이고, 나머지는 직접 만드는 위젯에 쓰는 Material 3 값이다.
+
+다섯 extension(`AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity`) 모두 위 2번의
 `extensions:` 리스트에 함께 넣어 등록한다.
 
-- **네 extension 은 모든 필드로 `==` / `hashCode` 를 비교한다.**
+- **여섯 extension 은 모든 필드로 `==` / `hashCode` 를 비교한다.**
   - 그래서 `lib/app.dart` 처럼 `build` 안에서 테마를 매번 새로 만들어도 `ThemeData` 가 같다고 판정되고, `copyWith` 로 바꾼 테마도 App 을 다시 그릴 때마다 테마 전환 애니메이션이 다시 돌지 않는다.
   - 직접 extension 을 더 만들 때도 `==` / `hashCode` 를 모든 필드로 구현한다.
-- **extension 이 등록되지 않은 테마에서도 네 토큰 getter 는 크래시하지 않는다.**
+- **extension 이 등록되지 않은 테마에서도 여섯 토큰 getter 는 크래시하지 않는다.**
   - `AppTheme` 을 쓰지 않고 자체 `ThemeData` 를 만들거나 위젯 테스트가 맨몸 `MaterialApp()` 을 써도 기본 토큰으로 폴백한다.
 
 ### 4. 반응형 breakpoint 계약
@@ -1494,8 +1540,8 @@ LayoutBuilder(
 - **글자가 기본 스타일로 나온다.**
   - `Theme.of(context).extension<AppTypography>()` 를 직접 읽으면 등록된 `AppTypography.empty` 의 빈 스타일이 돌아온다.
   - 완성된 스타일은 `context.appTypography` 로만 얻는다.
-- **`copyWith` 로 바꾼 색 · 간격이 기본값으로 돌아갔다.**
-  - `copyWith(extensions:)` 는 map 을 통째로 교체하므로 `AppColors` · `AppTypography` · `AppSpacing` · `AppIconSizes` 넷을 항상 함께 나열한다.
+- **`copyWith` 로 바꾼 색 · 간격 · 둥글기 · 투명도가 기본값으로 돌아갔다.**
+  - `copyWith(extensions:)` 는 map 을 통째로 교체하므로 `AppColors` · `AppTypography` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` 여섯을 항상 함께 나열한다.
 - **가로 모드 · 큰 화면에서 레이아웃이 674dp 로 잘린다.**
   - `AppBreakpoint.maxWidth` 를 가용 폭으로 썼다.
   - 레이아웃 계산에는 `LayoutBuilder` 의 `constraints.maxWidth` 를 쓴다.
