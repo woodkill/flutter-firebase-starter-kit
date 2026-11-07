@@ -1,0 +1,393 @@
+// 디자인 리터럴 소스 스캔 가드 — 실제 `lib/` 의 리터럴 0 건 · 표시 주석 총수 고정 ·
+// 문자열 표본으로 패턴마다 RED 와 표시 통과를 고정한다.
+//
+// 스캔 범위 · 패턴 · 표시 규칙은 `test/helpers/design_literal_scan.dart` 에 있다.
+// 사용 가이드 「디자인 토큰 바꾸기」 의 표 「쓰지 않는 것」 열이 그 패턴 이름과
+// 1:1 이다.
+//
+// T-24-SCAN-01: 스캔 대상 파일마다 디자인 리터럴이 0 건이다.
+// T-24-SCAN-02: 스캔 대상의 표시 주석 총수가 [_designLiteralMarkerCount] 다.
+// T-24-SCAN-03: 스캔 대상 수집 · 제외 규칙 · Duration 범위 규칙의 표본.
+// T-24-SCAN-04: 패턴마다 둘째 줄 리터럴 표본이 그 줄 · 그 이름 하나로 걸린다.
+// T-24-SCAN-05: 리터럴 바로 윗줄의 이유 있는 표시만 통과시킨다.
+// T-24-SCAN-06: 여러 줄 호출은 숫자가 있는 인자 줄로 알리고 줄 번호가 밀리지 않는다.
+// T-24-SCAN-07: Duration 은 화면 · 공용 폴더에서 표시된 이름 붙인 선언만 통과한다.
+// T-24-SCAN-08: 토큰 · 주석 · 색 파서 꼴 같은 음성 표본은 0 건이다.
+//
+// **표시를 더하거나 지우면 상수를 고친다** — 앱 코드에 표시 주석을 하나 더하면
+// [_designLiteralMarkerCount] 를 올리고, 표시가 있는 파일을 지우면(데모 화면
+// 지우기 포함) 내린다. 늘어난 수가 리뷰에 드러나게 하려는 상수다.
+//
+// 표본은 이 파일 안 문자열이다 — `test/` 는 스캔 범위 밖이라 표본 리터럴이 이
+// 가드에 걸리지 않는다.
+
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/design_literal_scan.dart';
+
+/// 스캔 대상 `lib/` 의 표시 주석 총수다.
+const int _designLiteralMarkerCount = 14;
+
+/// 스캔 대상 수의 하한 — 수집기가 빈 목록으로 공허하게 통과하지 않게 한다.
+const int _minScanTargetCount = 100;
+
+/// 화면 폴더 표본 경로 — 모든 패턴(Duration 포함)을 본다.
+const String _presentationPath =
+    'lib/features/sample/presentation/sample_screen.dart';
+
+/// data 폴더 표본 경로 — Duration 패턴은 보지 않는다.
+const String _dataPath = 'lib/features/sample/data/sample_repository.dart';
+
+/// 이유가 있는 표시 주석 표본이다.
+const String _marker = '  // design-literal: 시험용 이유';
+
+/// 이유가 없는 표시 주석 표본 — 표시로 치지 않는다.
+const String _reasonlessMarker = '  // design-literal:';
+
+/// 패턴 이름마다 그 패턴 하나에만 걸리는 리터럴 줄이다.
+const Map<String, String> _literalLines = <String, String>{
+  'material-colors': '  final Object value = Colors.red;',
+  'color-hex': '  final Object value = Color(0xFF112233);',
+  'color-from-components':
+      '  final Object value = Color.fromRGBO(1, 2, 3, 0.5);',
+  'font-size-number': '  final Object value = base.copyWith(fontSize: 14);',
+  'font-weight-literal':
+      '  final Object value = base.copyWith(fontWeight: FontWeight.w500);',
+  'text-style-constructor': '  final Object value = TextStyle(color: color);',
+  'edge-insets-number': '  final Object value = EdgeInsets.all(8);',
+  'gap-number': '  final Object value = Gap(8);',
+  'radius-number': '  final Object value = BorderRadius.circular(8);',
+  'icon-size-number': '  final Object value = Icon(icon, size: 24);',
+  'alpha-number': '  final Object value = color.withValues(alpha: 0.5);',
+  'elevation-number': '  final Object value = Material(elevation: 2);',
+  'duration-literal': '  static const Duration value = Duration(seconds: 2);',
+  'curves-literal': '  final Object value = Curves.easeIn;',
+  'border-width-number': '  final Object value = BorderSide(width: 2);',
+  'width-compare-number': '  bool get isWide => width >= 600;',
+  'sized-box-number': '  final Object value = SizedBox(width: 20);',
+  'spacing-as-size':
+      '  final Object value = SizedBox.square(dimension: spacing.xl);',
+  'stroke-width-number':
+      '  final Object value = CircularProgressIndicator(strokeWidth: 2);',
+  'ratio-literal': '  final double value = size.height * 0.9;',
+};
+
+/// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
+///
+/// [body] 의 첫 줄이 소스의 둘째 줄이다.
+String _wrapInClass(List<String> body) =>
+    <String>['class Sample {', ...body, '}'].join('\n');
+
+/// 화면 폴더 표본 경로의 위반 한 줄을 만든다.
+String _presentationHit(int line, String name) =>
+    '$_presentationPath:$line — $name';
+
+void main() {
+  group('실제 lib 스캔', () {
+    test('T-24-SCAN-01: 스캔 대상 파일마다 디자인 리터럴이 0 건이다', () {
+      final violations = <String>[];
+      for (final String path in collectDesignLiteralScanPaths()) {
+        final String source = File(path).readAsStringSync();
+        violations.addAll(findDesignLiteralHits(path, source));
+      }
+      expect(
+        violations,
+        isEmpty,
+        reason:
+            '${violations.join('\n')}\n'
+            '토큰 getter · SDK 상수로 바꾸거나, 한 컴포넌트만의 치수면 바로 윗줄에 '
+            '`// design-literal: <이유>` 를 달고 `_designLiteralMarkerCount` 를 '
+            '올린다 — docs/guide.md 「디자인 토큰 바꾸기」',
+      );
+    });
+
+    test('T-24-SCAN-02: 스캔 대상의 표시 주석 총수가 고정 상수와 같다', () {
+      var total = 0;
+      for (final String path in collectDesignLiteralScanPaths()) {
+        total += countDesignLiteralMarkers(File(path).readAsStringSync());
+      }
+      expect(
+        total,
+        _designLiteralMarkerCount,
+        reason: '표시를 더했으면 상수를 올리고, 지웠으면(데모 지우기 포함) 내린다',
+      );
+    });
+
+    test('T-24-SCAN-03: 수집 대상 · 제외 규칙 · Duration 범위 표본', () {
+      final List<String> paths = collectDesignLiteralScanPaths();
+      expect(paths.length, greaterThanOrEqualTo(_minScanTargetCount));
+      expect(paths, contains('lib/main.dart'));
+      expect(
+        paths,
+        contains('lib/shared/widgets/small_progress_indicator.dart'),
+      );
+      expect(paths, isNot(contains('lib/app.dart')));
+      expect(
+        paths,
+        isNot(
+          contains(
+            'lib/features/auth/presentation/_widgets/branded_social_button.dart',
+          ),
+        ),
+      );
+      expect(
+        paths.where((String path) => path.startsWith('lib/core/theme/')),
+        isEmpty,
+      );
+      expect(
+        paths.where((String path) => path.startsWith('lib/l10n/generated/')),
+        isEmpty,
+      );
+      expect(paths, orderedEquals(List<String>.of(paths)..sort()));
+
+      const nonTargets = <String>[
+        'lib/app.dart',
+        'lib/a/b.g.dart',
+        'lib/a/b.freezed.dart',
+        'lib/a/b.gr.dart',
+        'lib/a/b.gen.dart',
+        'test/a.dart',
+        'lib/a/b.txt',
+      ];
+      for (final path in nonTargets) {
+        expect(isDesignLiteralScanTarget(path), isFalse, reason: path);
+      }
+      expect(isDesignLiteralScanTarget('lib/a/b.dart'), isTrue);
+
+      expect(isDurationScopePath('lib/shared/x.dart'), isTrue);
+      expect(isDurationScopePath('lib/features/a/presentation/x.dart'), isTrue);
+      expect(isDurationScopePath('lib/features/a/data/x.dart'), isFalse);
+      expect(isDurationScopePath('lib/features/a/application/x.dart'), isFalse);
+    });
+  });
+
+  group('패턴별 표본', () {
+    test('T-24-SCAN-04: 표본 이름 집합이 패턴 이름 집합(20)과 같다', () {
+      final Set<String> patternNames = kDesignLiteralPatterns
+          .map((DesignLiteralPattern pattern) => pattern.name)
+          .toSet();
+      expect(patternNames, hasLength(20));
+      expect(_literalLines.keys.toSet(), equals(patternNames));
+    });
+
+    for (final MapEntry<String, String> entry in _literalLines.entries) {
+      test('T-24-SCAN-04: ${entry.key} 표본은 둘째 줄 · 그 이름 하나로 걸린다', () {
+        expect(
+          findDesignLiteralHits(
+            _presentationPath,
+            _wrapInClass(<String>[entry.value]),
+          ),
+          equals(<String>[_presentationHit(2, entry.key)]),
+        );
+      });
+
+      test('T-24-SCAN-05: ${entry.key} 표본은 바로 윗줄 이유 있는 표시만 통과한다', () {
+        expect(
+          findDesignLiteralHits(
+            _presentationPath,
+            _wrapInClass(<String>[_marker, entry.value]),
+          ),
+          isEmpty,
+        );
+        expect(
+          findDesignLiteralHits(
+            _presentationPath,
+            _wrapInClass(<String>[_reasonlessMarker, entry.value]),
+          ),
+          equals(<String>[_presentationHit(3, entry.key)]),
+        );
+        expect(
+          findDesignLiteralHits(
+            _presentationPath,
+            _wrapInClass(<String>[_marker, '', entry.value]),
+          ),
+          equals(<String>[_presentationHit(4, entry.key)]),
+        );
+      });
+    }
+
+    test('T-24-SCAN-05: 표시 수는 이유가 있는 표시 줄만 센다', () {
+      const source = <String>[
+        '// design-literal: 이유 하나',
+        '    // design-literal: 들여 쓴 이유',
+        '// design-literal:',
+        '// design-literal:  ',
+        '/// design-literal: 문서 주석은 표시가 아니다',
+        'final a = 1; // design-literal: 줄 끝 주석은 표시가 아니다',
+      ];
+      expect(countDesignLiteralMarkers(source.join('\n')), 2);
+    });
+  });
+
+  group('여러 줄 · 줄 번호', () {
+    const constraintsLines = <String>[
+      'BoxConstraints(',
+      '  maxHeight: size.height * 0.9,',
+      ')',
+    ];
+
+    test('T-24-SCAN-06: 여러 줄 호출은 숫자가 있는 인자 줄로 알린다', () {
+      expect(
+        findDesignLiteralHits(_presentationPath, constraintsLines.join('\n')),
+        equals(<String>[_presentationHit(2, 'ratio-literal')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[
+            constraintsLines[0],
+            _marker,
+            ...constraintsLines.skip(1),
+          ].join('\n'),
+        ),
+        isEmpty,
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[_marker, ...constraintsLines].join('\n'),
+        ),
+        equals(<String>[_presentationHit(3, 'ratio-literal')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'SizedBox.square(\n  dimension: spacing.xl,\n)',
+        ),
+        equals(<String>[_presentationHit(2, 'spacing-as-size')]),
+      );
+      expect(
+        findDesignLiteralHits(_presentationPath, 'SizedBox(\n  width: 20,\n)'),
+        equals(<String>[_presentationHit(2, 'sized-box-number')]),
+      );
+    });
+
+    test('T-24-SCAN-06: 주석을 지워도 줄 번호가 밀리지 않는다', () {
+      const source = <String>[
+        '/* 여러 줄',
+        '   블록 주석 */',
+        '/// 문서 주석 줄',
+        '// 경로 꼴 `terms/*` 를 담은 행 주석',
+        'final Object value = Gap(8);',
+        '// 닫는 꼴 */ 을 담은 행 주석',
+      ];
+      expect(
+        findDesignLiteralHits(_presentationPath, source.join('\n')),
+        equals(<String>[_presentationHit(5, 'gap-number')]),
+      );
+    });
+
+    test('T-24-SCAN-06: 한 줄의 같은 패턴은 한 번 · 여러 패턴은 패턴 순으로 낸다', () {
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'final Object a = Gap(8);\n'
+          'final Object b = Colors.red.withValues(alpha: 0.5); '
+          'final Object c = Colors.blue;',
+        ),
+        equals(<String>[
+          _presentationHit(1, 'gap-number'),
+          _presentationHit(2, 'material-colors'),
+          _presentationHit(2, 'alpha-number'),
+        ]),
+      );
+    });
+  });
+
+  group('Duration', () {
+    const inlineTimer = '  Timer(const Duration(seconds: 2), () {});';
+
+    test('T-24-SCAN-07: 인라인 Duration 은 표시가 있어도 걸린다', () {
+      expect(
+        findDesignLiteralHits(_presentationPath, inlineTimer),
+        equals(<String>[_presentationHit(1, 'duration-literal')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[_marker, inlineTimer].join('\n'),
+        ),
+        equals(<String>[_presentationHit(2, 'duration-literal')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[
+            _marker,
+            '  AnimatedOpacity(duration: const Duration(milliseconds: 200));',
+          ].join('\n'),
+        ),
+        equals(<String>[_presentationHit(2, 'duration-literal')]),
+      );
+    });
+
+    test('T-24-SCAN-07: 표시 없는 이름 붙인 선언은 걸리고 표시된 선언은 통과한다', () {
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          '  static const Duration _kA = Duration(seconds: 2);',
+        ),
+        equals(<String>[_presentationHit(1, 'duration-literal')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[
+            _marker,
+            '  static const Duration _kA = Duration(seconds: 2);',
+            '// design-literal: 시험용 이유',
+            'const Duration _kB = Duration(seconds: 1);',
+            _marker,
+            '  static const Duration _kC =',
+            '      Duration(milliseconds: 300);',
+          ].join('\n'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('T-24-SCAN-07: data 폴더 Duration · Durations 토큰은 대상 밖이다', () {
+      expect(findDesignLiteralHits(_dataPath, inlineTimer), isEmpty);
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          '  duration: Durations.medium2,',
+        ),
+        isEmpty,
+      );
+      expect(
+        findDesignLiteralHits(_dataPath, 'final Object a = EdgeInsets.all(8);'),
+        equals(<String>['$_dataPath:1 — edge-insets-number']),
+      );
+    });
+  });
+
+  group('음성 표본', () {
+    test('T-24-SCAN-08: 토큰 · 주석 · 색 파서 꼴은 0 건이다', () {
+      const negatives = <String>[
+        'final Object a = EdgeInsets.all(spacing.md);',
+        'final Object a = Gap(spacing.sm);',
+        'final Object a = BorderRadius.circular(context.appRadius.sm);',
+        'final Object a = context.appColors.success;',
+        'final Object a = AppColors.fromBrightness(Brightness.light);',
+        'final Object a = Color(0xFF000000 | value);',
+        'final Object a = EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm);',
+        'final Object a = Durations.short4;',
+        'const double _kLogoSize = 40;',
+        '// Colors.red',
+        '/// Duration(seconds: 2)',
+        '/* fontSize: 14 */',
+        'final Object a = Gap(spacing.sm); /* Colors.red */',
+      ];
+      for (final source in negatives) {
+        expect(
+          findDesignLiteralHits(_presentationPath, source),
+          isEmpty,
+          reason: source,
+        );
+      }
+    });
+  });
+}
