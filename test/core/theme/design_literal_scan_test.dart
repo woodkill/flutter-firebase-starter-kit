@@ -205,6 +205,18 @@ String _collapsedLeading(String source) {
   );
 }
 
+/// 앞 인자 끝에 코드와 붙은 여러 줄 블록 주석 `/*\n*/` 을 둔 `EdgeInsets.only`
+/// 호출을 만든다.
+///
+/// 가드가 세는 텍스트는 [findDesignLiteralHits] 순서 2 · 3 을 거친 것이라 주석
+/// 자리에 한 칸이 남는다 — 여는 괄호 바로 뒤부터 숫자 인자 `top: 8` 앞 쉼표
+/// 직전까지가 그 한 칸을 넣어 [collapsedLength] 자다. 숫자 인자는 둘째 줄이다.
+String _callWithAttachedBlockComment(int collapsedLength) {
+  const leading = 'left: ';
+  final int filler = collapsedLength - leading.length - ' '.length;
+  return 'EdgeInsets.only($leading${'a' * filler}/*\n*/, top: 8)';
+}
+
 /// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
 ///
 /// [body] 의 첫 줄이 소스의 둘째 줄이다.
@@ -467,6 +479,27 @@ void main() {
       expect(leading.length, 401);
       expect(findDesignLiteralHits(_presentationPath, source), isEmpty);
     });
+
+    test(
+      'T-24-SCAN-04: 앞 인자 끝에 붙은 여러 줄 블록 주석은 줄바꿈 한 칸으로 세어 400자면 그 뒤 숫자 인자를 잡는다',
+      () {
+        final String source = _callWithAttachedBlockComment(400);
+        expect(source, contains('a/*\n*/,'));
+        expect(
+          findDesignLiteralHits(_presentationPath, source),
+          equals(<String>[_presentationHit(2, 'edge-insets-number')]),
+        );
+      },
+    );
+
+    test(
+      'T-24-SCAN-04: 앞 인자 끝에 붙은 여러 줄 블록 주석은 줄바꿈 한 칸으로 세어 401자면 그 뒤 숫자 인자를 보지 않는다',
+      () {
+        final String source = _callWithAttachedBlockComment(401);
+        expect(source, contains('a/*\n*/,'));
+        expect(findDesignLiteralHits(_presentationPath, source), isEmpty);
+      },
+    );
 
     test('T-24-SCAN-04: 알려진 빈틈 — 가드가 보지 못하는 꼴은 지금 0 건이다', () {
       for (final source in _knownGapLines) {
