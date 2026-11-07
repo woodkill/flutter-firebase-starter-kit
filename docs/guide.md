@@ -1368,7 +1368,7 @@ darkTheme: AppTheme.dark(seedColor: seed, contrastLevel: 0.5),
    - 킷 테마는 시드 하나에서 팔레트를 다시 만들므로 기기 팔레트와 똑같지는 않다.
 
 - 기기 색은 Android 12 이상에서만 오고, 그 밖의 기기(iOS 포함)에서는 `null` 이라 킷 시드 팔레트를 쓴다.
-- 기기 색을 써도 `context.appColors.brand` · 알림 색 · `kit` 모드 메일 · 결과 페이지는 config `brandColor` 그대로라 기기 색과 어긋난다.
+- 기기 색을 쓰면 `context.appColors.brand` 도 기기 색이 되지만, 알림 색 · `kit` 모드 메일 · 결과 페이지는 config `brandColor` 그대로라 기기 색과 어긋난다.
   - 어긋나지 않게 하려면 이 소절을 쓰지 않고 `brandColor` 를 브랜드 색으로 둔다.
 - 위젯 시험 · golden 시험 환경에서는 기기 색이 오지 않아 킷 시드로 그린다.
   - 기기 색은 Android 12 이상 기기에서 앱을 실행해 확인한다.
