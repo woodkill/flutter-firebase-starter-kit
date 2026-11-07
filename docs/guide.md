@@ -1337,7 +1337,7 @@ darkTheme: AppTheme.dark(seedColor: seed, contrastLevel: 0.5),
 - 라이트와 다크에 같은 값을 넘긴다.
   - 시드처럼 두 모드에 다른 값을 넘기면 팔레트가 어긋난다.
 - `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄은 같은 시드의 대비 1.0 팔레트다.
-  - iOS 등 일부 플랫폼이 접근성 설정으로 대비를 높이면 앱이 이 두 테마를 쓴다.
+  - iOS 13 이상 · Android 14(API 34) 이상에서 OS 의 대비 설정을 높이면 앱이 이 두 테마를 쓴다.
   - 테마 줄(`theme:` · `darkTheme:`)에 `copyWith` 를 붙였다면 고대비 두 줄에도 같은 `copyWith` 를 붙인다 — 붙이지 않으면 대비를 높인 기기에서 바꾼 값이 빠진다.
 - `context.appColors` 의 `success` · `warning` · `info` 와 그 `on-` 짝은 대비 단계를 따르지 않는다.
   - 대비를 높인 테마에서도 같은 색이다. 바꾸려면 고대비 두 줄의 `copyWith(extensions:)` 에 3번의 `AppColors` 를 따로 넣는다.
@@ -2691,7 +2691,7 @@ bash scripts/deploy_functions.sh dev --apply
 | 삭제 · 로그아웃 버튼 색 | `lib/core/theme/app_button_styles.dart` 의 도우미 — 같은 7번 |
 | 큰 버튼 높이 | `lib/features/auth/presentation/_widgets/primary_cta.dart` 의 `kPrimaryCtaHeight` — 같은 7번 |
 | 그림자 높이(elevation) 단계 | `lib/core/theme/app_elevation.dart` 의 기본값 또는 `copyWith(extensions:)` 의 `const AppElevation().copyWith(…)` — [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 3번 |
-| 고대비 테마 | `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄 — 같은 1번 끝 소절 |
+| 고대비 테마 | `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄 — 같은 1번의 「대비 단계 · 색 변형 · 고대비 테마」 소절 |
 | 화면 폭 단계 | `lib/core/theme/app_breakpoint.dart` 의 `AppBreakpoint` — 같은 4번 |
 | 깨진 화면 대체 문구 | ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`(바꾸면 그 위젯의 golden 그림이 바뀐다) |
 | 시험 알림 끄기 · 함수 빼기 | [알림 시험 발송](#알림-시험-발송) 의 「끄기」 · [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법) 의 지우는 법 |

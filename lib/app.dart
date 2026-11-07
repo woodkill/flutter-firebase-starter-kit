@@ -66,7 +66,8 @@ class App extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(seedColor: seed),
       darkTheme: AppTheme.dark(seedColor: seed),
-      // iOS 등 일부 플랫폼이 접근성 설정으로 대비 증가를 요청하면 같은 시드의 대비 1.0 팔레트를 쓴다.
+      // iOS 13 이상 · Android 14(API 34) 이상에서 OS 의 대비 설정을 높이면
+      // 같은 시드의 대비 1.0 팔레트를 쓴다.
       // 대비 값은 SDK 문서의 -1.0 ~ 1.0 꼴 그대로 소수로 적는다.
       // ignore: prefer_int_literals
       highContrastTheme: AppTheme.light(seedColor: seed, contrastLevel: 1.0),
