@@ -59,11 +59,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   static const int _lastPage = _slideCount - 1;
 
-  /// 슬라이드 전환 지속시간 (IN-06 — `_handleCta` / `_handleSkip` 공유).
-  ///
-  /// 두 곳에 리터럴로 중복되어 있어 한쪽만 바꾸면 전환 체감이 어긋났다.
-  static const Duration _kPageTransition = Duration(milliseconds: 300);
-
   bool get _isLastPage => _currentPage == _lastPage;
   bool get _requiredChecked => _service && _privacy;
 
@@ -79,8 +74,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Future<void> _handleCta() async {
     if (!_isLastPage) {
       await _pageController.nextPage(
-        duration: _kPageTransition,
-        curve: Curves.easeOut,
+        duration: Durations.medium2,
+        curve: Easing.standard,
       );
       return;
     }
@@ -186,8 +181,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void _handleSkip() {
     _pageController.animateToPage(
       _lastPage,
-      duration: _kPageTransition,
-      curve: Curves.easeOut,
+      duration: Durations.medium2,
+      curve: Easing.standard,
     );
   }
 
@@ -231,8 +226,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
+        // design-literal: 온보딩 AppBar 는 색 없이 화면 배경을 그대로 비춘다 — 색 토큰 자리가 아니다
         backgroundColor: Colors.transparent,
-        elevation: 0,
         actions: [
           if (!_isLastPage)
             TextButton(

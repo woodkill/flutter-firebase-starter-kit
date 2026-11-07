@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/_widgets/primary_cta.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/small_progress_indicator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 단일 PrimaryCta 를 영문 로케일로 pump 하는 헬퍼.
@@ -44,6 +46,26 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       final btn = tester.widget<FilledButton>(find.byType(FilledButton));
       expect(btn.onPressed, isNull);
+    });
+
+    testWidgets('T-24-LIT-03: 로딩 스피너는 공용 작은 진행 표시(지름 sm · onPrimary)다', (
+      tester,
+    ) async {
+      await pumpCta(tester, isLoading: true, onPressed: () {});
+
+      final indicatorFinder = find.byType(SmallProgressIndicator);
+      expect(indicatorFinder, findsOneWidget);
+      final indicator = tester.widget<SmallProgressIndicator>(indicatorFinder);
+      final ctaContext = tester.element(indicatorFinder);
+      expect(indicator.dimension, const AppIconSizes().sm);
+      expect(indicator.color, Theme.of(ctaContext).colorScheme.onPrimary);
+      final progress = tester.widget<CircularProgressIndicator>(
+        find.descendant(
+          of: indicatorFinder,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+      );
+      expect(progress.strokeWidth, 2);
     });
 
     testWidgets('onPressed=null 이면 disabled', (tester) async {

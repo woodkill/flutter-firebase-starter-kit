@@ -14,6 +14,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/small_progress_indicator.dart';
 import 'splash_error_code.dart';
 import 'splash_initializer.dart';
 
@@ -28,6 +29,7 @@ const String _kLogoAsset = 'assets/images/splash/logo.png';
 ///
 /// 디자인 시스템 변경 시 본 값만 갱신하면 정상 표시 + 에러 placeholder
 /// 양쪽이 동기된다.
+// design-literal: 스플래시 로고 한 곳만 쓰는 크기라 토큰이 아니다
 const double _kLogoSize = 128;
 
 /// SplashScreen State 수명당 보류 재초기화 최대 횟수 (quick 260914-k81).
@@ -500,10 +502,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               ),
               Gap(spacing.xxl),
               if (!_hasFailure)
-                SizedBox.square(
-                  dimension: spacing.xl,
-                  child: const CircularProgressIndicator(strokeWidth: 2),
-                ),
+                SmallProgressIndicator(dimension: context.appIconSizes.md),
               Gap(spacing.sm),
               Text(
                 l10n.splashPreparing,

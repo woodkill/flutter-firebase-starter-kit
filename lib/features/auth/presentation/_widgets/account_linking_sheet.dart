@@ -22,6 +22,10 @@ import '../../data/auth_repository.dart';
 import 'auth_in_progress_overlay.dart';
 import 'branded_social_button.dart';
 
+/// 계정 연결 시트 최대 높이 — 화면 높이에 곱하는 비율.
+// design-literal: 버튼 두 개짜리 계정 연결 시트의 상한이다 — 로그인 안내 시트와 일부러 다르다
+const double _kAccountLinkingMaxHeightFactor = 0.75;
+
 /// step 1 "기존 provider 로 로그인" 결과 override 콜백 시그니처
 /// (Phase 16 Plan 16-19 seam).
 ///
@@ -150,7 +154,9 @@ class AccountLinkingSheet extends ConsumerStatefulWidget {
     return showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      constraints: BoxConstraints(maxHeight: size.height * 0.75),
+      constraints: BoxConstraints(
+        maxHeight: size.height * _kAccountLinkingMaxHeightFactor,
+      ),
       builder: (_) => AccountLinkingSheet(
         existingProvider: existingProvider,
         pendingCredential: pendingCredential,

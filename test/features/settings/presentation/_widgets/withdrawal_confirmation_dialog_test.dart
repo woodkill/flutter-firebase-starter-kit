@@ -35,6 +35,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_starter_kit/core/theme/theme_extensions.dart';
 import 'package:flutter_starter_kit/features/auth/application/session_ending.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -781,5 +782,24 @@ void main() {
         expect(confirmBtn.onPressed, isNotNull);
       },
     );
+  });
+
+  group('경고 줄 스타일', () {
+    testWidgets('T-24-LIT-02: 둘째 줄은 테마 titleMedium 에 오류 색이다', (tester) async {
+      await _pumpAndShowDialog(tester);
+
+      final dialogContext = tester.element(
+        find.byType(WithdrawalConfirmationDialog),
+      );
+      final warningLine = AppLocalizations.of(
+        dialogContext,
+      ).withdrawalDialogBodyLine2;
+      final text = tester.widget<Text>(find.text(warningLine));
+      final expected = dialogContext.appTypography.titleMedium;
+      expect(text.style, isNotNull);
+      expect(text.style!.letterSpacing, expected.letterSpacing);
+      expect(text.style!.fontWeight, expected.fontWeight);
+      expect(text.style!.color, Theme.of(dialogContext).colorScheme.error);
+    });
   });
 }

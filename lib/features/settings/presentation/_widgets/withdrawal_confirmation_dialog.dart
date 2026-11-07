@@ -242,10 +242,7 @@ class _WithdrawalConfirmationDialogState
               Gap(spacing.sm),
               Text(
                 l10n.withdrawalDialogBodyLine2,
-                style: typography.bodyLarge.copyWith(
-                  color: errorColor,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: typography.titleMedium.copyWith(color: errorColor),
               ),
               Gap(spacing.sm),
               Text(

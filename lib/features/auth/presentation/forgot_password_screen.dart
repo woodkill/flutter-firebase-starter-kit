@@ -39,6 +39,10 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
+  /// 메일을 보낸 뒤 화면을 닫기까지 기다리는 시간.
+  // design-literal: 메일을 보낸 뒤 화면을 닫기까지 기다리는 동작 시간이다 — 전환 motion(최대 1초)이 아니다
+  static const Duration _kAutoPopDelay = Duration(seconds: 2);
+
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _emailFocus = FocusNode();
@@ -101,7 +105,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   void _onSuccess() {
     if (!mounted || _sentSuccessfully) return;
     setState(() => _sentSuccessfully = true);
-    _autoPopTimer = Timer(const Duration(seconds: 2), () {
+    _autoPopTimer = Timer(_kAutoPopDelay, () {
       if (!mounted) return;
       final goRouter = GoRouter.maybeOf(context);
       if (goRouter != null) {

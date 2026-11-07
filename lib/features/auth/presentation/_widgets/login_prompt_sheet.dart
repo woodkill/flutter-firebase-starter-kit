@@ -19,19 +19,25 @@ import 'email_auth_cta.dart';
 import 'form_error_banner.dart';
 import 'social_sign_in_section.dart';
 
+/// 로그인 안내 시트 최대 높이 — 화면 높이에 곱하는 비율.
+// design-literal: 로그인 수단 6개와 이메일 버튼이 스크롤 없이 들어가는 시트 상한이다 — 계정 연결 시트와 일부러 다르다
+const double _kLoginPromptMaxHeightFactor = 0.9;
+
 /// 로그인 유도 Bottom Sheet 을 표시한다 (Phase 10 D-10).
 ///
 /// 익명 또는 미인증 사용자가 보호 기능을 탭할 때 [AuthRequired] 가 호출한다.
 /// 손잡이 · 위 모서리 둥글기(`AppRadius.xl`) · 배경은 앱 테마의 아래 시트
 /// 테마(`AppTheme` 의 `bottomSheetTheme`)를 따른다.
-/// 최대 높이는 화면의 90% (quick 260911-0t3 — 0.75 에서 상향). 이는 상한일
-/// 뿐이며, 콘텐츠가 작으면 sheet 는 그보다 낮은 콘텐츠 높이로 줄어든다.
+/// 최대 높이는 화면 높이에 [_kLoginPromptMaxHeightFactor] 를 곱한 값이다.
+/// 이는 상한일 뿐이며, 콘텐츠가 작으면 sheet 는 그보다 낮은 콘텐츠 높이로
+/// 줄어든다.
 Future<void> showLoginPromptSheet(BuildContext context) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.9,
+      maxHeight:
+          MediaQuery.sizeOf(context).height * _kLoginPromptMaxHeightFactor,
     ),
     builder: (_) => const LoginPromptSheet(),
   );

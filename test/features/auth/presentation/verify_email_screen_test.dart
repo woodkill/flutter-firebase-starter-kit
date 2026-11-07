@@ -235,6 +235,29 @@ void main() {
       },
     );
 
+    testWidgets('T-24-LIT-01: 로그아웃 링크 색은 글자 스타일이 아니라 버튼 스타일이 준다', (
+      tester,
+    ) async {
+      await _pumpVerifyEmail(tester);
+
+      final screenContext = tester.element(find.byType(VerifyEmailScreen));
+      final logoutLabel = AppLocalizations.of(
+        screenContext,
+      ).authVerifyEmailLogout;
+      final buttonFinder = find.ancestor(
+        of: find.text(logoutLabel),
+        matching: find.byType(TextButton),
+      );
+      expect(buttonFinder, findsOneWidget);
+      final button = tester.widget<TextButton>(buttonFinder);
+      expect(button.style, isNotNull);
+      expect(
+        button.style!.foregroundColor!.resolve(<WidgetState>{}),
+        Theme.of(screenContext).colorScheme.onSurfaceVariant,
+      );
+      expect((button.child! as Text).style, isNull);
+    });
+
     testWidgets('재전송 버튼은 위 확인 버튼과 같은 큰 버튼 높이다', (tester) async {
       await _pumpVerifyEmail(tester);
 

@@ -20,6 +20,7 @@ import 'profile_avatar.dart';
 import 'profile_photo_sheet.dart';
 
 /// 사진 행 아바타 지름 — [CircleAvatar] 기본 반지름 20 의 2배 (UI-SPEC (P)).
+// design-literal: 계정 화면 사진 행 아바타 한 곳만 쓰는 지름이다
 const double _kAvatarDiameter = 40;
 
 /// 계정 정보 화면 첫 행 — 프로필 사진 (Phase 17 D-18 · UI-SPEC (P) Q2-A).

@@ -38,12 +38,15 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 // (splash_screen.dart 의 `_kLogoSize` 선례).
 
 /// 컬러 스와치 한 변의 길이 (logical pixel, IN-03).
+// design-literal: 색 견본 한 변 — 데모 화면만 쓰는 치수다
 const double _kSwatchSize = 40;
 
 /// 스페이싱 쇼케이스 막대의 높이 (logical pixel, IN-03).
+// design-literal: 간격 막대 높이 — 데모 화면만 쓰는 치수다
 const double _kSpacingBarHeight = 24;
 
 /// photoUrl 썸네일 한 변의 길이 (logical pixel, IN-03).
+// design-literal: 사진 썸네일 한 변 — 데모 화면만 쓰는 치수다
 const double _kThumbnailSize = 48;
 
 /// 개발 · 데모 화면 — release 가 아닌 빌드에서만 등록된다(D-14).

@@ -61,6 +61,7 @@ class AuthInProgressOverlay extends StatefulWidget {
   /// 오버레이 등장 후 스피너 + 라벨을 그리기 시작할 때까지의 지연.
   ///
   /// scrim · 입력 차단에는 적용되지 않는다 (둘은 즉시 표시).
+  // design-literal: 진행 표시를 늦게 띄우는 체감 지연 기준이다 — 화면 전환 motion 이 아니다
   static const Duration indicatorDelay = Duration(milliseconds: 300);
 
   @override

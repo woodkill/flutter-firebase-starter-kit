@@ -30,6 +30,14 @@ const cooldownSeconds = 60;
 /// 아니다" 의 판정선으로 삼는다.
 const pollFailureThreshold = 3;
 
+/// 폴링 간격 — [pollingIntervalSeconds] 초.
+// design-literal: 메일 인증 상태를 다시 읽는 주기 — 화면 전환 motion 이 아니다
+const Duration _kPollingInterval = Duration(seconds: pollingIntervalSeconds);
+
+/// 재전송 쿨다운 시계 간격.
+// design-literal: 재전송 대기 초를 1초씩 줄이는 시계 간격 — 화면 전환 motion 이 아니다
+const Duration _kCooldownTick = Duration(seconds: 1);
+
 /// 이메일 인증 대기 화면의 비즈니스 로직을 담당하는 AsyncNotifier.
 ///
 /// 3초 간격 폴링으로 [AuthRepository.reloadUser]를 호출하여
@@ -61,22 +69,19 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   void _startPolling() {
     _elapsedSeconds = 0;
     _consecutivePollFailures = 0;
-    _pollingTimer = Timer.periodic(
-      const Duration(seconds: pollingIntervalSeconds),
-      (timer) {
-        _elapsedSeconds += pollingIntervalSeconds;
+    _pollingTimer = Timer.periodic(_kPollingInterval, (timer) {
+      _elapsedSeconds += pollingIntervalSeconds;
 
-        if (_elapsedSeconds >= pollingTimeoutSeconds) {
-          // IN-08 (Phase 09 review): 타임아웃 중지 로직은 [stopPolling] 과
-          // 완전히 동일했다. 복제를 두면 한쪽만 고쳤을 때 테스트가 검증하는
-          // 경로([stopPolling])와 실제 타임아웃 경로가 갈라진다.
-          stopPolling();
-          return;
-        }
+      if (_elapsedSeconds >= pollingTimeoutSeconds) {
+        // IN-08 (Phase 09 review): 타임아웃 중지 로직은 [stopPolling] 과
+        // 완전히 동일했다. 복제를 두면 한쪽만 고쳤을 때 테스트가 검증하는
+        // 경로([stopPolling])와 실제 타임아웃 경로가 갈라진다.
+        stopPolling();
+        return;
+      }
 
-        unawaited(pollOnce());
-      },
-    );
+      unawaited(pollOnce());
+    });
   }
 
   /// 단일 폴링 사이클을 실행한다.
@@ -266,7 +271,7 @@ class VerifyEmailNotifier extends _$VerifyEmailNotifier {
   /// 0에 도달하면 타이머를 정리한다.
   void _startCooldown() {
     _cooldownTimer?.cancel();
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _cooldownTimer = Timer.periodic(_kCooldownTick, (timer) {
       if (!ref.mounted) {
         timer.cancel();
         return;

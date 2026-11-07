@@ -164,17 +164,29 @@ class VerifyEmailScreen extends ConsumerWidget {
               ),
             ),
             Gap(spacing.md),
-            // "다른 계정으로 로그인" 링크
-            TextButton(
-              onPressed: () => ref.read(verifyEmailProvider.notifier).logout(),
-              child: Text(
-                l10n.authVerifyEmailLogout,
-                style: TextStyle(color: colors.onSurfaceVariant),
-              ),
-            ),
+            const _VerifyEmailLogoutLink(),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 메일 확인 화면 아래의 「다른 계정으로 로그인」 링크 — 누르면 로그아웃한다.
+///
+/// 글자 색은 [Text] 의 스타일이 아니라 버튼 스타일의 전경색으로 준다 — 글자
+/// 기하는 버튼 기본 글자 스타일 그대로이고, 누름 상태 레이어 색도 이 색을
+/// 따른다.
+class _VerifyEmailLogoutLink extends ConsumerWidget {
+  const _VerifyEmailLogoutLink();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colorScheme;
+    return TextButton(
+      onPressed: () => ref.read(verifyEmailProvider.notifier).logout(),
+      style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
+      child: Text(context.l10n.authVerifyEmailLogout),
     );
   }
 }
