@@ -11,6 +11,7 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
+import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -18,6 +19,7 @@ import 'package:flutter_starter_kit/features/splash/presentation/splash_error_co
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/small_progress_indicator.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -237,6 +239,44 @@ void main() {
         });
       },
     );
+
+    testWidgets('T-24-LIT-04: 초기화 중 스플래시는 공용 SmallProgressIndicator 를 '
+        '아이콘 토큰 크기 · 선 굵기 2 로 하나만 그린다', (tester) async {
+      SplashConfig.overrideMinDuration = const Duration(minutes: 5);
+
+      final initializer = SplashInitializer(
+        authRepository: _MockAuthRepository(),
+        isFirebaseInitialized: false,
+        currentUserIsNull: true,
+        onboardingFuture: Future.value(false),
+        isSocialLinkInProgress: false,
+      );
+      final router = _testRouter();
+      addTearDown(router.dispose);
+
+      await tester.runAsync(() async {
+        await _pumpSplash(tester, initializer: initializer, router: router);
+        await tester.pump();
+
+        final indicator = find.byType(SmallProgressIndicator);
+        expect(indicator, findsOneWidget);
+        final expectedDimension = AppTheme.light()
+            .extension<AppIconSizes>()!
+            .md;
+        expect(
+          tester.widget<SmallProgressIndicator>(indicator).dimension,
+          expectedDimension,
+        );
+        expect(tester.getSize(indicator), Size.square(expectedDimension));
+        final spinner = tester.widget<CircularProgressIndicator>(
+          find.descendant(
+            of: indicator,
+            matching: find.byType(CircularProgressIndicator),
+          ),
+        );
+        expect(spinner.strokeWidth, 2);
+      });
+    });
 
     testWidgets('Test 2: WARNING #13 seam — 1ms 오버라이드 후 초기화 완료 시 Home 으로 go', (
       tester,

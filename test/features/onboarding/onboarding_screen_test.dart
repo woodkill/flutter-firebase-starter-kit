@@ -787,6 +787,70 @@ void main() {
       verify(() => mockRepo.signInAnonymously()).called(1);
       expect(find.text('HOME'), findsOneWidget);
     });
+
+    group('슬라이드 전환 모션 (SDK Durations · Easing)', () {
+      /// [trigger] 를 누른 뒤 절반 시점 · 도착 직전 · 도착 시점의 page 를 잰다.
+      ///
+      /// 탭 직후 첫 `pump()` 에서 ticker 가 시작되므로 그 뒤의 경과 시간이 곧 애니메이션 시간이다.
+      Future<({double mid, double beforeEnd, double end})> sampleTransition(
+        WidgetTester tester,
+        Finder trigger,
+      ) async {
+        await _pumpOnboarding(
+          tester,
+          mockRepo: mockRepo,
+          mockAnalytics: mockAnalytics,
+          mockCrashlytics: mockCrashlytics,
+        );
+        final controller = tester
+            .widget<PageView>(find.byType(PageView))
+            .controller!;
+        await tester.tap(trigger);
+        await tester.pump();
+        const total = Durations.medium2;
+        final half = total ~/ 2;
+        await tester.pump(half);
+        final mid = controller.page!;
+        const nearEnd = Duration(milliseconds: 149);
+        await tester.pump(nearEnd);
+        final beforeEnd = controller.page!;
+        await tester.pump(total - half - nearEnd);
+        return (mid: mid, beforeEnd: beforeEnd, end: controller.page!);
+      }
+
+      testWidgets(
+        'T-24-LIT-05: CTA "Next" 는 Easing.standard · Durations.medium2 로 '
+        '다음 슬라이드에 도착한다',
+        (tester) async {
+          final sample = await sampleTransition(
+            tester,
+            find.widgetWithText(FilledButton, 'Next'),
+          );
+
+          expect(sample.mid, closeTo(Easing.standard.transform(0.5), 0.001));
+          expect(sample.beforeEnd, lessThan(1.0));
+          expect(sample.end, 1.0);
+        },
+      );
+
+      testWidgets('T-24-LIT-06: "Skip" 은 Easing.standard · Durations.medium2 로 '
+          '마지막 슬라이드에 도착한다', (tester) async {
+        final sample = await sampleTransition(tester, find.text('Skip'));
+        // 슬라이드 수를 바꾼 저장소에서도 맞도록 마지막 인덱스는 indicator 도트 수에서 읽는다.
+        final lastIndex =
+            tester
+                .widget<OnboardingIndicator>(find.byType(OnboardingIndicator))
+                .count -
+            1;
+
+        expect(
+          sample.mid,
+          closeTo(lastIndex * Easing.standard.transform(0.5), 0.001),
+        );
+        expect(sample.beforeEnd, lessThan(lastIndex.toDouble()));
+        expect(sample.end, lastIndex.toDouble());
+      });
+    });
   });
 
   group('OnboardingScreen 가로 모드 (Phase 3 D-09 · quick 260929-pze)', () {
