@@ -43,6 +43,9 @@ typedef DesignLiteralPattern = ({
 /// 숫자는 「인자 이름: 숫자」 꼴로만 잡는다 — `const double _kX = 40;` 같은 이름
 /// 붙인 상수 선언 자체는 걸리지 않는다. `EdgeInsets` · `SizedBox` 는 몇째
 /// 인자든 숫자 인자마다 따로 잡고, 0 도 숫자 리터럴이다.
+///
+/// 모든 패턴은 길이 1 이상 일치만 낸다 — 적중 줄을 일치 마지막 글자의 줄로
+/// 계산하는 [findDesignLiteralHits] 의 전제다.
 final List<DesignLiteralPattern> kDesignLiteralPatterns =
     <DesignLiteralPattern>[
       (
@@ -315,9 +318,6 @@ List<String> findDesignLiteralHits(String path, String source) {
     }
     final isDuration = named.name == _durationPatternName;
     for (final RegExpMatch match in named.pattern.allMatches(text)) {
-      if (match.end <= match.start) {
-        continue;
-      }
       final int hitLine = lineOfChar[match.end - 1];
       if (isDuration) {
         final RegExpMatch? head = _durationDeclarationHead.firstMatch(

@@ -104,6 +104,26 @@ const List<(String, String)> _argumentPositionLines = <(String, String)>[
   ('  final double value = 0.9 * size.height;', 'ratio-literal'),
 ];
 
+/// 토큰 · 주석 · 색 파서 꼴처럼 어느 패턴에도 걸리지 않는 음성 표본이다.
+const List<String> _negativeLines = <String>[
+  'final Object a = EdgeInsets.all(spacing.md);',
+  'final Object a = Gap(spacing.sm);',
+  'final Object a = BorderRadius.circular(context.appRadius.sm);',
+  'final Object a = context.appColors.success;',
+  'final Object a = AppColors.fromBrightness(Brightness.light);',
+  'final Object a = Color(0xFF000000 | value);',
+  'final Object a = EdgeInsets.only(left: spacing.lg, right: spacing.lg, bottom: spacing.sm);',
+  'final Object a = EdgeInsets.only(left: spacing.md, top: spacing.sm);',
+  'final Object a = SizedBox(width: double.infinity, height: spacing.md);',
+  'final double a = size.height * factor;',
+  'final Object a = Durations.short4;',
+  'const double _kLogoSize = 40;',
+  '// Colors.red',
+  '/// Duration(seconds: 2)',
+  '/* fontSize: 14 */',
+  'final Object a = Gap(spacing.sm); /* Colors.red */',
+];
+
 /// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
 ///
 /// [body] 의 첫 줄이 소스의 둘째 줄이다.
@@ -302,6 +322,26 @@ void main() {
       );
     });
 
+    test('T-24-SCAN-04: 모든 패턴의 일치는 길이 1 이상이다', () {
+      final samples = <String>[
+        '',
+        ..._literalLines.values,
+        for (final (String source, String _) in _argumentPositionLines) source,
+        ..._negativeLines,
+      ];
+      for (final DesignLiteralPattern named in kDesignLiteralPatterns) {
+        for (final sample in samples) {
+          for (final RegExpMatch match in named.pattern.allMatches(sample)) {
+            expect(
+              match.end,
+              greaterThan(match.start),
+              reason: '${named.name}: $sample',
+            );
+          }
+        }
+      }
+    });
+
     test('T-24-SCAN-05: 표시 수는 이유가 있는 표시 줄만 센다', () {
       const source = <String>[
         '// design-literal: 이유 하나',
@@ -460,25 +500,7 @@ void main() {
 
   group('음성 표본', () {
     test('T-24-SCAN-08: 토큰 · 주석 · 색 파서 꼴은 0 건이다', () {
-      const negatives = <String>[
-        'final Object a = EdgeInsets.all(spacing.md);',
-        'final Object a = Gap(spacing.sm);',
-        'final Object a = BorderRadius.circular(context.appRadius.sm);',
-        'final Object a = context.appColors.success;',
-        'final Object a = AppColors.fromBrightness(Brightness.light);',
-        'final Object a = Color(0xFF000000 | value);',
-        'final Object a = EdgeInsets.only(left: spacing.lg, right: spacing.lg, bottom: spacing.sm);',
-        'final Object a = EdgeInsets.only(left: spacing.md, top: spacing.sm);',
-        'final Object a = SizedBox(width: double.infinity, height: spacing.md);',
-        'final double a = size.height * factor;',
-        'final Object a = Durations.short4;',
-        'const double _kLogoSize = 40;',
-        '// Colors.red',
-        '/// Duration(seconds: 2)',
-        '/* fontSize: 14 */',
-        'final Object a = Gap(spacing.sm); /* Colors.red */',
-      ];
-      for (final source in negatives) {
+      for (final String source in _negativeLines) {
         expect(
           findDesignLiteralHits(_presentationPath, source),
           isEmpty,
