@@ -111,15 +111,16 @@ const List<(String, String)> _argumentPositionLines = <(String, String)>[
 
 /// 알려진 빈틈 — 가드가 보지 못하는 리터럴 꼴의 예시다.
 ///
-/// 숫자 인자를 잡는 조건([kDesignLiteralPatterns] 문서)에서 나오는 놓치는 꼴
-/// 가운데 몇 개이고, 전부 목록이 아니다. 지금 0 건임을 고정해 빈틈을 드러낸다 —
-/// 가드가 이 꼴을 잡게 되면 이 목록에서 빼고 적중 줄을 단언하는 양성 시험으로
-/// 옮긴다.
+/// 숫자 인자를 잡는 조건([kDesignLiteralPatterns] 문서)과 헬퍼 머리 주석의
+/// 블록 주석 정의에서 나오는 놓치는 꼴 가운데 몇 개이고, 전부 목록이 아니다.
+/// 지금 0 건임을 고정해 빈틈을 드러낸다 — 가드가 이 꼴을 잡게 되면 이 목록에서
+/// 빼고 적중 줄을 단언하는 양성 시험으로 옮긴다.
 const List<String> _knownGapLines = <String>[
   'EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom, top: 8)',
   'EdgeInsets.only(\n  left: spacing.sm, // 설명\n  top: 8,\n)',
   'EdgeInsets.only( // 설명\n  top: 8,\n)',
   'EdgeInsets.only(\n  left: spacing.sm, // 설명(시안)\n  right: spacing.sm,\n  top: 8,\n)',
+  "EdgeInsets.only(left: k ?? '/*', top: 8) /* x */",
 ];
 
 /// 여는 괄호 뒤 앞 인자 길이 상한 표본의 호출 머리 · 앞 인자 이름 · 숫자 인자 ·
