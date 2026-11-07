@@ -166,7 +166,7 @@ void main() {
       }
     });
 
-    testWidgets('T-24-BP-05: 지역 제약 기준은 fromWidth(constraints.maxWidth) '
+    testWidgets('T-24-BP-06: 지역 제약 기준은 fromWidth(constraints.maxWidth) '
         '로 얻는다', (tester) async {
       late AppBreakpoint screenBreakpoint;
       late AppBreakpoint localBreakpoint;
