@@ -1,62 +1,50 @@
 import 'package:flutter/widgets.dart';
 
-/// 모바일 전용 반응형 breakpoint (280dp~674dp).
+/// Material 3 window size class 5단계 화면 폭 breakpoint.
 ///
-/// M3 가이드라인 기준 3단계로 분류한다 (하한 포함, 상한 배타):
-/// - [compact]: 280dp~360dp (소형 디바이스)
-/// - [medium]: 360dp~600dp (일반 모바일)
-/// - [expanded]: 600dp~674dp (대형 모바일/폴더블)
+/// 각 단계는 하한([minWidth])만 갖는다 — 다음 단계의 하한 전까지가 그 단계다:
+/// - [compact]: 0dp 이상 600dp 미만
+/// - [medium]: 600dp 이상 840dp 미만
+/// - [expanded]: 840dp 이상 1200dp 미만
+/// - [large]: 1200dp 이상 1600dp 미만
+/// - [extraLarge]: 1600dp 이상
 ///
-/// [minWidth]/[maxWidth] 범위가 **단일 진실원**이며, [contains] 와
-/// [fromWidth] 는 모두 여기서 파생된다. 지원 범위(280dp~674dp) 밖의
-/// 너비는 [fromWidth] 가 양끝으로 포화시킨다.
+/// 킷은 모바일 전용(지원 폭 280 ~ 674dp)이라 실제로 만나는 단계는 [compact] 와
+/// [medium] 의 앞부분이다 — 지원 폭은 이 enum 의 값이 아니라 문서 문장이다.
 enum AppBreakpoint {
-  /// 소형 디바이스 (280dp~360dp).
-  compact(280, 360),
+  /// Compact — 0dp 이상 600dp 미만(휴대폰 세로).
+  compact(0),
 
-  /// 일반 모바일 (360dp~600dp).
-  medium(360, 600),
+  /// Medium — 600dp 이상 840dp 미만(작은 태블릿 · 펼친 폴더블 세로).
+  medium(600),
 
-  /// 대형 모바일/폴더블 (600dp~674dp).
-  expanded(600, 674);
+  /// Expanded — 840dp 이상 1200dp 미만(태블릿 가로).
+  expanded(840),
 
-  const AppBreakpoint(this.minWidth, this.maxWidth);
+  /// Large — 1200dp 이상 1600dp 미만(큰 태블릿 · 데스크톱).
+  large(1200),
 
-  /// 이 breakpoint의 최소 너비 (dp, 포함).
+  /// Extra-large — 1600dp 이상(아주 큰 화면).
+  extraLarge(1600);
+
+  /// 하한 너비 [minWidth] 로 단계를 만든다.
+  const AppBreakpoint(this.minWidth);
+
+  /// 이 단계의 하한 너비 (dp, 포함).
   final double minWidth;
 
-  /// 이 breakpoint의 최대 너비 (dp, 배타).
-  final double maxWidth;
-
-  /// [width]가 이 breakpoint 범위에 속하는지 반환한다.
+  /// [width] 에 해당하는 [AppBreakpoint] 를 돌려준다.
   ///
-  /// 하한은 포함([minWidth] 이상), 상한은 배타([maxWidth] 미만) 다.
-  /// 따라서 인접한 두 breakpoint 가 동시에 true 를 돌려주는 경계값은 없다.
-  bool contains(double width) => width >= minWidth && width < maxWidth;
-
-  /// [width]에 해당하는 [AppBreakpoint]를 반환한다.
-  ///
-  /// 범위 필드([contains])에서 파생되며, 지원 범위 밖은 양끝으로
-  /// 포화한다:
-  /// - `width < compact.minWidth` (280dp 미만) -> [compact]
-  /// - `width >= expanded.maxWidth` (674dp 이상 — 가로 모드 등) -> [expanded]
-  ///
-  /// 포화 정책상 [maxWidth] 는 "선언된 지원 상한" 이지 실제 가용 폭이
-  /// 아니므로, 레이아웃 계산(clamp 등)에 그대로 쓰지 말 것.
-  static AppBreakpoint fromWidth(double width) {
-    if (width < compact.minWidth) return compact;
-    if (width >= expanded.maxWidth) return expanded;
-
-    return values.firstWhere(
-      (bp) => bp.contains(width),
-      // 도달 불가 — 범위가 연속이므로 포화 이후에는 항상 매치된다.
-      // width 가 NaN 인 병리적 입력만 여기로 떨어진다 (엣지 케이스 방어).
-      orElse: () => compact,
-    );
-  }
+  /// 하한이 [width] 이하인 마지막 단계다. NaN · 음수는 모든 하한 비교가 거짓이라
+  /// [compact] 로 떨어지고, 무한대는 [extraLarge] 다.
+  static AppBreakpoint fromWidth(double width) =>
+      values.lastWhere((bp) => width >= bp.minWidth, orElse: () => compact);
 }
 
 /// [BuildContext]에서 반응형 정보에 접근하기 위한 확장.
+///
+/// 킷 화면에는 사용처가 없다 — 내 화면이 화면 폭이나 방향으로 갈릴 때 쓰는
+/// 공개 계약이다.
 ///
 /// [MediaQuery.sizeOf]와 [MediaQuery.orientationOf]를 사용하여
 /// 불필요한 리빌드를 최소화한다.
@@ -68,10 +56,10 @@ enum AppBreakpoint {
 ///
 /// 사용 예:
 /// ```dart
-/// // 화면 전체 폭 기준
+/// // 화면 전체 폭 기준 — medium 이상이면 두 칸 레이아웃
 /// final bp = context.breakpoint;
-/// if (bp == AppBreakpoint.expanded) {
-///   // 대형 모바일/폴더블 레이아웃
+/// if (bp.index >= AppBreakpoint.medium.index) {
+///   // 600dp 이상 레이아웃
 /// }
 ///
 /// // 지역 제약 기준

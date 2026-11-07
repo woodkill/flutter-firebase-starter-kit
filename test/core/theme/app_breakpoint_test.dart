@@ -2,58 +2,82 @@ import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_breakpoint.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// [AppBreakpoint.fromWidth] 결과를 너비별로 대조한다.
+void expectBreakpoints(List<(double, AppBreakpoint)> expected) {
+  for (final (width, breakpoint) in expected) {
+    expect(
+      AppBreakpoint.fromWidth(width),
+      equals(breakpoint),
+      reason: '${width}dp 는 $breakpoint 여야 한다.',
+    );
+  }
+}
+
 void main() {
   group('AppBreakpoint', () {
-    group('enum 필드값', () {
-      test('compact.minWidth는 280이고 maxWidth는 360이다', () {
-        // 280dp 는 PROJECT 제약의 모바일 지원 하한이다 (구값 0 은 문서화된
-        // 하한과 어긋나 WR-05 지적 대상이었다).
-        expect(AppBreakpoint.compact.minWidth, equals(280));
-        expect(AppBreakpoint.compact.maxWidth, equals(360));
+    test('T-24-BP-01: values 가 다섯 단계 순서이고 minWidth 가 '
+        '0 · 600 · 840 · 1200 · 1600 이다', () {
+      expect(
+        AppBreakpoint.values,
+        equals(const <AppBreakpoint>[
+          AppBreakpoint.compact,
+          AppBreakpoint.medium,
+          AppBreakpoint.expanded,
+          AppBreakpoint.large,
+          AppBreakpoint.extraLarge,
+        ]),
+      );
+      expect(
+        AppBreakpoint.values.map((bp) => bp.minWidth).toList(),
+        equals(const <double>[0, 600, 840, 1200, 1600]),
+      );
+    });
+
+    // 단계는 하한만 갖고 fromWidth 가 그 하한에서 파생된다 — 다음 단계 하한은
+    // 배타이고, 범위 밖 입력(NaN · 음수 · 무한대)은 양끝 단계로 포화한다.
+    group('T-03-WR-05: fromWidth 는 단계 하한에서 파생된다', () {
+      test('T-24-BP-02: fromWidth 는 하한이 너비 이하인 마지막 단계를 돌려준다', () {
+        expectBreakpoints(const <(double, AppBreakpoint)>[
+          (0, AppBreakpoint.compact),
+          (599.9, AppBreakpoint.compact),
+          (600, AppBreakpoint.medium),
+          (839.9, AppBreakpoint.medium),
+          (840, AppBreakpoint.expanded),
+          (1199.9, AppBreakpoint.expanded),
+          (1200, AppBreakpoint.large),
+          (1599.9, AppBreakpoint.large),
+          (1600, AppBreakpoint.extraLarge),
+          (4000, AppBreakpoint.extraLarge),
+        ]);
       });
 
-      test('medium.minWidth는 360이고 maxWidth는 600이다', () {
-        expect(AppBreakpoint.medium.minWidth, equals(360));
-        expect(AppBreakpoint.medium.maxWidth, equals(600));
-      });
-
-      test('expanded.minWidth는 600이고 maxWidth는 674이다', () {
-        expect(AppBreakpoint.expanded.minWidth, equals(600));
-        expect(AppBreakpoint.expanded.maxWidth, equals(674));
+      test('T-24-BP-04: NaN · 음수는 compact · 무한대는 extraLarge 다', () {
+        expect(
+          AppBreakpoint.fromWidth(double.nan),
+          equals(AppBreakpoint.compact),
+        );
+        expect(AppBreakpoint.fromWidth(-1), equals(AppBreakpoint.compact));
+        expect(
+          AppBreakpoint.fromWidth(double.infinity),
+          equals(AppBreakpoint.extraLarge),
+        );
       });
     });
 
-    group('fromWidth', () {
-      test('280dp는 compact이다', () {
-        expect(AppBreakpoint.fromWidth(280), equals(AppBreakpoint.compact));
-      });
-
-      test('359dp는 compact이다', () {
-        expect(AppBreakpoint.fromWidth(359), equals(AppBreakpoint.compact));
-      });
-
-      test('360dp는 medium이다', () {
-        expect(AppBreakpoint.fromWidth(360), equals(AppBreakpoint.medium));
-      });
-
-      test('599dp는 medium이다', () {
-        expect(AppBreakpoint.fromWidth(599), equals(AppBreakpoint.medium));
-      });
-
-      test('600dp는 expanded이다', () {
-        expect(AppBreakpoint.fromWidth(600), equals(AppBreakpoint.expanded));
-      });
-
-      test('674dp는 expanded이다', () {
-        expect(AppBreakpoint.fromWidth(674), equals(AppBreakpoint.expanded));
-      });
+    test('T-24-BP-03: 킷 지원 폭 280 ~ 674dp 는 compact 와 medium 이다', () {
+      expectBreakpoints(const <(double, AppBreakpoint)>[
+        (280, AppBreakpoint.compact),
+        (360, AppBreakpoint.compact),
+        (599, AppBreakpoint.compact),
+        (600, AppBreakpoint.medium),
+        (674, AppBreakpoint.medium),
+      ]);
     });
   });
 
   group('ResponsiveX', () {
-    testWidgets('MediaQuery size 400x800에서 breakpoint는 medium이다', (
-      tester,
-    ) async {
+    testWidgets('T-24-BP-05: MediaQuery size 400x800 에서 breakpoint 는 '
+        'compact 다', (tester) async {
       late AppBreakpoint breakpoint;
 
       await tester.pumpWidget(
@@ -68,7 +92,7 @@ void main() {
         ),
       );
 
-      expect(breakpoint, equals(AppBreakpoint.medium));
+      expect(breakpoint, equals(AppBreakpoint.compact));
     });
 
     testWidgets('portrait orientation에서 isPortrait은 true이다', (tester) async {
@@ -114,60 +138,6 @@ void main() {
     });
   });
 
-  // ─── T-03-WR-05: 범위 필드와 fromWidth 의 단일 진실원 ────────
-  //
-  // 구 구현은 범위 필드(minWidth/maxWidth)와 분기 함수(fromWidth)가 서로
-  // 강제되지 않아, `expanded.maxWidth = 674` 인데도 `fromWidth(800)` 이
-  // expanded 를 돌려줬다. 소비자가 `bp.maxWidth` 로 레이아웃을 계산하면
-  // 조용히 틀린 값을 쓴다.
-  group('T-03-WR-05: contains 와 fromWidth 가 범위에서 파생된다', () {
-    test('contains 는 하한 포함 · 상한 배타다', () {
-      expect(AppBreakpoint.compact.contains(280), isTrue);
-      expect(AppBreakpoint.compact.contains(359.9), isTrue);
-      expect(AppBreakpoint.compact.contains(360), isFalse);
-      expect(AppBreakpoint.compact.contains(279), isFalse);
-
-      expect(AppBreakpoint.medium.contains(360), isTrue);
-      expect(AppBreakpoint.medium.contains(600), isFalse);
-
-      expect(AppBreakpoint.expanded.contains(600), isTrue);
-      expect(AppBreakpoint.expanded.contains(673.9), isTrue);
-      expect(AppBreakpoint.expanded.contains(674), isFalse);
-    });
-
-    test('경계값은 정확히 한 breakpoint 에만 속한다', () {
-      for (final width in <double>[280, 359, 360, 599, 600, 673]) {
-        expect(
-          AppBreakpoint.values.where((bp) => bp.contains(width)).length,
-          1,
-          reason: '${width}dp 가 중복/미분류 된다 — 범위가 연속적이어야 한다.',
-        );
-      }
-    });
-
-    test('fromWidth 결과는 항상 contains 와 일치한다 (지원 범위 내)', () {
-      for (final width in <double>[280, 359, 360, 599, 600, 673]) {
-        final bp = AppBreakpoint.fromWidth(width);
-
-        expect(
-          bp.contains(width),
-          isTrue,
-          reason: '${width}dp — fromWidth 가 범위 필드와 어긋난다 (WR-05 회귀).',
-        );
-      }
-    });
-
-    test('지원 범위 밖은 양끝으로 포화된다', () {
-      // 하한 미만 — compact 로 포화.
-      expect(AppBreakpoint.fromWidth(279), equals(AppBreakpoint.compact));
-      expect(AppBreakpoint.fromWidth(0), equals(AppBreakpoint.compact));
-
-      // 상한 이상 — expanded 로 포화 (360dp 폰을 가로로 돌리면 800dp).
-      expect(AppBreakpoint.fromWidth(674), equals(AppBreakpoint.expanded));
-      expect(AppBreakpoint.fromWidth(800), equals(AppBreakpoint.expanded));
-    });
-  });
-
   // ─── T-03-IN-05: isPortrait 파생 · 지역 제약 기준 ────────────
   group('T-03-IN-05: isPortrait 은 isLandscape 에서 파생된다', () {
     testWidgets('두 getter 는 항상 서로의 부정이다', (tester) async {
@@ -196,9 +166,8 @@ void main() {
       }
     });
 
-    testWidgets('지역 제약 기준은 fromWidth(constraints.maxWidth) 로 얻는다', (
-      tester,
-    ) async {
+    testWidgets('T-24-BP-05: 지역 제약 기준은 fromWidth(constraints.maxWidth) '
+        '로 얻는다', (tester) async {
       late AppBreakpoint screenBreakpoint;
       late AppBreakpoint localBreakpoint;
 
@@ -226,8 +195,8 @@ void main() {
         ),
       );
 
-      // 화면 전체 폭 640dp → expanded, 지역 가용 폭 300dp → compact.
-      expect(screenBreakpoint, equals(AppBreakpoint.expanded));
+      // 화면 전체 폭 640dp → medium, 지역 가용 폭 300dp → compact.
+      expect(screenBreakpoint, equals(AppBreakpoint.medium));
       expect(
         localBreakpoint,
         equals(AppBreakpoint.compact),

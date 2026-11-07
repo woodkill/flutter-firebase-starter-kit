@@ -87,10 +87,30 @@ abstract final class AppTheme {
   /// [AppOpacity], [AppElevation] 7개 ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
+  ///
+  /// 대비 · 색 변형 인자 `contrastLevel` · `dynamicSchemeVariant` 는
+  /// [ColorScheme.fromSeed] 의 같은 이름 인자 그대로이고 기본값도 같다 —
+  /// 생략하면 지금 팔레트와 같다.
+  /// - `contrastLevel`: -1.0(최저) ~ 1.0(최고) · 기본 0.0 · Material 3 의
+  ///   중간 대비는 0.5, 높은 대비는 1.0 이다.
+  /// - `dynamicSchemeVariant`: 팔레트 생성 방식 · 기본
+  ///   [DynamicSchemeVariant.tonalSpot].
+  ///
+  /// [AppColors] 의 시맨틱 색(`success` · `warning` · `info`)은 대비 단계를
+  /// 따르지 않는다 — 대비를 바꿔도 같은 색이다.
+  ///
   /// [fontFamily] 를 테마 글꼴로 건다.
   /// 아래 시트 테마(손잡이 · 위 모서리)를 건다.
-  static ThemeData light({Color seedColor = AppTheme.seedColor}) {
-    final colorScheme = ColorScheme.fromSeed(seedColor: seedColor);
+  static ThemeData light({
+    Color seedColor = AppTheme.seedColor,
+    double contrastLevel = 0.0,
+    DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+  }) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: seedColor,
+      contrastLevel: contrastLevel,
+      dynamicSchemeVariant: dynamicSchemeVariant,
+    );
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
 
@@ -115,12 +135,30 @@ abstract final class AppTheme {
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
+  ///
+  /// 대비 · 색 변형 인자 `contrastLevel` · `dynamicSchemeVariant` 는
+  /// [ColorScheme.fromSeed] 의 같은 이름 인자 그대로이고 기본값도 같다 —
+  /// 생략하면 지금 팔레트와 같다.
+  /// - `contrastLevel`: -1.0(최저) ~ 1.0(최고) · 기본 0.0 · Material 3 의
+  ///   중간 대비는 0.5, 높은 대비는 1.0 이다.
+  /// - `dynamicSchemeVariant`: 팔레트 생성 방식 · 기본
+  ///   [DynamicSchemeVariant.tonalSpot].
+  ///
+  /// [AppColors] 의 시맨틱 색(`success` · `warning` · `info`)은 대비 단계를
+  /// 따르지 않는다 — 대비를 바꿔도 같은 색이다.
+  ///
   /// [fontFamily] 를 테마 글꼴로 건다.
   /// 아래 시트 테마(손잡이 · 위 모서리)를 건다.
-  static ThemeData dark({Color seedColor = AppTheme.seedColor}) {
+  static ThemeData dark({
+    Color seedColor = AppTheme.seedColor,
+    double contrastLevel = 0.0,
+    DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+  }) {
     final colorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: Brightness.dark,
+      contrastLevel: contrastLevel,
+      dynamicSchemeVariant: dynamicSchemeVariant,
     );
     // brightness 미지정 — colorScheme 이 있으면 거기서 파생된다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
