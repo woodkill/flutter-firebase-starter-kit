@@ -217,6 +217,27 @@ String _callWithAttachedBlockComment(int collapsedLength) {
   return 'EdgeInsets.only($leading${'a' * filler}/*\n*/, top: 8)';
 }
 
+/// 앞 인자 끝에 BMP 밖 글자 U+1F600 을 둔 한 줄 호출을 만든다.
+///
+/// 여는 괄호 바로 뒤부터 숫자 인자 앞 쉼표 직전까지가 UTF-16 code unit 으로
+/// [codeUnitLength] 개다 — U+1F600 하나가 code unit 둘이라 code point 로는
+/// 하나 적다. 앞 인자는 `<name>: aaa…` 꼴이라 어느 패턴에도 걸리지 않는다.
+String _callWithAstralLeading(
+  String head,
+  String name,
+  String numberArgument,
+  int codeUnitLength,
+) {
+  final leading = '$name: ';
+  const astral = '\u{1F600}';
+  final int filler = codeUnitLength - leading.length - astral.length;
+  return '$head($leading${'a' * filler}$astral, $numberArgument)';
+}
+
+/// [source] 의 첫 여는 괄호 바로 뒤부터 첫 쉼표 직전까지를 돌려준다.
+String _leadingArgument(String source) =>
+    source.substring(source.indexOf('(') + 1, source.indexOf(','));
+
 /// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
 ///
 /// [body] 의 첫 줄이 소스의 둘째 줄이다.
@@ -500,6 +521,44 @@ void main() {
         expect(findDesignLiteralHits(_presentationPath, source), isEmpty);
       },
     );
+
+    for (final (String head, String name, String numberArgument, String pattern)
+        in _leadingLengthCalls) {
+      test(
+        'T-24-SCAN-04: $pattern 은 앞 인자에 BMP 밖 글자가 있으면 UTF-16 code unit 으로 세어 400 이면 그 뒤 숫자 인자를 잡는다',
+        () {
+          final String source = _callWithAstralLeading(
+            head,
+            name,
+            numberArgument,
+            400,
+          );
+          final String leading = _leadingArgument(source);
+          expect(leading.length, 400);
+          expect(leading.runes.length, 399);
+          expect(
+            findDesignLiteralHits(_presentationPath, source),
+            equals(<String>[_presentationHit(1, pattern)]),
+          );
+        },
+      );
+
+      test(
+        'T-24-SCAN-04: $pattern 은 앞 인자에 BMP 밖 글자가 있으면 UTF-16 code unit 으로 세어 401 이면 그 뒤 숫자 인자를 보지 않는다',
+        () {
+          final String source = _callWithAstralLeading(
+            head,
+            name,
+            numberArgument,
+            401,
+          );
+          final String leading = _leadingArgument(source);
+          expect(leading.length, 401);
+          expect(leading.runes.length, 400);
+          expect(findDesignLiteralHits(_presentationPath, source), isEmpty);
+        },
+      );
+    }
 
     test('T-24-SCAN-04: 알려진 빈틈 — 가드가 보지 못하는 꼴은 지금 0 건이다', () {
       for (final source in _knownGapLines) {
