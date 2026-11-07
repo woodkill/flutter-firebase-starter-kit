@@ -1266,6 +1266,7 @@ Card(child: content)
 - 테마 조립 파일 `lib/app.dart` 는 가드 밖이다 — 2번 · 3번 · 위 「좋음」 예시처럼 토큰 · 컴포넌트 테마를 `copyWith` 로 바꾸는 값은 이 파일에 둔다.
 - 간격 · 크기 숫자는 몇째 인자든, 비율 소수는 곱의 앞이든 뒤든 잡는다 — 0 도 숫자 리터럴로 잡히므로 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
 - 표시 주석은 리터럴이 있는 줄(여러 줄 호출이면 숫자가 있는 인자 줄) 바로 윗줄에 둔다.
+- `TextStyle(…)` 처럼 호출 자체가 가드 대상이면 여는 줄 위에도 표시를 단다 — 숫자 인자가 다른 줄에 있으면 표시가 2개이고 `_designLiteralMarkerCount` 도 2 올린다.
 - 화면(`presentation`) · `lib/shared/` 의 `Duration(` 은 표시를 단 이름 붙인 `const` 선언(`static const Duration _kDelay = Duration(…);` 꼴)만 통과한다.
 - 표시를 더하면 그 시험 파일의 `_designLiteralMarkerCount` 를 올리고, 표시가 있는 파일을 지우면 내린다.
 - 가드를 쓰지 않으려면 그 시험 파일과 표 계약 시험 `test/docs/design_token_table_contract_test.dart` 를 함께 지운다.
