@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
+import 'package:flutter_starter_kit/core/theme/app_elevation.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_opacity.dart';
 import 'package:flutter_starter_kit/core/theme/app_radius.dart';
@@ -132,6 +133,29 @@ void main() {
       );
 
       expect(opacity, equals(custom));
+    });
+
+    testWidgets('T-24-ELV-06: context.appElevation가 등록된 토큰을 돌려준다', (
+      tester,
+    ) async {
+      late AppElevation elevation;
+      final custom = const AppElevation().copyWith(level1: 2);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light().copyWith(
+            extensions: <ThemeExtension<dynamic>>[custom],
+          ),
+          home: Builder(
+            builder: (context) {
+              elevation = context.appElevation;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+
+      expect(elevation, equals(custom));
     });
 
     testWidgets('context.colorScheme에 접근할 수 있다', (tester) async {
@@ -364,6 +388,7 @@ void main() {
       late AppIconSizes iconSizes;
       late AppRadius radius;
       late AppOpacity opacity;
+      late AppElevation elevation;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -375,6 +400,7 @@ void main() {
               iconSizes = context.appIconSizes;
               radius = context.appRadius;
               opacity = context.appOpacity;
+              elevation = context.appElevation;
               return const SizedBox.shrink();
             },
           ),
@@ -387,14 +413,16 @@ void main() {
       expect(iconSizes, equals(const AppIconSizes()));
       expect(radius, equals(const AppRadius()));
       expect(opacity, equals(const AppOpacity()));
+      expect(elevation, equals(const AppElevation()));
       expect(typography.bodyMedium.fontSize, isNotNull);
     });
 
     testWidgets('네 extension 만 copyWith(extensions:) 에 넘긴 테마에서 '
-        'appRadius · appOpacity 는 기본값으로 폴백한다', (tester) async {
+        'appRadius · appOpacity · appElevation 은 기본값으로 폴백한다', (tester) async {
       late AppRadius? registeredRadius;
       late AppRadius radius;
       late AppOpacity opacity;
+      late AppElevation elevation;
 
       await tester.pumpWidget(
         MaterialApp(
@@ -412,6 +440,7 @@ void main() {
               registeredRadius = Theme.of(context).extension<AppRadius>();
               radius = context.appRadius;
               opacity = context.appOpacity;
+              elevation = context.appElevation;
               return const SizedBox.shrink();
             },
           ),
@@ -422,6 +451,7 @@ void main() {
       expect(registeredRadius, isNull);
       expect(radius, equals(const AppRadius()));
       expect(opacity, equals(const AppOpacity()));
+      expect(elevation, equals(const AppElevation()));
     });
 
     testWidgets('하위 트리의 dark Theme 에서는 dark 기본 토큰으로 폴백한다', (tester) async {

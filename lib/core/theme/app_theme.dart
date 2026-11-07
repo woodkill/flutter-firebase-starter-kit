@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
 import 'app_colors.dart';
+import 'app_elevation.dart';
 import 'app_icon_sizes.dart';
 import 'app_opacity.dart';
 import 'app_radius.dart';
@@ -12,7 +13,7 @@ import 'app_typography.dart';
 ///
 /// [seedColor]를 기반으로 [ColorScheme.fromSeed]를 사용하여 M3 팔레트를 생성하고,
 /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
-/// [AppOpacity] ThemeExtension을 등록한다.
+/// [AppOpacity], [AppElevation] ThemeExtension을 등록한다.
 /// 컴포넌트 테마는 Material 3 기본과 다른 아래 시트 테마 하나만 건다 — 버튼 높이 ·
 /// 구분선 · 진행 표시는 Material 3 기본값을 쓴다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
@@ -83,7 +84,7 @@ abstract final class AppTheme {
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
-  /// [AppOpacity] 6개 ThemeExtension을 포함한다.
+  /// [AppOpacity], [AppElevation] 7개 ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]).
   /// [fontFamily] 를 테마 글꼴로 건다.
@@ -102,6 +103,7 @@ abstract final class AppTheme {
         const AppIconSizes(),
         const AppRadius(),
         const AppOpacity(),
+        const AppElevation(),
       ],
     );
   }
@@ -109,7 +111,7 @@ abstract final class AppTheme {
   /// 다크 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
-  /// [AppOpacity] 6개 ThemeExtension을 포함한다.
+  /// [AppOpacity], [AppElevation] 7개 ThemeExtension을 포함한다.
   /// [seedColor]를 넘기면 그 시드로 M3 팔레트를 생성한다 (기본값
   /// [AppTheme.seedColor]). [light] 와 동일한 시드를 넘겨야 두 모드의
   /// 팔레트가 일관된다.
@@ -132,6 +134,7 @@ abstract final class AppTheme {
         const AppIconSizes(),
         const AppRadius(),
         const AppOpacity(),
+        const AppElevation(),
       ],
     );
   }
