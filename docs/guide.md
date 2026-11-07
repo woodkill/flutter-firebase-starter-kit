@@ -1264,6 +1264,7 @@ Card(child: content)
 **가드 시험:** `test/core/theme/design_literal_scan_test.dart` 가 `lib/` 에서 위 표 「쓰지 않는 것」 꼴을 찾아 `<경로>:<줄> — <가드 이름>` 으로 실패한다.
 - 가드가 보지 않는 곳은 `lib/core/theme/` · `lib/l10n/generated/` · `lib/features/auth/presentation/_widgets/branded_social_button.dart` · `lib/app.dart` · 생성 파일(`*.g.dart` · `*.freezed.dart` · `*.gr.dart` · `*.gen.dart`)이고, 주석 줄도 보지 않는다.
 - 테마 조립 파일 `lib/app.dart` 는 가드 밖이다 — 2번 · 3번 · 위 「좋음」 예시처럼 토큰 · 컴포넌트 테마를 `copyWith` 로 바꾸는 값은 이 파일에 둔다.
+- 간격 · 크기 숫자는 몇째 인자든, 비율 소수는 곱의 앞이든 뒤든 잡는다 — 0 도 숫자 리터럴로 잡히므로 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
 - 표시 주석은 리터럴이 있는 줄(여러 줄 호출이면 숫자가 있는 인자 줄) 바로 윗줄에 둔다.
 - 화면(`presentation`) · `lib/shared/` 의 `Duration(` 은 표시를 단 이름 붙인 `const` 선언(`static const Duration _kDelay = Duration(…);` 꼴)만 통과한다.
 - 표시를 더하면 그 시험 파일의 `_designLiteralMarkerCount` 를 올리고, 표시가 있는 파일을 지우면 내린다.

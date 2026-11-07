@@ -38,10 +38,11 @@ typedef DesignLiteralPattern = ({
 ///   통과) · 곡선 상수.
 /// - 선 · 폭 · 크기: 테두리 굵기 · 폭 비교 숫자 · 숫자 크기 상자 · 간격 토큰을
 ///   크기로 쓴 상자 · 진행 표시 굵기.
-/// - 비율: 소수 곱.
+/// - 비율: 소수 곱(소수가 곱의 앞이든 뒤든).
 ///
 /// 숫자는 「인자 이름: 숫자」 꼴로만 잡는다 — `const double _kX = 40;` 같은 이름
-/// 붙인 상수 선언 자체는 걸리지 않는다.
+/// 붙인 상수 선언 자체는 걸리지 않는다. `EdgeInsets` · `SizedBox` 는 몇째
+/// 인자든 숫자 인자마다 따로 잡고, 0 도 숫자 리터럴이다.
 final List<DesignLiteralPattern> kDesignLiteralPatterns =
     <DesignLiteralPattern>[
       (
@@ -77,7 +78,8 @@ final List<DesignLiteralPattern> kDesignLiteralPatterns =
       (
         name: 'edge-insets-number',
         pattern: RegExp(
-          r'\bEdgeInsets(?:Directional)?\.\w+\(\s*(?:\w+:\s*)?\d',
+          r'(?<=\bEdgeInsets(?:Directional)?\.\w+\((?:[^)]*,)?\s*)'
+          r'(?:\w+:\s*)?\d',
         ),
         presentationOnly: false,
       ),
@@ -131,7 +133,8 @@ final List<DesignLiteralPattern> kDesignLiteralPatterns =
       (
         name: 'sized-box-number',
         pattern: RegExp(
-          r'\bSizedBox(?:\.square)?\(\s*(?:width|height|dimension):\s*\d',
+          r'(?<=\bSizedBox(?:\.square)?\((?:[^)]*,)?\s*)'
+          r'(?:width|height|dimension):\s*\d',
         ),
         presentationOnly: false,
       ),
@@ -147,7 +150,7 @@ final List<DesignLiteralPattern> kDesignLiteralPatterns =
       ),
       (
         name: 'ratio-literal',
-        pattern: RegExp(r'\*\s*0?\.\d'),
+        pattern: RegExp(r'\*\s*0?\.\d|(?<![\w.])0?\.\d+\s*\*'),
         presentationOnly: false,
       ),
     ];

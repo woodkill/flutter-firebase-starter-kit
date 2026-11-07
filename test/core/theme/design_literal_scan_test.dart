@@ -9,6 +9,7 @@
 // T-24-SCAN-02: 스캔 대상의 표시 주석 총수가 [_designLiteralMarkerCount] 다.
 // T-24-SCAN-03: 스캔 대상 수집 · 제외 규칙 · Duration 범위 규칙의 표본.
 // T-24-SCAN-04: 패턴마다 둘째 줄 리터럴 표본이 그 줄 · 그 이름 하나로 걸린다.
+//   간격 · 크기 숫자는 몇째 인자든, 비율 소수는 곱의 앞이든 뒤든 걸린다.
 // T-24-SCAN-05: 리터럴 바로 윗줄의 이유 있는 표시만 통과시킨다.
 // T-24-SCAN-06: 여러 줄 호출은 숫자가 있는 인자 줄로 알리고 줄 번호가 밀리지 않는다.
 // T-24-SCAN-07: Duration 은 화면 · 공용 폴더에서 표시된 이름 붙인 선언만 통과한다.
@@ -73,6 +74,35 @@ const Map<String, String> _literalLines = <String, String>{
       '  final Object value = CircularProgressIndicator(strokeWidth: 2);',
   'ratio-literal': '  final double value = size.height * 0.9;',
 };
+
+/// 인자 위치 · 피연산자 순서가 다른 리터럴 줄과 그 줄이 걸리는 패턴 이름이다.
+///
+/// 간격 · 크기 숫자는 첫 인자가 아니어도, 비율 소수는 곱의 앞에 와도 걸린다.
+/// 0 도 숫자 리터럴이다 — 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
+const List<(String, String)> _argumentPositionLines = <(String, String)>[
+  (
+    '  final Object value = EdgeInsets.fromLTRB(spacing.lg, 8, spacing.lg, 16);',
+    'edge-insets-number',
+  ),
+  (
+    '  final Object value = EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm);',
+    'edge-insets-number',
+  ),
+  (
+    '  final Object value = EdgeInsets.only(left: spacing.md, top: 8);',
+    'edge-insets-number',
+  ),
+  (
+    '  final Object value = EdgeInsets.symmetric(horizontal: spacing.lg, vertical: 12);',
+    'edge-insets-number',
+  ),
+  (
+    '  final Object value = SizedBox(width: double.infinity, height: 48);',
+    'sized-box-number',
+  ),
+  ('  final Object value = SizedBox(key: key, height: 8);', 'sized-box-number'),
+  ('  final double value = 0.9 * size.height;', 'ratio-literal'),
+];
 
 /// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
 ///
@@ -207,6 +237,70 @@ void main() {
         );
       });
     }
+
+    for (final (String source, String name) in _argumentPositionLines) {
+      test('T-24-SCAN-04: 인자 위치와 무관하게 $name 으로 걸린다 — $source', () {
+        expect(
+          findDesignLiteralHits(
+            _presentationPath,
+            _wrapInClass(<String>[source]),
+          ),
+          equals(<String>[_presentationHit(2, name)]),
+        );
+      });
+    }
+
+    test('T-24-SCAN-04: 여러 줄 호출의 둘째 인자 이후 숫자는 그 인자 줄로 걸린다', () {
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'EdgeInsets.symmetric(\n'
+          '  horizontal: spacing.lg,\n'
+          '  vertical: 8,\n'
+          ')',
+        ),
+        equals(<String>[_presentationHit(3, 'edge-insets-number')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'SizedBox(\n'
+          '  width: double.infinity,\n'
+          '  height: 48,\n'
+          ')',
+        ),
+        equals(<String>[_presentationHit(3, 'sized-box-number')]),
+      );
+    });
+
+    test('T-24-SCAN-04: 한 호출의 숫자 인자 줄마다 따로 걸리고 표시는 그 줄만 푼다', () {
+      const fromLtrbLines = <String>[
+        'EdgeInsets.fromLTRB(',
+        '  spacing.xl,',
+        '  0,',
+        '  spacing.xl,',
+        '  16,',
+        ')',
+      ];
+      expect(
+        findDesignLiteralHits(_presentationPath, fromLtrbLines.join('\n')),
+        equals(<String>[
+          _presentationHit(3, 'edge-insets-number'),
+          _presentationHit(5, 'edge-insets-number'),
+        ]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          <String>[
+            ...fromLtrbLines.take(4),
+            _marker,
+            ...fromLtrbLines.skip(4),
+          ].join('\n'),
+        ),
+        equals(<String>[_presentationHit(3, 'edge-insets-number')]),
+      );
+    });
 
     test('T-24-SCAN-05: 표시 수는 이유가 있는 표시 줄만 센다', () {
       const source = <String>[
@@ -373,7 +467,10 @@ void main() {
         'final Object a = context.appColors.success;',
         'final Object a = AppColors.fromBrightness(Brightness.light);',
         'final Object a = Color(0xFF000000 | value);',
-        'final Object a = EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm);',
+        'final Object a = EdgeInsets.only(left: spacing.lg, right: spacing.lg, bottom: spacing.sm);',
+        'final Object a = EdgeInsets.only(left: spacing.md, top: spacing.sm);',
+        'final Object a = SizedBox(width: double.infinity, height: spacing.md);',
+        'final double a = size.height * factor;',
         'final Object a = Durations.short4;',
         'const double _kLogoSize = 40;',
         '// Colors.red',

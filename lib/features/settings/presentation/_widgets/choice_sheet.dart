@@ -71,11 +71,10 @@ class ChoiceSheet<T> extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(
-                spacing.xl,
-                0,
-                spacing.xl,
-                spacing.sm,
+              padding: EdgeInsets.only(
+                left: spacing.xl,
+                right: spacing.xl,
+                bottom: spacing.sm,
               ),
               child: Text(title, style: typography.titleMedium),
             ),

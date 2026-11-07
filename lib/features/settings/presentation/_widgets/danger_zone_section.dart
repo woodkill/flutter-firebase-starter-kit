@@ -48,7 +48,11 @@ class DangerZoneSection extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: EdgeInsets.fromLTRB(spacing.lg, 0, spacing.lg, spacing.sm),
+          padding: EdgeInsets.only(
+            left: spacing.lg,
+            right: spacing.lg,
+            bottom: spacing.sm,
+          ),
           child: Text(
             l10n.settingsDangerZoneExplainer,
             style: typography.bodyMedium.copyWith(
