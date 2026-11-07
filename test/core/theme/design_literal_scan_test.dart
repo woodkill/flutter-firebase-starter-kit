@@ -10,10 +10,9 @@
 // T-24-SCAN-03: 스캔 대상 수집 · 제외 규칙 · Duration 범위 규칙의 표본.
 // T-24-SCAN-04: 패턴마다 둘째 줄 리터럴 표본이 그 줄 · 그 이름 하나로 걸린다.
 //   간격 · 크기 숫자는 인자마다, 1 미만 비율 소수(`0.x` · `.x`)는 곱의 앞이든
-//   뒤든 걸린다 — 단 숫자 인자는 앞 인자에 닫는 괄호가 있거나, 바로 앞 인자
-//   줄이 쉼표 뒤 줄 끝 주석으로 끝나거나, 여는 괄호 뒤 앞 인자들이 400자(줄 끝
-//   주석 글자 포함)를 넘으면 걸리지 않고, 여는 괄호 줄 끝에 주석이 있으면 첫
-//   인자의 숫자도 걸리지 않는다(알려진 빈틈 · 길이 상한 표본).
+//   뒤든 걸린다 — 숫자 인자를 잡는 조건은 [kDesignLiteralPatterns] 문서에
+//   있고, 그 조건이 놓치는 꼴의 예시(알려진 빈틈)와 400자 길이 상한 경계를
+//   표본으로 고정한다.
 // T-24-SCAN-05: 리터럴 바로 윗줄의 이유 있는 표시만 통과시킨다.
 // T-24-SCAN-06: 여러 줄 호출은 숫자가 있는 인자 줄로 알리고 줄 번호가 밀리지 않는다.
 // T-24-SCAN-07: Duration 은 화면 · 공용 폴더에서 표시된 이름 붙인 선언만 통과한다.
@@ -110,16 +109,17 @@ const List<(String, String)> _argumentPositionLines = <(String, String)>[
   ('  final double value = 0.9 * size.height;', 'ratio-literal'),
 ];
 
-/// 알려진 빈틈 — 가드가 보지 못하는 리터럴 꼴이다.
+/// 알려진 빈틈 — 가드가 보지 못하는 리터럴 꼴의 예시다.
 ///
-/// 숫자 인자는 앞 인자에 닫는 괄호가 있거나 바로 앞 인자 줄이 쉼표 뒤 줄 끝
-/// `//` 주석으로 끝나면 걸리지 않고, 여는 괄호 줄 끝에 `//` 주석이 있으면 첫
-/// 인자의 숫자도 걸리지 않는다. 지금 0 건임을 고정해 빈틈을 드러낸다 — 가드가
-/// 이 꼴을 잡게 되면 이 목록에서 빼고 적중 줄을 단언하는 양성 시험으로 옮긴다.
+/// 숫자 인자를 잡는 조건([kDesignLiteralPatterns] 문서)에서 나오는 놓치는 꼴
+/// 가운데 몇 개이고, 전부 목록이 아니다. 지금 0 건임을 고정해 빈틈을 드러낸다 —
+/// 가드가 이 꼴을 잡게 되면 이 목록에서 빼고 적중 줄을 단언하는 양성 시험으로
+/// 옮긴다.
 const List<String> _knownGapLines = <String>[
   'EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom, top: 8)',
   'EdgeInsets.only(\n  left: spacing.sm, // 설명\n  top: 8,\n)',
   'EdgeInsets.only( // 설명\n  top: 8,\n)',
+  'EdgeInsets.only(\n  left: spacing.sm, // 설명(시안)\n  right: spacing.sm,\n  top: 8,\n)',
 ];
 
 /// 여는 괄호 뒤 앞 인자 길이 상한 표본의 호출 머리 · 앞 인자 이름 · 숫자 인자 ·
@@ -171,9 +171,9 @@ int _leadingLength(String source) =>
 /// 첫 인자 줄 끝에 `//` 주석을 둔 여러 줄 `EdgeInsets.only` 호출을 만든다.
 ///
 /// 공백 연속을 한 칸으로 접으면 여는 괄호 바로 뒤부터 숫자 인자 `top: 8` 앞
-/// 쉼표 직전까지가 줄 끝 주석 글자를 넣어 [collapsedLength] 자다. 숫자 인자
-/// 바로 윗줄은 주석 없는 인자 줄이다 — 바로 윗줄이 줄 끝 주석으로 끝나면 길이와
-/// 상관없이 그 숫자 인자를 보지 못한다.
+/// 쉼표 직전까지가 줄 끝 주석 글자를 넣어 [collapsedLength] 자다. 주석에는
+/// 닫는 괄호가 없고 숫자 인자 바로 윗줄은 주석 없는 인자 줄이라, 숫자 인자
+/// 바로 앞이 쉼표다 — 적중 여부는 길이 하나로 갈린다.
 String _callWithTrailingComment(int collapsedLength) {
   const leading = ' left: ';
   const comment = ' // 이 줄 끝 주석의 글자도 센다';
@@ -475,6 +475,25 @@ void main() {
           reason: source,
         );
       }
+    });
+
+    test('T-24-SCAN-04: 줄 끝 주석이 쉼표로 끝나면 숫자 인자 바로 앞이 쉼표라 잡는다', () {
+      // 알려진 빈틈의 여는 괄호 줄 끝 주석 꼴과 쉼표 하나만 다르다 — 쉼표는
+      // 주석 안에 있어도 센다.
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'EdgeInsets.only( // 설명,\n  top: 8,\n)',
+        ),
+        equals(<String>[_presentationHit(2, 'edge-insets-number')]),
+      );
+      expect(
+        findDesignLiteralHits(
+          _presentationPath,
+          'SizedBox( // 설명,\n  height: 8,\n)',
+        ),
+        equals(<String>[_presentationHit(2, 'sized-box-number')]),
+      );
     });
 
     test('T-24-SCAN-04: 모든 패턴의 일치는 길이 1 이상이다', () {
