@@ -9,7 +9,9 @@
 // T-24-SCAN-02: 스캔 대상의 표시 주석 총수가 [_designLiteralMarkerCount] 다.
 // T-24-SCAN-03: 스캔 대상 수집 · 제외 규칙 · Duration 범위 규칙의 표본.
 // T-24-SCAN-04: 패턴마다 둘째 줄 리터럴 표본이 그 줄 · 그 이름 하나로 걸린다.
-//   간격 · 크기 숫자는 몇째 인자든, 비율 소수는 곱의 앞이든 뒤든 걸린다.
+//   간격 · 크기 숫자는 인자마다, 비율 소수는 곱의 앞이든 뒤든 걸린다 — 단 앞
+//   인자에 닫는 괄호나 줄 끝 주석이 있거나 여는 괄호 뒤 앞 인자들이 400자를
+//   넘으면 그 뒤 숫자 인자는 걸리지 않는다(알려진 빈틈 · 길이 상한 표본).
 // T-24-SCAN-05: 리터럴 바로 윗줄의 이유 있는 표시만 통과시킨다.
 // T-24-SCAN-06: 여러 줄 호출은 숫자가 있는 인자 줄로 알리고 줄 번호가 밀리지 않는다.
 // T-24-SCAN-07: Duration 은 화면 · 공용 폴더에서 표시된 이름 붙인 선언만 통과한다.
@@ -79,6 +81,7 @@ const Map<String, String> _literalLines = <String, String>{
 ///
 /// 간격 · 크기 숫자는 첫 인자가 아니어도, 비율 소수는 곱의 앞에 와도 걸린다.
 /// 0 도 숫자 리터럴이다 — 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
+/// 첫 인자가 아닌데 걸리지 않는 꼴은 [_knownGapLines] 에 있다.
 const List<(String, String)> _argumentPositionLines = <(String, String)>[
   (
     '  final Object value = EdgeInsets.fromLTRB(spacing.lg, 8, spacing.lg, 16);',
@@ -104,6 +107,24 @@ const List<(String, String)> _argumentPositionLines = <(String, String)>[
   ('  final double value = 0.9 * size.height;', 'ratio-literal'),
 ];
 
+/// 알려진 빈틈 — 가드가 보지 못하는 리터럴 꼴이다.
+///
+/// 앞 인자에 닫는 괄호가 있거나 앞 인자 줄 끝에 `//` 주석이 있으면 그 뒤 숫자
+/// 인자는 걸리지 않는다. 지금 0 건임을 고정해 빈틈을 드러낸다 — 가드가 이 꼴을
+/// 잡게 되면 이 목록에서 빼고 [_argumentPositionLines] 로 옮긴다.
+const List<String> _knownGapLines = <String>[
+  'EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom, top: 8)',
+  'EdgeInsets.only(\n  left: spacing.sm, // 설명\n  top: 8,\n)',
+];
+
+/// 여는 괄호 뒤 앞 인자 길이 상한 표본의 호출 머리 · 앞 인자 이름 · 숫자 인자 ·
+/// 패턴 이름이다.
+const List<(String, String, String, String)> _leadingLengthCalls =
+    <(String, String, String, String)>[
+      ('EdgeInsets.only', 'left', 'top: 8', 'edge-insets-number'),
+      ('SizedBox', 'key', 'height: 8', 'sized-box-number'),
+    ];
+
 /// 토큰 · 주석 · 색 파서 꼴처럼 어느 패턴에도 걸리지 않는 음성 표본이다.
 const List<String> _negativeLines = <String>[
   'final Object a = EdgeInsets.all(spacing.md);',
@@ -123,6 +144,24 @@ const List<String> _negativeLines = <String>[
   '/* fontSize: 14 */',
   'final Object a = Gap(spacing.sm); /* Colors.red */',
 ];
+
+/// 여는 괄호 바로 뒤부터 숫자 인자 앞 쉼표 직전까지가 [length] 자인 한 줄
+/// 호출을 만든다.
+///
+/// 앞 인자는 `<name>: aaa…` 꼴이라 어느 패턴에도 걸리지 않는다.
+String _callWithLeadingLength(
+  String head,
+  String name,
+  String numberArgument,
+  int length,
+) {
+  final leading = '$name: ';
+  return '$head($leading${'a' * (length - leading.length)}, $numberArgument)';
+}
+
+/// [source] 의 첫 여는 괄호 바로 뒤부터 첫 쉼표 직전까지의 글자 수를 돌려준다.
+int _leadingLength(String source) =>
+    source.indexOf(',') - source.indexOf('(') - 1;
 
 /// [body] 줄을 클래스 머리 · 꼬리 사이에 넣은 표본 소스를 만든다.
 ///
@@ -322,12 +361,69 @@ void main() {
       );
     });
 
+    for (final (String head, String name, String numberArgument, String pattern)
+        in _leadingLengthCalls) {
+      test('T-24-SCAN-04: $pattern 은 여는 괄호 뒤 앞 인자들이 400자면 그 뒤 숫자 인자를 잡는다', () {
+        final String source = _callWithLeadingLength(
+          head,
+          name,
+          numberArgument,
+          400,
+        );
+        expect(_leadingLength(source), 400);
+        expect(
+          findDesignLiteralHits(_presentationPath, source),
+          equals(<String>[_presentationHit(1, pattern)]),
+        );
+      });
+
+      test(
+        'T-24-SCAN-04: $pattern 은 여는 괄호 뒤 앞 인자들이 401자면 그 뒤 숫자 인자를 보지 않는다',
+        () {
+          final String source = _callWithLeadingLength(
+            head,
+            name,
+            numberArgument,
+            401,
+          );
+          expect(_leadingLength(source), 401);
+          expect(findDesignLiteralHits(_presentationPath, source), isEmpty);
+        },
+      );
+    }
+
+    test('T-24-SCAN-04: 앞 인자 길이는 주석을 지우고 공백 연속을 한 칸으로 접어 센다', () {
+      String multiLine(int collapsedLength) =>
+          'EdgeInsets.only(\n'
+          '  // 이 주석 줄의 글자는 세지 않는다\n'
+          '          left: ${'a' * (collapsedLength - ' left: '.length)},\n'
+          '  top: 8,\n'
+          ')';
+      expect(_leadingLength(multiLine(400)), greaterThan(400));
+      expect(
+        findDesignLiteralHits(_presentationPath, multiLine(400)),
+        equals(<String>[_presentationHit(4, 'edge-insets-number')]),
+      );
+      expect(findDesignLiteralHits(_presentationPath, multiLine(401)), isEmpty);
+    });
+
+    test('T-24-SCAN-04: 알려진 빈틈 — 가드가 보지 못하는 꼴은 지금 0 건이다', () {
+      for (final source in _knownGapLines) {
+        expect(
+          findDesignLiteralHits(_presentationPath, source),
+          isEmpty,
+          reason: source,
+        );
+      }
+    });
+
     test('T-24-SCAN-04: 모든 패턴의 일치는 길이 1 이상이다', () {
       final samples = <String>[
         '',
         ..._literalLines.values,
         for (final (String source, String _) in _argumentPositionLines) source,
         ..._negativeLines,
+        ..._knownGapLines,
       ];
       for (final DesignLiteralPattern named in kDesignLiteralPatterns) {
         for (final sample in samples) {

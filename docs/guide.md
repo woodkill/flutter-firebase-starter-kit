@@ -1265,7 +1265,8 @@ Card(child: content)
 - 가드가 보지 않는 곳은 `lib/core/theme/` · `lib/l10n/generated/` · `lib/features/auth/presentation/_widgets/branded_social_button.dart` · `lib/app.dart` · 생성 파일(`*.g.dart` · `*.freezed.dart` · `*.gr.dart` · `*.gen.dart`)이다.
 - 줄 전체가 주석인 줄과 블록 주석은 보지 않는다 — 코드 뒤 `//` 주석과 문자열 안 글자는 본다.
 - 테마 조립 파일 `lib/app.dart` 는 가드 밖이다 — 2번 · 3번 · 위 「좋음」 예시처럼 토큰 · 컴포넌트 테마를 `copyWith` 로 바꾸는 값은 이 파일에 둔다.
-- 간격 · 크기 숫자는 몇째 인자든, 비율 소수는 곱의 앞이든 뒤든 잡는다 — 0 도 숫자 리터럴로 잡히므로 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
+- 간격 · 크기 숫자는 인자마다, 비율 소수는 곱의 앞이든 뒤든 잡는다 — 0 도 숫자 리터럴로 잡히므로 한 변만 0 이면 `EdgeInsets.only` 로 그 변을 생략한다.
+- 둘째 인자부터는 앞 인자에 닫는 괄호(`MediaQuery.sizeOf(context).width` 꼴)나 줄 끝 `//` 주석이 있거나, 여는 괄호 뒤부터 그 인자 앞 쉼표까지가 400자(주석을 빼고 공백 연속을 한 칸으로 센다)를 넘으면 그 숫자 인자는 보지 못한다.
 - 표시 주석은 리터럴이 있는 줄(여러 줄 호출이면 숫자가 있는 인자 줄) 바로 윗줄에 둔다.
 - `TextStyle(…)` 처럼 호출 자체가 가드 대상이면 여는 줄 위에도 표시를 단다 — 숫자 인자가 다른 줄에 있으면 표시가 2개이고 `_designLiteralMarkerCount` 도 2 올린다.
 - 화면(`presentation`) · `lib/shared/` 의 `Duration(` 은 표시를 단 이름 붙인 `const` 선언(`static const Duration _kDelay = Duration(…);` 꼴)만 통과한다.

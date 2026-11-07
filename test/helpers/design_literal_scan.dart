@@ -41,8 +41,14 @@ typedef DesignLiteralPattern = ({
 /// - 비율: 소수 곱(소수가 곱의 앞이든 뒤든).
 ///
 /// 숫자는 「인자 이름: 숫자」 꼴로만 잡는다 — `const double _kX = 40;` 같은 이름
-/// 붙인 상수 선언 자체는 걸리지 않는다. `EdgeInsets` · `SizedBox` 는 몇째
-/// 인자든 숫자 인자마다 따로 잡고, 0 도 숫자 리터럴이다.
+/// 붙인 상수 선언 자체는 걸리지 않는다. `EdgeInsets` · `SizedBox` 는 숫자
+/// 인자마다 따로 잡고, 0 도 숫자 리터럴이다.
+///
+/// 둘째 인자부터는 여는 괄호 바로 뒤부터 그 인자 앞 쉼표 직전까지가 400자
+/// 이하이고(주석을 지우고 공백 연속을 한 칸으로 접은 글자 수 · 쉼표 뒤 공백은
+/// 세지 않는다), 그 사이에 닫는 괄호가 없고, 쉼표와 인자 사이가 공백뿐일
+/// 때만 잡는다. 그래서 앞 인자에 닫는 괄호(`MediaQuery.sizeOf(context).width`
+/// 꼴)나 줄 끝 `//` 주석이 있으면 그 뒤 숫자 인자는 보지 못한다.
 ///
 /// 모든 패턴은 길이 1 이상 일치만 낸다 — 적중 줄을 일치 마지막 글자의 줄로
 /// 계산하는 [findDesignLiteralHits] 의 전제다.
@@ -81,7 +87,7 @@ final List<DesignLiteralPattern> kDesignLiteralPatterns =
       (
         name: 'edge-insets-number',
         pattern: RegExp(
-          r'(?<=\bEdgeInsets(?:Directional)?\.\w+\((?:[^)]*,)?\s*)'
+          r'(?<=\bEdgeInsets(?:Directional)?\.\w+\((?:[^)]{0,400},)?\s*)'
           r'(?:\w+:\s*)?\d',
         ),
         presentationOnly: false,
@@ -136,7 +142,7 @@ final List<DesignLiteralPattern> kDesignLiteralPatterns =
       (
         name: 'sized-box-number',
         pattern: RegExp(
-          r'(?<=\bSizedBox(?:\.square)?\((?:[^)]*,)?\s*)'
+          r'(?<=\bSizedBox(?:\.square)?\((?:[^)]{0,400},)?\s*)'
           r'(?:width|height|dimension):\s*\d',
         ),
         presentationOnly: false,
