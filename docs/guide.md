@@ -159,6 +159,7 @@
        ```
        마지막 줄(`git status`)의 출력이 정확히 10장(설정 `settings_171_*` 8 · 홈
        `home_171_*` 2 · 모두 `M`)인지 확인한다.
+     - `test/core/theme/design_literal_scan_test.dart` — `_designLiteralMarkerCount` 에서 3 을 뺀다(데모 화면의 표시 주석 3개가 빠진다).
      - 끝으로 `fvm dart analyze` 가 0 건이 될 때까지, 지운 파일을 가리키거나 쓰는 곳이 없어진 import · 선언 · 지역 변수를 lib · test 모두에서 지운다(라우터 테스트의 `demo_screen.dart` · 테스트 전용 import · mock 클래스와 그 뒤 2차로 드러나는 `auth_repository.dart` import, source guard 의 `_demoScreenPath`, 알림 섹션 테스트의 `sectionBottom`, 2단계 뒤 `home_body.dart` 의 `go_router` 등).
        - 하나를 지우면 다른 것이 새로 드러날 수 있으므로 analyze 는 0 건이 될 때까지 되풀이한다.
        - analyze 가 0 건이면 `grep -rn developerDemo lib test` 도 본다 — 1단계에서 상수까지 지웠다면 0 건이어야 한다.
@@ -1169,13 +1170,13 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 ## 디자인 토큰 바꾸기
 
-앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 화면 폭 분기 · 키보드 포커스 테두리 · 컴포넌트 모양(아래 시트 · 삭제 버튼 · 큰 버튼 높이)을 내 앱에 맞게 바꾸는 절차다.
+앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 그림자 높이(elevation) · 화면 폭 분기 · 키보드 포커스 테두리 · 컴포넌트 모양(아래 시트 · 삭제 버튼 · 큰 버튼 높이)을 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
 
-킷의 디자인 토큰은 **`ThemeExtension` 6종** 이다.
+킷의 디자인 토큰은 **`ThemeExtension` 7종** 이다.
 
 | Extension | 파일 | 담는 것 |
 |---|---|---|
@@ -1185,16 +1186,17 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 | `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 6단계(`xs` 16 ~ `xxl` 64) |
 | `AppRadius` | `lib/core/theme/app_radius.dart` | 모서리 둥글기 5단계(Material 3 모양 단계) |
 | `AppOpacity` | `lib/core/theme/app_opacity.dart` | 투명도 — Material 3 상태 · 비활성 값과 킷 가림막 · 비활성 표시 값 |
+| `AppElevation` | `lib/core/theme/app_elevation.dart` | Material 3 그림자 높이 6단계(`level0` 0 ~ `level5` 12) |
 
-여섯 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()` (`lib/core/theme/app_theme.dart`) 이고, 앱이 테마를 넘기는 곳은 `lib/app.dart` 의 `theme: AppTheme.light(seedColor: seed),` / `darkTheme: AppTheme.dark(seedColor: seed),` 두 줄이다.
-- `ColorScheme` 은 시드 색 하나에서 `ColorScheme.fromSeed` 로 파생되고, extension 6종은 `AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()` · `const AppIconSizes()` · `const AppRadius()` · `const AppOpacity()` 순서로 등록된다.
+일곱 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()` (`lib/core/theme/app_theme.dart`) 이고, 앱이 테마를 넘기는 곳은 `lib/app.dart` 의 `theme: AppTheme.light(seedColor: seed),` / `darkTheme: AppTheme.dark(seedColor: seed),` 두 줄이다.
+- `ColorScheme` 은 시드 색 하나에서 `ColorScheme.fromSeed` 로 파생되고, extension 7종은 `AppColors.fromBrightness(...)` · `AppTypography.empty` · `const AppSpacing()` · `const AppIconSizes()` · `const AppRadius()` · `const AppOpacity()` · `const AppElevation()` 순서로 등록된다.
 
 이 밖에 반응형은 `AppBreakpoint` + `ResponsiveX`
 (`lib/core/theme/app_breakpoint.dart`) 가, 키보드 focus outline 은
 `BrandFocusWrapper` (`lib/core/theme/brand_focus_wrapper.dart`) 가 맡는다.
 
 앱 코드는 `ThemeX` extension(`lib/core/theme/theme_extensions.dart`) 의
-**여덟 getter** 로 토큰을 읽는다.
+**아홉 getter** 로 토큰을 읽는다.
 
 | getter | 반환 | extension 미등록 테마에서의 동작 |
 |---|---|---|
@@ -1204,12 +1206,69 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 | `context.appIconSizes` | `AppIconSizes` | `const AppIconSizes()` 으로 폴백 |
 | `context.appRadius` | `AppRadius` | `const AppRadius()` 으로 폴백 |
 | `context.appOpacity` | `AppOpacity` | `const AppOpacity()` 으로 폴백 |
+| `context.appElevation` | `AppElevation` | `const AppElevation()` 으로 폴백 |
 | `context.colorScheme` | `ColorScheme` | `Theme.of` 직통 |
 | `context.textTheme` | `TextTheme` | `Theme.of` 직통 — **extension override 미반영** |
 
-여섯 토큰 getter 는 extension 이 등록되지 않은 테마에서도 기본 토큰으로 폴백하므로,
+일곱 토큰 getter 는 extension 이 등록되지 않은 테마에서도 기본 토큰으로 폴백하므로,
 자체 `ThemeData` 를 쓰거나 위젯 테스트에서 맨몸 `MaterialApp()` 을 써도 크래시하지
 않는다.
+
+### 무엇에 어떤 토큰을 쓰나
+
+내 화면 코드에서 디자인 값을 어디서 읽을지 고르는 표다 — 「쓰지 않는 것」 열의 꼴은 아래 가드 시험이 `lib/` 에서 찾아 실패시킨다.
+
+| 디자인 속성 | 쓰는 것 | 쓰지 않는 것 | 기본값 출처 |
+|---|---|---|---|
+| 색 | `context.colorScheme` · `context.appColors` | `Colors.red` 같은 이름 색(`material-colors`) · `Color(0xFF6750A4)`(`color-hex`) · `Color.fromARGB(255, …)`(`color-from-components`) | M3 sys(시드에서 파생) · 킷(`AppColors`) |
+| 글자 | `context.appTypography` | `fontSize: 14`(`font-size-number`) · `fontWeight: FontWeight.w500`(`font-weight-literal`) · 새 `TextStyle(…)`(`text-style-constructor`) | M3 sys(type scale) |
+| 간격 | `context.appSpacing` | `EdgeInsets.all(16)`(`edge-insets-number`) · `Gap(8)`(`gap-number`) | 킷 |
+| 둥글기 | `context.appRadius` · 알약 꼴은 `StadiumBorder` | `BorderRadius.circular(12)`(`radius-number`) | M3 sys(shape) |
+| 아이콘 크기 | `context.appIconSizes` | `Icon(…, size: 24)`(`icon-size-number`) | 킷 |
+| 투명도 | `context.appOpacity` | `withValues(alpha: 0.5)`(`alpha-number`) | M3 sys(state) · 킷 |
+| elevation | `context.appElevation` | `elevation: 2`(`elevation-number`) | M3 sys(elevation) |
+| motion | SDK 상수 `Durations.medium2` · `Easing.standard` | `Curves.easeOut`(`curves-literal`) · 화면 코드의 `Duration(milliseconds: 300)`(`duration-literal`) | M3 sys(motion) |
+| 테두리 굵기 | 컴포넌트 기본값 1 · 바꾸려면 `ThemeData` 의 컴포넌트 테마 | `BorderSide(width: 2)`(`border-width-number`) | M3 comp |
+| 화면 폭 | `AppBreakpoint.fromWidth` · `context.breakpoint` | `width > 600` 같은 숫자 비교(`width-compare-number`) | M3 sys(window size class) |
+| 컴포넌트 모양 | `ThemeData` 의 컴포넌트 테마(`cardTheme` 등) | 호출부마다 `Card(shape: …, elevation: …)` 넘기기 — 숫자는 둥글기 · elevation 행의 가드가 잡는다 | M3 comp |
+| 한 컴포넌트만의 치수 | 이름 붙인 상수 + 바로 윗줄 표시 주석 | 표시 없는 `SizedBox(width: 40)`(`sized-box-number`) · 간격 토큰을 크기로 쓴 `SizedBox.square(dimension: spacing.xl)`(`spacing-as-size`) · `strokeWidth: 2`(`stroke-width-number`) · `height * 0.9`(`ratio-literal`) | 킷 |
+
+1. **시스템 값은 토큰 getter 나 SDK 상수로 읽는다.**
+   - 색 · 글자 · 간격 · 둥글기 · 아이콘 크기 · 투명도 · elevation 은 `context.` getter 로, motion 은 SDK 의 `Durations` · `Easing` 으로 읽는다.
+2. **컴포넌트 역할 값은 `ThemeData` 의 컴포넌트 테마에 한 번 둔다.**
+   - 카드 · 입력창처럼 같은 종류의 컴포넌트가 함께 쓰는 모양은 `lib/app.dart` 의 `theme:` · `darkTheme:` 줄에서 `copyWith` 로 컴포넌트 테마를 넣는다.
+   - 킷 `AppTheme` 은 아래 시트 말고는 컴포넌트 테마를 미리 채우지 않는다 — 그 밖의 컴포넌트는 Material 3 기본값이다.
+3. **한 컴포넌트만의 치수는 이름 붙인 상수로 두고 바로 윗줄에 `// design-literal: <이유>` 를 단다.**
+   - 이유에는 토큰을 쓰지 않는 까닭(브랜드 가이드의 고정 치수 · 그 위젯 하나만의 크기 등)을 적는다.
+
+카드 모양을 정하는 나쁨 / 좋음 예시다.
+
+```dart
+// 나쁨 — 카드를 쓰는 곳마다 모양 숫자를 넘긴다.
+Card(elevation: 2, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), child: content)
+```
+
+```dart
+// 좋음 — lib/app.dart 의 theme: 줄에 카드 테마를 한 번 둔다(darkTheme: · 고대비 두 줄도 같은 꼴).
+theme: AppTheme.light(seedColor: seed).copyWith(
+  cardTheme: CardThemeData(
+    elevation: 2,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+  ),
+),
+
+// 화면 코드는 모양 인자 없이 쓴다.
+Card(child: content)
+```
+
+**가드 시험:** `test/core/theme/design_literal_scan_test.dart` 가 `lib/` 에서 위 표 「쓰지 않는 것」 꼴을 찾아 `<경로>:<줄> — <가드 이름>` 으로 실패한다.
+- 가드가 보지 않는 곳은 `lib/core/theme/` · `lib/l10n/generated/` · `lib/features/auth/presentation/_widgets/branded_social_button.dart` · `lib/app.dart` · 생성 파일(`*.g.dart` · `*.freezed.dart` · `*.gr.dart` · `*.gen.dart`)이고, 주석 줄도 보지 않는다.
+- 테마 조립 파일 `lib/app.dart` 는 가드 밖이다 — 2번 · 3번 · 위 「좋음」 예시처럼 토큰 · 컴포넌트 테마를 `copyWith` 로 바꾸는 값은 이 파일에 둔다.
+- 표시 주석은 리터럴이 있는 줄(여러 줄 호출이면 숫자가 있는 인자 줄) 바로 윗줄에 둔다.
+- 화면(`presentation`) · `lib/shared/` 의 `Duration(` 은 표시를 단 이름 붙인 `const` 선언(`static const Duration _kDelay = Duration(…);` 꼴)만 통과한다.
+- 표시를 더하면 그 시험 파일의 `_designLiteralMarkerCount` 를 올리고, 표시가 있는 파일을 지우면 내린다.
+- 가드를 쓰지 않으려면 그 시험 파일과 표 계약 시험 `test/docs/design_token_table_contract_test.dart` 를 함께 지운다.
+- 패턴 목록과 제외 목록은 `test/helpers/design_literal_scan.dart` 에 있다.
 
 소셜 로그인 버튼(`lib/features/auth/presentation/_widgets/branded_social_button.dart`)은 앱 테마의 색 · 글자 스타일을 읽지 않는다 — 디자인 토큰을 바꿔도 버튼 외관은 그대로다.
 - 버튼 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) 같은 파일 상단 상수는 여섯 provider 버튼이 함께 쓰는 공통 골격이고 각 provider 의 브랜드 가이드에 맞춘 값이라, 디자인 토큰 작업에서는 고치지 않는다.
@@ -1255,6 +1314,65 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
+#### 대비 단계 · 색 변형 · 고대비 테마
+
+`AppTheme.light()` · `AppTheme.dark()` 는 시드 말고도 대비 단계 `contrastLevel` 과 색 변형 `dynamicSchemeVariant` 를 받는다.
+- 둘 다 `ColorScheme.fromSeed` 에 그대로 넘어가고, 기본값(`0.0` · `DynamicSchemeVariant.tonalSpot`)이면 지금 팔레트 그대로다.
+
+```dart
+theme: AppTheme.light(seedColor: seed, contrastLevel: 0.5),
+darkTheme: AppTheme.dark(seedColor: seed, contrastLevel: 0.5),
+```
+
+- `contrastLevel` 은 -1.0 ~ 1.0 이다.
+  - 0.0 이 기본이고 0.5 는 중간 대비, 1.0 은 높은 대비다. -1.0 쪽으로 낮추면 색 쌍의 대비가 줄어든다.
+- `dynamicSchemeVariant` 는 9값 가운데 하나다.
+  - `tonalSpot`(기본) · `fidelity` · `monochrome` · `neutral` · `vibrant` · `expressive` · `content` · `rainbow` · `fruitSalad` 이다.
+  - `fidelity` 는 팔레트가 시드 색에 가깝다.
+- 라이트와 다크에 같은 값을 넘긴다.
+  - 시드처럼 두 모드에 다른 값을 넘기면 팔레트가 어긋난다.
+- `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄은 같은 시드의 대비 1.0 팔레트다.
+  - iOS 등 일부 플랫폼이 접근성 설정으로 대비를 높이면 앱이 이 두 테마를 쓴다.
+  - 테마 줄(`theme:` · `darkTheme:`)에 `copyWith` 를 붙였다면 고대비 두 줄에도 같은 `copyWith` 를 붙인다 — 붙이지 않으면 대비를 높인 기기에서 바꾼 값이 빠진다.
+- `context.appColors` 의 `success` · `warning` · `info` 와 그 `on-` 짝은 대비 단계를 따르지 않는다.
+  - 대비를 높인 테마에서도 같은 색이다. 바꾸려면 고대비 두 줄의 `copyWith(extensions:)` 에 3번의 `AppColors` 를 따로 넣는다.
+
+#### 기기 배경화면 색(dynamic color) 켜기
+
+킷은 기기 배경화면 색을 쓰지 않는다 — 쓰려면 `dynamic_color` 패키지를 더해 기기 색을 시드로 넘긴다.
+
+1. **패키지를 더한다.**
+
+   ```bash
+   fvm flutter pub add dynamic_color
+   ```
+
+2. **`lib/app.dart` 의 `MaterialApp.router(...)` 를 `DynamicColorBuilder` 로 감싸 기기 색을 시드로 넘긴다.**
+
+   ```dart
+   return DynamicColorBuilder(
+     builder: (ColorScheme? lightDynamic, ColorScheme? darkDynamic) {
+       final Color dynamicSeed = lightDynamic?.primary ?? seed;
+       return MaterialApp.router(
+         theme: AppTheme.light(seedColor: dynamicSeed),
+         darkTheme: AppTheme.dark(seedColor: dynamicSeed),
+         highContrastTheme: AppTheme.light(seedColor: dynamicSeed, contrastLevel: 1.0),
+         highContrastDarkTheme: AppTheme.dark(seedColor: dynamicSeed, contrastLevel: 1.0),
+         // 나머지 인자는 그대로 둔다.
+       );
+     },
+   );
+   ```
+
+   - 파일 맨 위에 `import 'package:dynamic_color/dynamic_color.dart';` 를 더한다.
+   - 킷 테마는 시드 하나에서 팔레트를 다시 만들므로 기기 팔레트와 똑같지는 않다.
+
+- 기기 색은 Android 12 이상에서만 오고, 그 밖의 기기(iOS 포함)에서는 `null` 이라 킷 시드 팔레트를 쓴다.
+- 기기 색을 써도 `context.appColors.brand` · 알림 색 · `kit` 모드 메일 · 결과 페이지는 config `brandColor` 그대로라 기기 색과 어긋난다.
+  - 어긋나지 않게 하려면 이 소절을 쓰지 않고 `brandColor` 를 브랜드 색으로 둔다.
+- 위젯 시험 · golden 시험 환경에서는 기기 색이 오지 않아 킷 시드로 그린다.
+  - 기기 색은 Android 12 이상 기기에서 앱을 실행해 확인한다.
+
 ### 2. 타이포그래피 계약 — `context.appTypography` 가 유일한 경로
 
 1. **`AppTheme` 이 등록하는 extension 은 `AppTypography.empty` 다.**
@@ -1276,7 +1394,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - `lib/app.dart` 의 `theme:` 줄에서 `AppTheme.light(seedColor: seed)` 뒤에 `copyWith` 를 붙인다(다크도 같은 꼴로 `Brightness.dark` 를 쓴다).
 
 ```dart
-// 타이포그래피 부분 override — extensions 리스트에 6종을 모두 넣는다.
+// 타이포그래피 부분 override — extensions 리스트에 7종을 모두 넣는다.
 theme: AppTheme.light(seedColor: seed).copyWith(
   extensions: <ThemeExtension<dynamic>>[
     AppColors.fromBrightness(Brightness.light),
@@ -1284,6 +1402,7 @@ theme: AppTheme.light(seedColor: seed).copyWith(
     const AppIconSizes(),
     const AppRadius(),
     const AppOpacity(),
+    const AppElevation(),
     AppTypography.empty.copyWith(
       bodyMedium: const TextStyle(fontSize: 15, height: 1.5),
       titleLarge: const TextStyle(fontWeight: FontWeight.w700),
@@ -1293,10 +1412,11 @@ theme: AppTheme.light(seedColor: seed).copyWith(
 ```
 
 `lib/app.dart` 는 extension 파일을 import 하지 않는다.
-- 위 코드와 3번의 코드를 넣을 때 파일 맨 위 `import 'core/theme/app_theme.dart';` 옆에 아래 여섯 줄을 더한다.
+- 위 코드와 3번의 코드를 넣을 때 파일 맨 위 `import 'core/theme/app_theme.dart';` 옆에 아래 일곱 줄을 더한다.
 
 ```dart
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_elevation.dart';
 import 'core/theme/app_icon_sizes.dart';
 import 'core/theme/app_opacity.dart';
 import 'core/theme/app_radius.dart';
@@ -1305,14 +1425,14 @@ import 'core/theme/app_typography.dart';
 ```
 
 > ⚠ **`ThemeData.copyWith(extensions:)` 는 기존 extension map 을 통째로 교체한다** (병합하지 않는다).
-> - 위 리스트에서 `AppTypography` 만 넘기면 `AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` 가 **등록에서 사라진다**.
-> - `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, `copyWith` 로 조정해 둔 색 · 간격 · 아이콘 크기 · 둥글기 · 투명도 값이 조용히 기본 토큰으로 돌아간다.
-> - **항상 여섯 원소를 모두 나열한다.**
+> - 위 리스트에서 `AppTypography` 만 넘기면 `AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` · `AppElevation` 이 **등록에서 사라진다**.
+> - `ThemeX` 의 폴백 덕에 크래시는 나지 않지만, `copyWith` 로 조정해 둔 색 · 간격 · 아이콘 크기 · 둥글기 · 투명도 · 그림자 높이 값이 조용히 기본 토큰으로 돌아간다.
+> - **항상 일곱 원소를 모두 나열한다.**
 
 `copyWith` 에 넘길 수 있는 인자는 M3 15 스타일과 같은 이름이다 — `displayLarge` / `displayMedium` / `displaySmall` / `headlineLarge` / `headlineMedium` / `headlineSmall` / `titleLarge` / `titleMedium` / `titleSmall` / `bodyLarge` / `bodyMedium` / `bodySmall` / `labelLarge` / `labelMedium` / `labelSmall`.
 - 지정하지 않은 속성은 `TextStyle.merge` 로 테마 값이 유지되므로, `fontSize` 만 바꾸고 `fontWeight` 는 테마를 따르는 부분 override 를 할 수 있다.
 
-### 3. 시맨틱 컬러 · 간격 커스터마이징
+### 3. 시맨틱 컬러 · 간격 · 둥글기 · 투명도 · elevation 커스터마이징
 
 **`AppColors`** 는 `ColorScheme` 에 없는 앱 고유 시맨틱 컬러 6종 (`success` / `warning` / `info` + 각각의 `onSuccess` / `onWarning` / `onInfo`) 을 담는다.
 - `AppColors.fromBrightness(Brightness)` 로 라이트/다크 기본 토큰을 만들고 `copyWith` 로 개별 색만 바꾼다.
@@ -1379,33 +1499,44 @@ AppColors.fromBrightness(Brightness.light)
 
 - 킷 화면이 쓰는 값은 `scrim` · `inactive` 둘이고, 나머지는 직접 만드는 위젯에 쓰는 Material 3 값이다.
 
-다섯 extension(`AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity`) 모두 위 2번의
+**`AppElevation`** 은 그림자 높이 토큰 6단계다 — 값은 Material 3 elevation 단계와 같다.
+
+| 토큰 | 값 (dp) | Material 3 이름 |
+|---|---|---|
+| `level0` | 0 | `md.sys.elevation.level0` |
+| `level1` | 1 | `md.sys.elevation.level1` |
+| `level2` | 3 | `md.sys.elevation.level2` |
+| `level3` | 6 | `md.sys.elevation.level3` |
+| `level4` | 8 | `md.sys.elevation.level4` |
+| `level5` | 12 | `md.sys.elevation.level5` |
+
+- 킷 화면은 쓰지 않는다 — 카드 · 버튼 같은 컴포넌트의 기본 elevation 은 각 위젯과 컴포넌트 테마가 갖는다.
+- `const AppElevation().copyWith(level1: 2)` 처럼 개별 단계만 조정한다.
+
+여섯 extension(`AppColors` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` · `AppElevation`) 모두 위 2번의
 `extensions:` 리스트에 함께 넣어 등록한다.
 
-- **여섯 extension 은 모든 필드로 `==` / `hashCode` 를 비교한다.**
+- **일곱 extension 은 모든 필드로 `==` / `hashCode` 를 비교한다.**
   - 그래서 `lib/app.dart` 처럼 `build` 안에서 테마를 매번 새로 만들어도 `ThemeData` 가 같다고 판정되고, `copyWith` 로 바꾼 테마도 App 을 다시 그릴 때마다 테마 전환 애니메이션이 다시 돌지 않는다.
   - 직접 extension 을 더 만들 때도 `==` / `hashCode` 를 모든 필드로 구현한다.
-- **extension 이 등록되지 않은 테마에서도 여섯 토큰 getter 는 크래시하지 않는다.**
+- **extension 이 등록되지 않은 테마에서도 일곱 토큰 getter 는 크래시하지 않는다.**
   - `AppTheme` 을 쓰지 않고 자체 `ThemeData` 를 만들거나 위젯 테스트가 맨몸 `MaterialApp()` 을 써도 기본 토큰으로 폴백한다.
 
 ### 4. 반응형 breakpoint 계약
 
-모바일 전용 3단계다(`lib/core/theme/app_breakpoint.dart`).
+Material 3 window size class 5단계다(`lib/core/theme/app_breakpoint.dart`).
 
-| breakpoint | 범위 (dp) | 대상 |
+| breakpoint | 하한 (dp) | 폭 범위 |
 |---|---|---|
-| `compact` | 280 이상 ~ 360 미만 | 소형 디바이스 |
-| `medium` | 360 이상 ~ 600 미만 | 일반 모바일 |
-| `expanded` | 600 이상 ~ 674 미만 | 대형 모바일 / 폴더블 |
+| `compact` | 0 | 600 미만 |
+| `medium` | 600 | 600 이상 ~ 840 미만 |
+| `expanded` | 840 | 840 이상 ~ 1200 미만 |
+| `large` | 1200 | 1200 이상 ~ 1600 미만 |
+| `extraLarge` | 1600 | 1600 이상 |
 
-- **하한 포함, 상한 배타**다.
-  - 판정 기준은 `contains(width) => width >= minWidth && width < maxWidth` 하나이고 `fromWidth` 가 거기서 파생되므로, **인접한 두 breakpoint 가 동시에 참인 경계값은 없다**(360dp 는 `medium` 단독, 600dp 는 `expanded` 단독).
-- 지원 범위(280~674dp) 밖은 **양끝으로 포화**한다 — 279dp 는 `compact`,
-  가로 모드의 800dp 는 `expanded` 로 떨어진다.
-
-> ⚠ **`maxWidth` 를 실제 가용 폭으로 쓰지 않는다.**
-> - `maxWidth` 는 「선언된 지원 상한」 이다.
-> - 포화 정책 때문에 800dp 화면에서도 `expanded.maxWidth` 는 674 를 돌려주므로, 이 값을 `clamp` 등 레이아웃 계산에 그대로 넣으면 화면이 674dp 로 잘린다.
+- 각 단계는 하한만 갖는다 — `AppBreakpoint.fromWidth(width)` 는 하한이 폭 이하인 마지막 단계다(600dp → `medium` · 599dp → `compact`).
+- 킷은 모바일 전용(280~674dp)이라 실제로 만나는 단계는 `compact` 와 `medium` 일부다.
+- 킷 화면은 `context.breakpoint` 를 쓰지 않는다 — 내 화면을 폭으로 나눌 때 쓰는 값이다.
 
 컨테이너의 **지역 제약**을 기준으로 분기하려면 `LayoutBuilder` 안에서
 `fromWidth` 를 직접 호출한다.
@@ -1422,7 +1553,7 @@ LayoutBuilder(
 이 코드를 쓰는 파일은 `lib/core/theme/app_breakpoint.dart` 를 import 한다.
 
 `context.breakpoint` 는 `MediaQuery.sizeOf(context).width`, 즉 **화면 전체 폭** 기준이다.
-- 그래서 bottom sheet, 분할 레이아웃, 패딩된 칼럼 안에서는 실제 가용 폭과 어긋난다 — 640dp 화면 안의 300dp 컨테이너에서 `context.breakpoint` 는 `expanded` 지만 지역 breakpoint 는 `compact` 다.
+- 그래서 bottom sheet, 분할 레이아웃, 패딩된 칼럼 안에서는 실제 가용 폭과 어긋난다 — 640dp 화면 안의 300dp 컨테이너에서 `context.breakpoint` 는 `medium` 이지만 지역 breakpoint 는 `compact` 다.
 - 화면 방향은 `context.isLandscape` / `context.isPortrait`(후자는 전자의 부정으로 파생) 로 읽는다.
 
 ### 5. 키보드 focus outline (접근성)
@@ -1511,13 +1642,14 @@ LayoutBuilder(
 
 버튼 높이 · 시트 모서리 같은 컴포넌트 기본값은 Flutter 위젯이 Material 3 값으로 갖고 있고, 킷은 Material 3 와 다르게 정한 것만 아래 자리에 둔다.
 - 위 1 ~ 6번 토큰은 앱 전체가 함께 쓰는 값이고, 컴포넌트 하나의 기본 모양을 바꾸는 자리는 `ThemeData` 의 컴포넌트 테마다.
-- 버튼 · 구분선 · 진행 표시는 Material 3 기본값(버튼 높이 40 · 구분선 굵기 1 · `outlineVariant` · 진행 표시 굵기 4)을 쓴다.
+- 버튼 · 구분선 · 진행 표시는 Material 3 기본값(버튼 높이 40 · 구분선 굵기 1 · `outlineVariant` · 진행 표시 굵기 4)을 쓴다. 버튼 · 스플래시 안 작은 진행 표시는 굵기 2 를 쓴다.
 
 | 자리 | 킷 값 | 고칠 곳 |
 |---|---|---|
 | 아래 시트 | 손잡이를 켠다 · 위 모서리 `AppRadius` 의 `xl`(28) · 배경은 Material 3 기본 `surfaceContainerLow` | `lib/core/theme/app_theme.dart` 의 `bottomSheetTheme` |
 | 삭제 · 로그아웃 · 탈퇴 버튼 | 글자 또는 `FilledButton` 바탕이 `error` | `lib/core/theme/app_button_styles.dart` |
 | 큰 버튼 높이 | 48 — Material 3 버튼 기본 높이는 40 · 소셜 로그인 버튼과 같은 높이 | `lib/features/auth/presentation/_widgets/primary_cta.dart` 의 `kPrimaryCtaHeight` |
+| 작은 진행 표시 | 굵기 2 · 크기는 `context.appIconSizes` 를 넘긴다 · Material 3 기본 굵기는 4 | `lib/shared/widgets/small_progress_indicator.dart` 의 `SmallProgressIndicator` |
 
 1. **아래 시트는 `showModalBottomSheet` 에 모양 인자 없이 연다.**
    - 손잡이 · 위 모서리 · 배경은 `bottomSheetTheme` 를 따른다. 시트 하나만 다르게 하려면 그 호출에 `shape:` · `backgroundColor:` 를 넘긴다.
@@ -1563,11 +1695,11 @@ LayoutBuilder(
 - **글자가 기본 스타일로 나온다.**
   - `Theme.of(context).extension<AppTypography>()` 를 직접 읽으면 등록된 `AppTypography.empty` 의 빈 스타일이 돌아온다.
   - 완성된 스타일은 `context.appTypography` 로만 얻는다.
-- **`copyWith` 로 바꾼 색 · 간격 · 둥글기 · 투명도가 기본값으로 돌아갔다.**
-  - `copyWith(extensions:)` 는 map 을 통째로 교체하므로 `AppColors` · `AppTypography` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` 여섯을 항상 함께 나열한다.
-- **가로 모드 · 큰 화면에서 레이아웃이 674dp 로 잘린다.**
-  - `AppBreakpoint.maxWidth` 를 가용 폭으로 썼다.
-  - 레이아웃 계산에는 `LayoutBuilder` 의 `constraints.maxWidth` 를 쓴다.
+- **`copyWith` 로 바꾼 색 · 간격 · 둥글기 · 투명도 · 그림자 높이가 기본값으로 돌아갔다.**
+  - `copyWith(extensions:)` 는 map 을 통째로 교체하므로 `AppColors` · `AppTypography` · `AppSpacing` · `AppIconSizes` · `AppRadius` · `AppOpacity` · `AppElevation` 일곱을 항상 함께 나열한다.
+- **디자인 리터럴 가드 시험이 실패한다.**
+  - 실패 줄의 가드 이름으로 위 「무엇에 어떤 토큰을 쓰나」 표의 행을 찾아 「쓰는 것」 열의 값으로 바꾼다.
+  - 한 컴포넌트만의 치수라면 바로 윗줄에 `// design-literal: <이유>` 를 달고 `test/core/theme/design_literal_scan_test.dart` 의 `_designLiteralMarkerCount` 를 하나 올린다.
 - **`BrandFocusWrapper` 로 감싼 버튼이 8dp 작아졌다.**
   - 부모가 wrapper 의 크기를 정했다.
   - border 2dp + padding 2dp 가 사방 4dp 를 먹으므로 규격 크기는 child 안에서 정한다.
@@ -2553,6 +2685,9 @@ bash scripts/deploy_functions.sh dev --apply
 | 아래 시트 모양(손잡이 · 위 모서리 · 배경) | `lib/core/theme/app_theme.dart` 의 `bottomSheetTheme` — [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 7번 |
 | 삭제 · 로그아웃 버튼 색 | `lib/core/theme/app_button_styles.dart` 의 도우미 — 같은 7번 |
 | 큰 버튼 높이 | `lib/features/auth/presentation/_widgets/primary_cta.dart` 의 `kPrimaryCtaHeight` — 같은 7번 |
+| 그림자 높이(elevation) 단계 | `lib/core/theme/app_elevation.dart` 의 기본값 또는 `copyWith(extensions:)` 의 `const AppElevation().copyWith(…)` — [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 3번 |
+| 고대비 테마 | `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄 — 같은 1번 끝 소절 |
+| 화면 폭 단계 | `lib/core/theme/app_breakpoint.dart` 의 `AppBreakpoint` — 같은 4번 |
 | 깨진 화면 대체 문구 | ARB `errorWidgetFallbackTitle` · `errorWidgetFallbackBody`(바꾸면 그 위젯의 golden 그림이 바뀐다) |
 | 시험 알림 끄기 · 함수 빼기 | [알림 시험 발송](#알림-시험-발송) 의 「끄기」 · [③ 데모 화면](#-데모-화면--위치--노출-조건--지우는-법) 의 지우는 법 |
 | 사진 권한 문구 번역 | `ios/Runner/Info.plist` 의 `NSPhotoLibraryUsageDescription` 은 영어 한 문장이다. 한국어 · 일본어는 `InfoPlist.strings` 를 더해 번역한다 |

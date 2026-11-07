@@ -131,6 +131,7 @@ final repository = buildAuthRepository(auth: mockAuth);
   판정) · `skipUnlessPlanningDocsExist`(적은 유지보수 문서가 하나라도 없으면 건너뜀).
 - `test/helpers/brand_button_text_scale.dart` — 큰 글자 · 좁은 화면에서 소셜 로그인 버튼
   라벨을 재는 헬퍼.
+- `test/helpers/design_literal_scan.dart` — `lib/` 의 디자인 리터럴을 찾는 스캔(가드 패턴 · 표시 주석 세기).
 
 ## golden 갱신
 
