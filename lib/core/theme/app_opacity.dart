@@ -7,15 +7,31 @@ import 'package:flutter/material.dart';
 ///
 /// Material 3 상태 레이어 값(hover · focus · pressed · dragged)과 비활성 값
 /// (disabled · disabledContainer), 킷 화면의 가림막 · 비활성 표시 값
-/// (scrim · inactive)을 한 곳에 모은다.
+/// (scrim · inactive), 킷 흐림 세 단계(veilSubtle · veilMedium · veilStrong)를
+/// 한 곳에 모은다.
 /// 킷 화면이 쓰는 값은 [scrim] · [inactive] 둘이고, 나머지는 직접 만드는
 /// 위젯에 쓰는 값이다.
 /// [const] 생성자로 기본값을 제공하며, [copyWith] 으로 커스터마이징 가능하다.
+///
+/// 흐림(veil)은 콘텐츠를 보이게 둔 채 뒤로 물릴 때 흰색 · 검정을 섞는 비율
+/// (알파 하나)이다. 색은 쓰는 쪽이 [ColorScheme] 역할에서 고른다 — 흰색은 밝은
+/// 테마의 [ColorScheme.surfaceContainerLowest] 이고, 검정은 [ColorScheme.scrim]
+/// 이다. `ColorScheme.fromSeed` 에서 surfaceContainerLowest 는 밝은 테마 톤
+/// 100(흰색) · 어두운 테마 톤 4 이하(거의 검정)라 같은 식이 두 테마에서 바탕
+/// 쪽으로 물리기가 되고, scrim 은 두 테마 모두 톤 0 이다. [scrim] 은 모달 뒤를
+/// 막는 가림막 한 값이고, 흐림은 콘텐츠를 보이게 둔 채 물리는 세 단계다.
+/// Material 3 · Flutter SDK 토큰 데이터에 없는 킷 값이고, 킷 화면은 쓰지 않는다.
 ///
 /// 사용 예:
 /// ```dart
 /// final opacity = context.appOpacity;
 /// ColoredBox(color: colorScheme.scrim.withValues(alpha: opacity.scrim));
+/// // 흐림 — 역할 색에 흐림 값을 얹는다(흰색 쪽).
+/// ColoredBox(
+///   color: colorScheme.surfaceContainerLowest.withValues(
+///     alpha: opacity.veilMedium,
+///   ),
+/// );
 /// ```
 class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
   /// [AppOpacity] 인스턴스를 기본값으로 생성한다.
@@ -28,6 +44,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
     this.disabledContainer = 0.12,
     this.scrim = 0.32,
     this.inactive = 0.3,
+    this.veilSubtle = 0.2,
+    this.veilMedium = 0.4,
+    this.veilStrong = 0.6,
   });
 
   /// 마우스를 올린 상태 레이어 (0.08 · `md.sys.state.hover.state-layer-opacity`).
@@ -61,6 +80,15 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
   /// Material 3 상태 값 목록에 없는 킷 값이다.
   final double inactive;
 
+  /// 킷 흐림 옅게 (0.2) — 정의는 클래스 문서 참고.
+  final double veilSubtle;
+
+  /// 킷 흐림 보통 (0.4) — 정의는 클래스 문서 참고.
+  final double veilMedium;
+
+  /// 킷 흐림 짙게 (0.6) — 정의는 클래스 문서 참고.
+  final double veilStrong;
+
   @override
   AppOpacity copyWith({
     double? hover,
@@ -71,6 +99,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
     double? disabledContainer,
     double? scrim,
     double? inactive,
+    double? veilSubtle,
+    double? veilMedium,
+    double? veilStrong,
   }) {
     return AppOpacity(
       hover: hover ?? this.hover,
@@ -81,6 +112,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
       disabledContainer: disabledContainer ?? this.disabledContainer,
       scrim: scrim ?? this.scrim,
       inactive: inactive ?? this.inactive,
+      veilSubtle: veilSubtle ?? this.veilSubtle,
+      veilMedium: veilMedium ?? this.veilMedium,
+      veilStrong: veilStrong ?? this.veilStrong,
     );
   }
 
@@ -99,6 +133,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
           disabledContainer,
       scrim: lerpDouble(scrim, other.scrim, t) ?? scrim,
       inactive: lerpDouble(inactive, other.inactive, t) ?? inactive,
+      veilSubtle: lerpDouble(veilSubtle, other.veilSubtle, t) ?? veilSubtle,
+      veilMedium: lerpDouble(veilMedium, other.veilMedium, t) ?? veilMedium,
+      veilStrong: lerpDouble(veilStrong, other.veilStrong, t) ?? veilStrong,
     );
   }
 
@@ -113,7 +150,10 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
           other.disabled == disabled &&
           other.disabledContainer == disabledContainer &&
           other.scrim == scrim &&
-          other.inactive == inactive;
+          other.inactive == inactive &&
+          other.veilSubtle == veilSubtle &&
+          other.veilMedium == veilMedium &&
+          other.veilStrong == veilStrong;
 
   @override
   int get hashCode => Object.hash(
@@ -125,6 +165,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
     disabledContainer,
     scrim,
     inactive,
+    veilSubtle,
+    veilMedium,
+    veilStrong,
   );
 
   @override
@@ -138,6 +181,9 @@ class AppOpacity extends ThemeExtension<AppOpacity> with Diagnosticable {
       ..add(DoubleProperty('disabled', disabled))
       ..add(DoubleProperty('disabledContainer', disabledContainer))
       ..add(DoubleProperty('scrim', scrim))
-      ..add(DoubleProperty('inactive', inactive));
+      ..add(DoubleProperty('inactive', inactive))
+      ..add(DoubleProperty('veilSubtle', veilSubtle))
+      ..add(DoubleProperty('veilMedium', veilMedium))
+      ..add(DoubleProperty('veilStrong', veilStrong));
   }
 }

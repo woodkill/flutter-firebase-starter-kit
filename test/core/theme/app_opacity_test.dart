@@ -35,6 +35,14 @@ void main() {
         expect(opacity.scrim, equals(0.32));
         expect(opacity.inactive, equals(0.3));
       });
+
+      test('흐림 값은 veilSubtle 0.2 · veilMedium 0.4 · veilStrong 0.6 이다', () {
+        const opacity = AppOpacity();
+
+        expect(opacity.veilSubtle, equals(0.2));
+        expect(opacity.veilMedium, equals(0.4));
+        expect(opacity.veilStrong, equals(0.6));
+      });
     });
 
     group('copyWith', () {
@@ -64,6 +72,18 @@ void main() {
           original.copyWith(inactive: 0.5),
           equals(_opacityWith(inactive: 0.5)),
         );
+        expect(
+          original.copyWith(veilSubtle: 0.5),
+          equals(_opacityWith(veilSubtle: 0.5)),
+        );
+        expect(
+          original.copyWith(veilMedium: 0.5),
+          equals(_opacityWith(veilMedium: 0.5)),
+        );
+        expect(
+          original.copyWith(veilStrong: 0.5),
+          equals(_opacityWith(veilStrong: 0.5)),
+        );
       });
 
       test('인자 없으면 원본과 == 이다', () {
@@ -83,6 +103,9 @@ void main() {
           disabledContainer: 0,
           scrim: 0,
           inactive: 0,
+          veilSubtle: 0,
+          veilMedium: 0,
+          veilStrong: 0,
         );
         const b = AppOpacity(
           hover: 1,
@@ -93,6 +116,9 @@ void main() {
           disabledContainer: 1,
           scrim: 1,
           inactive: 1,
+          veilSubtle: 1,
+          veilMedium: 1,
+          veilStrong: 1,
         );
 
         expect(a.lerp(b, 0), equals(a));
@@ -109,6 +135,9 @@ void main() {
               disabledContainer: 0.5,
               scrim: 0.5,
               inactive: 0.5,
+              veilSubtle: 0.5,
+              veilMedium: 0.5,
+              veilStrong: 0.5,
             ),
           ),
         );
@@ -140,11 +169,14 @@ void main() {
         expect(original == original.copyWith(disabledContainer: 0.2), isFalse);
         expect(original == original.copyWith(scrim: 0.4), isFalse);
         expect(original == original.copyWith(inactive: 0.4), isFalse);
+        expect(original == original.copyWith(veilSubtle: 0.3), isFalse);
+        expect(original == original.copyWith(veilMedium: 0.5), isFalse);
+        expect(original == original.copyWith(veilStrong: 0.7), isFalse);
       });
     });
 
     group('진단 정보', () {
-      test('toString 과 debugFillProperties 에 여덟 필드가 드러난다', () {
+      test('toString 과 debugFillProperties 에 열한 필드가 드러난다', () {
         const opacity = AppOpacity();
         final builder = DiagnosticPropertiesBuilder();
         opacity.debugFillProperties(builder);
@@ -161,6 +193,9 @@ void main() {
             'disabledContainer',
             'scrim',
             'inactive',
+            'veilSubtle',
+            'veilMedium',
+            'veilStrong',
           }),
         );
       });
@@ -178,6 +213,9 @@ AppOpacity _opacityWith({
   double disabledContainer = 0.12,
   double scrim = 0.32,
   double inactive = 0.3,
+  double veilSubtle = 0.2,
+  double veilMedium = 0.4,
+  double veilStrong = 0.6,
 }) => AppOpacity(
   hover: hover,
   focus: focus,
@@ -187,4 +225,7 @@ AppOpacity _opacityWith({
   disabledContainer: disabledContainer,
   scrim: scrim,
   inactive: inactive,
+  veilSubtle: veilSubtle,
+  veilMedium: veilMedium,
+  veilStrong: veilStrong,
 );
