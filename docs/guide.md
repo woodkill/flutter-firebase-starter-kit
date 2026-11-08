@@ -1185,7 +1185,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 | `AppSpacing` | `lib/core/theme/app_spacing.dart` | 4 의 배수 간격 스케일 7단계 |
 | `AppIconSizes` | `lib/core/theme/app_icon_sizes.dart` | 아이콘 크기 6단계(`xs` 16 ~ `xxl` 64) |
 | `AppRadius` | `lib/core/theme/app_radius.dart` | 모서리 둥글기 5단계(Material 3 모양 단계) |
-| `AppOpacity` | `lib/core/theme/app_opacity.dart` | 투명도 — Material 3 상태 · 비활성 값과 킷 가림막 · 비활성 표시 값 |
+| `AppOpacity` | `lib/core/theme/app_opacity.dart` | 투명도 — Material 3 상태 · 비활성 값과 킷 가림막 · 비활성 표시 · 흐림 값 |
 | `AppElevation` | `lib/core/theme/app_elevation.dart` | Material 3 그림자 높이 6단계(`level0` 0 ~ `level5` 12) |
 
 일곱 extension 을 `ThemeData` 로 조립하는 곳은 `AppTheme.light()` / `AppTheme.dark()` (`lib/core/theme/app_theme.dart`) 이고, 앱이 테마를 넘기는 곳은 `lib/app.dart` 의 `theme: AppTheme.light(seedColor: seed),` / `darkTheme: AppTheme.dark(seedColor: seed),` 두 줄이다.
@@ -1501,8 +1501,18 @@ AppColors.fromBrightness(Brightness.light)
 | `disabledContainer` | 0.12 | 비활성 바탕 · 외곽선 |
 | `scrim` | 0.32 | 킷 가림막(로그인 진행 화면) |
 | `inactive` | 0.3 | 킷 비활성 표시(온보딩에서 현재 페이지가 아닌 점) |
+| `veilSubtle` | 0.2 | 킷 흐림 — 옅게 |
+| `veilMedium` | 0.4 | 킷 흐림 — 보통 |
+| `veilStrong` | 0.6 | 킷 흐림 — 짙게 |
 
-- 킷 화면이 쓰는 값은 `scrim` · `inactive` 둘이고, 나머지는 직접 만드는 위젯에 쓰는 Material 3 값이다.
+- 킷 화면이 쓰는 값은 `scrim` · `inactive` 둘이고, 나머지는 직접 만드는 위젯에 쓰는 값이다 — `hover` ~ `disabledContainer` 는 Material 3 값, 흐림 세 단계는 킷 값이다.
+- 흐림(`veilSubtle` · `veilMedium` · `veilStrong`)은 콘텐츠를 보이게 둔 채 뒤로 물릴 때 흰색이나 검정을 섞는 비율(알파 하나)이다.
+  - 지도 · 사진을 흐리게 물리는 옵션이나 위젯을 덮는 막처럼 직접 만드는 화면에 쓴다.
+  - 색은 쓰는 쪽이 `ColorScheme` 역할에서 고른다 — 흰색은 `colorScheme.surfaceContainerLowest`(밝은 테마는 흰색 · 어두운 테마는 거의 검정이라 바탕 쪽으로 물린다), 검정은 `colorScheme.scrim` 이다.
+  - `ColoredBox(color: context.colorScheme.surfaceContainerLowest.withValues(alpha: context.appOpacity.veilMedium))` 처럼 역할 색에 흐림 값을 얹는다.
+  - 흰색 · 검정을 `Colors.white` · `Colors.black` 으로 쓰면 위 「무엇에 어떤 토큰을 쓰나」 표의 색 행 가드(`material-colors`)가 화면 코드에서 잡는다.
+  - `scrim` 은 모달 뒤를 막는 가림막 한 값이고, 흐림은 콘텐츠를 보이게 둔 채 물리는 세 단계다.
+- `const AppOpacity().copyWith(veilMedium: 0.5)` 처럼 개별 값만 조정한다.
 
 **`AppElevation`** 은 그림자 높이 토큰 6단계다 — 값은 Material 3 elevation 단계와 같다.
 
