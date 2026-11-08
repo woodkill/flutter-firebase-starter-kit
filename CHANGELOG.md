@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.12] - 2026-11-08
+
 ### Added
 
 - 투명도 토큰 `context.appOpacity` 에 흐림 세 단계 `veilSubtle` 0.2 · `veilMedium` 0.4 · `veilStrong` 0.6 이 생긴다. 콘텐츠를 보이게 둔 채 뒤로 물릴 때 흰색 · 검정을 섞는 비율(알파 하나)이고, 색은 쓰는 쪽이 `colorScheme.surfaceContainerLowest`(밝은 테마 흰색) · `colorScheme.scrim`(검정) 같은 `ColorScheme` 역할에서 고른다. 값은 킷이 정한 것이고(Material 3 · Flutter SDK 토큰 데이터에 없다) 앱은 `const AppOpacity().copyWith(veilMedium: …)` 로 덮어쓴다. 킷 화면은 이 값을 쓰지 않아 화면 결과는 같고, 「디자인 토큰 바꾸기」 대로 `copyWith(extensions:)` 에 `const AppOpacity()` 를 등록한 코드는 그대로 두어도 새 값을 기본값으로 읽는다. 쓰는 법은 「디자인 토큰 바꾸기」 3번에 있다. 바뀐 파일은 `lib/core/theme/app_opacity.dart` · `docs/guide.md` · 시험이고, `lib/core/theme/` 를 고치지 않았다면 merge 로 끝난다(고쳤다면 사용자 소유 표면 표 21행).
@@ -226,7 +228,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.11...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.12...HEAD
+[1.0.0-rc.12]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.12
 [1.0.0-rc.11]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.11
 [1.0.0-rc.10]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.10
 [1.0.0-rc.9]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.9
