@@ -462,9 +462,8 @@ class _LinkProviderIconRow extends StatelessWidget {
 /// 단일 소셜 provider 의 원형 아이콘 버튼.
 ///
 /// [_LinkProviderButton] 과 같은 provider switch 로 [BrandedSocialIconButton]
-/// 에 dispatch 한다. 지름은 [kBrandIconButtonSize] 이고, 로고 비율은 Apple ·
-/// Naver · LINE 이 [kAppleIconLogoHeightRatio] · [kNaverIconLogoHeightRatio] ·
-/// [kLineIconLogoHeightRatio], 나머지가 [kBrandIconLogoHeightRatio] 다.
+/// 에 dispatch 만 한다. 지름 · 로고 비율은 생성자 기본값 — 지름
+/// [kBrandIconButtonSize] · 스킨의 [BrandSpec.iconLogoHeightRatio] — 을 쓴다.
 class _LinkProviderIcon extends StatelessWidget {
   const _LinkProviderIcon({
     required this.provider,
@@ -479,43 +478,30 @@ class _LinkProviderIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const size = kBrandIconButtonSize;
     return switch (provider) {
       AccountProvider.google => BrandedSocialIconButton.google(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kBrandIconLogoHeightRatio,
       ),
       AccountProvider.apple => BrandedSocialIconButton.apple(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kAppleIconLogoHeightRatio,
       ),
       AccountProvider.facebook => BrandedSocialIconButton.facebook(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kBrandIconLogoHeightRatio,
       ),
       AccountProvider.kakao => BrandedSocialIconButton.kakao(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kBrandIconLogoHeightRatio,
       ),
       AccountProvider.naver => BrandedSocialIconButton.naver(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kNaverIconLogoHeightRatio,
       ),
       AccountProvider.line => BrandedSocialIconButton.line(
         label: label,
         onPressed: onPressed,
-        size: size,
-        logoHeightRatio: kLineIconLogoHeightRatio,
       ),
       // email 은 후보에 없다 — 도달하면 아무것도 그리지 않는다.
       AccountProvider.email => const SizedBox.shrink(),

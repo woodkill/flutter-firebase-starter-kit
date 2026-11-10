@@ -1,8 +1,9 @@
 // 원형 소셜 아이콘 버튼 계약 — 줄 나누기 · 스킨 · 로고 상자 · 누르는 영역 ·
 // 비활성 · 툴팁을 고정한다.
 //
-// 크기 · 간격 · 로고 비율은 시험이 인자로 넣는다. 스킨 기대값은 가이드 값의
-// 리터럴로 적는다 — 스킨 객체에서 읽은 값을 스킨 객체와 견주지 않는다.
+// 크기 · 간격 · 로고 비율은 시험이 인자로 넣고, 기본값 시험만 인자를 뺀다.
+// 스킨 기대값은 가이드 값의 리터럴로 적는다 — 스킨 객체에서 읽은 값을 스킨
+// 객체와 견주지 않는다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -293,6 +294,52 @@ void main() {
       }
     });
 
+    testWidgets('T-25-IBTN-08: 기본값 — 지름 · 로고 비율을 빼면 지름 48 · 칸 56 · '
+        '로고 상자는 스킨 비율(Google · Facebook · Kakao 24 · Apple 57.6 · '
+        'Naver 18 · LINE 28.32)', (tester) async {
+      final expectations = <(_IconCase, BrandedSocialIconButton, Size)>[
+        (
+          _google,
+          BrandedSocialIconButton.google(label: 'google', onPressed: () {}),
+          const Size(24, 24),
+        ),
+        (
+          _facebook,
+          BrandedSocialIconButton.facebook(label: 'facebook', onPressed: () {}),
+          const Size(24, 24),
+        ),
+        (
+          _kakao,
+          BrandedSocialIconButton.kakao(label: 'kakao', onPressed: () {}),
+          const Size(24, 24),
+        ),
+        (
+          _apple,
+          BrandedSocialIconButton.apple(label: 'apple', onPressed: () {}),
+          const Size(57.6 * 17 / 44, 57.6),
+        ),
+        (
+          _naver,
+          BrandedSocialIconButton.naver(label: 'naver', onPressed: () {}),
+          const Size(18, 18),
+        ),
+        (
+          _line,
+          BrandedSocialIconButton.line(label: 'line', onPressed: () {}),
+          const Size(28.32 * 47 / 44, 28.32),
+        ),
+      ];
+      for (final (provider, button, want) in expectations) {
+        await _pumpIcon(tester, button);
+        final where = '${provider.name} 기본값';
+        expect(button.size, 48, reason: '$where 지름');
+        expect(tester.getRect(_findSlot()).width, 56, reason: '$where 칸 폭');
+        final logo = tester.getSize(_findLogo(provider));
+        expect(logo.height, closeTo(want.height, 0.01), reason: '$where 높이');
+        expect(logo.width, closeTo(want.width, 0.01), reason: '$where 폭');
+      }
+    });
+
     for (final size in <double>[44, 48]) {
       testWidgets('T-25-IBTN-04: 크기 $size — 칸 전체가 눌린다(원 밖 · 칸 안 한 '
           '점 1회 · 고리 1회 · 가운데 1회)', (tester) async {
@@ -333,12 +380,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       await _pumpIcon(
         tester,
-        BrandedSocialIconButton.kakao(
-          label: 'Link Kakao',
-          onPressed: null,
-          size: 48,
-          logoHeightRatio: 0.5,
-        ),
+        BrandedSocialIconButton.kakao(label: 'Link Kakao', onPressed: null),
       );
       final opacity = tester.widget<Opacity>(
         find.descendant(

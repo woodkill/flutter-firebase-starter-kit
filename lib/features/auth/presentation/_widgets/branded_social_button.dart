@@ -175,6 +175,11 @@ sealed class BrandSpec {
   /// 플랫폼 공통 글꼴([kBrandLabelFontFamily] · [kBrandLabelFontFamilyApple])을
   /// 쓰는 버튼은 null 이다.
   String? get labelFontFamily;
+
+  /// 원형 아이콘 버튼의 로고 상자 높이 ÷ 아이콘 지름.
+  ///
+  /// [BrandedSocialIconButton] 이 로고 비율을 따로 받지 않으면 이 값을 쓴다.
+  double get iconLogoHeightRatio;
 }
 
 /// Kakao 로그인 버튼 스킨.
@@ -216,6 +221,9 @@ class KakaoSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => null;
+
+  @override
+  double get iconLogoHeightRatio => kBrandIconLogoHeightRatio;
 }
 
 /// Naver 로그인 버튼 스킨.
@@ -260,6 +268,9 @@ class NaverSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => null;
+
+  @override
+  double get iconLogoHeightRatio => kNaverIconLogoHeightRatio;
 }
 
 /// Google 로그인 버튼 스킨.
@@ -312,6 +323,9 @@ class GoogleSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => kGoogleLabelFontFamily;
+
+  @override
+  double get iconLogoHeightRatio => kBrandIconLogoHeightRatio;
 }
 
 /// Apple 로그인 버튼 스킨.
@@ -363,6 +377,9 @@ class AppleSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => null;
+
+  @override
+  double get iconLogoHeightRatio => kAppleIconLogoHeightRatio;
 }
 
 /// Facebook 로그인 버튼 스킨.
@@ -410,6 +427,9 @@ class FacebookSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => null;
+
+  @override
+  double get iconLogoHeightRatio => kBrandIconLogoHeightRatio;
 }
 
 /// LINE 로그인 버튼 스킨.
@@ -455,6 +475,9 @@ class LineSpec extends BrandSpec {
 
   @override
   String? get labelFontFamily => null;
+
+  @override
+  double get iconLogoHeightRatio => kLineIconLogoHeightRatio;
 }
 
 /// 소셜 로그인 버튼 — 버튼 6개가 이 위젯 하나로 그려진다.
@@ -737,22 +760,25 @@ Widget _buildBrandLogo(BrandSpec spec, Brightness brightness, {Size? size}) {
 /// 길게 누르면 뜨는 툴팁 문구다. 버튼은 접근성 트리에서 자기 노드라 둘레의
 /// 글자가 라벨에 섞이지 않는다.
 class BrandedSocialIconButton extends StatelessWidget {
-  /// 내부 전용 const 생성자 — 호출하는 쪽은 이름 붙은 생성자를 쓴다.
-  const BrandedSocialIconButton._({
+  /// 내부 전용 생성자 — 호출하는 쪽은 이름 붙은 생성자를 쓴다.
+  ///
+  /// [logoHeightRatio] 가 null 이면 스킨의 [BrandSpec.iconLogoHeightRatio] 를
+  /// 쓴다.
+  BrandedSocialIconButton._({
     required this.spec,
     required this.label,
     required this.onPressed,
     required this.size,
-    required this.logoHeightRatio,
+    required double? logoHeightRatio,
     super.key,
-  });
+  }) : logoHeightRatio = logoHeightRatio ?? spec.iconLogoHeightRatio;
 
   /// Google 아이콘 버튼을 만든다.
   factory BrandedSocialIconButton.google({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -767,8 +793,8 @@ class BrandedSocialIconButton extends StatelessWidget {
   factory BrandedSocialIconButton.apple({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -783,8 +809,8 @@ class BrandedSocialIconButton extends StatelessWidget {
   factory BrandedSocialIconButton.facebook({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -799,8 +825,8 @@ class BrandedSocialIconButton extends StatelessWidget {
   factory BrandedSocialIconButton.kakao({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -815,8 +841,8 @@ class BrandedSocialIconButton extends StatelessWidget {
   factory BrandedSocialIconButton.naver({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -831,8 +857,8 @@ class BrandedSocialIconButton extends StatelessWidget {
   factory BrandedSocialIconButton.line({
     required String label,
     required VoidCallback? onPressed,
-    required double size,
-    required double logoHeightRatio,
+    double size = kBrandIconButtonSize,
+    double? logoHeightRatio,
     Key? key,
   }) => BrandedSocialIconButton._(
     key: key,
@@ -852,12 +878,13 @@ class BrandedSocialIconButton extends StatelessWidget {
   /// 탭 핸들러. `null` 이면 비활성 상태다.
   final VoidCallback? onPressed;
 
-  /// 원의 지름 (dp).
+  /// 원의 지름 (dp) — 이름 붙은 생성자의 기본값은 [kBrandIconButtonSize] 다.
   final double size;
 
   /// 로고 상자 높이 ÷ [size].
   ///
-  /// 로고 상자 폭은 그 높이에 스킨 로고 상자의 가로 ÷ 세로 비율을 곱한 값이다.
+  /// 이름 붙은 생성자에서 빼면 스킨의 [BrandSpec.iconLogoHeightRatio] 다. 로고
+  /// 상자 폭은 그 높이에 스킨 로고 상자의 가로 ÷ 세로 비율을 곱한 값이다.
   final double logoHeightRatio;
 
   @override
