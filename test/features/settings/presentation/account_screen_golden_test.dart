@@ -401,8 +401,8 @@ void main() {
         ],
       ),
     ]) {
-      testWidgets('$id: 기본 모양 · 미연결 ${unlinked.length} — 끝까지 스크롤한 '
-          '화면에 계정 연결 절 전체가 든다', (tester) async {
+      testWidgets('$id: 기본 모양 · 미연결 ${unlinked.length} — 끝까지 스크롤 · '
+          '아이콘 모양일 때만 계정 연결 절 전체가 화면에 든다', (tester) async {
         final handle = tester.ensureSemantics();
 
         await pumpAccountLinkingGoldenCell(
