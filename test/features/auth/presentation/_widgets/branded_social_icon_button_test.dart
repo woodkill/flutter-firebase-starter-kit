@@ -400,8 +400,8 @@ void main() {
       });
     }
 
-    testWidgets('T-25-IBTN-05: 비활성 — 투명도 0.38 · semantics 비활성 · 어디를 '
-        '눌러도 0 회', (tester) async {
+    testWidgets('T-25-IBTN-05: 비활성 — 투명도 0.38 · semantics 비활성 · 칸 세 '
+        '점을 눌러도 예외 0', (tester) async {
       final semantics = tester.ensureSemantics();
       await _pumpIcon(
         tester,
@@ -423,6 +423,8 @@ void main() {
           isEnabled: false,
         ),
       );
+      // 비활성 버튼은 탭 콜백이 없어 셀 횟수가 없다 — 눌러도 예외가 없는지만
+      // 본다.
       final slot = tester.getRect(_findSlot());
       for (final point in <Offset>[
         slot.center,

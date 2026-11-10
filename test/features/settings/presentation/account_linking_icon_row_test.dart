@@ -375,7 +375,7 @@ void main() {
     });
 
     testWidgets('T-25-ICON-06 진행 중 → 아이콘 모두 비활성 · 투명도 0.38 · '
-        '오버레이 · 눌러도 연결 0', (tester) async {
+        '오버레이가 탭을 막아 연결 0', (tester) async {
       final semantics = tester.ensureSemantics();
       await _pumpSection(
         tester,
@@ -414,6 +414,8 @@ void main() {
         expect(opacity.opacity, kBrandButtonDisabledOpacity);
       }
 
+      // 탭은 아이콘보다 오버레이가 먼저 받는다 — 이 단언은 오버레이의 탭
+      // 차단을 본다. 비활성 버튼 자체는 위 semantics · 투명도 단언이 본다.
       final slot = _readSlotOf(tester, AccountProvider.apple);
       await tester.tapAt(slot.center);
       await tester.pump();
