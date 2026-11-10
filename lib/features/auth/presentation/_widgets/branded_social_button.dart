@@ -87,7 +87,9 @@ const double kBrandIconSlotInset = BrandFocusWrapper.outerInset;
 
 /// Google · Facebook · Kakao 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
 ///
-/// 「절반」 — 지름 48 아이콘의 로고 상자 높이가 24 다.
+/// 「절반」 — 지름 48 아이콘의 로고 상자 높이가 24 다. 비트맵 로고(Google
+/// `g.png`)도 상자 크기에 맞춰 그린다(`BoxFit.contain` — 자산 고유 크기 20
+/// 보다 큰 상자면 키운다). 그래서 이 값을 바꾸면 Google 그림도 함께 바뀐다.
 const double kBrandIconLogoHeightRatio = 0.5;
 
 /// 계정 연결 절 아이콘의 지름 (dp).
@@ -723,6 +725,9 @@ Widget _renderUnifiedButton(
 /// 로고에만 한다 — 비트맵 로고는 색이 그림에 들어 있다. 로고는 접근성 트리에
 /// 넣지 않는다(버튼 전체가 라벨 하나로 읽힌다).
 ///
+/// 비트맵 로고도 SVG 처럼 상자 크기에 맞춰 그린다(`BoxFit.contain` — 자산 고유
+/// 크기보다 큰 상자면 키우고, 작은 상자면 줄인다).
+///
 /// [size] 가 null 이면 스킨의 [BrandSpec.logoSize] 상자로 그린다.
 Widget _buildBrandLogo(BrandSpec spec, Brightness brightness, {Size? size}) {
   final asset = spec.resolveLogoAsset(brightness);
@@ -734,6 +739,7 @@ Widget _buildBrandLogo(BrandSpec spec, Brightness brightness, {Size? size}) {
       asset,
       width: boxSize.width,
       height: boxSize.height,
+      fit: BoxFit.contain,
       excludeFromSemantics: true,
     );
   }

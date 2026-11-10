@@ -4,6 +4,9 @@
 // 크기 · 간격 · 로고 비율은 시험이 인자로 넣고, 기본값 시험만 인자를 뺀다.
 // 스킨 기대값은 가이드 값의 리터럴로 적는다 — 스킨 객체에서 읽은 값을 스킨
 // 객체와 견주지 않는다.
+// 로고 상자는 `Image` · `SvgPicture` 위젯의 layout 크기로 잰다. 비트맵
+// 로고(Google)는 그 상자대로 그리는지(`BoxFit.contain`)도 함께 본다 — 그린
+// 그림의 화소 크기는 golden 이 지킨다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
@@ -149,6 +152,19 @@ Finder _findLogo(_IconCase provider) => find.descendant(
       : find.byType(SvgPicture),
 );
 
+/// 비트맵 로고가 자산 고유 크기에 머물지 않고 상자대로 그려지는지 본다.
+///
+/// `Image` 에 `fit` 이 없으면 `BoxFit.scaleDown` 으로 풀려 상자가 자산보다
+/// 커도 그림을 키우지 않는다 — layout 상자 크기만으로는 이 차이가 보이지 않는다.
+void _expectBitmapLogoFillsBox(
+  WidgetTester tester,
+  _IconCase provider,
+  String where,
+) {
+  final image = tester.widget<Image>(_findLogo(provider));
+  expect(image.fit, BoxFit.contain, reason: '$where 비트맵 로고를 상자대로 그림');
+}
+
 /// 그려진 아이콘 버튼의 칸(포커스 테두리 래퍼)을 찾는다.
 Finder _findSlot() => find.descendant(
   of: find.byType(BrandedSocialIconButton),
@@ -267,9 +283,9 @@ void main() {
       }
     });
 
-    testWidgets('T-25-IBTN-07: 로고 상자 승인값 — 48 에서 Google 24 · Naver 18 · '
-        'LINE 28.32 · Apple 57.6(폭 22.25) · 고치는 길 값 Apple 1.0 · LINE 0.683 '
-        '도 비율대로', (tester) async {
+    testWidgets('T-25-IBTN-07: 로고 상자 승인값 — 48 에서 Google 24(상자대로 그림) · '
+        'Naver 18 · LINE 28.32 · Apple 57.6(폭 22.25) · 고치는 길 값 Apple 1.0 · '
+        'LINE 0.683 도 비율대로', (tester) async {
       // 비율은 상수에서 읽고 기대 크기는 리터럴로 적는다.
       final expectations = <(_IconCase, double, Size)>[
         (_google, kBrandIconLogoHeightRatio, const Size(24, 24)),
@@ -293,6 +309,9 @@ void main() {
         final where = '${provider.name} · $ratio';
         expect(logo.height, closeTo(want.height, 0.01), reason: '$where 높이');
         expect(logo.width, closeTo(want.width, 0.01), reason: '$where 폭');
+        if (provider.isBitmapLogo) {
+          _expectBitmapLogoFillsBox(tester, provider, where);
+        }
       }
     });
 
@@ -321,7 +340,7 @@ void main() {
 
     testWidgets('T-25-IBTN-08: 기본값 — 지름 · 로고 비율을 빼면 지름 48 · 칸 56 · '
         '로고 상자는 스킨 비율(Google · Facebook · Kakao 24 · Apple 57.6 · '
-        'Naver 18 · LINE 28.32)', (tester) async {
+        'Naver 18 · LINE 28.32 · Google 은 상자대로 그림)', (tester) async {
       final expectations = <(_IconCase, BrandedSocialIconButton, Size)>[
         (
           _google,
@@ -362,6 +381,9 @@ void main() {
         final logo = tester.getSize(_findLogo(provider));
         expect(logo.height, closeTo(want.height, 0.01), reason: '$where 높이');
         expect(logo.width, closeTo(want.width, 0.01), reason: '$where 폭');
+        if (provider.isBitmapLogo) {
+          _expectBitmapLogoFillsBox(tester, provider, where);
+        }
       }
     });
 
