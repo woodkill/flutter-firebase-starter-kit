@@ -34,7 +34,7 @@ LINE Developers Console(https://developers.line.biz/console/)에는 로고 사�
 
 ## 아이콘 단독 사용
 
-- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 LINE 이 아직 연결되지 않았을 때만, LINE 으로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「LINE 연결」 이다.
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 LINE 이 아직 연결되지 않았을 때만, LINE 으로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「라인 연결」 이다.
 - 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 0.59 = 28.3dp 다 — 바탕 `#06C755` · 흰 말풍선은 로그인 버튼과 같다.
 - LINE 사용 지침(`Usage Guidelines for the LINE Login Button` · https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button) Section 4.2 는 `when not placing any text in the Login Button Text area, the Installer must use the LINE Icon of the LINE Login Button Image as the LINE Login Button` 이라고 적는다 — 공식 「LINE Icon」 은 둥근 사각 칸에 말풍선이고, 킷은 다른 다섯 수단과 맞추려고 원으로 그린다.
 - 말풍선 비율 47 : 44 · 바탕 `#06C755` · 흰 말풍선은 지킨다 — 말풍선이 공식 「LINE Icon」 비율(지름의 0.683)보다 약 14% 작다(로고 상자 높이 = 지름 × 0.59 = 28.3dp).
