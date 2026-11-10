@@ -408,7 +408,8 @@ class _LinkProviderButton extends StatelessWidget {
 /// 미연결 provider 아이콘을 칸 수에 맞춰 한 줄 또는 두 줄로 놓는다.
 ///
 /// 한 줄 폭이 가용 폭 이하면 한 줄, 넘치면 반씩 두 줄(위가 많게)이다. 시작
-/// 정렬이고 칸 사이 · 줄 사이 간격은 [gap] 하나다.
+/// 정렬이고 칸 사이 · 줄 사이 간격은 [gap] 하나다. 두 줄로도 넘치는 폭의
+/// 한계는 [resolveBrandIconRowCounts] 문서에 있다.
 class _LinkProviderIconRow extends StatelessWidget {
   const _LinkProviderIconRow({
     required this.iconSize,

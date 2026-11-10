@@ -120,6 +120,10 @@ const double kLineIconLogoHeightRatio = 0.59;
 /// `count * 칸 + (count - 1) * gap` 이다. 한 줄 폭이 [maxWidth] 이하면 한
 /// 줄(`[count]`), 넘치면 반씩 두 줄(위가 많게)이다. [count] 가 0 이면 빈
 /// 목록이다.
+///
+/// 반씩 나눈 위 줄도 [maxWidth] 를 넘는 폭은 다루지 않는다 — 그 폭에서는 줄이
+/// 넘친다(지름 48 · 간격 8 · 6개면 가용 폭 184 미만). 킷 최소 화면 폭 280 에서는
+/// 생기지 않는다.
 List<int> resolveBrandIconRowCounts(
   int count, {
   required double maxWidth,
