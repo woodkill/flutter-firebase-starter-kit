@@ -3,8 +3,7 @@
 //
 // `account_screen_golden_test.dart` 의 private 함수를 옮겼다. 본문은 그대로이고
 // 이름만 public 으로 바꿨다 — 옮긴 뒤에도 계정 화면 golden 은 byte 불변이어야
-// 한다. 계정 연결 절의 승인판과 golden 시험이 이 파일의 같은 함수를 부른다 —
-// 두 그림의 렌더 조건이 한 곳에서 온다.
+// 한다. 계정 연결 golden 칸의 렌더 조건은 이 파일 한 곳에서 온다.
 //
 // **캡처 계약:** `settings_golden_harness.dart` 와 같다 — 280×800 logical ·
 // DPR 3 · 빈 `Scaffold` 위 `MaterialPageRoute` push 진입 · production 폰트
@@ -207,8 +206,8 @@ Future<void> pumpAccountLinkingGoldenCell(
 
 /// 계정 연결 golden 칸의 golden 파일 경로를 돌려준다.
 ///
-/// [unlinkedCount] 와 [brightness] 가 파일 이름에 들어간다 — 승인판의 그림
-/// 이름과 golden 파일 이름이 이 함수 하나에서 나온다.
+/// [unlinkedCount] 와 [brightness] 가 파일 이름에 들어간다 — golden 파일
+/// 이름이 이 함수 하나에서 나온다.
 String resolveAccountLinkingGoldenPath({
   required int unlinkedCount,
   required Brightness brightness,

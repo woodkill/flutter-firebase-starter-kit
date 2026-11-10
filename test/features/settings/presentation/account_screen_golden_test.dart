@@ -24,8 +24,7 @@
 // 것이므로 원인을 먼저 찾는다.
 //
 // **공용 helper:** 계정 화면 pump · fixture · 끝까지 스크롤은
-// `account_golden_harness.dart` 에 있다 — 계정 연결 절의 승인판도 같은 함수를
-// 부른다.
+// `account_golden_harness.dart` 에 있다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
