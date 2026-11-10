@@ -22,60 +22,21 @@
 // **fixture 갱신:** `fvm flutter test --update-goldens <this file>` 뒤 다이얼로그
 // 영역 crop 이 옛 golden 과 같은지 대조한다. 다르면 다이얼로그 위젯이 바뀐
 // 것이므로 원인을 먼저 찾는다.
+//
+// **공용 helper:** 계정 화면 pump · fixture · 끝까지 스크롤은
+// `account_golden_harness.dart` 에 있다 — 계정 연결 절의 승인판도 같은 함수를
+// 부른다.
 
-import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_starter_kit/core/auth/auth_strategies_registry.dart';
-import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
-import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
-import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
-import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
+import 'package:flutter_starter_kit/core/auth/provider_id.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/_widgets/account_linking_section.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 
+import 'account_golden_harness.dart';
 import 'settings_golden_harness.dart';
-
-/// [AuthRepository] 대체 Mock — 계정 화면 렌더 · 다이얼로그 열기는 repository
-/// 를 호출하지 않으므로 stub 을 두지 않는다.
-class _MockAuthRepository extends Mock implements AuthRepository {}
-
-/// 정식(비익명) Firebase 사용자 — UI-SPEC §Golden 캡처 계약 「정식 =
-/// `isAnonymous: false` mock」.
-class _MockFbUser extends Mock implements fb.User {}
-
-/// Phase 16.8 W5 — 가입 naver + 연결 5 (도달 가능 최악 · UI-SPEC §Golden
-/// 캡처 계약 fixture verbatim 순서).
-const List<String> _w5ProviderIds = <String>[
-  'google.com',
-  'apple.com',
-  'facebook.com',
-  'kakao',
-  'line',
-  'naver',
-];
-
-/// 보유 provider 7종 전부 — UI-SPEC fixture 표 verbatim 순서.
-const List<String> _allProviderIds = <String>[
-  'google.com',
-  'apple.com',
-  'facebook.com',
-  'kakao',
-  'naver',
-  'line',
-  'password',
-];
-
-/// locale 별 표시 이름 — UI-SPEC fixture 표 (합성 값 · PII 0).
-const Map<String, String> _displayNames = <String, String>{
-  'ko': '홍길동',
-  'en': 'Jane Doe',
-  'ja': '山田太郎',
-};
 
 /// 단언 2 · 3 의 연결된 계정 값 줄 수 기대값 — UI-SPEC §Surface S (R1) 실측
 /// 표 (280 · worst / D-11). 값 문단에는 행 라벨 prefix 가 없으므로 줄 수 =
@@ -85,84 +46,6 @@ const Map<String, (int, int)> _expectedLinkedLines = <String, (int, int)>{
   'en': (3, 3),
   'ja': (3, 3),
 };
-
-/// Phase 17.1 계정 화면 worst fixture 의 긴 이메일 — 합성 값 · PII 0
-/// (mockup harness `_longEmail` verbatim · UI-SPEC §Golden 캡처 계약).
-const String _longEmail = 'gildong.hong.starterkit.test@example-mail.com';
-
-/// UI-SPEC fixture — 가입 수단 [signUpProviderId](null = D-11 기록 없음) ·
-/// 보유 provider [providerIds] (기본 7종 · Phase 16.8 golden 은 [_w5ProviderIds])
-/// · 이메일 [email] (기본 `me@example.com` · 17.1 worst 는 [_longEmail]).
-User _fixtureUser(
-  String lang, {
-  required String? signUpProviderId,
-  List<String> providerIds = _allProviderIds,
-  String email = 'me@example.com',
-}) {
-  return User(
-    uid: 'Xy7Qa2Lm9Rt4Wz8Kp1Nc5Vb3Hd6',
-    email: email,
-    emailVerified: true,
-    displayName: _displayNames[lang],
-    // 가입일은 로컬 DateTime — 계정 화면 formatYMD 가 toLocal() 로 그려 UTC 정오면
-    // UTC+12 이상에서 이튿날로 찍힌다(변환은 test/core/l10n/intl_extensions_test.dart 몫).
-    createdAt: DateTime(2026, 9, 26, 12),
-    providerIds: providerIds,
-    signUpProviderId: signUpProviderId,
-  );
-}
-
-/// 사진 출처 stream fixture — 업로드 사진 없음 (UI-SPEC §Golden 캡처 계약 ·
-/// 채택안 조건 「사진 없음」).
-const UserProviderRecord _kNoPhotoRecord = (
-  linkedProviderIds: <String>[],
-  signUpProviderId: null,
-  customPhotoUrl: null,
-);
-
-/// 빈 [Scaffold] 위에 production [AccountScreen] 을 push 해 [width]×800 ·
-/// DPR 3 viewport 에 올린다 ([pumpGoldenRoute] 위임).
-///
-/// override = repository mock · 활성 strategy 6 · 정식 authState(비익명) ·
-/// 사용자 fixture · 사진 출처 stream(업로드 사진 없음).
-///
-/// [isLocalePinned] = true 면 `localeProvider` 도 [locale] 로 고정한다 —
-/// production 은 `MaterialApp.locale` 과 가입일 형식이 같은 provider 를 보므로
-/// Phase 17.1 계정 golden(채택 시안 harness `_overrides` 와 같은 조건)은 이
-/// 값을 켠다. 기본 false 는 Phase 16.10 해제 다이얼로그 golden 4장(barrier 뒤
-/// 가입일이 기기 기본 locale 형식)의 byte 불변을 지키기 위한 것이다.
-Future<void> _pumpAccountScreen(
-  WidgetTester tester, {
-  required User user,
-  required Locale locale,
-  required Brightness brightness,
-  required double width,
-  bool isLocalePinned = false,
-}) {
-  final fbUser = _MockFbUser();
-  when(() => fbUser.isAnonymous).thenReturn(false);
-  when(() => fbUser.uid).thenReturn(user.uid);
-  return pumpGoldenRoute(
-    tester,
-    route: (_) => const AccountScreen(),
-    overrides: [
-      authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
-      activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
-      authStateProvider.overrideWithValue(AsyncData(fbUser)),
-      currentUserProvider.overrideWith((ref) => user),
-      // 사진 행의 사진 출처 stream 을 data(업로드 사진 없음)로 고정한다 —
-      // 네트워크 사진 비결정성 회피 · 미초기화 Firestore 무접촉.
-      linkedProvidersStreamProvider(
-        user.uid,
-      ).overrideWith((ref) => Stream.value(_kNoPhotoRecord)),
-      if (isLocalePinned)
-        localeProvider.overrideWithBuild((ref, notifier) => locale),
-    ],
-    locale: locale,
-    brightness: brightness,
-    width: width,
-  );
-}
 
 /// [rp] 를 같은 폭으로 [TextPainter] 에 재배치했을 때의 줄 수.
 int _relaidLineCount(RenderParagraph rp) {
@@ -199,17 +82,6 @@ int _renderedLineCount(RenderParagraph rp) {
   final count = painter.computeLineMetrics().length;
   painter.dispose();
   return count;
-}
-
-/// 계정 화면 목록을 끝까지 내린다 — `ScrollPosition.jumpTo(maxScrollExtent)`.
-///
-/// 드래그(fling)는 ink · overscroll 흔적을 남겨 golden 이 비결정적이 되므로
-/// 쓰지 않는다 (UI-SPEC §Golden 캡처 계약 「드래그 금지 — ink」). 계정 화면의
-/// [Scrollable] 은 본문 [ListView] 하나뿐이다.
-Future<void> _jumpToEnd(WidgetTester tester) async {
-  final state = tester.state<ScrollableState>(find.byType(Scrollable).first);
-  state.position.jumpTo(state.position.maxScrollExtent);
-  await tester.pump();
 }
 
 /// 「이메일」 행 [ListTile] finder — leading `Icons.alternate_email` 의 조상.
@@ -285,12 +157,12 @@ void main() {
         final mode = brightness.name;
 
         testWidgets('dialog golden ko 280 $label — $mode', (tester) async {
-          await _pumpAccountScreen(
+          await pumpAccountScreen(
             tester,
-            user: _fixtureUser(
+            user: buildFixtureUser(
               'ko',
               signUpProviderId: 'naver',
-              providerIds: _w5ProviderIds,
+              providerIds: kGoldenW5ProviderIds,
             ),
             locale: const Locale('ko'),
             brightness: brightness,
@@ -333,13 +205,13 @@ void main() {
       testWidgets('T-171-ACCOUNT-golden-top: 위 W5 + 긴 이메일 ko 280 — $mode', (
         tester,
       ) async {
-        await _pumpAccountScreen(
+        await pumpAccountScreen(
           tester,
-          user: _fixtureUser(
+          user: buildFixtureUser(
             'ko',
             signUpProviderId: 'naver',
-            providerIds: _w5ProviderIds,
-            email: _longEmail,
+            providerIds: kGoldenW5ProviderIds,
+            email: kGoldenLongEmail,
           ),
           locale: const Locale('ko'),
           brightness: brightness,
@@ -360,20 +232,20 @@ void main() {
       testWidgets('T-171-ACCOUNT-golden-end: 끝 W5 + 긴 이메일 ko 280 — $mode', (
         tester,
       ) async {
-        await _pumpAccountScreen(
+        await pumpAccountScreen(
           tester,
-          user: _fixtureUser(
+          user: buildFixtureUser(
             'ko',
             signUpProviderId: 'naver',
-            providerIds: _w5ProviderIds,
-            email: _longEmail,
+            providerIds: kGoldenW5ProviderIds,
+            email: kGoldenLongEmail,
           ),
           locale: const Locale('ko'),
           brightness: brightness,
           width: 280,
           isLocalePinned: true,
         );
-        await _jumpToEnd(tester);
+        await jumpToEnd(tester);
         expect(
           tester.takeException(),
           isNull,
@@ -393,13 +265,13 @@ void main() {
       // (1) W5 + 긴 이메일 — 위 · 끝 모두 labeled · contrast 통과. tap48 은
       // inline 「{provider} 연결 해제」 버튼(16.8 Q6-A 알려진 예외 · 24×24
       // 충족)이 있어 이 fixture 에서는 단언하지 않는다.
-      await _pumpAccountScreen(
+      await pumpAccountScreen(
         tester,
-        user: _fixtureUser(
+        user: buildFixtureUser(
           'ko',
           signUpProviderId: 'naver',
-          providerIds: _w5ProviderIds,
-          email: _longEmail,
+          providerIds: kGoldenW5ProviderIds,
+          email: kGoldenLongEmail,
         ),
         locale: const Locale('ko'),
         brightness: Brightness.light,
@@ -411,7 +283,7 @@ void main() {
       expect(find.bySemanticsLabel('Google 연결 해제'), findsOneWidget);
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(textContrastGuideline));
-      await _jumpToEnd(tester);
+      await jumpToEnd(tester);
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(textContrastGuideline));
 
@@ -422,13 +294,13 @@ void main() {
       // 끝에서 보이고, 네이버 · LINE 버튼은 공식 BI 색(흰 라벨 · 브랜드
       // 녹색)을 verbatim 으로 쓰는 브랜드 자산 예외라 WCAG 4.5 미달이다
       // (Phase 13.3 브랜드 버튼 외관 hardcode). 대비는 (1) W5 에서 단언했다.
-      await _pumpAccountScreen(
+      await pumpAccountScreen(
         tester,
-        user: _fixtureUser(
+        user: buildFixtureUser(
           'ko',
           signUpProviderId: 'naver',
           providerIds: const <String>['google.com'],
-          email: _longEmail,
+          email: kGoldenLongEmail,
         ),
         locale: const Locale('ko'),
         brightness: Brightness.light,
@@ -440,7 +312,7 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('연결 해제')), findsNothing);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-      await _jumpToEnd(tester);
+      await jumpToEnd(tester);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       handle.dispose();
@@ -450,13 +322,13 @@ void main() {
       testWidgets('T-171-ACCOUNT-09: 넘침 0 W5 + 긴 이메일 — $lang 280', (
         tester,
       ) async {
-        await _pumpAccountScreen(
+        await pumpAccountScreen(
           tester,
-          user: _fixtureUser(
+          user: buildFixtureUser(
             lang,
             signUpProviderId: 'naver',
-            providerIds: _w5ProviderIds,
-            email: _longEmail,
+            providerIds: kGoldenW5ProviderIds,
+            email: kGoldenLongEmail,
           ),
           locale: Locale(lang),
           brightness: Brightness.light,
@@ -464,22 +336,176 @@ void main() {
           isLocalePinned: true,
         );
         expect(tester.takeException(), isNull, reason: 'overflow 위 $lang');
-        await _jumpToEnd(tester);
+        await jumpToEnd(tester);
         expect(tester.takeException(), isNull, reason: 'overflow 끝 $lang');
       });
     }
+
+    // 미연결 6 — 계정 연결 절이 가장 길게 보이는 상태. 기본 모양이 바뀌어도
+    // 같은 단언이 그 모양을 지킨다.
+    for (final lang in <String>['ko', 'en', 'ja']) {
+      testWidgets('T-171-ACCOUNT-09: 넘침 0 미연결 6 — $lang 280', (tester) async {
+        await pumpAccountScreen(
+          tester,
+          user: buildFixtureUser(
+            lang,
+            signUpProviderId: 'password',
+            providerIds: kAccountLinkingUnlinkedSixProviderIds,
+          ),
+          locale: Locale(lang),
+          brightness: Brightness.light,
+          width: 280,
+          isLocalePinned: true,
+        );
+        expect(tester.takeException(), isNull, reason: 'overflow 위 $lang');
+        await jumpToEnd(tester);
+        expect(tester.takeException(), isNull, reason: 'overflow 끝 $lang');
+      });
+    }
+  });
+
+  group('계정 연결 golden 칸 — 스크롤 위치 · 탭 영역', () {
+    // 후보 가운데 절이 가장 키가 큰 값 — 크기 48 · 간격 12 · 「절반」 비율.
+    const AccountLinkIconPreview tallestPreview = (
+      iconSize: 48,
+      gap: 12,
+      appleLogoHeightRatio: 1.2,
+      naverLogoHeightRatio: 0.45,
+      lineLogoHeightRatio: 0.5,
+    );
+    final l10n = lookupAppLocalizations(const Locale('ko'));
+
+    /// [provider] 의 ko 스크린 리더 라벨 「{provider} 연결」.
+    String resolveLinkLabel(AccountProvider provider) {
+      final providerLabel = switch (provider) {
+        AccountProvider.google => l10n.authAccountProviderGoogle,
+        AccountProvider.apple => l10n.authAccountProviderApple,
+        AccountProvider.facebook => l10n.authAccountProviderFacebook,
+        AccountProvider.email => l10n.authAccountProviderEmailPassword,
+        AccountProvider.kakao => l10n.authAccountProviderKakao,
+        AccountProvider.naver => l10n.authAccountProviderNaver,
+        AccountProvider.line => l10n.authAccountProviderLine,
+      };
+      return l10n.settingsLinkProviderCta(providerLabel);
+    }
+
+    const socialProviders = <AccountProvider>[
+      AccountProvider.google,
+      AccountProvider.apple,
+      AccountProvider.facebook,
+      AccountProvider.kakao,
+      AccountProvider.naver,
+      AccountProvider.line,
+    ];
+
+    for (final (id, unlinked) in <(String, List<AccountProvider>)>[
+      ('T-25-CELL-01', socialProviders),
+      (
+        'T-25-CELL-02',
+        <AccountProvider>[
+          AccountProvider.google,
+          AccountProvider.apple,
+          AccountProvider.facebook,
+        ],
+      ),
+    ]) {
+      testWidgets('$id: 가장 큰 후보 · 미연결 ${unlinked.length} — 끝까지 스크롤한 '
+          '화면에 계정 연결 절 전체가 든다', (tester) async {
+        debugAccountLinkIconPreview = tallestPreview;
+        addTearDown(() => debugAccountLinkIconPreview = null);
+        final handle = tester.ensureSemantics();
+
+        await pumpAccountLinkingGoldenCell(
+          tester,
+          unlinkedCount: unlinked.length,
+          brightness: Brightness.light,
+        );
+
+        expect(tester.takeException(), isNull);
+        final position = tester
+            .state<ScrollableState>(find.byType(Scrollable).first)
+            .position;
+        expect(position.pixels, position.maxScrollExtent, reason: '끝까지 스크롤');
+        final section = tester.getRect(find.byType(AccountLinkingSection));
+        final appBarBottom = tester.getBottomLeft(find.byType(AppBar)).dy;
+        expect(
+          section.top,
+          greaterThanOrEqualTo(appBarBottom),
+          reason: '절 위가 AppBar 아래',
+        );
+        expect(
+          section.bottom,
+          lessThanOrEqualTo(kGoldenHeight),
+          reason: '절 아래가 화면 안',
+        );
+        for (final provider in socialProviders) {
+          expect(
+            find.bySemanticsLabel(resolveLinkLabel(provider)),
+            unlinked.contains(provider) ? findsOneWidget : findsNothing,
+            reason: '${provider.name} 라벨',
+          );
+        }
+        handle.dispose();
+      });
+    }
+
+    testWidgets('T-25-CELL-03: 후보 넷 — 아이콘이 보이는 계정 화면이 위 · 끝에서 '
+        'androidTapTarget · labeledTapTarget 를 통과한다', (tester) async {
+      addTearDown(() => debugAccountLinkIconPreview = null);
+      final handle = tester.ensureSemantics();
+      for (final (iconSize, gap) in const <(double, double)>[
+        (48, 8),
+        (48, 12),
+        (44, 8),
+        (44, 12),
+      ]) {
+        debugAccountLinkIconPreview = (
+          iconSize: iconSize,
+          gap: gap,
+          appleLogoHeightRatio: 1.2,
+          naverLogoHeightRatio: 0.45,
+          lineLogoHeightRatio: 0.5,
+        );
+        await pumpAccountScreen(
+          tester,
+          user: buildFixtureUser(
+            'ko',
+            signUpProviderId: 'naver',
+            providerIds: const <String>['google.com'],
+            email: kGoldenLongEmail,
+          ),
+          locale: const Locale('ko'),
+          brightness: Brightness.light,
+          width: 280,
+          isLocalePinned: true,
+        );
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: '$iconSize/$gap');
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        await jumpToEnd(tester);
+        expect(
+          find.bySemanticsLabel(resolveLinkLabel(AccountProvider.apple)),
+          findsOneWidget,
+          reason: '$iconSize/$gap 아이콘이 보인다',
+        );
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      }
+      handle.dispose();
+    });
   });
 
   group('Phase 16.8 D-13 — 버튼 크기 · a11y guideline', () {
     testWidgets('해제 버튼 ≥ 24×24 · labeledTapTarget · textContrast — ko 280 W5', (
       tester,
     ) async {
-      await _pumpAccountScreen(
+      await pumpAccountScreen(
         tester,
-        user: _fixtureUser(
+        user: buildFixtureUser(
           'ko',
           signUpProviderId: 'naver',
-          providerIds: _w5ProviderIds,
+          providerIds: kGoldenW5ProviderIds,
         ),
         locale: const Locale('ko'),
         brightness: Brightness.light,
@@ -513,9 +539,12 @@ void main() {
         final fixture = worst ? 'worst' : 'd11';
 
         testWidgets('라벨 한 줄 · 줄바꿈 위치 — $lang $fixture', (tester) async {
-          await _pumpAccountScreen(
+          await pumpAccountScreen(
             tester,
-            user: _fixtureUser(lang, signUpProviderId: worst ? 'line' : null),
+            user: buildFixtureUser(
+              lang,
+              signUpProviderId: worst ? 'line' : null,
+            ),
             locale: Locale(lang),
             brightness: Brightness.light,
             width: 280,
@@ -549,9 +578,9 @@ void main() {
           final l10n = lookupAppLocalizations(Locale(lang));
           var isTitleChecked = false;
           for (final id in values) {
-            await _pumpAccountScreen(
+            await pumpAccountScreen(
               tester,
-              user: _fixtureUser(lang, signUpProviderId: id),
+              user: buildFixtureUser(lang, signUpProviderId: id),
               locale: Locale(lang),
               brightness: Brightness.light,
               width: width,
