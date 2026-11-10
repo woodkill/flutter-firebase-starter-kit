@@ -35,8 +35,8 @@ class BrandFocusWrapper extends StatefulWidget {
   /// outline 모서리를 맞춘다.
   /// [isEnabled] 가 false 면 focus 진입 자체를 차단 (disabled button).
   ///
-  /// **크기 주의:** wrapper 는 border 2dp + padding 2dp 로 child 제약을
-  /// 사방 4dp씩, 즉 가로·세로 각각 **총 8dp** 잠식한다. 부모가 크기를
+  /// **크기 주의:** wrapper 는 [outerInset](border 2dp + padding 2dp)만큼
+  /// child 제약을 사방에서, 즉 가로·세로 각각 **총 8dp** 잠식한다. 부모가 크기를
   /// bound 하면 (예: 300x48 → child 292x40) 브랜드 규정 높이(48dp)와 최소
   /// 터치 타겟이 함께 깨진다 — 브랜드 규격 크기는 wrapper **바깥**에서
   /// 지정할 것 (현재 호출부는 `kBrandButtonHeight` 높이의 상자를 child 내부에
@@ -51,6 +51,18 @@ class BrandFocusWrapper extends StatefulWidget {
          'borderRadius 는 0 이상이어야 한다 (BorderRadius.circular 은 음수를 받으면 '
          '렌더링 시점에 깨진다).',
        );
+
+  /// focus outline 두께 (dp).
+  static const double outlineWidth = 2;
+
+  /// outline 과 감싼 button 사이 여백 (dp).
+  static const double outlineOffset = 2;
+
+  /// wrapper 가 child 보다 사방으로 넓은 폭 (dp) — outline 두께 + 여백.
+  ///
+  /// wrapper 바깥 크기는 child 크기에 이 값의 두 배를 더한 값이다. 칸 크기를
+  /// 미리 계산하는 호출부는 이 값을 읽는다.
+  static const double outerInset = outlineWidth + outlineOffset;
 
   /// focus 대상 button widget.
   final Widget child;
@@ -165,12 +177,14 @@ class _BrandFocusWrapperState extends State<BrandFocusWrapper> {
         onFocus: widget.isEnabled ? _requestDescendantFocus : null,
         child: Container(
           // 2dp offset — outline 이 button 경계를 침범하지 않도록 별도 layer.
-          padding: const EdgeInsets.all(2),
+          padding: const EdgeInsets.all(BrandFocusWrapper.outlineOffset),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.borderRadius + 4),
+            borderRadius: BorderRadius.circular(
+              widget.borderRadius + BrandFocusWrapper.outerInset,
+            ),
             border: Border.all(
               color: _showOutline ? outlineColor : Colors.transparent,
-              width: 2,
+              width: BrandFocusWrapper.outlineWidth,
             ),
           ),
           child: widget.child,

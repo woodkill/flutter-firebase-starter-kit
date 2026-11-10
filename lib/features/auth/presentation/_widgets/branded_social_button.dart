@@ -81,9 +81,9 @@ const double kBrandAppleLogoGap = 9;
 
 /// 아이콘 칸이 아이콘보다 사방으로 넓은 폭 (dp).
 ///
-/// 포커스 테두리 래퍼의 테두리 2 + 여백 2 다. 칸 한 변 = 아이콘 지름 + 이
-/// 값의 두 배.
-const double kBrandIconSlotInset = 4;
+/// 포커스 테두리 래퍼의 바깥 폭([BrandFocusWrapper.outerInset] — 테두리 2 +
+/// 여백 2)을 그대로 쓴다. 칸 한 변 = 아이콘 지름 + 이 값의 두 배.
+const double kBrandIconSlotInset = BrandFocusWrapper.outerInset;
 
 /// Google · Facebook · Kakao 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
 ///
