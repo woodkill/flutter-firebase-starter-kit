@@ -3058,27 +3058,41 @@ flavor 마다 콘솔 앱이 다르면 검수 · 인증도 앱마다 따로 받�
 - 6개 버튼은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 맨 위 상수로 한 골격을 쓴다 — 높이 `kBrandButtonHeight`(48) · 모서리 `kBrandButtonRadius`(12) · 라벨 크기 `kBrandLabelFontSize`(16) · 로고 상자.
 - 브랜드마다 다른 것은 배경색 · 글자색 · 외곽선 · 로고 · 문구다.
 - Kakao · Naver · LINE 로고는 단색 심볼 SVG 에 각 가이드의 색(Kakao 검정 · Naver · LINE 흰색)을 칠하고, Google 로고는 비트맵 PNG 라 칠하지 않으며, Apple · Facebook 로고는 SVG 를 칠하지 않고 그대로 그린다.
+- 계정 정보 화면 「계정 연결」 의 원형 아이콘 버튼도 같은 스킨(배경색 · 외곽선 · 로고)을 쓰고, 크기 · 간격 · 로고 비율은 같은 파일의 `kBrandIconButtonSize` · `kBrandIconButtonGap` · `kBrandIconLogoHeightRatio`(Google · Kakao · Facebook) · `kAppleIconLogoHeightRatio` · `kNaverIconLogoHeightRatio` · `kLineIconLogoHeightRatio` 다.
 
 - 로고 그림 · 가이드 색 · 비율을 바꾸지 않는다.
 - 버튼 색을 앱 테마 색(시드 컬러)으로 바꾸지 않는다 — 버튼 색은 각 브랜드 가이드의 색이다.
 - 골격 상수를 바꾸면 여섯 버튼이 함께 바뀐다.
 
 **알고 둔 가이드와의 차이.**
-- 한 화면의 버튼을 맞추느라 킷이 각 가이드 문장과 다르게 둔 곳이 셋 있다.
+- 한 화면의 버튼을 맞추느라 킷이 각 가이드 문장과 다르게 둔 곳이 아홉 있다.
 - 심사에서 지적되면 아래 자리를 고친다.
 
 | 차이 | 고치는 자리 |
 |---|---|
 | Apple 라벨 크기 16 은 Human Interface Guidelines 가 권하는 크기(버튼 높이의 43%)보다 작다 | `kBrandLabelFontSize` — 여섯 버튼이 함께 바뀐다 |
 | LINE 로고와 글자 사이 8 은 LINE 가이드의 padding 조항(로고 말풍선 폭 이상)보다 좁다 | LINE 스킨의 `resolveLogoGap`(기본은 `kBrandButtonLogoGap`) |
-| 계정 정보 화면 「계정 연결」 의 「○○ 연결」 버튼 문구는 Apple · LINE 가이드의 로그인 버튼 문구 조항과 다르다 | ARB `settingsLinkProviderCta` |
+| 계정 정보 화면 「계정 연결」 을 글자 버튼 모양으로 되돌렸을 때만 「○○ 연결」 버튼 문구가 Apple · LINE 가이드의 로그인 버튼 문구 조항과 다르다 | ARB `settingsLinkProviderCta` |
+| 「계정 연결」 의 Facebook 아이콘 버튼은 행동 유도 문구 없이 'f' 로고만 쓴다 — Facebook 로그인 가이드는 「적절한 행동 유도(예: 'Facebook으로 계속하기' 또는 'Facebook으로 로그인') 없이 버튼에 'f' 로고를 사용하지 마세요」 라고 적는다(아래 「Facebook 검수 전」) | `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다 |
+| 「계정 연결」 의 Kakao 아이콘 버튼 — Kakao 디자인 가이드 본문에는 아이콘 단독형 정의가 없고, 공식 리소스 「전체 다운로드」 ZIP 에 원형 아이콘 자산(`kakao_login_light.svg` · rx 24 · 심볼 `#191919`)이 있다 · 킷 심볼 색은 가이드 색 표의 `#000000` 이다 | `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다 |
+| 「계정 연결」 의 LINE 아이콘은 원이다 — LINE 사용 가이드라인은 글자 없이 쓸 때 LINE Login Button Image 의 「LINE Icon」(둥근 사각 칸 + 말풍선)을 버튼으로 쓰게 한다 | `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다 |
+| 「계정 연결」 의 Apple 아이콘은 글자 버튼용 로고 파일(Apple Design Resources 의 Left-aligned Medium)을 쓴다 — Human Interface Guidelines 의 logo-only 아트워크와 사과 폭(약 3%) · 세로 위치(약 0.5dp)가 다르다 | `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다 |
+| 「계정 연결」 의 Apple 아이콘은 사과가 logo-only 아트워크 비율보다 약 20% 크다(로고 상자 높이 = 아이콘 지름 × 1.2) | `kAppleIconLogoHeightRatio` 를 1 로(아이콘 모양 유지) 또는 위 모양 인자 `shape: AccountLinkingShape.button` |
+| 「계정 연결」 의 LINE 아이콘은 말풍선이 공식 「LINE Icon」 비율(지름의 0.683)보다 약 14% 작다 | `kLineIconLogoHeightRatio` 를 0.683 으로(아이콘 모양 유지) 또는 위 모양 인자 `shape: AccountLinkingShape.button` |
+
+**Facebook 검수 전.**
+- Facebook 로그인을 켠 앱은 Facebook 앱 검수를 신청하기 전에 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다.
+  - Facebook 로그인 가이드는 행동 유도 문구 없는 'f' 로고 버튼을 금지한다.
+  - 계정 연결 절이 「Facebook 연결」 같은 글자 버튼 목록으로 돌아가고, 위 표의 「○○ 연결」 문구 행이 다시 해당한다.
+  - 바꾼 뒤 `fvm flutter test --update-goldens test/features/settings/presentation/account_screen_golden_test.dart test/features/auth/presentation/auth_surfaces_golden_test.dart` 로 계정 화면 golden 을 다시 만들고, 눈으로 본 뒤 커밋한다.
+  - Facebook 로그인을 끈 앱이면 할 일이 없다.
 
 **사용 전 확인:**
 
 1. 켠 수단마다 위 표의 「라이선스」 · 「사전 검수 절차」 를 읽는다.
    - 사전 검수 신청 절차를 둔 회사는 그 절차를 따른다.
 2. 로고를 로그인 버튼 밖(마케팅 자료 · 비교 자료 · 눈에 띄는 배치 등)에서 쓰면, 쓰기 전에 각 회사 브랜드 페이지의 조건을 다시 확인한다 — 로그인 버튼과 조건이 다를 수 있고 별도 허가가 필요할 수 있다.
-3. 위 「알고 둔 가이드와의 차이」 셋을 내 앱에 그대로 둘지 정한다.
+3. 위 「알고 둔 가이드와의 차이」 아홉을 내 앱에 그대로 둘지 정한다.
 
 자산을 다시 받거나 바꾸는 절차는 [유지보수자 문서](maintainer/brand-assets.md) 에 있다.
 
