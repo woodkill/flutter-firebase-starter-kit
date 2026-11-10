@@ -32,6 +32,15 @@ LINE 로그인 버튼 사용 지침을 따른다 — 원문 발췌는 `LICENSE.t
 ## 사전 검수 절차
 LINE Developers Console(https://developers.line.biz/console/)에는 로고 사용의 사전 검수 신청 절차가 없다 — 위 조항을 직접 지킨다. LINE 이 그 앱을 공식으로 지지하거나 후원하는 것처럼 보이게 하는 디자인 · 문구는 쓰지 않는다(Section 4.6.3 · 4.14). 지침과 다르게 쓰면 LINE 이 LINE Developers 서비스나 버튼 이미지 사용을 멈추게 하고 필요한 조치를 할 수 있다(Section 6.1). 앱 출시 전에 하는 LINE 쪽 확인(email permission · 비즈니스 인증)은 [직접 하는 일 — 로그인 수단 검수 · 인증](../../../docs/guide.md#로그인-수단-검수--인증) 에 있다.
 
+## 아이콘 단독 사용
+
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 LINE 이 아직 연결되지 않았을 때만, LINE 으로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「LINE 연결」 이다.
+- 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 0.59 = 28.3dp 다 — 바탕 `#06C755` · 흰 말풍선은 로그인 버튼과 같다.
+- LINE 사용 지침(`Usage Guidelines for the LINE Login Button` · https://terms2.line.me/LINE_Developers_Guidelines_for_Login_Button) Section 4.2 는 `when not placing any text in the Login Button Text area, the Installer must use the LINE Icon of the LINE Login Button Image as the LINE Login Button` 이라고 적는다 — 공식 「LINE Icon」 은 둥근 사각 칸에 말풍선이고, 킷은 다른 다섯 수단과 맞추려고 원으로 그린다.
+- 말풍선 비율 47 : 44 · 바탕 `#06C755` · 흰 말풍선은 지킨다 — 말풍선이 공식 「LINE Icon」 비율(지름의 0.683)보다 약 14% 작다(로고 상자 높이 = 지름 × 0.59 = 28.3dp).
+- 글자 버튼 모양으로 바꾸려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다.
+- 한 화면에서 맞추느라 다르게 둔 곳은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「알고 둔 가이드와의 차이」 에 있다.
+
 ## 미포함 변형 추가 절차
 LINE 공식 디자인 가이드는 로그인 버튼 문구를 18개 언어(en · ja · ko · de · es · fr · id · it · ms · pt-BR · pt-PT · ru · th · tr · ar · vi · zh-CN · zh-TW)로 준다. 킷의 ARB 는 ko · en · ja 의 `authLineSignIn` 을 담는다. 언어를 더하려면:
 

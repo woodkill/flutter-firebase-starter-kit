@@ -20,6 +20,15 @@ NAVER Brand License (`LICENSE.txt` 의 원문 라이선스 텍스트).
 ## 사전 검수 절차
 NAVER BI 페이지에는 로고 사용의 사전 검수 신청 절차가 보이지 않는다 — 출시 전에 BI 페이지를 직접 열어 신청 절차가 있는지 확인한다. 앱 출시 전에 하는 Naver 쪽 검수(검수 요청 · 추가 항목)는 [직접 하는 일 — 로그인 수단 검수 · 인증](../../../docs/guide.md#로그인-수단-검수--인증) 에 있다.
 
+## 아이콘 단독 사용
+
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 Naver 가 아직 연결되지 않았을 때만, Naver 로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「Naver 연결」 이다.
+- 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 0.375 = 18dp 다 — 바탕 `#03A94D` · N 심볼 · 심볼 색은 로그인 버튼과 같다.
+- NAVER ID 로그인 BI(https://developers.naver.com/docs/login/bi/bi.md)는 「N 로고 크기는 아이콘형 18px, 완성형 16px 이상을 사용하고, 기준보다 작지 않도록 주의해 주세요.」 라고 적고, 공식 아이콘형도 원이다.
+- N 로고 18dp 는 공식 아이콘형(H48) 비율(지름의 0.375)과 같고 18px 하한과 같다.
+- 글자 버튼 모양으로 바꾸려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다.
+- Naver 아이콘은 「알고 둔 가이드와의 차이」 에 든 것이 없다 — 다른 수단의 다르게 둔 곳은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「알고 둔 가이드와의 차이」 에 있다.
+
 ## 미포함 변형 추가 절차
 NAVER BI 는 로고 변형(색상 / 회전 / 비율)을 금지한다. 다른 변형(예: 라벨이 그림에 들어 있는 버튼 이미지)을 쓰려면 NAVER Developers 의 가이드를 먼저 확인하고, BI 페이지의 파일을 내용 그대로 이 디렉토리에 둔다. 하위 디렉토리를 새로 만들면 `pubspec.yaml` 의 `assets:` 에 그 디렉토리를 따로 등록한다(디렉토리 등록은 재귀가 아니다).
 

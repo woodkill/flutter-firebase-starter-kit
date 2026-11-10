@@ -143,6 +143,15 @@ Google 은 로그인 버튼에 대해 사전 검수 신청을 받지 않는다. 
 - 로고와 글자 사이 간격 = Android 10 · iOS 12
 - 버튼 글자 = `Sign in with Google` 등 가이드가 든 문구와 그 번역
 
+## 아이콘 단독 사용
+
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 Google 이 아직 연결되지 않았을 때만, Google 로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「Google 연결」 이다.
+- 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 0.5 = 24dp 다 — 바탕 · 외곽선 · G 는 로그인 버튼과 같다(밝은 바탕 `#FFFFFF` + 외곽선 `#747775` · 어두운 바탕 `#131314` + 외곽선 `#8E918F`).
+- Sign in with Google Branding Guidelines(https://developers.google.com/identity/branding-guidelines)는 Do 에 `Use the Google "G" by itself for action button if needed.` 를, Don't 에 `Use the Google icon or logo by itself without the button boundary and without text to indicate the user action.` 를 적는다 — 킷 아이콘은 원 바탕과 외곽선으로 버튼 경계를 둔다.
+- Google 이 배포하는 아이콘 버튼 그림(공식 묶음의 `Show text=No` · Android+Web 40 × 40)은 G 칸이 20 × 20 이라, 로고 상자 높이를 지름의 절반으로 두는 킷과 비율이 같다.
+- 글자 버튼 모양으로 바꾸려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다.
+- Google 아이콘은 「알고 둔 가이드와의 차이」 에 든 것이 없다 — 다른 수단의 다르게 둔 곳은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「알고 둔 가이드와의 차이」 에 있다.
+
 ## 미포함 변형 추가 절차
 
 싣는 것은 G 한 벌뿐이다. 완성된 버튼 그림(글자가 든 것 · Neutral · Pill · iOS 판)은
