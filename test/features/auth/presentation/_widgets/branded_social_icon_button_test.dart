@@ -238,6 +238,7 @@ void main() {
         (_naver, 0.45),
         (_naver, 0.375),
         (_line, 0.5),
+        (_line, 0.59),
         (_line, 0.683),
         (_apple, 1.2),
         (_apple, 1.0),
@@ -266,15 +267,16 @@ void main() {
       }
     });
 
-    testWidgets('T-25-IBTN-07: 로고 상자 대표값 — 48 에서 Google 24 · Naver 21.6 · '
-        'LINE 24 · Apple 57.6(폭 22.25)', (tester) async {
+    testWidgets('T-25-IBTN-07: 로고 상자 승인값 — 48 에서 Google 24 · Naver 18 · '
+        'LINE 28.32 · Apple 57.6(폭 22.25) · 고치는 길 값 Apple 1.0 · LINE 0.683 '
+        '도 비율대로', (tester) async {
+      // 비율은 상수에서 읽고 기대 크기는 리터럴로 적는다.
       final expectations = <(_IconCase, double, Size)>[
-        (_google, 0.5, const Size(24, 24)),
-        (_naver, 0.45, const Size(21.6, 21.6)),
-        (_line, 0.5, const Size(24 * 47 / 44, 24)),
-        (_apple, 1.2, const Size(22.25, 57.6)),
+        (_google, kBrandIconLogoHeightRatio, const Size(24, 24)),
+        (_naver, kNaverIconLogoHeightRatio, const Size(18, 18)),
+        (_line, kLineIconLogoHeightRatio, const Size(28.32 * 47 / 44, 28.32)),
+        (_apple, kAppleIconLogoHeightRatio, const Size(22.25, 57.6)),
         (_apple, 1.0, const Size(48 * 17 / 44, 48)),
-        (_naver, 0.375, const Size(18, 18)),
         (_line, 0.683, const Size(32.784 * 47 / 44, 32.784)),
       ];
       for (final (provider, ratio, want) in expectations) {
@@ -291,6 +293,29 @@ void main() {
         final where = '${provider.name} · $ratio';
         expect(logo.height, closeTo(want.height, 0.01), reason: '$where 높이');
         expect(logo.width, closeTo(want.width, 0.01), reason: '$where 폭');
+      }
+    });
+
+    test('T-25-IBTN-09: 승인값 상수 — 지름 48 · 간격 8 · Apple 1.2 · Naver 0.375 · '
+        'LINE 0.59 · 나머지 절반 0.5 · 칸 여백 4 · 스킨 비율이 같은 값', () {
+      // 승인값을 리터럴로 적는다 — 상수끼리 견주지 않는다.
+      expect(kBrandIconButtonSize, 48, reason: '지름');
+      expect(kBrandIconButtonGap, 8, reason: '간격');
+      expect(kAppleIconLogoHeightRatio, 1.2, reason: 'Apple 비율');
+      expect(kNaverIconLogoHeightRatio, 0.375, reason: 'Naver 비율');
+      expect(kLineIconLogoHeightRatio, 0.59, reason: 'LINE 비율');
+      expect(kBrandIconLogoHeightRatio, 0.5, reason: '절반 비율');
+      expect(kBrandIconSlotInset, 4, reason: '칸 여백');
+      final skinRatios = <BrandSpec, double>{
+        const GoogleSpec(): 0.5,
+        const AppleSpec(): 1.2,
+        const FacebookSpec(): 0.5,
+        const KakaoSpec(): 0.5,
+        const NaverSpec(): 0.375,
+        const LineSpec(): 0.59,
+      };
+      for (final MapEntry(key: spec, value: want) in skinRatios.entries) {
+        expect(spec.iconLogoHeightRatio, want, reason: '${spec.runtimeType}');
       }
     });
 
