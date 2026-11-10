@@ -121,117 +121,97 @@ class AccountLinkingSection extends ConsumerWidget {
     // available 빈 set → 섹션 미노출 (mockup §2 graceful).
     if (available.isEmpty) return const SizedBox.shrink();
 
-    // 모양 인자가 경로를 고른다 — 기본은 아이콘 줄이다.
-    switch (shape) {
-      case AccountLinkingShape.icon:
-        return Stack(
-          children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                if (leadingGap) Gap(spacing.xxl),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    spacing.lg,
-                    spacing.sm,
-                    spacing.lg,
-                    spacing.xs,
-                  ),
-                  child: Text(
-                    l10n.settingsAccountLinkingSection,
-                    style: typography.labelMedium.copyWith(
-                      color: context.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                // 안내 문구 한 줄 — 아이콘 줄 위에 둔다.
-                Padding(
-                  padding: EdgeInsets.only(
-                    left: spacing.lg,
-                    right: spacing.lg,
-                    bottom: spacing.sm,
-                  ),
-                  child: Text(
-                    l10n.settingsAccountLinkingGuide,
-                    style: typography.bodyMedium.copyWith(
-                      color: context.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-                  child: _LinkProviderIconRow(
-                    iconSize: kBrandIconButtonSize,
-                    gap: kBrandIconButtonGap,
-                    icons: <Widget>[
-                      for (final provider in available)
-                        _LinkProviderIcon(
-                          key: ValueKey(provider),
-                          provider: provider,
-                          label: l10n.settingsLinkProviderCta(
-                            _providerLabel(l10n, provider),
-                          ),
-                          onPressed: isLinking
-                              ? null
-                              : () => _onLinkPressed(context, ref, provider),
-                        ),
-                    ],
-                  ),
-                ),
-                // 절 아래 간격 — 글자 버튼 목록의 마지막 간격과 같다.
-                Gap(spacing.sm),
-              ],
+    // 모양 인자는 제목 아래 본문만 고른다 — 앞 간격 · 제목 · 진행 중
+    // 오버레이는 두 모양이 한 벌을 함께 쓴다.
+    final body = switch (shape) {
+      AccountLinkingShape.icon => <Widget>[
+        // 안내 문구 한 줄 — 아이콘 줄 위에 둔다.
+        Padding(
+          padding: EdgeInsets.only(
+            left: spacing.lg,
+            right: spacing.lg,
+            bottom: spacing.sm,
+          ),
+          child: Text(
+            l10n.settingsAccountLinkingGuide,
+            style: typography.bodyMedium.copyWith(
+              color: context.colorScheme.onSurfaceVariant,
             ),
-            if (isLinking) const AuthInProgressOverlay(),
-          ],
-        );
-      case AccountLinkingShape.button:
-        return Stack(
-          children: <Widget>[
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                // Phase 17.1 §Spacing — 보일 때만 앞 간격(계정 화면 W5 겹침 0).
-                if (leadingGap) Gap(spacing.xxl),
-                // heading — danger_zone_section.dart 패턴 mirror.
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    spacing.lg,
-                    spacing.sm,
-                    spacing.lg,
-                    spacing.xs,
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+          child: _LinkProviderIconRow(
+            iconSize: kBrandIconButtonSize,
+            gap: kBrandIconButtonGap,
+            icons: <Widget>[
+              for (final provider in available)
+                _LinkProviderIcon(
+                  key: ValueKey(provider),
+                  provider: provider,
+                  label: l10n.settingsLinkProviderCta(
+                    _providerLabel(l10n, provider),
                   ),
-                  child: Text(
-                    l10n.settingsAccountLinkingSection,
-                    // settings_screen.dart heading 과 동일 role·색 (accent 토큰
-                    // 미사용 — UI-SPEC Layout Contract Surface D).
-                    style: typography.labelMedium.copyWith(
-                      color: context.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
+                  onPressed: isLinking
+                      ? null
+                      : () => _onLinkPressed(context, ref, provider),
                 ),
-                // available-provider 버튼 vertical list (mockup §2 gap = sm).
-                for (final provider in available) ...<Widget>[
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-                    child: _LinkProviderButton(
-                      provider: provider,
-                      label: l10n.settingsLinkProviderCta(
-                        _providerLabel(l10n, provider),
-                      ),
-                      onPressed: isLinking
-                          ? null
-                          : () => _onLinkPressed(context, ref, provider),
-                    ),
-                  ),
-                  Gap(spacing.sm),
-                ],
-              ],
+            ],
+          ),
+        ),
+        // 절 아래 간격 — 글자 버튼 목록의 마지막 간격과 같다.
+        Gap(spacing.sm),
+      ],
+      // available-provider 버튼 vertical list (mockup §2 gap = sm).
+      AccountLinkingShape.button => <Widget>[
+        for (final provider in available) ...<Widget>[
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+            child: _LinkProviderButton(
+              provider: provider,
+              label: l10n.settingsLinkProviderCta(
+                _providerLabel(l10n, provider),
+              ),
+              onPressed: isLinking
+                  ? null
+                  : () => _onLinkPressed(context, ref, provider),
             ),
-            if (isLinking) const AuthInProgressOverlay(),
+          ),
+          Gap(spacing.sm),
+        ],
+      ],
+    };
+
+    return Stack(
+      children: <Widget>[
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // Phase 17.1 §Spacing — 보일 때만 앞 간격(계정 화면 W5 겹침 0).
+            if (leadingGap) Gap(spacing.xxl),
+            // heading — danger_zone_section.dart 패턴 mirror.
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                spacing.lg,
+                spacing.sm,
+                spacing.lg,
+                spacing.xs,
+              ),
+              child: Text(
+                l10n.settingsAccountLinkingSection,
+                // settings_screen.dart heading 과 동일 role·색 (accent 토큰
+                // 미사용 — UI-SPEC Layout Contract Surface D).
+                style: typography.labelMedium.copyWith(
+                  color: context.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            ...body,
           ],
-        );
-    }
+        ),
+        if (isLinking) const AuthInProgressOverlay(),
+      ],
+    );
   }
 
   /// [provider] proactive link 트리거 + 결과별 UI 분기 (Phase 16 16-11).
