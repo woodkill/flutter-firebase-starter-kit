@@ -67,6 +67,7 @@ Meta Brand Resource Center License (원문 단락은 `LICENSE.txt` 참조).
 범위)이라, 마케팅 자료에 로고를 크게 싣는 것처럼 Meta's permission 을 따로 받아야
 하는 경우에 들지 않는다. 사용 의무 · 변형 금지 · 사전 검수 원문은 `LICENSE.txt`
 동봉 단락을 본다.
+계정 연결 절의 'f' 아이콘 버튼은 로그인 UX 가이드의 'f' 로고 조항과 다르다 — 아래 「아이콘 단독 사용」 절을 본다.
 
 ## 사전 검수 절차
 
@@ -85,6 +86,17 @@ Meta Brand Resource Center (`https://www.meta.com/brand/resources/`) 에는 별�
 로그인 화면의 로그인 버튼으로만 쓰면 "as provided in these guidelines" 범위다.
 로고를 로그인 버튼 밖에서 쓸 때의 확인은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산)
 에 있다.
+
+계정 연결 절의 Facebook 'f' 아이콘 버튼은 검수 전에 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「Facebook 검수 전」 대로 글자 버튼 모양으로 바꿀 수 있다.
+
+## 아이콘 단독 사용
+
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 Facebook 이 아직 연결되지 않았을 때만, Facebook 으로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「Facebook 연결」 이다.
+- 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 0.5 = 24dp 다 — 바탕 · 외곽선 · 로고는 로그인 버튼과 같다(밝은 바탕 `#FFFFFF` + 외곽선 `#747775` · 어두운 바탕 `#131314` + 외곽선 `#8E918F` · 로고는 파란 원 + 흰 'f' 그대로).
+- Facebook 로그인 가이드(`https://developers.facebook.com/docs/facebook-login/userexperience/` 의 한국어판)는 「적절한 행동 유도(예: 'Facebook으로 계속하기' 또는 'Facebook으로 로그인') 없이 버튼에 'f' 로고를 사용하지 마세요.」 라고 적는다 — 킷의 아이콘 버튼은 이 조항과 다르다.
+- Meta 브랜드 리소스 센터 Facebook 로고 페이지(`https://www.meta.com/brand/resources/facebook/logo/`)의 여백(로고 너비 ÷ 4) · 디지털 최소 너비 16px · 외곽선 금지 · 색 바꾸기 금지는 로고 자체에서 지킨다 — 24dp 로고에 필요한 여백 6 보다 원 안 여백 12 가 넓고, 외곽선은 로고가 아니라 원에 있다.
+- 글자 버튼 모양으로 바꾸려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다 — Facebook 앱 검수를 신청하기 전에 할 일이다.
+- 한 화면에서 맞추느라 다르게 둔 곳은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「알고 둔 가이드와의 차이」 에 있다.
 
 ## 미포함 변형 추가 절차
 

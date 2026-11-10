@@ -65,6 +65,8 @@ assets/brand/apple/
 | 로고는 검정 또는 흰색만 쓴다 | 검정 · 흰색 2장뿐이다 |
 | 로고를 자르거나 직접 그리지 않는다 | path 좌표와 viewBox 를 손대지 않는다 |
 
+위 표는 로그인 버튼 값이다 — 계정 연결 절 아이콘의 로고 높이는 아래 「아이콘 단독 사용」 절에 있다.
+
 ## 라이선스
 
 이 디렉터리에는 `LICENSE.txt` 가 없다. Apple 은 로고에 배포 라이선스 본문을 따로 주지
@@ -89,6 +91,16 @@ Guidelines 준수를 본다. 출시 전에 직접 대조한다.
 ```bash
 fvm flutter test --no-pub test/features/auth/presentation/_widgets/brand_button_assets_test.dart
 ```
+
+## 아이콘 단독 사용
+
+- 계정 정보 화면(설정 → 내 계정)의 「계정 연결」 절에 Apple 이 아직 연결되지 않았을 때만, Apple 로 로그인해 계정을 연결하는 원형 아이콘 버튼이 나온다 — 스크린 리더 라벨은 「Apple 연결」 이다.
+- 크기는 지름 `48dp`(`kBrandIconButtonSize`) · 로고 상자 높이 = 지름 × 1.2 = 57.6dp 다 — 바탕 · 로고 색은 로그인 버튼과 같다(밝은 테마 = 검정 원 + 흰 로고 · 어두운 테마 = 흰 원 + 검정 로고).
+- Human Interface Guidelines — Sign in with Apple 은 `logo-only buttons can be circular or rectangular.` · `Make a Sign in with Apple button no smaller than other sign-in buttons` 라고 적는다 — 킷 아이콘은 원이고, 여섯 수단의 아이콘이 같은 크기다.
+- 킷은 HIG 의 logo-only 아트워크가 아니라 글자 버튼용 로고 파일(Apple Design Resources 의 Left-aligned Medium 과 같은 path · 이 디렉터리의 `btn_signin_icon.svg`)을 그대로 쓴다 — logo-only 아트워크와 사과 폭이 약 3% · 세로 위치가 약 0.5dp 다르다.
+- 사과가 logo-only 아트워크 비율보다 약 20% 크다(로고 상자 높이 = 지름 × 1.2 = 57.6dp) — 로고 파일이 사과 둘레에 여백을 품고 있어 로고 파일 높이가 원 지름보다 크고, 그래서 「Match the height of the logo file to the height of the button」 과 다르다 · `kAppleIconLogoHeightRatio` 를 1 로 두면 사과 높이가 logo-only 아트워크 비율(지름의 0.432)과 같다.
+- 글자 버튼 모양으로 바꾸려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더한다.
+- 한 화면에서 맞추느라 다르게 둔 곳은 [직접 하는 일 — 소셜 로고 · 브랜드 자산](../../../docs/guide.md#소셜-로고--브랜드-자산) 의 「알고 둔 가이드와의 차이」 에 있다.
 
 ## 미포함 변형 추가 절차
 
