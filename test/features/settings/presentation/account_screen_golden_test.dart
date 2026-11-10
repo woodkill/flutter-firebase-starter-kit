@@ -365,14 +365,6 @@ void main() {
   });
 
   group('계정 연결 golden 칸 — 스크롤 위치 · 탭 영역', () {
-    // 후보 가운데 절이 가장 키가 큰 값 — 크기 48 · 간격 12 · 「절반」 비율.
-    const AccountLinkIconPreview tallestPreview = (
-      iconSize: 48,
-      gap: 12,
-      appleLogoHeightRatio: 1.2,
-      naverLogoHeightRatio: 0.45,
-      lineLogoHeightRatio: 0.5,
-    );
     final l10n = lookupAppLocalizations(const Locale('ko'));
 
     /// [provider] 의 ko 스크린 리더 라벨 「{provider} 연결」.
@@ -409,10 +401,8 @@ void main() {
         ],
       ),
     ]) {
-      testWidgets('$id: 가장 큰 후보 · 미연결 ${unlinked.length} — 끝까지 스크롤한 '
+      testWidgets('$id: 기본 모양 · 미연결 ${unlinked.length} — 끝까지 스크롤한 '
           '화면에 계정 연결 절 전체가 든다', (tester) async {
-        debugAccountLinkIconPreview = tallestPreview;
-        addTearDown(() => debugAccountLinkIconPreview = null);
         final handle = tester.ensureSemantics();
 
         await pumpAccountLinkingGoldenCell(
@@ -426,18 +416,25 @@ void main() {
             .state<ScrollableState>(find.byType(Scrollable).first)
             .position;
         expect(position.pixels, position.maxScrollExtent, reason: '끝까지 스크롤');
-        final section = tester.getRect(find.byType(AccountLinkingSection));
-        final appBarBottom = tester.getBottomLeft(find.byType(AppBar)).dy;
-        expect(
-          section.top,
-          greaterThanOrEqualTo(appBarBottom),
-          reason: '절 위가 AppBar 아래',
-        );
-        expect(
-          section.bottom,
-          lessThanOrEqualTo(kGoldenHeight),
-          reason: '절 아래가 화면 안',
-        );
+        // golden 칸 조건은 아이콘 모양의 것이다 — 글자 버튼 모양이면 절이 길어
+        // 화면 안에 들지 않아도 된다.
+        final shape = tester
+            .widget<AccountLinkingSection>(find.byType(AccountLinkingSection))
+            .shape;
+        if (shape == AccountLinkingShape.icon) {
+          final section = tester.getRect(find.byType(AccountLinkingSection));
+          final appBarBottom = tester.getBottomLeft(find.byType(AppBar)).dy;
+          expect(
+            section.top,
+            greaterThanOrEqualTo(appBarBottom),
+            reason: '절 위가 AppBar 아래',
+          );
+          expect(
+            section.bottom,
+            lessThanOrEqualTo(kGoldenHeight),
+            reason: '절 아래가 화면 안',
+          );
+        }
         for (final provider in socialProviders) {
           expect(
             find.bySemanticsLabel(resolveLinkLabel(provider)),
@@ -449,49 +446,34 @@ void main() {
       });
     }
 
-    testWidgets('T-25-CELL-03: 후보 넷 — 아이콘이 보이는 계정 화면이 위 · 끝에서 '
+    testWidgets('T-25-CELL-03: 기본 모양 — 아이콘이 보이는 계정 화면이 위 · 끝에서 '
         'androidTapTarget · labeledTapTarget 를 통과한다', (tester) async {
-      addTearDown(() => debugAccountLinkIconPreview = null);
       final handle = tester.ensureSemantics();
-      for (final (iconSize, gap) in const <(double, double)>[
-        (48, 8),
-        (48, 12),
-        (44, 8),
-        (44, 12),
-      ]) {
-        debugAccountLinkIconPreview = (
-          iconSize: iconSize,
-          gap: gap,
-          appleLogoHeightRatio: 1.2,
-          naverLogoHeightRatio: 0.45,
-          lineLogoHeightRatio: 0.5,
-        );
-        await pumpAccountScreen(
-          tester,
-          user: buildFixtureUser(
-            'ko',
-            signUpProviderId: 'naver',
-            providerIds: const <String>['google.com'],
-            email: kGoldenLongEmail,
-          ),
-          locale: const Locale('ko'),
-          brightness: Brightness.light,
-          width: 280,
-          isLocalePinned: true,
-        );
-        await tester.pump();
-        expect(tester.takeException(), isNull, reason: '$iconSize/$gap');
-        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-        await jumpToEnd(tester);
-        expect(
-          find.bySemanticsLabel(resolveLinkLabel(AccountProvider.apple)),
-          findsOneWidget,
-          reason: '$iconSize/$gap 아이콘이 보인다',
-        );
-        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-      }
+      await pumpAccountScreen(
+        tester,
+        user: buildFixtureUser(
+          'ko',
+          signUpProviderId: 'naver',
+          providerIds: const <String>['google.com'],
+          email: kGoldenLongEmail,
+        ),
+        locale: const Locale('ko'),
+        brightness: Brightness.light,
+        width: 280,
+        isLocalePinned: true,
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await jumpToEnd(tester);
+      expect(
+        find.bySemanticsLabel(resolveLinkLabel(AccountProvider.apple)),
+        findsOneWidget,
+        reason: '아이콘이 보인다',
+      );
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       handle.dispose();
     });
   });
@@ -634,4 +616,8 @@ void main() {
       }
     }
   });
+
+  // 계정 연결 golden — ko 280 미연결 6 · 3 × 밝은 · 어두운 4장. 기본
+  // 모양(아이콘 줄)을 찍는다 — 등록 함수는 golden harness 에 있다.
+  registerAccountLinkingGoldenTests();
 }

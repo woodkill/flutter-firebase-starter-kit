@@ -162,6 +162,8 @@ class AccountScreen extends ConsumerWidget {
             ),
             // 계정 연결 section (Surface D — 16-11). 연결 가능 provider 가
             // 없으면 SizedBox.shrink 이고 앞 간격도 0 (UI-SPEC §Spacing).
+            // 기본은 아이콘 줄이다. 글자 버튼 목록으로 바꾸려면 이 호출에
+            // `shape: AccountLinkingShape.button` 을 더한다.
             const AccountLinkingSection(leadingGap: true),
             Gap(spacing.xxl),
             // Phase 17.1 D-05 · Q5-A — 로그아웃 = 목록 한 줄(기본 색).

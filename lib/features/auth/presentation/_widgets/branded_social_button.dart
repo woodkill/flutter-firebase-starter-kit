@@ -90,6 +90,30 @@ const double kBrandIconSlotInset = 4;
 /// 「절반」 — 지름 48 아이콘의 로고 상자 높이가 24 다.
 const double kBrandIconLogoHeightRatio = 0.5;
 
+/// 계정 연결 절 아이콘의 지름 (dp).
+///
+/// 로그인 버튼 높이 [kBrandButtonHeight] 와 같다.
+const double kBrandIconButtonSize = 48;
+
+/// 계정 연결 절 아이콘 칸 사이 · 줄 사이 간격 (dp).
+const double kBrandIconButtonGap = 8;
+
+/// Apple 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
+///
+/// 「절반」 값이다 — 로고 파일이 사과 둘레에 여백을 품고 있어 상자 높이가
+/// 지름보다 크다.
+const double kAppleIconLogoHeightRatio = 1.2;
+
+/// Naver 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
+///
+/// Naver 공식 아이콘형의 비율이다.
+const double kNaverIconLogoHeightRatio = 0.375;
+
+/// LINE 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
+///
+/// 「절반」 과 공식 LINE Icon 비율 사이 값이다.
+const double kLineIconLogoHeightRatio = 0.59;
+
 /// 아이콘 [count] 개를 몇 줄에 몇 개씩 놓을지 돌려준다.
 ///
 /// 칸 한 변은 `iconSize + 2 * kBrandIconSlotInset` 이고, 한 줄 폭은

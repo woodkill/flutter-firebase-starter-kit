@@ -52,7 +52,6 @@ import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/core/theme/theme_extensions.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
-import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_social_button.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_step.dart';
 import 'package:flutter_starter_kit/features/settings/data/disconnect/disconnect_steps.dart';
@@ -565,8 +564,11 @@ void main() {
       // 계정 연결 section heading (en) + 위젯.
       expect(find.text('Link an account'), findsOneWidget);
       expect(find.byType(AccountLinkingSection), findsOneWidget);
-      // 소셜 연결 버튼 (예: Apple) 노출.
-      expect(find.text('Link Apple'), findsOneWidget);
+      // 소셜 연결 버튼 (예: Apple) 노출 — 모양과 무관하게 semantics 라벨로
+      // 찾는다. 화면 밖 노드는 semantics 트리에 없으므로 절을 먼저 올린다.
+      await tester.ensureVisible(find.byType(AccountLinkingSection));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Link Apple'), findsOneWidget);
     });
 
     testWidgets(
@@ -585,7 +587,15 @@ void main() {
         expect(find.textContaining('me@example.com'), findsOneWidget);
         // 계정 연결 section 공존.
         expect(find.byType(AccountLinkingSection), findsOneWidget);
-        expect(find.text('Link Apple'), findsOneWidget);
+        // 화면 밖 노드는 semantics 트리에 없으므로 절을 먼저 올린다. 버튼이
+        // 하나뿐이면 두 모양 모두 절 제목과 한 노드로 합쳐 읽히므로 라벨을
+        // 줄 단위로 찾는다.
+        await tester.ensureVisible(find.byType(AccountLinkingSection));
+        await tester.pumpAndSettle();
+        expect(
+          find.bySemanticsLabel(RegExp(r'(^|\n)Link Apple($|\n)')),
+          findsOneWidget,
+        );
         // Danger zone (회귀 0) — Phase 17 알림 섹션 삽입으로 fold 아래.
         await _scrollTo(tester, find.byType(DangerZoneSection));
         expect(find.byType(DangerZoneSection), findsOneWidget);
@@ -2063,16 +2073,22 @@ void main() {
         linkedBottom + xxl + spacing.sm,
       );
       // 연결 가능 = 활성 6 − 연결(google · naver) = 4 (apple · facebook ·
-      // kakao · line) — 버튼이 모두 연결된 계정 행과 로그아웃 행 사이.
-      final buttons = find.descendant(
-        of: section,
-        matching: find.byType(BrandedSocialButton),
-      );
-      expect(buttons, findsNWidgets(4));
-      for (var i = 0; i < 4; i++) {
-        final rect = tester.getRect(buttons.at(i));
-        expect(rect.top, greaterThan(linkedBottom));
-        expect(rect.bottom, lessThan(logoutTop));
+      // kakao · line) — 버튼이 모두 연결된 계정 행과 로그아웃 행 사이. 절의
+      // 모양과 무관하게 semantics 라벨로 찾는다.
+      for (final label in const <String>[
+        'Link Apple',
+        'Link Facebook',
+        'Link Kakao',
+        'Link LINE',
+      ]) {
+        final button = find.descendant(
+          of: section,
+          matching: find.bySemanticsLabel(label),
+        );
+        expect(button, findsOneWidget, reason: label);
+        final rect = tester.getRect(button);
+        expect(rect.top, greaterThan(linkedBottom), reason: label);
+        expect(rect.bottom, lessThan(logoutTop), reason: label);
       }
     });
 

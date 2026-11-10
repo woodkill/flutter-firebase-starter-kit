@@ -22,6 +22,10 @@
 // - AL14~AL17 (Phase 16.9): naver 연결 후 버튼 소멸 · alreadyLinked 문구 ·
 //   reauth 라우팅 · reactive 2단계 도착지(가입 kakao 사용자의 「네이버 연결」).
 // - AL13 collapse 재발 방지: 5 문구 상호 비동등 + 이전 collapse 문구 미사용.
+//
+// 이 파일은 글자 버튼 모양(`AccountLinkingShape.button`)으로 절을 그린다 —
+// 흐름 시험이 「{provider} 연결」 글자를 찾는다. 기본 모양(아이콘 줄)의 흐름은
+// `account_linking_icon_row_test.dart` 가 맡는다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -90,21 +94,25 @@ const _allStrategies = <AuthStrategy>[
 /// AccountLinkingSection 을 GoRouter 내에서 pump 한다 (reauth push 검증용).
 ///
 /// [strategies] 는 `activeStrategiesProvider` 결과다 — 기본값 6종, Phase 17.3
-/// 처음부터 off 테스트는 일부 · 빈 목록을 넘긴다.
+/// 처음부터 off 테스트는 일부 · 빈 목록을 넘긴다. [shape] 는 절의 모양이다 —
+/// 이 파일의 기본은 글자 버튼 목록이다.
 Future<GoRouter> _pumpSection(
   WidgetTester tester, {
   required User user,
   required AuthRepository repo,
   Locale locale = const Locale('en'),
   List<AuthStrategy> strategies = _allStrategies,
+  AccountLinkingShape shape = AccountLinkingShape.button,
 }) async {
   final router = GoRouter(
     initialLocation: AppRoutes.home,
     routes: [
       GoRoute(
         path: AppRoutes.home,
-        builder: (context, state) => const Scaffold(
-          body: SingleChildScrollView(child: AccountLinkingSection()),
+        builder: (context, state) => Scaffold(
+          body: SingleChildScrollView(
+            child: AccountLinkingSection(shape: shape),
+          ),
         ),
       ),
       GoRoute(
