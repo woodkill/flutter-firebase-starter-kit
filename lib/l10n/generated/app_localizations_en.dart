@@ -623,6 +623,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsAccountLinkingSection => 'Link an account';
 
   @override
+  String get settingsAccountLinkingGuide => 'Add another way to sign in.';
+
+  @override
   String settingsLinkProviderCta(String provider) {
     return 'Link $provider';
   }

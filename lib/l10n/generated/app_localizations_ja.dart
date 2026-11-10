@@ -610,6 +610,9 @@ class AppLocalizationsJa extends AppLocalizations {
   String get settingsAccountLinkingSection => 'アカウント連携';
 
   @override
+  String get settingsAccountLinkingGuide => 'ほかのログイン方法を追加できます。';
+
+  @override
   String settingsLinkProviderCta(String provider) {
     return '$providerと連携';
   }

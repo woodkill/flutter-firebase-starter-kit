@@ -252,6 +252,7 @@
   "accountSignInMethodsSection": "로그인 수단",
   "settingsAccountEmail": "{email}",
   "settingsAccountLinkingSection": "계정 연결",
+  "settingsAccountLinkingGuide": "다른 로그인 수단을 추가할 수 있습니다.",
   "settingsLinkProviderCta": "{provider} 연결",
   "accountLinkingSucceededSnackbar": "{provider} 계정이 연결되었습니다",
   "accountLinkingSignInThenLinkHint": "{provider} 계정으로 로그인했습니다. 다른 로그인 수단은 설정 > 내 계정 > 계정 연결에서 추가할 수 있습니다.",

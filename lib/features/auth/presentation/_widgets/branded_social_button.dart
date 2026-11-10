@@ -11,6 +11,8 @@
 // 플랫폼뿐이라 앱 테마를 바꿔도 버튼 외관은 그대로다.
 //
 // 이 위젯은 외관만 맡는다. 인증은 호출하는 쪽이 `onPressed` 로 잇는다.
+//
+// 원형 아이콘 버튼(`BrandedSocialIconButton`)도 같은 스킨을 쓴다.
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -76,6 +78,36 @@ const double kBrandLabelIosTopInset = 1;
 
 /// Apple 버튼의 로고와 라벨 사이 간격 (dp).
 const double kBrandAppleLogoGap = 9;
+
+/// 아이콘 칸이 아이콘보다 사방으로 넓은 폭 (dp).
+///
+/// 포커스 테두리 래퍼의 테두리 2 + 여백 2 다. 칸 한 변 = 아이콘 지름 + 이
+/// 값의 두 배.
+const double kBrandIconSlotInset = 4;
+
+/// Google · Facebook · Kakao 아이콘의 로고 상자 높이 ÷ 아이콘 지름.
+///
+/// 「절반」 — 지름 48 아이콘의 로고 상자 높이가 24 다.
+const double kBrandIconLogoHeightRatio = 0.5;
+
+/// 아이콘 [count] 개를 몇 줄에 몇 개씩 놓을지 돌려준다.
+///
+/// 칸 한 변은 `iconSize + 2 * kBrandIconSlotInset` 이고, 한 줄 폭은
+/// `count * 칸 + (count - 1) * gap` 이다. 한 줄 폭이 [maxWidth] 이하면 한
+/// 줄(`[count]`), 넘치면 반씩 두 줄(위가 많게)이다. [count] 가 0 이면 빈
+/// 목록이다.
+List<int> resolveBrandIconRowCounts(
+  int count, {
+  required double maxWidth,
+  required double iconSize,
+  required double gap,
+}) {
+  if (count <= 0) return const <int>[];
+  final slot = iconSize + 2 * kBrandIconSlotInset;
+  final rowWidth = count * slot + (count - 1) * gap;
+  if (rowWidth <= maxWidth) return <int>[count];
+  return <int>[(count + 1) ~/ 2, count ~/ 2];
+}
 
 /// 소셜 버튼 한 개의 브랜드 스킨 — provider 마다 남는 값의 묶음.
 ///
@@ -639,24 +671,233 @@ Widget _renderUnifiedButton(
 /// 경로가 `.png` 로 끝나면 비트맵으로, 그 밖은 SVG 로 그린다. 단색 칠은 SVG
 /// 로고에만 한다 — 비트맵 로고는 색이 그림에 들어 있다. 로고는 접근성 트리에
 /// 넣지 않는다(버튼 전체가 라벨 하나로 읽힌다).
-Widget _buildBrandLogo(BrandSpec spec, Brightness brightness) {
+///
+/// [size] 가 null 이면 스킨의 [BrandSpec.logoSize] 상자로 그린다.
+Widget _buildBrandLogo(BrandSpec spec, Brightness brightness, {Size? size}) {
   final asset = spec.resolveLogoAsset(brightness);
-  final size = spec.logoSize;
+  final boxSize = size ?? spec.logoSize;
   final tint = spec.logoTint;
   if (asset.endsWith('.png')) {
     assert(tint == null, '비트맵 로고에는 단색 칠을 하지 않는다: $asset');
     return Image.asset(
       asset,
-      width: size.width,
-      height: size.height,
+      width: boxSize.width,
+      height: boxSize.height,
       excludeFromSemantics: true,
     );
   }
   return SvgPicture.asset(
     asset,
-    width: size.width,
-    height: size.height,
+    width: boxSize.width,
+    height: boxSize.height,
     colorFilter: tint == null ? null : ColorFilter.mode(tint, BlendMode.srcIn),
     excludeFromSemantics: true,
   );
+}
+
+/// 원형 소셜 아이콘 버튼 — 글자 없이 로고만 그린다.
+///
+/// 이름 붙은 생성자만 쓴다:
+/// - [BrandedSocialIconButton.google]
+/// - [BrandedSocialIconButton.apple]
+/// - [BrandedSocialIconButton.facebook]
+/// - [BrandedSocialIconButton.kakao]
+/// - [BrandedSocialIconButton.naver]
+/// - [BrandedSocialIconButton.line]
+///
+/// 바탕 · 외곽선 · 로고는 [BrandedSocialButton] 과 같은 스킨([BrandSpec])이고,
+/// 모양만 원이다. 테마에서 읽는 것은 밝기뿐이다.
+///
+/// 칸(포커스 테두리 래퍼 바깥) 전체가 눌린다 — 칸 한 변은 [size] +
+/// 2 × [kBrandIconSlotInset] 이다. [label] 은 스크린 리더가 한 번 읽는 이름이자
+/// 길게 누르면 뜨는 툴팁 문구다.
+class BrandedSocialIconButton extends StatelessWidget {
+  /// 내부 전용 const 생성자 — 호출하는 쪽은 이름 붙은 생성자를 쓴다.
+  const BrandedSocialIconButton._({
+    required this.spec,
+    required this.label,
+    required this.onPressed,
+    required this.size,
+    required this.logoHeightRatio,
+    super.key,
+  });
+
+  /// Google 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.google({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const GoogleSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// Apple 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.apple({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const AppleSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// Facebook 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.facebook({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const FacebookSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// Kakao 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.kakao({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const KakaoSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// Naver 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.naver({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const NaverSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// LINE 아이콘 버튼을 만든다.
+  factory BrandedSocialIconButton.line({
+    required String label,
+    required VoidCallback? onPressed,
+    required double size,
+    required double logoHeightRatio,
+    Key? key,
+  }) => BrandedSocialIconButton._(
+    key: key,
+    spec: const LineSpec(),
+    label: label,
+    onPressed: onPressed,
+    size: size,
+    logoHeightRatio: logoHeightRatio,
+  );
+
+  /// 브랜드 스킨 — [BrandSpec] 하위 클래스의 인스턴스.
+  final BrandSpec spec;
+
+  /// 스크린 리더 라벨이자 툴팁 문구 (이미 ARB 로케일 해석된 문자열).
+  final String label;
+
+  /// 탭 핸들러. `null` 이면 비활성 상태다.
+  final VoidCallback? onPressed;
+
+  /// 원의 지름 (dp).
+  final double size;
+
+  /// 로고 상자 높이 ÷ [size].
+  ///
+  /// 로고 상자 폭은 그 높이에 스킨 로고 상자의 가로 ÷ 세로 비율을 곱한 값이다.
+  final double logoHeightRatio;
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    final isEnabled = onPressed != null;
+    final outlineColor = spec.resolveOutlineColor(brightness);
+    final logoHeight = size * logoHeightRatio;
+    final logoSize = Size(
+      logoHeight * spec.logoSize.width / spec.logoSize.height,
+      logoHeight,
+    );
+    // 툴팁은 접근성 트리에 넣지 않는다 — 라벨이 두 번 읽히지 않게 한다.
+    return Tooltip(
+      message: label,
+      excludeFromSemantics: true,
+      // 칸 전체를 누르는 영역으로 넓힌다 — 원 밖 · 칸 안을 눌러도 한 번 불린다.
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        excludeFromSemantics: true,
+        onTap: onPressed,
+        child: BrandFocusWrapper(
+          borderRadius: size / 2,
+          isEnabled: isEnabled,
+          child: Semantics(
+            button: true,
+            enabled: isEnabled,
+            label: label,
+            onTap: onPressed,
+            excludeSemantics: true,
+            child: Opacity(
+              opacity: isEnabled ? 1.0 : kBrandButtonDisabledOpacity,
+              child: SizedBox.square(
+                dimension: size,
+                child: Material(
+                  color: spec.resolveBackgroundColor(brightness),
+                  shape: CircleBorder(
+                    side: outlineColor == null
+                        ? BorderSide.none
+                        : BorderSide(color: outlineColor),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: onPressed,
+                    customBorder: const CircleBorder(),
+                    // 로고 상자가 원보다 커도 줄이지 않는다 — 원 clip 이 로고
+                    // 파일의 투명 여백만 자르고 로고 파일은 그대로 그린다.
+                    child: Center(
+                      child: OverflowBox(
+                        maxWidth: double.infinity,
+                        maxHeight: double.infinity,
+                        child: _buildBrandLogo(
+                          spec,
+                          brightness,
+                          size: logoSize,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

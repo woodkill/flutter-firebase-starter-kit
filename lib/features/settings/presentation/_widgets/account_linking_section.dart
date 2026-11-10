@@ -32,6 +32,27 @@ import '../../../auth/presentation/_widgets/branded_social_button.dart';
 import '../../application/account_link_in_progress.dart';
 import '../settings_notifier.dart';
 
+/// 계정 연결 아이콘 줄을 그리는 값 묶음.
+///
+/// [iconSize] 는 원의 지름, [gap] 은 칸 사이 · 줄 사이 간격이다. 세 비율은
+/// Apple · Naver · LINE 로고 상자 높이 ÷ 아이콘 지름이고, 나머지 provider 는
+/// [kBrandIconLogoHeightRatio] 를 쓴다.
+typedef AccountLinkIconPreview = ({
+  double iconSize,
+  double gap,
+  double appleLogoHeightRatio,
+  double naverLogoHeightRatio,
+  double lineLogoHeightRatio,
+});
+
+/// 계정 연결 아이콘 줄 미리보기 값 — 시험에서만 넣는다.
+///
+/// null(기본)이면 [AccountLinkingSection] 은 지금의 글자 버튼 목록을 그린다.
+/// 값이 있으면 그 값으로 안내 문구와 원형 아이콘 줄을 그린다. 앱 코드는 이
+/// 변수에 값을 넣지 않는다.
+@visibleForTesting
+AccountLinkIconPreview? debugAccountLinkIconPreview;
+
 /// 계정 연결 섹션 위젯 (Phase 16 16-11 / Surface D / SOCL-12).
 ///
 /// 로그인된 사용자가 아직 link 안 된 소셜 provider 의 "연결" 버튼을 탭하면
@@ -95,6 +116,74 @@ class AccountLinkingSection extends ConsumerWidget {
 
     // available 빈 set → 섹션 미노출 (mockup §2 graceful).
     if (available.isEmpty) return const SizedBox.shrink();
+
+    // 미리보기 값이 있을 때만 아이콘 줄로 그린다 — 없으면 아래 경로가 지금
+    // 글자 버튼 목록을 그대로 그린다.
+    final preview = debugAccountLinkIconPreview;
+    if (preview != null) {
+      return Stack(
+        children: <Widget>[
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              if (leadingGap) Gap(spacing.xxl),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  spacing.lg,
+                  spacing.sm,
+                  spacing.lg,
+                  spacing.xs,
+                ),
+                child: Text(
+                  l10n.settingsAccountLinkingSection,
+                  style: typography.labelMedium.copyWith(
+                    color: context.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              // 안내 문구 한 줄 — 아이콘 줄 위에 둔다.
+              Padding(
+                padding: EdgeInsets.only(
+                  left: spacing.lg,
+                  right: spacing.lg,
+                  bottom: spacing.sm,
+                ),
+                child: Text(
+                  l10n.settingsAccountLinkingGuide,
+                  style: typography.bodyMedium.copyWith(
+                    color: context.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: spacing.lg),
+                child: _LinkProviderIconRow(
+                  iconSize: preview.iconSize,
+                  gap: preview.gap,
+                  icons: <Widget>[
+                    for (final provider in available)
+                      _LinkProviderIcon(
+                        key: ValueKey(provider),
+                        provider: provider,
+                        preview: preview,
+                        label: l10n.settingsLinkProviderCta(
+                          _providerLabel(l10n, provider),
+                        ),
+                        onPressed: isLinking
+                            ? null
+                            : () => _onLinkPressed(context, ref, provider),
+                      ),
+                  ],
+                ),
+              ),
+              // 절 아래 간격 — 글자 버튼 목록의 마지막 간격과 같다.
+              Gap(spacing.sm),
+            ],
+          ),
+          if (isLinking) const AuthInProgressOverlay(),
+        ],
+      );
+    }
 
     return Stack(
       children: <Widget>[
@@ -323,6 +412,125 @@ class _LinkProviderButton extends StatelessWidget {
       ),
       // email 은 Surface D 후보 미포함 (mockup §0 EXCLUDE) — 도달 시 비표시
       // 방어 (exhaustive switch 보강, FilledButton fallback 미사용).
+      AccountProvider.email => const SizedBox.shrink(),
+    };
+  }
+}
+
+/// 미연결 provider 아이콘을 칸 수에 맞춰 한 줄 또는 두 줄로 놓는다.
+///
+/// 한 줄 폭이 가용 폭 이하면 한 줄, 넘치면 반씩 두 줄(위가 많게)이다. 시작
+/// 정렬이고 칸 사이 · 줄 사이 간격은 [gap] 하나다.
+class _LinkProviderIconRow extends StatelessWidget {
+  const _LinkProviderIconRow({
+    required this.iconSize,
+    required this.gap,
+    required this.icons,
+  });
+
+  final double iconSize;
+  final double gap;
+  final List<Widget> icons;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final counts = resolveBrandIconRowCounts(
+          icons.length,
+          maxWidth: constraints.maxWidth,
+          iconSize: iconSize,
+          gap: gap,
+        );
+        final rows = <List<Widget>>[];
+        var start = 0;
+        for (final count in counts) {
+          // 빈 줄은 놓지 않는다.
+          if (count > 0) rows.add(icons.sublist(start, start + count));
+          start += count;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (final (index, row) in rows.indexed) ...<Widget>[
+              if (index > 0) Gap(gap),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  for (final (cellIndex, cell) in row.indexed) ...<Widget>[
+                    if (cellIndex > 0) Gap(gap),
+                    cell,
+                  ],
+                ],
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 단일 소셜 provider 의 원형 아이콘 버튼.
+///
+/// [_LinkProviderButton] 과 같은 provider switch 로 [BrandedSocialIconButton]
+/// 에 dispatch 한다. Apple · Naver · LINE 로고 비율은 [preview] 에서, 나머지는
+/// [kBrandIconLogoHeightRatio] 에서 온다.
+class _LinkProviderIcon extends StatelessWidget {
+  const _LinkProviderIcon({
+    required this.provider,
+    required this.preview,
+    required this.label,
+    required this.onPressed,
+    super.key,
+  });
+
+  final AccountProvider provider;
+  final AccountLinkIconPreview preview;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = preview.iconSize;
+    return switch (provider) {
+      AccountProvider.google => BrandedSocialIconButton.google(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: kBrandIconLogoHeightRatio,
+      ),
+      AccountProvider.apple => BrandedSocialIconButton.apple(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: preview.appleLogoHeightRatio,
+      ),
+      AccountProvider.facebook => BrandedSocialIconButton.facebook(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: kBrandIconLogoHeightRatio,
+      ),
+      AccountProvider.kakao => BrandedSocialIconButton.kakao(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: kBrandIconLogoHeightRatio,
+      ),
+      AccountProvider.naver => BrandedSocialIconButton.naver(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: preview.naverLogoHeightRatio,
+      ),
+      AccountProvider.line => BrandedSocialIconButton.line(
+        label: label,
+        onPressed: onPressed,
+        size: size,
+        logoHeightRatio: preview.lineLogoHeightRatio,
+      ),
+      // email 은 후보에 없다 — 도달하면 아무것도 그리지 않는다.
       AccountProvider.email => const SizedBox.shrink(),
     };
   }

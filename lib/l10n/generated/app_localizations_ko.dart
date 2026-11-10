@@ -611,6 +611,9 @@ class AppLocalizationsKo extends AppLocalizations {
   String get settingsAccountLinkingSection => '계정 연결';
 
   @override
+  String get settingsAccountLinkingGuide => '다른 로그인 수단을 추가할 수 있습니다.';
+
+  @override
   String settingsLinkProviderCta(String provider) {
     return '$provider 연결';
   }

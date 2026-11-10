@@ -255,6 +255,7 @@
   "accountSignInMethodsSection": "ログイン方法",
   "settingsAccountEmail": "{email}",
   "settingsAccountLinkingSection": "アカウント連携",
+  "settingsAccountLinkingGuide": "ほかのログイン方法を追加できます。",
   "settingsLinkProviderCta": "{provider}と連携",
   "accountLinkingSucceededSnackbar": "{provider}アカウントを連携しました。",
   "accountLinkingSignInThenLinkHint": "{provider}アカウントでログインしました。他のログイン方法は「設定」>「アカウント」>「アカウント連携」から追加できます。",

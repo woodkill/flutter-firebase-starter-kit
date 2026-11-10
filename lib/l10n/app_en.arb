@@ -994,6 +994,11 @@
     "description": "Phase 16 SOCL-12 proactive linking — Surface D. Settings '계정 연결' section heading (proactive account-linking 진입점). 후보 = 소셜 provider only (email EXCLUDE — Surface D mockup §0 user sign-off 2026-06-02)."
   },
 
+  "settingsAccountLinkingGuide": "Add another way to sign in.",
+  "@settingsAccountLinkingGuide": {
+    "description": "내 계정 화면 '계정 연결' 절에서 원형 아이콘 버튼 줄 위에 한 줄로 보이는 안내 문구. 브랜드 이름을 넣지 않는다."
+  },
+
   "settingsLinkProviderCta": "Link {provider}",
   "@settingsLinkProviderCta": {
     "description": "Phase 16 SOCL-12 proactive linking — Surface D. Per-provider 'connect' button label. {provider} 는 기존 authAccountProvider{X} 소셜 라벨 주입 (brand verbatim 신규 0). proactive 후보 = 소셜 provider only (email EXCLUDE).",
