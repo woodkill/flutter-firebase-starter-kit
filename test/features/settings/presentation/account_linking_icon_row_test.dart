@@ -275,20 +275,35 @@ void main() {
       semantics.dispose();
     });
 
-    testWidgets('T-25-ICON-02 글자 버튼 모양 → 안내 문구 0 · 글자 버튼 6 · 아이콘 0', (
-      tester,
-    ) async {
+    testWidgets('T-25-ICON-02 글자 버튼 모양 → 「Apple 연결」 라벨로 탭 → 연결 '
+        '1회 · 연결 성공 스낵바', (tester) async {
+      // 그리는 모양(안내 문구 · 버튼 수 · 간격)은 T-25-SHAPE-01 이 본다 —
+      // 여기서는 글자 버튼 모양의 탭 → 연결 흐름만 본다.
+      final user = _buildUser(providerIds: _unlinkedSixProviderIds);
+      when(
+        () => repo.linkAppleCredential(),
+      ).thenAnswer((_) async => Result.success(user));
+      final semantics = tester.ensureSemantics();
+
       await _pumpSection(
         tester,
-        user: _buildUser(providerIds: _unlinkedSixProviderIds),
+        user: user,
         repo: repo,
         width: 280,
         shape: AccountLinkingShape.button,
       );
 
-      expect(find.text('Add another way to sign in.'), findsNothing);
-      expect(find.byType(BrandedSocialButton), findsNWidgets(6));
-      expect(find.byType(BrandedSocialIconButton), findsNothing);
+      await tester.tap(find.bySemanticsLabel('Link Apple'));
+      await tester.pumpAndSettle();
+
+      verify(() => repo.linkAppleCredential()).called(1);
+      verifyNever(
+        () => repo.linkCustomTokenProviderArm(
+          targetProvider: any(named: 'targetProvider'),
+        ),
+      );
+      expect(find.text('Linked your Apple account.'), findsOneWidget);
+      semantics.dispose();
     });
   });
 
