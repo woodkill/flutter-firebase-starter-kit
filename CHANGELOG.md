@@ -14,6 +14,18 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- 화면 golden 을 다시 만들어 둔 저장소(「디자인 토큰 바꾸기」 의 토큰 · 글꼴을 바꾼 뒤)는 이 판을 받을 때 `test/features/auth/presentation/goldens/reauth_account_success_light.png` · `test/features/auth/presentation/goldens/reauth_account_success_dark.png` 에서 `CONFLICT (content)` 가 난다 — 어느 쪽이든 다시 만들므로 `git checkout --theirs -- <두 경로>` 와 `git add <두 경로>` 로 풀고, merge 를 마친 뒤 `fvm flutter test --update-goldens test/features/auth/presentation/auth_surfaces_golden_test.dart test/features/settings/presentation/account_screen_golden_test.dart` 로 다시 만들어 눈으로 본 뒤 커밋한다. golden 을 다시 만든 적이 없다면 할 일이 없다.
+
+### Added
+
+- 계정 정보 화면 「계정 연결」 절을 그리는 `AccountLinkingSection` 에 모양 인자 `shape` 가 생긴다 — `AccountLinkingShape.icon`(기본 · 원형 아이콘 버튼 줄)과 `AccountLinkingShape.button`(폭 전체 글자 버튼 목록)이다. 원형 아이콘 버튼 `BrandedSocialIconButton` 은 로그인 버튼과 같은 브랜드 스킨(배경색 · 외곽선 · 로고)을 쓰고, 크기 · 간격 · 로고 비율은 `lib/features/auth/presentation/_widgets/branded_social_button.dart` 맨 위 상수 `kBrandIconButtonSize`(48) · `kBrandIconButtonGap`(8) · `kBrandIconLogoHeightRatio`(0.5 — Google · Kakao · Facebook) · `kAppleIconLogoHeightRatio`(1.2) · `kNaverIconLogoHeightRatio`(0.375) · `kLineIconLogoHeightRatio`(0.59)다. 아이콘 줄 위 안내 문구 ARB 키 `settingsAccountLinkingGuide`(ko · en · ja)가 생기고, ARB 를 고친 저장소는 사용자 소유 표면 표 17행대로 합친다.
+
+### Changed
+
+- 내 계정 화면 「계정 연결」 절이 폭 전체 글자 버튼 세로 목록에서 안내 문구 한 줄과 원형 아이콘 버튼 줄(아직 연결하지 않은 수단만 · 한 줄에 들어가면 한 줄 · 넘치면 반씩 두 줄)로 바뀐다. 글자 버튼 목록으로 되돌리려면 `lib/features/settings/presentation/account_screen.dart` 의 `AccountLinkingSection(leadingGap: true)` 에 `shape: AccountLinkingShape.button` 을 더하고 `fvm flutter test --update-goldens test/features/settings/presentation/account_screen_golden_test.dart test/features/auth/presentation/auth_surfaces_golden_test.dart` 로 golden 을 다시 만든다. Facebook 로그인을 켠 앱은 Facebook 앱 검수를 신청하기 전에 `docs/guide.md` 「소셜 로고 · 브랜드 자산」 의 「Facebook 검수 전」 대로 하고, 그 절의 「알고 둔 가이드와의 차이」 표에서 아이콘 줄이 각 가이드 문장과 다른 곳을 본다. 바뀐 파일은 `lib/features/settings/presentation/_widgets/account_linking_section.dart` · `lib/features/auth/presentation/_widgets/branded_social_button.dart` · `lib/features/settings/presentation/account_screen.dart` · `lib/l10n/` · `docs/guide.md` · `assets/brand/*/README.md` · 시험 · golden 이고, `account_linking_section.dart` · `branded_social_button.dart` 를 고치지 않았다면 merge 로 끝난다.
+
 ## [1.0.0-rc.12] - 2026-11-08
 
 ### Added
