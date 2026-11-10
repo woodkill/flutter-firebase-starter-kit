@@ -387,35 +387,41 @@ class _LinkProviderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return switch (provider) {
-      AccountProvider.google => BrandedSocialButton.google(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.apple => BrandedSocialButton.apple(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.facebook => BrandedSocialButton.facebook(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.kakao => BrandedSocialButton.kakao(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.naver => BrandedSocialButton.naver(
-        label: label,
-        onPressed: onPressed,
-      ),
-      AccountProvider.line => BrandedSocialButton.line(
-        label: label,
-        onPressed: onPressed,
-      ),
-      // email 은 Surface D 후보 미포함 (mockup §0 EXCLUDE) — 도달 시 비표시
-      // 방어 (exhaustive switch 보강, FilledButton fallback 미사용).
-      AccountProvider.email => const SizedBox.shrink(),
-    };
+    // 버튼을 접근성 트리의 자기 노드로 끊는다 — 미연결이 하나뿐일 때 절
+    // 제목이 버튼 라벨에 합쳐 읽히지 않게 한다. 로그인 화면이 함께 쓰는 버튼
+    // 위젯은 그대로 두고 이 절 안에서만 경계를 준다.
+    return Semantics(
+      container: true,
+      child: switch (provider) {
+        AccountProvider.google => BrandedSocialButton.google(
+          label: label,
+          onPressed: onPressed,
+        ),
+        AccountProvider.apple => BrandedSocialButton.apple(
+          label: label,
+          onPressed: onPressed,
+        ),
+        AccountProvider.facebook => BrandedSocialButton.facebook(
+          label: label,
+          onPressed: onPressed,
+        ),
+        AccountProvider.kakao => BrandedSocialButton.kakao(
+          label: label,
+          onPressed: onPressed,
+        ),
+        AccountProvider.naver => BrandedSocialButton.naver(
+          label: label,
+          onPressed: onPressed,
+        ),
+        AccountProvider.line => BrandedSocialButton.line(
+          label: label,
+          onPressed: onPressed,
+        ),
+        // email 은 Surface D 후보 미포함 (mockup §0 EXCLUDE) — 도달 시 비표시
+        // 방어 (exhaustive switch 보강, FilledButton fallback 미사용).
+        AccountProvider.email => const SizedBox.shrink(),
+      },
+    );
   }
 }
 

@@ -588,14 +588,11 @@ void main() {
         // 계정 연결 section 공존.
         expect(find.byType(AccountLinkingSection), findsOneWidget);
         // 화면 밖 노드는 semantics 트리에 없으므로 절을 먼저 올린다. 버튼이
-        // 하나뿐이면 두 모양 모두 절 제목과 한 노드로 합쳐 읽히므로 라벨을
-        // 줄 단위로 찾는다.
+        // 하나뿐이어도 버튼은 자기 노드라 라벨이 「Apple 연결」 그대로다 —
+        // 절 제목 · 안내 문구가 섞이지 않는다.
         await tester.ensureVisible(find.byType(AccountLinkingSection));
         await tester.pumpAndSettle();
-        expect(
-          find.bySemanticsLabel(RegExp(r'(^|\n)Link Apple($|\n)')),
-          findsOneWidget,
-        );
+        expect(find.bySemanticsLabel('Link Apple'), findsOneWidget);
         // Danger zone (회귀 0) — Phase 17 알림 섹션 삽입으로 fold 아래.
         await _scrollTo(tester, find.byType(DangerZoneSection));
         expect(find.byType(DangerZoneSection), findsOneWidget);

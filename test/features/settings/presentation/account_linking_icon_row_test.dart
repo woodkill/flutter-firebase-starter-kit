@@ -48,6 +48,16 @@ const _allStrategies = <AuthStrategy>[
 /// 미연결 6 — 이메일로 가입해 소셜 연결이 하나도 없다.
 const _unlinkedSixProviderIds = <String>['password'];
 
+/// 미연결 1 — Apple 만 남고 나머지 소셜 5개는 연결돼 있다.
+const _unlinkedAppleOnlyProviderIds = <String>[
+  'password',
+  'google.com',
+  'facebook.com',
+  'kakao',
+  'naver',
+  'line',
+];
+
 /// en 스크린 리더 라벨 — 킷 표준 순서(google · apple · facebook · kakao ·
 /// naver · line).
 const _enLabelsInOrder = <String>[
@@ -80,6 +90,9 @@ User _buildUser({required List<String> providerIds}) {
 /// [shape] 가 null 이면 인자 없이(기본 모양) 그리고, 값이 있으면 그 모양으로
 /// 그린다. GoRouter · ProviderScope 안에서 pump 하고 화면 크기는 시험이
 /// 끝나면 되돌린다.
+///
+/// [isInListView] 가 true 면 계정 정보 화면처럼 `ListView` 의 한 항목으로
+/// 놓는다 — 절 안 글자들이 접근성 트리에서 한 항목 노드로 모이는 조건이다.
 Future<void> _pumpSection(
   WidgetTester tester, {
   required User user,
@@ -89,6 +102,7 @@ Future<void> _pumpSection(
   Locale locale = const Locale('en'),
   List<Override> extraOverrides = const <Override>[],
   bool shouldSettle = true,
+  bool isInListView = false,
 }) async {
   tester.view.physicalSize = Size(width, 900);
   tester.view.devicePixelRatio = 1;
@@ -99,13 +113,16 @@ Future<void> _pumpSection(
     routes: [
       GoRoute(
         path: AppRoutes.home,
-        builder: (context, state) => Scaffold(
-          body: SingleChildScrollView(
-            child: shape == null
-                ? const AccountLinkingSection()
-                : AccountLinkingSection(shape: shape),
-          ),
-        ),
+        builder: (context, state) {
+          final section = shape == null
+              ? const AccountLinkingSection()
+              : AccountLinkingSection(shape: shape);
+          return Scaffold(
+            body: isInListView
+                ? ListView(children: <Widget>[section])
+                : SingleChildScrollView(child: section),
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.login,
@@ -486,5 +503,38 @@ void main() {
       expect(buttonLabels, iconLabels, reason: '글자 버튼 모양 = 아이콘 모양');
       semantics.dispose();
     });
+
+    for (final shape in AccountLinkingShape.values) {
+      testWidgets('T-25-SHAPE-04 ${shape.name} 모양 · 미연결 1 → 버튼 semantics '
+          '라벨은 「{provider} 연결」 하나뿐 · 절 제목 · 안내 문구가 버튼 노드에 '
+          '섞이지 않는다', (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pumpSection(
+          tester,
+          user: _buildUser(providerIds: _unlinkedAppleOnlyProviderIds),
+          repo: repo,
+          width: 280,
+          shape: shape,
+          isInListView: true,
+        );
+
+        // 버튼이 하나면 탭 동작끼리 부딪치지 않아, 경계가 없으면 형제 글자가
+        // 버튼 노드로 합쳐진다 — 'Link Apple' 이 든 노드의 라벨 전체를 본다.
+        final buttonNode = find.bySemanticsLabel(RegExp('Link Apple'));
+        expect(buttonNode, findsOneWidget, reason: 'Apple 버튼 노드 1개');
+        expect(
+          tester.getSemantics(buttonNode).label,
+          'Link Apple',
+          reason: '버튼 라벨에 다른 글자가 섞이지 않는다',
+        );
+        // 절 제목은 버튼 밖 노드다 — 아이콘 모양은 안내 문구와 한 노드로 읽힌다.
+        expect(
+          find.bySemanticsLabel(RegExp('^Link an account')),
+          findsOneWidget,
+          reason: '절 제목은 버튼 밖에서 읽힌다',
+        );
+        semantics.dispose();
+      });
+    }
   });
 }

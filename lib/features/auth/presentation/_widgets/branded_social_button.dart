@@ -734,7 +734,8 @@ Widget _buildBrandLogo(BrandSpec spec, Brightness brightness, {Size? size}) {
 ///
 /// 칸(포커스 테두리 래퍼 바깥) 전체가 눌린다 — 칸 한 변은 [size] +
 /// 2 × [kBrandIconSlotInset] 이다. [label] 은 스크린 리더가 한 번 읽는 이름이자
-/// 길게 누르면 뜨는 툴팁 문구다.
+/// 길게 누르면 뜨는 툴팁 문구다. 버튼은 접근성 트리에서 자기 노드라 둘레의
+/// 글자가 라벨에 섞이지 않는다.
 class BrandedSocialIconButton extends StatelessWidget {
   /// 내부 전용 const 생성자 — 호출하는 쪽은 이름 붙은 생성자를 쓴다.
   const BrandedSocialIconButton._({
@@ -869,49 +870,54 @@ class BrandedSocialIconButton extends StatelessWidget {
       logoHeight * spec.logoSize.width / spec.logoSize.height,
       logoHeight,
     );
-    // 툴팁은 접근성 트리에 넣지 않는다 — 라벨이 두 번 읽히지 않게 한다.
-    return Tooltip(
-      message: label,
-      excludeFromSemantics: true,
-      // 칸 전체를 누르는 영역으로 넓힌다 — 원 밖 · 칸 안을 눌러도 한 번 불린다.
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+    // 버튼을 접근성 트리의 자기 노드로 끊는다 — 둘레의 제목 · 안내 문구가
+    // 버튼 라벨에 합쳐 읽히지 않게 한다. 툴팁은 접근성 트리에 넣지 않는다 —
+    // 라벨이 두 번 읽히지 않게 한다.
+    return Semantics(
+      container: true,
+      child: Tooltip(
+        message: label,
         excludeFromSemantics: true,
-        onTap: onPressed,
-        child: BrandFocusWrapper(
-          borderRadius: size / 2,
-          isEnabled: isEnabled,
-          child: Semantics(
-            button: true,
-            enabled: isEnabled,
-            label: label,
-            onTap: onPressed,
-            excludeSemantics: true,
-            child: Opacity(
-              opacity: isEnabled ? 1.0 : kBrandButtonDisabledOpacity,
-              child: SizedBox.square(
-                dimension: size,
-                child: Material(
-                  color: spec.resolveBackgroundColor(brightness),
-                  shape: CircleBorder(
-                    side: outlineColor == null
-                        ? BorderSide.none
-                        : BorderSide(color: outlineColor),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: onPressed,
-                    customBorder: const CircleBorder(),
-                    // 로고 상자가 원보다 커도 줄이지 않는다 — 원 clip 이 로고
-                    // 파일의 투명 여백만 자르고 로고 파일은 그대로 그린다.
-                    child: Center(
-                      child: OverflowBox(
-                        maxWidth: double.infinity,
-                        maxHeight: double.infinity,
-                        child: _buildBrandLogo(
-                          spec,
-                          brightness,
-                          size: logoSize,
+        // 칸 전체를 누르는 영역으로 넓힌다 — 원 밖 · 칸 안을 눌러도 한 번 불린다.
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: onPressed,
+          child: BrandFocusWrapper(
+            borderRadius: size / 2,
+            isEnabled: isEnabled,
+            child: Semantics(
+              button: true,
+              enabled: isEnabled,
+              label: label,
+              onTap: onPressed,
+              excludeSemantics: true,
+              child: Opacity(
+                opacity: isEnabled ? 1.0 : kBrandButtonDisabledOpacity,
+                child: SizedBox.square(
+                  dimension: size,
+                  child: Material(
+                    color: spec.resolveBackgroundColor(brightness),
+                    shape: CircleBorder(
+                      side: outlineColor == null
+                          ? BorderSide.none
+                          : BorderSide(color: outlineColor),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: onPressed,
+                      customBorder: const CircleBorder(),
+                      // 로고 상자가 원보다 커도 줄이지 않는다 — 원 clip 이 로고
+                      // 파일의 투명 여백만 자르고 로고 파일은 그대로 그린다.
+                      child: Center(
+                        child: OverflowBox(
+                          maxWidth: double.infinity,
+                          maxHeight: double.infinity,
+                          child: _buildBrandLogo(
+                            spec,
+                            brightness,
+                            size: logoSize,
+                          ),
                         ),
                       ),
                     ),
