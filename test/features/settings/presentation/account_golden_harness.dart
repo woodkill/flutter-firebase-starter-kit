@@ -3,7 +3,7 @@
 //
 // `account_screen_golden_test.dart` 의 private 함수를 옮겼다. 본문은 그대로이고
 // 이름만 public 으로 바꿨다 — 옮긴 뒤에도 계정 화면 golden 은 byte 불변이어야
-// 한다. 계정 연결 golden 칸의 렌더 조건은 이 파일 한 곳에서 온다.
+// 한다.
 //
 // **캡처 계약:** `settings_golden_harness.dart` 와 같다 — 280×800 logical ·
 // DPR 3 · 빈 `Scaffold` 위 `MaterialPageRoute` push 진입 · production 폰트
