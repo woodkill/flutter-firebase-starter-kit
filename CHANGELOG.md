@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.13] - 2026-11-11
+
 ### 사용자 조치
 
 - 화면 golden 을 다시 만들어 둔 저장소(「디자인 토큰 바꾸기」 의 토큰 · 글꼴을 바꾼 뒤)는 이 판을 받을 때 `test/features/auth/presentation/goldens/reauth_account_success_light.png` · `test/features/auth/presentation/goldens/reauth_account_success_dark.png` 에서 `CONFLICT (content)` 가 난다 — 어느 쪽이든 다시 만들므로 `git checkout --theirs -- <두 경로>` 와 `git add <두 경로>` 로 풀고, merge 를 마친 뒤 `fvm flutter test --update-goldens test/features/auth/presentation/auth_surfaces_golden_test.dart test/features/settings/presentation/account_screen_golden_test.dart` 로 다시 만들어 눈으로 본 뒤 커밋한다. golden 을 다시 만든 적이 없다면 할 일이 없다.
@@ -240,7 +242,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.12...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.13...HEAD
+[1.0.0-rc.13]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.13
 [1.0.0-rc.12]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.12
 [1.0.0-rc.11]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.11
 [1.0.0-rc.10]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.10
