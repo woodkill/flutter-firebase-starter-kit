@@ -7,7 +7,7 @@ Kakao 로그인 버튼의 로고 자산이다. Kakao 공식 리소스의 말풍�
 https://developers.kakao.com/docs/ko/kakaologin/design-guide
 
 ## 자산 다운로드 URL
-https://developers.kakao.com/tool/resource/login (PSD ZIP 패키지)
+https://developers.kakao.com/tool/resource/login (「전체 다운로드」 ZIP — SVG · PNG)
 
 ## 다운로드 일자
 받은 날은 [브랜드 자산 갱신 — 받은 날 · 만든 날](../../../docs/maintainer/brand-assets.md#받은-날--만든-날) 표에 적는다.
@@ -47,4 +47,4 @@ assets/brand/kakao/
 
 ## 주의
 - 로고를 직접 그려 만들지 않는다 — Kakao 공식 리소스의 그림만 쓴다.
-- 공식 BI 자산(Kakao 공식 SDK · PSD)의 그림을 바꾸지 않는다.
+- 공식 BI 자산(Kakao 공식 SDK · 공식 리소스 ZIP 의 SVG · PNG)의 그림을 바꾸지 않는다.
