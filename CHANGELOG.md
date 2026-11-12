@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.14] - 2026-11-13
+
 ### 사용자 조치
 
 - 설정 화면의 알림 섹션 줄(`const NotificationsSection()`)과 「개발자」 묶음 줄 사이에 내 묶음을 직접 넣은 저장소는 이 판을 받을 때 `lib/features/settings/presentation/settings_screen.dart` 의 그 자리에서 `CONFLICT (content)` 가 난다. 충돌 블록은 킷 쪽(`=======` 와 `>>>>>>>` 사이)만 남기고, 그 파일에 남은 내 묶음 위젯의 import 줄을 지운다. 내 묶음은 `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections` 목록에 `AppSettingsSection(title: …, rows: […])` 한 항목으로 옮기고(제목은 `context.l10n.<내 키>`), 그 위젯 파일 import 와 `../../../core/l10n/l10n_extensions.dart` import 를 그 파일에 더한다 — 두 줄은 그 파일의 relative import 사이에 경로 글자 순으로 넣는다(`fvm dart analyze` 가 순서를 본다). 두 파일을 `git add` 한 뒤 `git commit --no-edit` 로 merge 를 마친다. 그 묶음이 든 설정 golden 을 다시 찍어 두었다면 merge 뒤 `fvm flutter test --update-goldens test/features/settings/presentation/settings_screen_golden_test.dart` 로 다시 찍는다 — 킷 설정 시험 · golden 은 내 묶음 없이 그린다. 새 파일 `app_settings_slot.dart` · `app_settings_sections.dart` 는 충돌 없이 들어온다. 그렇게 넣은 묶음이 없다면 할 일이 없다.
@@ -250,7 +252,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.13...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.14...HEAD
+[1.0.0-rc.14]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.14
 [1.0.0-rc.13]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.13
 [1.0.0-rc.12]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.12
 [1.0.0-rc.11]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.11
