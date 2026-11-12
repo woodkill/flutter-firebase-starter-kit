@@ -135,7 +135,7 @@
        - 데모 행을 보는 01 · 11 · 13 · 15 는 지우지 말고, 데모 행 기대를 빼거나 기준을 새 마지막 행(정식은 알림 스위치 · 게스트는 언어 행 — 13 · 15 는 둘 다, 01 은 게스트로 본다)으로 바꾼다.
        - 「개발자」 heading 을 보는 01 · 11 의 기대는 `findsNothing` 으로 바꾸고, T-17-NOTIF-12 는 알림 섹션까지 스크롤하게 바꾼 뒤 「개발자」 위치 비교를 빼고, 17 ④ 는 묶음 제목 목록에서 「개발자」 를 뺀다 — 시험 하네스는 개발용 행을 넘기지 않아(`developerRows` 에 빈 목록) 데모 행이 빠지면 묶음째 숨는다.
        - 18 ① 은 데모 행 기대와 데모 행 위치 비교만 뺀다 — 넘긴 개발용 행이 「개발자」 heading 아래 마지막 행으로 뜨는지는 그대로 본다.
-       - 06 · 17 ② · 18 ② 는 그대로 둔다 — 17 ② 는 데모 행이 아니라 목록의 마지막 행을 찾는다.
+       - 06 · 17 ② · 18 ② · 19 는 그대로 둔다 — 17 ② 는 데모 행이 아니라 목록의 마지막 행을 찾고, 19 는 개발용 행을 넘겨 「개발자」 heading 이 남는다.
        - 17 ③ 은 (c) 데모 경로 탭 단언을 지우고, `screenHeight` 640 을 목록이 넘치는 값(예: 400)으로 줄인다 — 목록이 짧아져 스크롤이 생기지 않으므로 전제 단언(`maxScrollExtent > 0`)이 실패한다.
        - 전제 단언은 지우지 않는다(지우면 (b) geometry 단언이 스크롤 없이 통과해 회귀 가드가 빈다).
        - 같은 테스트의 `safeBottom` 옆 주석 `// 592.0` 은 새 값(400 이면 `352.0`)으로 고친다.
@@ -2676,6 +2676,208 @@ bash scripts/deploy_functions.sh dev --apply
 4. **이름 편집은 사진과 같은 꼴이다:** 앱이 가지는 Firestore 필드(예: `customDisplayName`)를 더한다 — `firestore.rules` `clientKeys()` 에 키 하나 + rules 시험, 사용자 문서를 읽는 모델 · 파서에 필드 하나, 표시 이름 계산에서 `resolveProfileValue` 결과보다 먼저 쓴다.
    - Auth `displayName` 에는 쓰지 않는다 — 가입 수단으로 다시 로그인하면 로그인 수단 프로필로 덮어쓴다([알아 둘 동작](#알아-둘-동작) 의 프로필 갱신).
 
+### 설정 화면에 앱 고유 묶음 · 행 더하기
+
+release 빌드에도 보이는 내 앱 설정(예: 거리 단위 · 기능 켜고 끄기)을 설정 화면에 묶음으로 더할 때 보는 절이다.
+- 묶음은 `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections` 가 돌려주는 `AppSettingsSection`(제목 · 행 목록)이고, 이 파일은 내 파일이다(킷 판은 빈 목록).
+- 묶음은 정식 사용자에게는 알림 섹션 뒤, 게스트에게는 「일반」 뒤에 뜨고 「개발자」 묶음보다 앞이다. 묶음마다 간격 · 제목 · 행을 설정 화면이 그리고, 행이 없는 묶음은 제목도 그리지 않는다.
+- 개발 중에만 쓰는 행은 여기가 아니라 「개발자」 묶음(`developer_rows.dart`)에 둔다 — release 빌드에서는 그 묶음째 빠진다.
+
+아래는 거리 단위(킬로미터 · 마일)를 고르는 행 하나를 「단위」 묶음으로 더하는 예다.
+- 예시는 `lib/features/<내 feature>/` 의 feature 이름으로 `units` 를 쓴다.
+
+1. **값 enum 을 `lib/features/<내 feature>/domain/` 에 만든다.**
+
+   ```dart
+   // lib/features/units/domain/distance_unit.dart
+   /// 거리 단위.
+   enum DistanceUnit {
+     /// 킬로미터.
+     kilometer,
+
+     /// 마일.
+     mile,
+   }
+   ```
+
+2. **값을 읽고 바꾸는 provider 를 `lib/features/<내 feature>/application/` 에 만든다.**
+   - 꼴은 [④ Riverpod provider](#-riverpod-provider) 와 같고, 설정 화면을 닫아도 값이 남도록 `keepAlive` 로 둔다.
+   - 앱을 다시 켜도 값을 남기려면 킷 `lib/core/providers/theme_provider.dart` 처럼 `SharedPreferences` 에 저장한다.
+
+   ```dart
+   // lib/features/units/application/distance_unit_setting.dart
+   import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+   import '../domain/distance_unit.dart';
+
+   part 'distance_unit_setting.g.dart';
+
+   /// 설정 화면에서 고른 거리 단위 — 처음 값은 킬로미터다.
+   ///
+   /// 설정 화면을 닫아도 값이 남도록 `keepAlive` 로 둔다.
+   @Riverpod(keepAlive: true)
+   class DistanceUnitSetting extends _$DistanceUnitSetting {
+     @override
+     DistanceUnit build() => DistanceUnit.kilometer;
+
+     /// 거리 단위를 [unit] 으로 바꾼다 — 같은 값이면 그대로 둔다.
+     void select(DistanceUnit unit) {
+       if (unit == state) return;
+       state = unit;
+     }
+   }
+   ```
+
+3. **행 위젯을 `lib/features/<내 feature>/presentation/` 에 만든다.**
+   - 킷 선택창 `showChoiceSheet`(`lib/features/settings/presentation/_widgets/choice_sheet.dart`)는 내 행이 import 해 써도 된다 — 다른 feature 파일을 import 하지 않는 규칙의 예외다.
+   - 이 행은 킷 테마 · 언어 행의 모양을 옮겨 적은 것이라, 킷이 그 행 디자인을 바꿔도 내 행은 따라 바뀌지 않는다.
+
+   ```dart
+   // lib/features/units/presentation/distance_unit_row.dart
+   import 'package:flutter/material.dart';
+   import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+   import '../../../core/l10n/l10n_extensions.dart';
+   import '../../../core/theme/theme_extensions.dart';
+   import '../../../l10n/generated/app_localizations.dart';
+   import '../../settings/presentation/_widgets/choice_sheet.dart';
+   import '../application/distance_unit_setting.dart';
+   import '../domain/distance_unit.dart';
+
+   /// 설정 화면의 거리 단위 행 — 탭하면 선택창을 연다.
+   class DistanceUnitRow extends ConsumerWidget {
+     /// [DistanceUnitRow] 를 생성한다.
+     const DistanceUnitRow({super.key});
+
+     @override
+     Widget build(BuildContext context, WidgetRef ref) {
+       final l10n = context.l10n;
+       final unit = ref.watch(distanceUnitSettingProvider);
+       return ListTile(
+         leading: const Icon(Icons.straighten),
+         title: Text(
+           l10n.distanceUnitLabel,
+           style: context.appTypography.bodySmall.copyWith(
+             color: context.colorScheme.onSurfaceVariant,
+           ),
+         ),
+         subtitle: Text(
+           _formatDistanceUnit(l10n, unit),
+           softWrap: true,
+           style: context.appTypography.titleMedium,
+         ),
+         trailing: Icon(Icons.chevron_right, color: context.colorScheme.primary),
+         onTap: () => _onTap(context, ref, current: unit),
+       );
+     }
+
+     /// 선택창을 열고, 현재와 다른 값을 고르면 바꾼다.
+     Future<void> _onTap(
+       BuildContext context,
+       WidgetRef ref, {
+       required DistanceUnit current,
+     }) async {
+       final l10n = context.l10n;
+       final picked = await showChoiceSheet<DistanceUnit>(
+         context,
+         title: l10n.distanceUnitLabel,
+         options: [
+           for (final unit in DistanceUnit.values)
+             (unit, _formatDistanceUnit(l10n, unit)),
+         ],
+         selected: current,
+       );
+       // null = 바깥 탭 · back · 현재값 다시 탭 — 바꾸지 않는다.
+       if (picked == null || picked == current || !context.mounted) return;
+       ref.read(distanceUnitSettingProvider.notifier).select(picked);
+     }
+   }
+
+   /// [unit] 의 화면 문구.
+   String _formatDistanceUnit(AppLocalizations l10n, DistanceUnit unit) =>
+       switch (unit) {
+         DistanceUnit.kilometer => l10n.distanceUnitKilometer,
+         DistanceUnit.mile => l10n.distanceUnitMile,
+       };
+   ```
+
+4. **묶음 제목 · 행 문구 키를 ARB 세 파일에 더하고 `fvm flutter gen-l10n` 을 돌린다.**
+   - 넣는 자리와 설명(`@` 키) 규칙은 [⑦ ARB 세 언어](#-arb-세-언어) 와 같다.
+
+   `lib/l10n/app_en.arb`:
+
+   ```json
+     "unitsSectionTitle": "Units",
+     "@unitsSectionTitle": {
+       "description": "Settings units section heading"
+     },
+
+     "distanceUnitLabel": "Distance unit",
+     "@distanceUnitLabel": {
+       "description": "Settings distance unit row label and its picker title"
+     },
+
+     "distanceUnitKilometer": "Kilometers",
+     "@distanceUnitKilometer": {
+       "description": "Distance unit option: kilometers"
+     },
+
+     "distanceUnitMile": "Miles",
+     "@distanceUnitMile": {
+       "description": "Distance unit option: miles"
+     }
+   ```
+
+   `lib/l10n/app_ko.arb`:
+
+   ```json
+     "unitsSectionTitle": "단위",
+     "distanceUnitLabel": "거리 단위",
+     "distanceUnitKilometer": "킬로미터",
+     "distanceUnitMile": "마일"
+   ```
+
+   `lib/l10n/app_ja.arb`:
+
+   ```json
+     "unitsSectionTitle": "単位",
+     "distanceUnitLabel": "距離の単位",
+     "distanceUnitKilometer": "キロメートル",
+     "distanceUnitMile": "マイル"
+   ```
+
+   ```bash
+   fvm flutter gen-l10n
+   ```
+
+5. **`lib/features/settings/presentation/app_settings_sections.dart` 에 import 두 줄과 묶음 하나를 더한다.**
+   - import 두 줄은 `import 'app_settings_slot.dart';` 바로 위에, 묶음은 목록의 `// 예:` 줄 아래에 넣는다.
+   - 게스트(익명)에게 숨길 묶음 · 행은 앞에 `if (!isAnonymous)` 를 붙인다.
+
+   ```dart
+   import '../../../core/l10n/l10n_extensions.dart';
+   import '../../units/presentation/distance_unit_row.dart';
+   ```
+
+   ```dart
+     AppSettingsSection(
+       title: context.l10n.unitsSectionTitle,
+       rows: const <Widget>[DistanceUnitRow()],
+     ),
+   ```
+
+6. **코드를 생성하고 분석 · 시험을 돌린다.**
+   - 설정 화면을 직접 그리는 킷 설정 시험 · golden 은 이 목록 대신 빈 목록으로 그린다.
+   - 앱을 실행해 설정을 열면 정해진 자리에 묶음이 보인다.
+
+   ```bash
+   fvm dart run build_runner build --delete-conflicting-outputs
+   fvm dart analyze
+   fvm flutter test
+   ```
+
+되돌리기: 목록에서 그 묶음 항목을 지운다.
+
 ### 바꿀 수 있는 지점
 
 | 바꾸고 싶은 것 | 고칠 곳 |
@@ -2692,6 +2894,7 @@ bash scripts/deploy_functions.sh dev --apply
 | 기기 토큰 만료 기간 | `kFcmTokenTtl`(`lib/features/notifications/domain/fcm_token.dart`) 하나. TTL 정책은 `expireAt` 필드 기준이라 다시 켜지 않아도 된다. 60일 넘게 늘리면 rules 의 `duration.value(60, 'd')` 도 고친다 |
 | 알림 섹션 위치 | `lib/features/settings/presentation/settings_screen.dart` 의 `const NotificationsSection()` 한 줄 |
 | 설정 「개발자」 묶음에 개발용 행 더하기 | `lib/features/settings/presentation/developer_rows.dart` 의 `buildAppDeveloperRows()` 목록에 행 위젯을 더한다(행 위젯 파일은 `lib/features/<내 feature>/` 에 둔다). 행은 「개발자 · 데모 화면」 행 뒤에 뜨고 release 빌드에서는 묶음째 빠지며, flavor 처럼 행마다 다른 조건은 목록 안에 `if (AppConfig.isDev)` 꼴로 더한다. 묶음은 화면에서만 빠지고 행 코드는 release 앱에 남을 수 있으므로 비밀 값을 행에 넣지 않는다 |
+| 설정에 앱 고유 묶음 · 행 더하기 | `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections` 목록에 `AppSettingsSection`(제목 · 행 목록)을 더한다(행 위젯 파일은 `lib/features/<내 feature>/` 에 두고, 묶음 제목은 내 ARB 키로 만든 뒤 `fvm flutter gen-l10n`). 묶음은 알림 섹션 뒤(게스트는 「일반」 뒤) · 「개발자」 묶음 앞에 뜨고 release 빌드에서도 보이며, 게스트에게 숨길 묶음 · 행은 앞에 `if (!isAnonymous)` 를 붙인다. 단계와 킷 행 모양 예시는 위 「설정 화면에 앱 고유 묶음 · 행 더하기」 |
 | Storage 경로 · 크기 · 형식 | `storage.rules` 의 그 줄(예: 5MB = `5 * 1024 * 1024`) + rules 시험 경계 경우 → `pnpm test:rules`. 크기를 바꾸면 `kProfilePhotoMaxBytes` 도, 경로를 바꾸면 `profilePhotoPath` 도 고친다 |
 | 올리는 사진 크기 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
 | 사진 고르는 중 앱이 종료되면 | 킷은 되찾지 않는다 — Android 는 갤러리가 떠 있는 동안 메모리가 모자라 앱이 종료되면 고른 사진이 사라진다. 필요하면 계정 정보 화면에 들어올 때 `ImagePicker.retrieveLostData()`(Android 전용)를 한 번 보고, 파일이 있으면 `ProfilePhotoRepository` 의 올리기 단계를 이어 간다 |
@@ -3575,6 +3778,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 36 | `extensions/firestore-send-email.env.<projectId>` (git 밖 · 예시는 `extensions/firestore-send-email.env.example`) | 발송 서비스 값(`DATABASE_REGION` · `DEFAULT_FROM` · `SMTP_CONNECTION_URI` · `SMTP_PASSWORD`) | 높음 (새 파라미터 추가 · 내 파일은 git 밖) | 충돌 없음. merge 뒤 `diff extensions/firestore-send-email.env.example extensions/firestore-send-email.env.<projectId>` 로 새 키를 내 파일에 옮겨 적는다 |
 | 37 | `functions/.env.<projectId>` (git 밖) | 함수 환경 값(`SEND_TEST_PUSH_ENABLED` 등) — `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` · `EMAIL_RESULT_PAGE_URL` 네 줄은 `scripts/deploy_email.sh` 가 쓴다 | 없음 | 충돌 없음 |
 | 38 | `lib/features/settings/presentation/developer_rows.dart` | 설정 「개발자」 묶음에 더하는 개발용 행 목록(`buildAppDeveloperRows()`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
+| 39 | `lib/features/settings/presentation/app_settings_sections.dart` | 설정 화면에 더하는 앱 고유 묶음 목록(`buildAppSettingsSections`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
 
 ### 확인 방법
 

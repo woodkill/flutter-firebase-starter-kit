@@ -14,6 +14,14 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- 설정 화면의 알림 섹션 줄(`const NotificationsSection()`)과 「개발자」 묶음 줄 사이에 내 묶음을 직접 넣은 저장소는 이 판을 받을 때 `lib/features/settings/presentation/settings_screen.dart` 의 그 자리에서 `CONFLICT (content)` 가 난다. 충돌 블록은 킷 쪽(`=======` 와 `>>>>>>>` 사이)만 남기고, 그 파일에 남은 내 묶음 위젯의 import 줄을 지운다. 내 묶음은 `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections` 목록에 `AppSettingsSection(title: …, rows: […])` 한 항목으로 옮기고(제목은 `context.l10n.<내 키>`), 그 위젯 파일 import 와 `../../../core/l10n/l10n_extensions.dart` import 를 그 파일에 더한다. 두 파일을 `git add` 한 뒤 `git commit --no-edit` 로 merge 를 마친다. 그 묶음이 든 설정 golden 을 다시 찍어 두었다면 merge 뒤 `fvm flutter test --update-goldens test/features/settings/presentation/settings_screen_golden_test.dart` 로 다시 찍는다 — 킷 설정 시험 · golden 은 내 묶음 없이 그린다. 새 파일 `app_settings_slot.dart` · `app_settings_sections.dart` 는 충돌 없이 들어온다. 그렇게 넣은 묶음이 없다면 할 일이 없다.
+
+### Added
+
+- 설정 화면에 앱 고유 묶음 · 행을 더하는 자리가 생긴다. `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections`(킷 판은 빈 목록)가 돌려주는 묶음(`AppSettingsSection` — 제목 · 행 목록)이 알림 섹션 뒤(게스트는 「일반」 뒤) · 「개발자」 묶음 앞에 뜨고 release 빌드에서도 보인다. 게스트에게 숨길 묶음 · 행은 앞에 `if (!isAnonymous)` 를 붙이고, 행이 없는 묶음은 제목도 뜨지 않는다. 이 파일은 사용자 소유 표면 39행(킷이 고칠 가능성 `없음`)이다. 킷 테마 · 언어 행과 같은 모양의 행을 만드는 법과 킷 선택창 `showChoiceSheet` 사용은 `docs/guide.md` 「설정 화면에 앱 고유 묶음 · 행 더하기」 에 있다. 설정 화면을 직접 그리는 킷 설정 시험과 golden 은 앱 묶음 없이 빈 목록으로 그린다. 바뀐 파일은 `lib/features/settings/presentation/settings_screen.dart` · `app_settings_slot.dart`(새) · `app_settings_sections.dart`(새) · `_widgets/choice_sheet.dart`(doc) · `docs/guide.md` · 시험이고, 설정 화면에 묶음을 직접 넣지 않았다면 merge 로 끝난다(넣었다면 위 「사용자 조치」).
+
 ## [1.0.0-rc.13] - 2026-11-11
 
 ### 사용자 조치

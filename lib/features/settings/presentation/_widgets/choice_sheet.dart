@@ -15,6 +15,9 @@ import '../../../../core/theme/theme_extensions.dart';
 /// 선택 상태다. 항목을 탭하면 시트를 닫고 고른 값을 돌려준다. 현재값을 다시
 /// 탭 · 바깥 탭 · back · 아래로 끌기는 null — 호출부는 null 이면 아무것도
 /// 바꾸지 않는다. 확인 버튼 · 「취소」 항목은 없다(라디오 선택 자체가 확정).
+///
+/// 앱 설정 행(`app_settings_sections.dart` 의 묶음 행)도 이 함수를
+/// import 해 써도 된다 — `docs/guide.md` 「설정 화면에 앱 고유 묶음 · 행 더하기」.
 Future<T?> showChoiceSheet<T>(
   BuildContext context, {
   required String title,
