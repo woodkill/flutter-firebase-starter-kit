@@ -32,6 +32,7 @@ import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/notifications/application/notification_settings_notifier.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/app_settings_slot.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
@@ -102,6 +103,13 @@ void _useTallViewport(WidgetTester tester) {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
+/// 킷 하네스의 앱 묶음 builder — 빈 목록이다(내 앱 묶음은 Firebase · provider 에
+/// 기댈 수 있어 킷 시험 · golden 에 섞이지 않게 한다).
+List<AppSettingsSection> _buildNoAppSections(
+  BuildContext context, {
+  required bool isAnonymous,
+}) => const <AppSettingsSection>[];
+
 /// production [SettingsScreen] 을 [notifier] 로 pump 한다.
 Future<void> _pumpSettings(
   WidgetTester tester, {
@@ -122,7 +130,10 @@ Future<void> _pumpSettings(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const SettingsScreen(developerRows: []),
+        home: const SettingsScreen(
+          developerRows: [],
+          appSectionsBuilder: _buildNoAppSections,
+        ),
       ),
     ),
   );
@@ -267,7 +278,10 @@ void main() {
             locale: const Locale('ko'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const SettingsScreen(developerRows: []),
+            home: const SettingsScreen(
+              developerRows: [],
+              appSectionsBuilder: _buildNoAppSections,
+            ),
           ),
         ),
       );
@@ -358,7 +372,10 @@ void main() {
             locale: const Locale('ko'),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const SettingsScreen(developerRows: []),
+            home: const SettingsScreen(
+              developerRows: [],
+              appSectionsBuilder: _buildNoAppSections,
+            ),
           ),
         ),
       );

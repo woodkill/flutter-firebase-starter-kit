@@ -82,6 +82,7 @@ import 'package:flutter_starter_kit/core/providers/locale_provider.dart';
 import 'package:flutter_starter_kit/core/providers/theme_provider.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/app_settings_slot.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,6 +152,13 @@ _MockFbUser _memberAuthUser(String uid) {
   return member;
 }
 
+/// 킷 하네스의 앱 묶음 builder — 빈 목록이다(내 앱 묶음은 Firebase · provider 에
+/// 기댈 수 있어 킷 시험 · golden 에 섞이지 않게 한다).
+List<AppSettingsSection> _buildNoAppSections(
+  BuildContext context, {
+  required bool isAnonymous,
+}) => const <AppSettingsSection>[];
+
 /// 빈 [Scaffold] 위에 production 정식 [SettingsScreen] 을 push 해 [width]×800 ·
 /// DPR 3 viewport 에 올린다 ([pumpGoldenRoute] 위임).
 ///
@@ -160,6 +168,7 @@ _MockFbUser _memberAuthUser(String uid) {
 ///
 /// 설정 화면은 `developerRows` 에 빈 목록을 넘긴다 — 내 개발용 행(Firebase ·
 /// provider · flavor 에 기댈 수 있다)이 킷 설정 시험 · golden 에 섞이지 않게.
+/// 앱 묶음 builder 도 빈 목록을 돌려주는 함수(`_buildNoAppSections`)를 넘긴다.
 Future<void> _pumpMemberSettingsScreen(
   WidgetTester tester, {
   required User user,
@@ -169,7 +178,10 @@ Future<void> _pumpMemberSettingsScreen(
 }) {
   return pumpGoldenRoute(
     tester,
-    route: (_) => const SettingsScreen(developerRows: []),
+    route: (_) => const SettingsScreen(
+      developerRows: [],
+      appSectionsBuilder: _buildNoAppSections,
+    ),
     overrides: [
       authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),
@@ -246,7 +258,10 @@ void main() {
         when(() => anon.uid).thenReturn('anon-uid');
         await pumpGoldenRoute(
           tester,
-          route: (_) => const SettingsScreen(developerRows: []),
+          route: (_) => const SettingsScreen(
+            developerRows: [],
+            appSectionsBuilder: _buildNoAppSections,
+          ),
           overrides: [
             authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
             activeStrategiesProvider.overrideWithValue(kGoldenSixStrategies),

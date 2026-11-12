@@ -16,6 +16,9 @@
 // Phase 17.1 Plan 17.1-09 Task 2 — T-171-SETTINGS-14(정식 ko 280 a11y guideline
 //   3종) · 15(정식 · 게스트 × ko/en/ja 280×800 넘침 0 · 행 값 maxLines 없음) ·
 //   16(계정 화면 경로를 push/go 하는 presentation 파일 = 설정 화면 1개 · D-03).
+// T-171-SETTINGS-19 — 앱 고유 묶음 자리: 정식은 알림 섹션 뒤 · 게스트는 「일반」 뒤 ·
+//   「개발자」 앞 · release 의 말단 행 = 앱 묶음의 마지막 행 · 행 없는 묶음은
+//   heading · 간격 없음.
 //
 // Phase 16 Plan 16-06 Task 6.2 — SettingsScreen widget test (SS1~SS4).
 // Phase 16 Plan 16-11 Task 2 — AccountLinkingSection 삽입 + 회귀 가드 (SS5~SS9).
@@ -178,9 +181,11 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/acco
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/danger_zone_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/notifications_section.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/profile_photo_tile.dart';
+import 'package:flutter_starter_kit/features/settings/presentation/app_settings_slot.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -237,6 +242,37 @@ const List<Widget> _kAdopterRows = <Widget>[
   ListTile(key: _kAdopterRowKey, title: Text('Adopter developer row')),
 ];
 
+/// 자리 시험(T-171-SETTINGS-19)이 넘기는 앱 묶음 행의 key — 모두에게 보이는 묶음.
+const ValueKey<String> _kAppRowKey = ValueKey<String>('app-section-row');
+
+/// 자리 시험(T-171-SETTINGS-19)이 넘기는 앱 묶음 행의 key — 정식 사용자 전용 묶음.
+const ValueKey<String> _kMemberRowKey = ValueKey<String>('member-section-row');
+
+/// 자리 시험(T-171-SETTINGS-19)의 앱 묶음 builder — 모두에게 보이는 묶음 ·
+/// `isAnonymous` 가 false 일 때만 넣는 묶음 · 행 없는 묶음 순서다.
+List<AppSettingsSection> _buildProbeSections(
+  BuildContext context, {
+  required bool isAnonymous,
+}) => <AppSettingsSection>[
+  const AppSettingsSection(
+    title: 'App section',
+    rows: <Widget>[ListTile(key: _kAppRowKey, title: Text('App row'))],
+  ),
+  if (!isAnonymous)
+    const AppSettingsSection(
+      title: 'Member section',
+      rows: <Widget>[ListTile(key: _kMemberRowKey, title: Text('Member row'))],
+    ),
+  const AppSettingsSection(title: 'Empty section', rows: <Widget>[]),
+];
+
+/// 킷 하네스의 앱 묶음 builder — 빈 목록이다(내 앱 묶음은 Firebase · provider 에
+/// 기댈 수 있어 킷 시험 · golden 에 섞이지 않게 한다).
+List<AppSettingsSection> _buildNoAppSections(
+  BuildContext context, {
+  required bool isAnonymous,
+}) => const <AppSettingsSection>[];
+
 Future<void> _pumpSettingsScreen(
   WidgetTester tester, {
   required User? user,
@@ -270,7 +306,10 @@ Future<void> _pumpSettingsScreen(
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const SettingsScreen(developerRows: []),
+        home: const SettingsScreen(
+          developerRows: [],
+          appSectionsBuilder: _buildNoAppSections,
+        ),
       ),
     ),
   );
@@ -295,16 +334,20 @@ Future<void> _scrollTo(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
-/// 설정 ListView 의 마지막 행(children 목록의 마지막 위젯)을 찾는다.
-Finder _findLastRow(WidgetTester tester) {
+/// 설정 ListView 의 children 목록을 읽는다.
+List<Widget> _readListChildren(WidgetTester tester) {
   final delegate = tester
       .widget<ListView>(find.byType(ListView))
       .childrenDelegate;
   if (delegate case SliverChildListDelegate(:final children)) {
-    return find.byWidget(children.last);
+    return children;
   }
   fail('설정 ListView 가 children 목록 delegate 가 아니다: $delegate');
 }
+
+/// 설정 ListView 의 마지막 행(children 목록의 마지막 위젯)을 찾는다.
+Finder _findLastRow(WidgetTester tester) =>
+    find.byWidget(_readListChildren(tester).last);
 
 /// 게스트(익명) 설정 화면을 GoRouter 안에서 pump 하고 provider container 를
 /// 돌려준다 (Phase 17.1 T-171-SETTINGS).
@@ -318,7 +361,10 @@ Finder _findLastRow(WidgetTester tester) {
 Future<ProviderContainer> _pumpGuestSettings(
   WidgetTester tester, {
   Locale locale = const Locale('ko'),
-  Widget screen = const SettingsScreen(developerRows: []),
+  Widget screen = const SettingsScreen(
+    developerRows: [],
+    appSectionsBuilder: _buildNoAppSections,
+  ),
   List<Override> extraOverrides = const <Override>[],
 }) {
   return _pumpRoutedSettings(
@@ -340,7 +386,10 @@ Future<ProviderContainer> _pumpMemberSettings(
   WidgetTester tester, {
   required User? user,
   Locale locale = const Locale('ko'),
-  Widget screen = const SettingsScreen(developerRows: []),
+  Widget screen = const SettingsScreen(
+    developerRows: [],
+    appSectionsBuilder: _buildNoAppSections,
+  ),
 }) {
   return _pumpRoutedSettings(
     tester,
@@ -362,7 +411,8 @@ Future<ProviderContainer> _pumpMemberSettings(
 /// - `/login` · 계정 화면 · 데모 경로는 stub 화면.
 /// - 하네스의 설정 화면은 `developerRows` 에 빈 목록을 넘긴다 — 내 개발용 행
 ///   (Firebase · provider · flavor 에 기댈 수 있다)이 킷 설정 시험 · golden 에
-///   섞이지 않게.
+///   섞이지 않게. 앱 묶음 builder 도 빈 목록을 돌려주는 함수
+///   (`_buildNoAppSections`)를 넘긴다.
 Future<ProviderContainer> _pumpRoutedSettings(
   WidgetTester tester, {
   required bool isAnonymous,
@@ -849,7 +899,10 @@ void main() {
         tester,
         user: _testUser(displayName: 'Jane Doe'),
         locale: const Locale('en'),
-        screen: const SettingsScreen(developerRows: _kAdopterRows),
+        screen: const SettingsScreen(
+          developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildNoAppSections,
+        ),
       );
 
       final heading = find.text(en.settingsDeveloperSection);
@@ -877,6 +930,7 @@ void main() {
         screen: const SettingsScreen(
           showsDemoRow: false,
           developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildNoAppSections,
         ),
       );
 
@@ -885,6 +939,125 @@ void main() {
       expect(find.byKey(_kAdopterRowKey), findsNothing);
       expect(find.text('Adopter developer row'), findsNothing);
       expect(find.text(ko.settingsLanguage), findsOneWidget);
+    });
+  });
+
+  group('설정 앱 고유 묶음 자리 (T-171-SETTINGS-19)', () {
+    final en = lookupAppLocalizations(const Locale('en'));
+
+    testWidgets('T-171-SETTINGS-19 ①: 정식 — 앱 묶음이 알림 섹션 뒤 · 「개발자」 '
+        '앞 · 정식 전용 묶음 있음 · 행 없는 묶음 heading 0', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+        screen: const SettingsScreen(
+          developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildProbeSections,
+        ),
+      );
+
+      final appHeading = find.text('App section');
+      final appRow = find.byKey(_kAppRowKey);
+      final memberHeading = find.text('Member section');
+      final memberRow = find.byKey(_kMemberRowKey);
+      final developerHeading = find.text(en.settingsDeveloperSection);
+      final adopterRow = find.byKey(_kAdopterRowKey);
+      expect(appHeading, findsOneWidget);
+      expect(appRow, findsOneWidget);
+      expect(memberHeading, findsOneWidget);
+      expect(memberRow, findsOneWidget);
+      expect(find.text('Empty section'), findsNothing);
+      expect(developerHeading, findsOneWidget);
+
+      final ys = <double>[
+        tester.getTopLeft(find.byType(NotificationsSection)).dy,
+        tester.getTopLeft(appHeading).dy,
+        tester.getTopLeft(appRow).dy,
+        tester.getTopLeft(memberHeading).dy,
+        tester.getTopLeft(developerHeading).dy,
+        tester.getTopLeft(adopterRow).dy,
+      ];
+      for (var i = 0; i < ys.length - 1; i++) {
+        expect(ys[i], lessThan(ys[i + 1]), reason: '순서 $i → ${i + 1}');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-19 ②: 게스트 — 앱 묶음이 「일반」 뒤 · 「개발자」 '
+        '앞 · 정식 전용 묶음 0 · 알림 섹션 0', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpGuestSettings(
+        tester,
+        locale: const Locale('en'),
+        screen: const SettingsScreen(
+          developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildProbeSections,
+        ),
+      );
+
+      final appHeading = find.text('App section');
+      final appRow = find.byKey(_kAppRowKey);
+      final developerHeading = find.text(en.settingsDeveloperSection);
+      expect(appHeading, findsOneWidget);
+      expect(appRow, findsOneWidget);
+      expect(find.text('Member section'), findsNothing);
+      expect(find.byKey(_kMemberRowKey), findsNothing);
+      expect(find.text('Empty section'), findsNothing);
+      expect(find.byType(NotificationsSection), findsNothing);
+      expect(developerHeading, findsOneWidget);
+
+      final ys = <double>[
+        tester.getTopLeft(find.text(en.settingsLanguage)).dy,
+        tester.getTopLeft(appHeading).dy,
+        tester.getTopLeft(appRow).dy,
+        tester.getTopLeft(developerHeading).dy,
+      ];
+      for (var i = 0; i < ys.length - 1; i++) {
+        expect(ys[i], lessThan(ys[i + 1]), reason: '순서 $i → ${i + 1}');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('T-171-SETTINGS-19 ③: 게스트 · showsDemoRow false(release) — '
+        '앱 묶음은 보이고 말단 행 = 앱 행 · 빈 묶음 간격 0', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpGuestSettings(
+        tester,
+        locale: const Locale('en'),
+        screen: const SettingsScreen(
+          showsDemoRow: false,
+          developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildProbeSections,
+        ),
+      );
+
+      expect(find.text('App section'), findsOneWidget);
+      expect(find.byKey(_kAppRowKey), findsOneWidget);
+      expect(find.text(en.settingsDeveloperSection), findsNothing);
+      expect(find.byKey(_kAdopterRowKey), findsNothing);
+      expect(tester.widget(_findLastRow(tester)).key, _kAppRowKey);
+      // 「일반」 앞 간격 1 + 앱 묶음 간격 1 — 행 없는 묶음은 간격도 없다.
+      expect(_readListChildren(tester).whereType<Gap>(), hasLength(2));
+    });
+
+    testWidgets('T-171-SETTINGS-19 ④: 정식 · showsDemoRow false(release) — '
+        '말단 행 = 정식 전용 묶음의 행', (tester) async {
+      _useViewport(tester, const Size(800, 2000));
+      await _pumpMemberSettings(
+        tester,
+        user: _testUser(displayName: 'Jane Doe'),
+        locale: const Locale('en'),
+        screen: const SettingsScreen(
+          showsDemoRow: false,
+          developerRows: _kAdopterRows,
+          appSectionsBuilder: _buildProbeSections,
+        ),
+      );
+
+      expect(find.text(en.settingsDeveloperSection), findsNothing);
+      expect(tester.widget(_findLastRow(tester)).key, _kMemberRowKey);
     });
   });
 
@@ -1063,7 +1236,11 @@ void main() {
         'heading · 데모 행 0 · 언어 행이 마지막 (D-14)', (tester) async {
       await _pumpGuestSettings(
         tester,
-        screen: const SettingsScreen(showsDemoRow: false, developerRows: []),
+        screen: const SettingsScreen(
+          showsDemoRow: false,
+          developerRows: [],
+          appSectionsBuilder: _buildNoAppSections,
+        ),
       );
 
       expect(find.text(ko.settingsDeveloperSection), findsNothing);
