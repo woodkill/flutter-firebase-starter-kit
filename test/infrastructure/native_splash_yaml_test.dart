@@ -22,9 +22,11 @@
 //
 // **배경 그림 키는 쓰지 않는다** — Flutter 스플래시는 단색 배경만 그린다.
 //
+// **색 상수는 불투명이어야 한다** — yaml 색에는 알파가 없다.
+//
 // 사용자 안내: `docs/guide.md` 「스플래시 바꾸기」.
 //
-// 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향) ·
+// 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향 · 알파) ·
 // 03(`android_12` 색) · 04(값 없음) · 05(플랫폼별 색 키) · 06(플랫폼별 로고 키) ·
 // 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림).
 
@@ -185,12 +187,14 @@ String? _checkRequiredColor(
 ) {
   final String? raw = top[key];
   final String? hex = raw == null ? null : normalizeSplashColor(raw);
+  final String expectedHex = formatColorHex(expected);
   if (hex == null) {
     messages.add(_buildColorValueMessage(key, raw));
+    _checkOpaque(messages, constName, expected, expectedHex);
     return null;
   }
-  final String expectedHex = formatColorHex(expected);
   if (hex != expectedHex) {
+    // 고칠 선언이 알파 FF 를 담으므로 알파 메시지를 따로 내지 않는다.
     messages.add(
       _buildMessage(
         'flutter_native_splash.yaml 의 $key 는 #$hex 인데 $_bodyPath 의 '
@@ -199,8 +203,33 @@ String? _checkRequiredColor(
         'const Color $constName = Color(0xFF$hex);',
       ),
     );
+  } else {
+    _checkOpaque(messages, constName, expected, hex);
   }
   return hex;
+}
+
+/// 상수 [constName] 의 [color] 알파가 `0xFF` 인지 본다 — yaml 색에는 알파가
+/// 없어 네이티브 스플래시는 늘 불투명하므로, 알파가 다르면 RGB 가 같아도 두
+/// 화면이 이어지지 않는다. [hex] 는 고칠 선언에 넣을 6자리 RGB 다.
+void _checkOpaque(
+  List<String> messages,
+  String constName,
+  Color color,
+  String hex,
+) {
+  final int alpha = color.toARGB32() >>> 24;
+  if (alpha == 0xFF) {
+    return;
+  }
+  final String alphaHex = alpha.toRadixString(16).padLeft(2, '0').toUpperCase();
+  messages.add(
+    _buildMessage(
+      '$_bodyPath 의 $constName 알파가 0x$alphaHex 다 — 스플래시 배경은 '
+      '불투명해야 한다(Color(0xFF<6자리>) 꼴).\n'
+      '상수를 고친다: const Color $constName = Color(0xFF$hex);',
+    ),
+  );
 }
 
 /// 필수 그림 경로 키 [key] 를 읽어 상수 [constName] 의 [expected] 와 대조한다.
@@ -337,7 +366,8 @@ void _checkAndroid12Image(
 ///
 /// 빈 목록이면 통과다. 메시지는 키마다 하나이고 끝줄이 안내 절 이름이다.
 /// - `color` · `color_dark` · `image` · `image_dark` 는 필수이고 [color] ·
-///   [colorDark] · [image] · [imageDark] 와 같아야 한다.
+///   [colorDark] · [image] · [imageDark] 와 같아야 한다. [color] · [colorDark]
+///   는 불투명(알파 `0xFF`)이어야 한다.
 /// - `android_12.image` · `android_12.image_dark` 는 필수이고 `image` ·
 ///   `image_dark` 와 같아야 한다.
 /// - `android_12.color` · `android_12.color_dark` · 플랫폼별 색 · 로고 키는
@@ -549,8 +579,8 @@ void main() {
       );
     });
 
-    test('T-26-YAML-02: yaml 색이 상수와 다르면 키 · 두 값 · 고칠 선언으로 실패 · '
-        '상수가 같으면 통과', () {
+    test('T-26-YAML-02: yaml 색이 상수와 다르거나 상수 알파가 FF 가 아니면 고칠 '
+        '선언으로 실패 · 같으면 통과', () {
       // RunningPencil 꼴 — 네 색 모두 노랑.
       final String yaml = _buildSplashYaml(
         color: '"#F2B134"',
@@ -585,6 +615,35 @@ void main() {
       expect(
         _findFixtureMismatches(yaml, color: _yellow, colorDark: _yellow),
         isEmpty,
+      );
+
+      // RGB 가 같아도 알파가 FF 가 아니면 실패한다(0x 뒤 FF 를 빠뜨린 꼴).
+      final List<String> transparent = _findFixtureMismatches(
+        _buildSplashYaml(),
+        color: const Color(0x00FFFFFF),
+      );
+      expect(transparent, hasLength(1), reason: transparent.join('\n\n'));
+      expect(
+        transparent.single,
+        allOf(<Matcher>[
+          contains('kSplashColor 알파가 0x00 다'),
+          contains('불투명'),
+          contains('const Color kSplashColor = Color(0xFFFFFFFF);'),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
+      final List<String> translucent = _findFixtureMismatches(
+        yaml,
+        color: _yellow,
+        colorDark: const Color(0x80F2B134),
+      );
+      expect(translucent, hasLength(1), reason: translucent.join('\n\n'));
+      expect(
+        translucent.single,
+        allOf(<Matcher>[
+          contains('kSplashColorDark 알파가 0x80 다'),
+          contains('const Color kSplashColorDark = Color(0xFFF2B134);'),
+        ]),
       );
     });
 
