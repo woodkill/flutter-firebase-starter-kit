@@ -2003,9 +2003,9 @@ void main() {
         '    - path :\n': '- path :',
         '    - ? path\n      : assets/images/splash/\n': '- ? path',
         // 값에 「\」 가 있다(첫 줄 「- 경로」 · 큰따옴표 값 · path: 값).
-        '    - assets/a\\b/\n': r'- assets/a\b/',
-        '    - "assets/a\\b/"\n': r'- "assets/a\b/"',
-        '    - path: "assets/a\\\\b/"\n': r'- path: "assets/a\\b/"',
+        '    - assets/a\\c/\n': r'- assets/a\c/',
+        '    - "assets/x\\b/"\n': r'- "assets/x\b/"',
+        '    - path: "assets\\\\images/"\n': r'- path: "assets\\images/"',
       };
       // 빌드 한정 키의 같은 줄 값이 YAML 표시 글자로 시작한다 — 표시 글자마다
       // 하나(flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자 · 뒤에 공백이 오거나
