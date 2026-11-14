@@ -21,6 +21,7 @@
 //   T-174-UA-10  인자 수 · 빈 인자 → exit 2 · stderr usage · stdout 빈 출력
 //   T-174-UA-11  풀 수 없는 커밋 이름 → exit 3 git
 //   T-22-UA-01   런처 이름 생성기 경로 = 32행 꼴(킷 전용) · 그 파일만 바뀌면 OTHER_ROW_HIT 만 · 판정 none
+//   T-26-UA-01   40행 꼴은 같은 디렉터리의 킷 스플래시 파일에 걸리지 않는다
 //
 // **값 모양 리터럴을 두지 않는다** — fixture 파일 내용은 짧은 평문 한 줄이다. 이 파일도 공개
 // 이력에 들어가 같은 스캔을 거친다.
@@ -86,6 +87,17 @@ const (int, String) _infoSample = (7, 'android/app/build.gradle.kts');
 
 /// 어떤 경로 꼴에도 걸리지 않는 표본 경로.
 const String _plainPath = 'lib/app.dart';
+
+/// 사용자 소유 표면 40행(내 스플래시 화면 파일) 번호.
+const int _splashBodyRow = 40;
+
+/// 40행 파일과 같은 디렉터리의 킷 파일 — 킷이 자주 고치므로 `낮음` 꼴에 걸리면
+/// 판마다 거짓 사용자 조치 판정이 난다.
+const List<String> _splashKitNearMissSamples = <String>[
+  'lib/features/splash/presentation/splash_frame.dart',
+  'lib/features/splash/presentation/splash_screen.dart',
+  'test/features/splash/splash_screen_test.dart',
+];
 
 /// 킷 전용 파일 행(사용자 소유 표면 32행) 번호.
 const int _kitOnlyRow = 32;
@@ -631,6 +643,32 @@ void main() {
     expect(badTarget.exitCode, 3, reason: 'stdout: ${badTarget.stdout}');
     expect(lines.first, 'BASE $base');
     expect(lines.last, startsWith('LOW_ROW_FAIL git:'));
+  }, skip: _skipUnlessScript());
+
+  test('T-26-UA-01: 40행 꼴은 같은 디렉터리의 킷 스플래시 파일에 걸리지 않는다', () {
+    final List<(int, RegExp)> low = _readLowPatterns();
+    // 양성 대조 — 40행 꼴을 실제로 읽었고 그 행의 표본은 걸린다.
+    expect(
+      low.where(((int, RegExp) p) => p.$1 == _splashBodyRow),
+      isNotEmpty,
+      reason: 'LOW_PATTERNS 에 40행 꼴이 없다',
+    );
+    for (final (int row, String path) in _lowSamples.where(
+      ((int, String) s) => s.$1 == _splashBodyRow,
+    )) {
+      expect(
+        low.any(((int, RegExp) p) => p.$1 == row && p.$2.hasMatch(path)),
+        isTrue,
+        reason: '40행 표본 $path 이 40행 꼴에 걸리지 않는다',
+      );
+    }
+    for (final String path in _splashKitNearMissSamples) {
+      expect(
+        low.any(((int, RegExp) p) => p.$2.hasMatch(path)),
+        isFalse,
+        reason: '킷 파일 $path 이 낮음 꼴에 걸린다 — 판마다 거짓 사용자 조치 판정',
+      );
+    }
   }, skip: _skipUnlessScript());
 
   test('T-22-UA-01: 런처 이름 생성기 경로는 32행 꼴에 걸리고 그 파일만 바뀌면 판정은 none', () {
