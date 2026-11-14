@@ -1864,7 +1864,7 @@ done
   - yaml 색은 따옴표로 감싼다 — 따옴표 없는 `#` 값은 YAML 주석이 되어 빈 값이다.
 - `image` 와 `kSplashImage`, `image_dark` 와 `kSplashImageDark` 에 로고 그림 경로를 적는다(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
   - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다.
-  - 다른 디렉터리로 옮기면 그 파일이나 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에 `flavors:` 없는 항목으로 등록한다 — Flutter 스플래시는 등록된 자산만 읽고, `flavors:` 로 한정한 항목은 다른 flavor 빌드에 실리지 않는다.
+  - 다른 디렉터리로 옮기면 그 파일이나 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에 빌드를 한정하지 않은 항목(`flavors:` 가 없고, `platforms:` 는 없거나 `android` · `ios` 를 모두 담은 항목)으로 등록한다 — Flutter 스플래시는 등록된 자산만 읽고, `flavors:` · `platforms:` 로 한정한 항목은 다른 flavor · 플랫폼 빌드에 실리지 않는다.
   - 파일 이름은 대소문자까지 실제 파일과 같게 적는다 — 번들 자산 키는 대소문자를 구분한다.
 - `android_12:` 블록의 `image` · `image_dark` 줄은 지우지 말고 위의 `image` · `image_dark` 와 같은 값으로 둔다.
   - Android 12 이상의 OS SplashScreen 설정이다. `image` 가 없으면 로고 대신 런처 아이콘을, `image_dark` 가 없으면 다크에서도 라이트 로고를 그린다.
@@ -1954,7 +1954,7 @@ fvm dart run flutter_native_splash:create
   - 메시지가 플랫폼별 키나 `android_12.color` · `android_12.color_dark` 를 말하면 그 줄을 지우거나 짝 키와 같은 값으로 둔다.
   - 메시지가 `android_12.image` · `android_12.image_dark` 를 말하면 그 줄을 `android_12:` 블록에 두고 `image` · `image_dark` 와 같은 값으로 적는다.
   - 메시지가 배경 그림 키를 말하면 그 키를 지운다.
-  - 메시지가 `pubspec.yaml` 의 `assets:` · `flavors:` 나 파일 이름의 대소문자를 말하면 ② 대로 로고를 등록하고 경로를 적는다.
+  - 메시지가 `pubspec.yaml` 의 `assets:` · 빌드를 한정한 항목(`flavors:` · `platforms:`)이나 파일 이름의 대소문자를 말하면 ② 대로 로고를 등록하고 경로를 적는다.
   - 메시지가 알파를 말하면 상수를 ② 의 `Color(0xFF<6자리>)` 꼴로 고친다.
   - 메시지가 들여쓰기나 flow 꼴을 말하면 메시지가 보여 주는 줄을 ② 의 블록 꼴 · 들여쓰기 규칙대로 고친다.
 - **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.**
