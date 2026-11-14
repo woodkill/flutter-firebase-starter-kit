@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/material.dart';
@@ -14,7 +15,9 @@ import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
+import 'package:flutter_starter_kit/features/splash/presentation/splash_body.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_error_code.dart';
+import 'package:flutter_starter_kit/features/splash/presentation/splash_frame.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
@@ -45,17 +48,23 @@ Widget _buildTestBody(BuildContext context, {required bool hasFailure}) =>
     Text(hasFailure ? 'TEST_BODY failed' : 'TEST_BODY running');
 
 /// [SplashScreen] 을 [router] 로 pump 한다 (기본 en — [locale] 로 바꾼다).
+///
+/// 앱 테마는 [themeMode] 로 고른다 — 기본 [ThemeMode.system] 은 OS 밝기를
+/// 따르고, 시험의 OS 밝기 기본값이 라이트라 라이트 테마다.
 Future<void> _pumpSplash(
   WidgetTester tester, {
   required SplashInitializer initializer,
   required GoRouter router,
   Locale locale = const Locale('en'),
+  ThemeMode themeMode = ThemeMode.system,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [splashInitializerProvider.overrideWith((ref) => initializer)],
       child: MaterialApp.router(
         theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: themeMode,
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -1391,6 +1400,220 @@ void main() {
       }
     });
   });
+
+  // Phase 26 — 킷 틀(`SplashFrame`)이 그리는 값. 기대값은 사용자 소유 상수 ·
+  // 밝기 판정 · `AppTheme` 호출에서 계산한다(내 앱 값이 바뀌어도 킷 시험은 그대로).
+  group('스플래시 틀 값 (Phase 26 · T-26-FRAME)', () {
+    testWidgets('T-26-FRAME-01: 배경 = OS 라이트면 주입한 color · OS 다크면 '
+        '주입한 colorDark', (tester) async {
+      _expectInjectedColorsOpposite();
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _pumpFrame(
+        tester,
+        color: _kBrightInjected,
+        colorDark: _kDarkInjected,
+      );
+      expect(_frameBackground(tester), _kBrightInjected, reason: 'OS 라이트');
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(_frameBackground(tester), _kDarkInjected, reason: 'OS 다크');
+    });
+
+    testWidgets('T-26-FRAME-02: 주입이 없으면 배경 = OS 라이트 kSplashColor · '
+        'OS 다크 kSplashColorDark', (tester) async {
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _pumpFrame(tester);
+      expect(_frameBackground(tester), kSplashColor, reason: 'OS 라이트');
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(_frameBackground(tester), kSplashColorDark, reason: 'OS 다크');
+    });
+
+    testWidgets('T-26-FRAME-03: 로고 = ExactAssetImage · scale 4 · OS 라이트 '
+        'kSplashImage · OS 다크 kSplashImageDark', (tester) async {
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _pumpFrame(tester);
+      final lightLogo = _logoProvider(tester);
+      expect(lightLogo.assetName, kSplashImage, reason: 'OS 라이트');
+      expect(lightLogo.scale, _kImageScale, reason: 'OS 라이트');
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      final darkLogo = _logoProvider(tester);
+      expect(darkLogo.assetName, kSplashImageDark, reason: 'OS 다크');
+      expect(darkLogo.scale, _kImageScale, reason: 'OS 다크');
+    });
+
+    testWidgets('T-26-FRAME-04: 아래 내용 테마 밝기 = 배경 밝기 판정 — 밝은 색 + '
+        'OS 다크 → light · 어두운 색 + OS 라이트 → dark', (tester) async {
+      _expectInjectedColorsOpposite();
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _pumpFrame(
+        tester,
+        color: _kDarkInjected,
+        colorDark: _kBrightInjected,
+      );
+      expect(
+        _bodyTheme(tester).brightness,
+        ThemeData.estimateBrightnessForColor(_kDarkInjected),
+        reason: '어두운 색 + OS 라이트',
+      );
+
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(
+        _bodyTheme(tester).brightness,
+        ThemeData.estimateBrightnessForColor(_kBrightInjected),
+        reason: '밝은 색 + OS 다크',
+      );
+    });
+
+    testWidgets('T-26-FRAME-05: 대비 높임이면 아래 내용 팔레트 = contrastLevel 1.0 · '
+        '끄면 0.0 (밝은 배경)', (tester) async {
+      final Color highContrast = AppTheme.light(
+        seedColor: AppTheme.brandColor,
+        contrastLevel: 1,
+      ).colorScheme.onSurfaceVariant;
+      final Color standardContrast = AppTheme.light(
+        seedColor: AppTheme.brandColor,
+      ).colorScheme.onSurfaceVariant;
+      expect(
+        highContrast,
+        isNot(standardContrast),
+        reason: '두 팔레트가 같으면 이 시험은 아무것도 가리지 못한다',
+      );
+      expect(
+        ThemeData.estimateBrightnessForColor(_kBrightInjected),
+        Brightness.light,
+      );
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _pumpFrame(tester, color: _kBrightInjected);
+      expect(
+        _bodyTheme(tester).colorScheme.onSurfaceVariant,
+        standardContrast,
+        reason: '대비 높임 꺼짐',
+      );
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(highContrast: true);
+      await tester.pump();
+      expect(
+        _bodyTheme(tester).colorScheme.onSurfaceVariant,
+        highContrast,
+        reason: '대비 높임 켜짐',
+      );
+    });
+
+    testWidgets('T-26-FRAME-06: 상태 표시줄 아이콘 밝기 — 밝은 배경 dark · '
+        '어두운 배경 light', (tester) async {
+      _expectInjectedColorsOpposite();
+      await _pumpFrame(tester, color: _kBrightInjected);
+      expect(
+        _statusBarIconBrightness(tester),
+        Brightness.dark,
+        reason: '밝은 배경',
+      );
+
+      await _pumpFrame(tester, color: _kDarkInjected);
+      expect(
+        _statusBarIconBrightness(tester),
+        Brightness.light,
+        reason: '어두운 배경',
+      );
+    });
+
+    for (final size in _logoCenterSizes) {
+      testWidgets('T-26-FRAME-07: 로고 중심 = 화면 중심 (${_formatSize(size)} · '
+          '디코딩 전후)', (tester) async {
+        final png = await _createLogoPng(tester, _kSmallPngPixels);
+        await _pumpFrame(tester, size: size, bundle: _PngAssetBundle(png));
+        final logo = find.byType(Image);
+        final screenCenter = size.center(Offset.zero);
+        expect(tester.getSize(logo), Size.zero, reason: '디코딩 전 크기');
+        expect(tester.getCenter(logo), screenCenter, reason: '디코딩 전');
+
+        await _decodeLogo(tester);
+        expect(
+          tester.getSize(logo),
+          const Size.square(_kSmallPngPixels / _kImageScale),
+          reason: '디코딩 뒤 크기',
+        );
+        expect(tester.getCenter(logo), screenCenter, reason: '디코딩 뒤');
+      });
+    }
+
+    testWidgets('T-26-FRAME-08: 로고 크기 = 원본 ÷ 4(1152 → 288 · 512 → 128 · '
+        '폭 280 에서도 288) · 아래 내용 위쪽 = 로고 상자 아래쪽', (tester) async {
+      final large = await _createLogoPng(tester, _kLargePngPixels);
+      final small = await _createLogoPng(tester, _kSmallPngPixels);
+      final cases = <(Size, ByteData, int)>[
+        (_portraitSize, large, _kLargePngPixels),
+        (_portraitSize, small, _kSmallPngPixels),
+        (const Size(280, 800), large, _kLargePngPixels),
+      ];
+      for (final (size, png, pixels) in cases) {
+        final label = '${_formatSize(size)} · $pixels px';
+        // 이미지 캐시 키가 겹치지 않게 경우마다 새 자산 묶음을 준다.
+        await _pumpFrame(tester, size: size, bundle: _PngAssetBundle(png));
+        await _decodeLogo(tester);
+
+        final logoRect = tester.getRect(find.byType(Image));
+        expect(
+          logoRect.size,
+          Size.square(pixels / _kImageScale),
+          reason: '$label 로고 크기',
+        );
+        expect(
+          tester.getRect(find.text('TEST_BODY running')).top,
+          logoRect.bottom,
+          reason: '$label 아래 내용 위쪽',
+        );
+      }
+    });
+
+    testWidgets('T-26-FRAME-09: 앱 라이트 + OS 다크 — 배경 = kSplashColorDark · '
+        '실패 대화상자 · 복사 알림 막대는 앱 밝기(light)', (tester) async {
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await _openFailureDialog(tester, themeMode: ThemeMode.light);
+
+      expect(_frameBackground(tester), kSplashColorDark);
+      await _expectOverlayBrightness(tester, Brightness.light);
+    });
+
+    testWidgets('T-26-FRAME-09: 앱 다크 + OS 라이트 — 배경 = kSplashColor · '
+        '실패 대화상자 · 복사 알림 막대는 앱 밝기(dark)', (tester) async {
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      await _openFailureDialog(tester, themeMode: ThemeMode.dark);
+
+      expect(_frameBackground(tester), kSplashColor);
+      await _expectOverlayBrightness(tester, Brightness.dark);
+    });
+
+    testWidgets('T-26-FRAME-10: 1152 px 로고를 560x280 가로에서 그려도 예외 0 · '
+        '로고 중심 = 화면 중심', (tester) async {
+      const size = Size(560, 280);
+      final png = await _createLogoPng(tester, _kLargePngPixels);
+      await _pumpFrame(tester, size: size, bundle: _PngAssetBundle(png));
+      await _decodeLogo(tester);
+
+      expect(tester.takeException(), isNull);
+      final logo = find.byType(Image);
+      expect(
+        tester.getSize(logo),
+        const Size.square(_kLargePngPixels / _kImageScale),
+      );
+      expect(tester.getCenter(logo), size.center(Offset.zero));
+    });
+  });
 }
 
 /// 가로 모드 점검 크기 (logical px).
@@ -1442,3 +1665,231 @@ const _portraitFailureDialogRects = <Rect>[
   Rect.fromLTRB(131, 458, 296, 506),
   Rect.fromLTRB(205.7, 506, 296, 554),
 ];
+
+/// T-26-FRAME 시험이 주입하는 밝은 배경색 — 노랑(배경 밝기 판정 light).
+// design-literal: 시험 전용 주입 색 — 내 앱 색과 겹치지 않는 값이다
+const Color _kBrightInjected = Color(0xFFF2B134);
+
+/// T-26-FRAME 시험이 주입하는 어두운 배경색 — 짙은 남색(배경 밝기 판정 dark).
+// design-literal: 시험 전용 주입 색 — 내 앱 색과 겹치지 않는 값이다
+const Color _kDarkInjected = Color(0xFF1A2340);
+
+/// 로고 원본 픽셀을 화면 크기로 바꾸는 나눗수 — 네이티브 스플래시와 같은 ÷ 4.
+const double _kImageScale = 4;
+
+/// 시험이 만드는 큰 로고 PNG 한 변 (px) — 화면에는 288.
+const int _kLargePngPixels = 1152;
+
+/// 시험이 만드는 작은 로고 PNG 한 변 (px) — 화면에는 128.
+const int _kSmallPngPixels = 512;
+
+/// 로고 중심 점검 크기 (logical px) — 세로 폰 · 지원 최소 폭 세로 · 가로 폰.
+const _logoCenterSizes = <Size>[Size(360, 780), Size(280, 800), Size(780, 360)];
+
+/// 모든 자산 키에 같은 PNG 바이트를 돌려주는 시험용 자산 묶음이다.
+///
+/// 로고 원본 크기를 시험이 정한 픽셀로 고정한다. 이미지 캐시 키
+/// (`AssetBundleImageKey`)는 묶음 인스턴스까지 비교하므로, 그림마다 새
+/// 인스턴스를 주면 앞 시험이 디코딩한 로고를 다시 쓰지 않는다.
+class _PngAssetBundle extends CachingAssetBundle {
+  _PngAssetBundle(this._png);
+
+  final ByteData _png;
+
+  @override
+  Future<ByteData> load(String key) async => _png;
+}
+
+/// OS 밝기 · 접근성 시험 값을 시험이 끝나면 되돌리도록 등록한다.
+void _restoreOsSettingsAfterTest(WidgetTester tester) {
+  addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+  addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+}
+
+/// 주입한 두 색이 서로 다르고 밝기 판정이 서로 반대임을 단언한다 — 같으면
+/// 양방향 단언이 아무것도 가리지 못한다.
+void _expectInjectedColorsOpposite() {
+  expect(_kBrightInjected, isNot(_kDarkInjected));
+  expect(
+    ThemeData.estimateBrightnessForColor(_kBrightInjected),
+    Brightness.light,
+  );
+  expect(ThemeData.estimateBrightnessForColor(_kDarkInjected), Brightness.dark);
+}
+
+/// [SplashFrame] 을 init 없이 [size] 화면에 그린다(첫 프레임만).
+///
+/// 로고 아래 내용은 킷 시험용 내용([_buildTestBody])이다. [bundle] 을 주면 그
+/// 자산 묶음에서 로고를 읽는다. 앱 테마는 OS 밝기를 따른다.
+Future<void> _pumpFrame(
+  WidgetTester tester, {
+  Size size = _portraitSize,
+  Color? color,
+  Color? colorDark,
+  AssetBundle? bundle,
+}) async {
+  _setLogicalViewport(tester, size);
+  final frame = SplashFrame(
+    hasFailure: false,
+    bodyBuilder: _buildTestBody,
+    color: color,
+    colorDark: colorDark,
+  );
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      home: bundle == null
+          ? frame
+          : DefaultAssetBundle(bundle: bundle, child: frame),
+    ),
+  );
+}
+
+/// 틀이 그린 Scaffold 의 배경색을 읽는다.
+Color? _frameBackground(WidgetTester tester) => tester
+    .widget<Scaffold>(
+      find.descendant(
+        of: find.byType(SplashFrame),
+        matching: find.byType(Scaffold),
+      ),
+    )
+    .backgroundColor;
+
+/// 틀이 그린 로고의 이미지 제공자를 읽는다 — [ExactAssetImage] 가 아니면 실패.
+ExactAssetImage _logoProvider(WidgetTester tester) {
+  final ImageProvider provider = tester.widget<Image>(find.byType(Image)).image;
+  if (provider is! ExactAssetImage) {
+    throw TestFailure('로고가 ExactAssetImage 가 아니다: $provider');
+  }
+  return provider;
+}
+
+/// 킷 시험용 로고 아래 내용 자리의 테마를 읽는다.
+ThemeData _bodyTheme(WidgetTester tester) =>
+    Theme.of(tester.element(find.text('TEST_BODY running')));
+
+/// 틀이 상태 표시줄에 거는 아이콘 밝기를 읽는다.
+Brightness? _statusBarIconBrightness(WidgetTester tester) => tester
+    .widget<AnnotatedRegion<SystemUiOverlayStyle>>(
+      find.descendant(
+        of: find.byType(SplashFrame),
+        matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
+      ),
+    )
+    .value
+    .statusBarIconBrightness;
+
+/// 한 변 [pixels] px 정사각 PNG 바이트를 만든다(`runAsync` 안에서 인코딩).
+Future<ByteData> _createLogoPng(WidgetTester tester, int pixels) async {
+  final png = await tester.runAsync<ByteData?>(() async {
+    final recorder = ui.PictureRecorder();
+    final side = pixels.toDouble();
+    Canvas(recorder).drawRect(
+      Rect.fromLTWH(0, 0, side, side),
+      Paint()..color = _kDarkInjected,
+    );
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(pixels, pixels);
+    picture.dispose();
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data;
+  });
+  if (png == null) {
+    throw TestFailure('$pixels px 로고 PNG 를 만들지 못했다.');
+  }
+  return png;
+}
+
+/// 화면의 로고를 그 위젯 자신의 이미지 제공자로 디코딩하고 한 프레임 그린다.
+Future<void> _decodeLogo(WidgetTester tester) async {
+  final logo = find.byType(Image);
+  final ImageProvider provider = tester.widget<Image>(logo).image;
+  final element = tester.element(logo);
+  await tester.runAsync(() => precacheImage(provider, element));
+  await tester.pump();
+}
+
+/// [SplashScreen] 을 앱 [themeMode] 로 열어 초기화 실패 대화상자까지 간다.
+///
+/// Test 3 의 실패 경로다. 오류 지문 탭(클립보드 복사)이 플랫폼 채널 없이
+/// 지나가도록 플랫폼 채널을 막아 둔다.
+Future<void> _openFailureDialog(
+  WidgetTester tester, {
+  required ThemeMode themeMode,
+}) async {
+  final messenger = tester.binding.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async => null,
+  );
+  addTearDown(
+    () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+  );
+
+  final mockRepo = _MockAuthRepository();
+  when(
+    mockRepo.signInAnonymously,
+  ).thenAnswer((_) async => const Result.failure(NoInternetConnection()));
+  final initializer = SplashInitializer(
+    authRepository: mockRepo,
+    isFirebaseInitialized: true,
+    currentUserIsNull: true,
+    onboardingFuture: Future.value(true),
+    isSocialLinkInProgress: false,
+  );
+  final router = _testRouter();
+  addTearDown(router.dispose);
+
+  await _pumpSplash(
+    tester,
+    initializer: initializer,
+    router: router,
+    themeMode: themeMode,
+  );
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.pumpAndSettle();
+  expect(find.byType(AlertDialog), findsOneWidget);
+}
+
+/// 실패 대화상자와 오류 지문 탭 뒤 「복사됨」 SnackBar 의 테마 밝기가
+/// [expected](앱 밝기)인지 단언한다.
+Future<void> _expectOverlayBrightness(
+  WidgetTester tester,
+  Brightness expected,
+) async {
+  final l10n = lookupAppLocalizations(const Locale('en'));
+  final dialog = find.byType(AlertDialog);
+  expect(
+    Theme.of(tester.element(dialog)).brightness,
+    expected,
+    reason: '실패 대화상자',
+  );
+
+  await tester.tap(
+    find.descendant(
+      of: dialog,
+      matching: find.text(
+        l10n.splashErrorCodeFingerprint(
+          extractSplashErrorCode(const NoInternetConnection()),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  final snackBar = find.byType(SnackBar);
+  expect(snackBar, findsOneWidget);
+  expect(
+    find.descendant(of: snackBar, matching: find.text(l10n.commonCopied)),
+    findsOneWidget,
+  );
+  expect(
+    Theme.of(tester.element(snackBar)).brightness,
+    expected,
+    reason: '복사됨 SnackBar',
+  );
+}
