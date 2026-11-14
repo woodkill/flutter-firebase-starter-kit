@@ -294,9 +294,9 @@ String _buildUnreadableMessage(
     '$file 의 ${unreadable.line} 을 읽지 못했다 — flutter: assets: 목록 항목에서 '
         '읽는 꼴이 아니다.\n'
         '목록 항목은 같은 들여쓰기의 「- 경로」 한 줄이나 「- path: 경로」 와 그 '
-        '아래 따옴표 없는 「키: 값」 줄로 적고, 따옴표로 감싼 값 안에는 같은 따옴표와 '
-        r'\ 를 쓰지 않으며, flavors: · platforms: 값은 같은 줄의 […] 이나 그 아래 '
-        '「- 이름」 줄로 적는다.',
+        r'아래 따옴표 없는 「키: 값」 줄로 적고, 값에는 \ 를 쓰지 않고 따옴표로 감싼 '
+        '값 안에는 같은 따옴표를 쓰지 않으며, flavors: · platforms: 값은 같은 줄의 '
+        '[…] 이나 그 아래 「- 이름」 줄로 적는다.',
 });
 
 /// `flutter_native_splash.yaml` 의 읽지 못한 줄 [unreadable] 메시지를 만든다.
@@ -709,11 +709,11 @@ bool _isPlainScalar(String value) =>
     value.isNotEmpty && !value.startsWith(RegExp(r'[{\[!&*|>%@`]|[?:-](\s|$)'));
 
 /// 키 뒤나 `- ` 뒤의 원문 [rest] 가 이 시험이 읽는 한 줄 스칼라 값인지 본다 —
-/// 값([_readYamlValue])이 [_isPlainScalar] 이고, 따옴표로 시작하면 같은 따옴표로
-/// 닫히며 닫는 따옴표 뒤는 비거나 `#` 로 시작한다(주석).
+/// 값([_readYamlValue])이 [_isPlainScalar] 이고 `\` 가 없으며, 따옴표로 시작하면
+/// 같은 따옴표로 닫히고 닫는 따옴표 뒤는 비거나 `#` 로 시작한다(주석).
 bool _isScalarValue(String rest) {
   final String value = _readYamlValue(rest);
-  if (!_isPlainScalar(value)) {
+  if (!_isPlainScalar(value) || value.contains(r'\')) {
     return false;
   }
   if (value.startsWith('"') || value.startsWith("'")) {
@@ -1998,6 +1998,10 @@ void main() {
         // 항목 첫 줄이 「:」 로 끝나는 키 꼴 · 복합 키 표시로 시작한다.
         '    - path :\n': '- path :',
         '    - ? path\n      : assets/images/splash/\n': '- ? path',
+        // 값에 「\」 가 있다(첫 줄 「- 경로」 · 큰따옴표 값 · path: 값).
+        '    - assets/a\\b/\n': r'- assets/a\b/',
+        '    - "assets/a\\b/"\n': r'- "assets/a\b/"',
+        '    - path: "assets/a\\\\b/"\n': r'- path: "assets/a\\b/"',
       };
       // 빌드 한정 키의 같은 줄 값이 YAML 표시 글자로 시작한다 — 표시 글자마다
       // 하나(flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자 · 뒤에 공백이 오는
@@ -2042,7 +2046,7 @@ void main() {
             isNot(contains('한정한 항목에만')),
             isNot(contains('에 없다')),
             isNot(contains('flow 꼴')),
-            contains(r'따옴표로 감싼 값 안에는 같은 따옴표와 \ 를 쓰지 않으며'),
+            contains(r'값에는 \ 를 쓰지 않고 따옴표로 감싼 값 안에는 같은 따옴표를'),
             contains('스플래시 바꾸기'),
           ]),
         );
@@ -2060,6 +2064,13 @@ void main() {
         '    - flavors: []\n      path: "assets/images/splash/" # c\n',
       ]) {
         expect(checkPubspec(assetsPubspec(quotedItem)), isEmpty);
+      }
+      // 끝 주석 안의 「\」 는 값이 아니다 — 항목 첫 줄 · 키 줄.
+      for (final commentItem in <String>[
+        '    - assets/images/splash/ # a\\b\n',
+        '    - flavors: []\n      path: assets/images/splash/ # c:\\x\n',
+      ]) {
+        expect(checkPubspec(assetsPubspec(commentItem)), isEmpty);
       }
       for (final quotedItem in <String>[
         '    - path: "assets/images/splash/ #x/"\n',
