@@ -1881,6 +1881,7 @@ done
   - `flutter_native_splash:` · `android_12:` 와 `pubspec.yaml` 의 `flutter:` · `assets:` 는 블록 꼴(값을 키 다음 줄부터 들여 쓴 꼴)로 적는다.
   - 같은 블록의 키 · 목록 항목은 같은 들여쓰기로 적고, `flutter_native_splash:` 블록 안 다른 키의 flow 값은 한 줄로 적는다 — 대조 시험이 읽는 꼴과 그 밖의 줄을 말하며 실패하는 규칙은 그 시험 파일의 `readSplashYaml` · `readFlutterAssets` 문서 주석에 있다.
   - `assets:` 목록 항목은 `- 경로` 한 줄이나 따옴표 없는 `키: 값` 줄로 적고, `flavors:` · `platforms:` 값은 같은 줄의 `[…]` 이나 그 아래 `- 이름` 줄로 적는다 — 대조 시험이 읽는 항목 꼴과 그 밖의 줄을 말하며 실패하는 규칙은 그 시험 파일의 `readFlutterAssets` 문서 주석에 있다.
+  - `assets:` 목록 항목에서 따옴표로 감싼 값 안에는 같은 따옴표와 `\` 를 쓰지 않는다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.
   - Flutter 스플래시의 로고 자리는 이 옵션을 따르지 않는다 — ⑥ 의 킷 파일이 정한다.
