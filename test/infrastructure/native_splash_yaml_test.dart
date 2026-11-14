@@ -713,6 +713,23 @@ bool _isReadableRestrictionValue(String value) =>
     _isPlainScalar(value) ||
     (value.startsWith('[') && value.endsWith(']'));
 
+/// 목록 항목 첫 줄의 `- ` 뒤 [rest] 가 경로 한 줄인지 본다 — 값이 한 줄 스칼라이고,
+/// 따옴표 값이면 짝 따옴표 뒤가 비거나 주석이며, 따옴표 없는 값이면 `키:` 꼴(`: `
+/// 를 담거나 `:` 로 끝남)이 아니다.
+bool _isItemPathLine(String rest) {
+  final String value = _readYamlValue(rest);
+  if (!_isPlainScalar(value)) {
+    return false;
+  }
+  if (value.startsWith('"') || value.startsWith("'")) {
+    final String after = rest.trim().substring(value.length).trim();
+    return value.length >= 2 &&
+        value.endsWith(value[0]) &&
+        (after.isEmpty || after.startsWith('#'));
+  }
+  return !value.contains(': ') && !value.endsWith(':');
+}
+
 /// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
 ///
 /// 들여쓰기는 상대 깊이로 읽는다 — `flutter:` 절 첫 키 줄의 들여쓰기가 절의 키,
@@ -721,6 +738,8 @@ bool _isReadableRestrictionValue(String value) =>
 /// 값은 `unreadable` 로 돌려준다.
 ///
 /// 목록 항목 안에서 읽는 꼴은 아래뿐이다.
+/// - 항목 첫 줄: `- 경로`(따옴표가 있거나 없는 한 줄 스칼라 · [_isItemPathLine])나
+///   `- 키: 값` 이다.
 /// - 키 줄: `- ` 뒤 글자 자리(첫 줄의 `- 키: 값` 포함)의 `키: 값` — 키는 따옴표
 ///   없이 쓰고 바로 뒤에 `:` 를 둔다. `path:` 의 값은 경로(한 줄 스칼라)다.
 /// - 빌드 한정 키(`flavors:` · `platforms:`)의 값: 같은 줄에서 닫히는 `[…]` · 한 줄
@@ -731,7 +750,7 @@ bool _isReadableRestrictionValue(String value) =>
 ///
 /// 한 줄 스칼라는 [_isPlainScalar] 다. 목록 항목 안의 그 밖의 줄은 그 줄을 말하는
 /// `unreadable`(이유 [UnreadableYamlReason.assetItem])로 돌려준다 — 예: 여러 줄에
-/// 걸친 `flavors: [`, 따옴표 키 `"flavors":`.
+/// 걸친 `flavors: [`, 따옴표 키 `"flavors":`, 항목 자체가 flow 맵인 `- {path: …}`.
 FlutterAssetList readFlutterAssets(String pubspec) {
   final assets = <FlutterAssetEntry>[];
   final List<String> lines = pubspec.split('\n');
@@ -877,6 +896,9 @@ FlutterAssetList readFlutterAssets(String pubspec) {
         return unreadableItemAt(i);
       }
       if (isKeyRead == null) {
+        if (!_isItemPathLine(rest)) {
+          return unreadableItemAt(i);
+        }
         itemPath = _unquote(content);
       }
       continue;
@@ -1896,27 +1918,36 @@ void main() {
 
       // assets: 목록 항목 안에서 읽는 꼴 밖의 줄은 그 줄을 말하는 메시지 하나로
       // 실패한다 — 빌드를 한정했다고도, assets: 에 없다고도 말하지 않는다.
-      String itemPubspec(String item) =>
+      String assetsPubspec(String items) =>
           'name: app\n'
           'flutter:\n'
           '  uses-material-design: true\n'
           '  assets:\n'
-          '    - path: assets/images/splash/\n'
-          '$item'
+          '$items'
           '  generate: true\n';
-      // 항목 줄(경로 줄 뒤) → 메시지가 말해야 할 줄.
+      const pathLine = '    - path: assets/images/splash/\n';
+      String itemPubspec(String item) => assetsPubspec('$pathLine$item');
+      // 목록 항목 줄 → 메시지가 말해야 할 줄.
       const unreadableItems = <String, String>{
         // 빌드 한정 키의 같은 줄에서 닫히지 않는 flow 값.
-        '      flavors: [\n        dev\n      ]\n': 'flavors: [',
-        '      platforms: [android,\n        ios]\n': 'platforms: [android,',
+        '$pathLine      flavors: [\n        dev\n      ]\n': 'flavors: [',
+        '$pathLine      platforms: [android,\n        ios]\n':
+            'platforms: [android,',
         // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄.
-        '      flavors:\n        [dev]\n': '[dev]',
+        '$pathLine      flavors:\n        [dev]\n': '[dev]',
         // 항목 키 들여쓰기에서 알아보지 못한 줄(따옴표 키 · 콜론 앞 공백).
-        '      "flavors": [dev]\n': '"flavors": [dev]',
-        '      flavors : [dev]\n': 'flavors : [dev]',
+        '$pathLine      "flavors": [dev]\n': '"flavors": [dev]',
+        '$pathLine      flavors : [dev]\n': 'flavors : [dev]',
+        // 항목 첫 줄이 flow 맵 · 빈 값 · 따옴표 키 — 유효한 등록이어도 경로로
+        // 읽지 않는다.
+        '    - {path: assets/images/splash/}\n':
+            '- {path: assets/images/splash/}',
+        '    -\n      path: assets/images/splash/\n': '-',
+        '    - "path": assets/images/splash/\n':
+            '- "path": assets/images/splash/',
       };
       for (final MapEntry<String, String> sample in unreadableItems.entries) {
-        final String text = itemPubspec(sample.key);
+        final String text = assetsPubspec(sample.key);
         expect(
           readFlutterAssets(text).unreadable?.reason,
           UnreadableYamlReason.assetItem,
