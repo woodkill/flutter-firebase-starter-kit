@@ -701,24 +701,16 @@ List<String> _readInlineNames(String value) {
   ];
 }
 
-/// 값 [value] 가 이 시험이 읽는 한 줄 스칼라인지 본다 — 비지 않았고 YAML 표시로
-/// 시작하지 않는다: flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자(`{` `[` `!`
+/// 값 [value] 가 비지 않았고 YAML 표시로 시작하지 않는지 본다 — 표시는 flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자(`{` `[` `!`
 /// `&` `*` `|` `>` `%` `@` `` ` ``)와 뒤에 공백이 오는 `?` · `:` · `-`(복합 키 ·
 /// 목록).
 bool _isPlainScalar(String value) =>
     value.isNotEmpty && !value.startsWith(RegExp(r'[{\[!&*|>%@`]|[?:-](\s|$)'));
 
-/// 빌드 한정 키의 같은 줄 값 [value] 를 읽을 수 있는지 본다 — 빈 값 · 한 줄 스칼라
-/// (`null` · `~` 포함) · 같은 줄에서 닫히는 `[…]` 다.
-bool _isReadableRestrictionValue(String value) =>
-    value.isEmpty ||
-    _isPlainScalar(value) ||
-    (value.startsWith('[') && value.endsWith(']'));
-
-/// 목록 항목 첫 줄의 `- ` 뒤 [rest] 가 경로 한 줄인지 본다 — 값이 한 줄 스칼라이고,
-/// 따옴표 값이면 짝 따옴표 뒤가 비거나 주석이며, 따옴표 없는 값이면 `키:` 꼴(`: `
-/// 를 담거나 `:` 로 끝남)이 아니다.
-bool _isItemPathLine(String rest) {
+/// 키 뒤나 `- ` 뒤의 원문 [rest] 가 이 시험이 읽는 한 줄 스칼라 값인지 본다 —
+/// 값([_readYamlValue])이 [_isPlainScalar] 이고, 따옴표로 시작하면 같은 따옴표로
+/// 닫히며 닫는 따옴표 뒤는 비거나 `#` 로 시작한다(주석).
+bool _isScalarValue(String rest) {
   final String value = _readYamlValue(rest);
   if (!_isPlainScalar(value)) {
     return false;
@@ -729,7 +721,28 @@ bool _isItemPathLine(String rest) {
         value.endsWith(value[0]) &&
         (after.isEmpty || after.startsWith('#'));
   }
-  return !value.contains(': ') && !value.endsWith(':');
+  return true;
+}
+
+/// 빌드 한정 키 뒤의 원문 [rest] 를 읽을 수 있는지 본다 — 값([_readYamlValue])이
+/// 비었거나, [_isScalarValue] 이거나, 같은 줄에서 닫히는 `[…]` 다.
+bool _isReadableRestrictionValue(String rest) {
+  final String value = _readYamlValue(rest);
+  return value.isEmpty ||
+      _isScalarValue(rest) ||
+      (value.startsWith('[') && value.endsWith(']'));
+}
+
+/// 목록 항목 첫 줄의 `- ` 뒤 [rest] 가 경로 한 줄인지 본다 — [_isScalarValue] 이고,
+/// 따옴표 없는 값이면 `키:` 꼴(`: ` 를 담거나 `:` 로 끝남)이 아니다.
+bool _isItemPathLine(String rest) {
+  if (!_isScalarValue(rest)) {
+    return false;
+  }
+  final String value = _readYamlValue(rest);
+  return value.startsWith('"') ||
+      value.startsWith("'") ||
+      (!value.contains(': ') && !value.endsWith(':'));
 }
 
 /// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
@@ -740,17 +753,16 @@ bool _isItemPathLine(String rest) {
 /// 값은 `unreadable` 로 돌려준다.
 ///
 /// 목록 항목 안에서 읽는 꼴은 아래뿐이다.
-/// - 항목 첫 줄: `- 경로`(따옴표가 있거나 없는 한 줄 스칼라 · [_isItemPathLine])나
-///   `- 키: 값` 이다.
+/// - 항목 첫 줄: `- 경로`([_isItemPathLine])나 `- 키: 값` 이다.
 /// - 키 줄: `- ` 뒤 글자 자리(첫 줄의 `- 키: 값` 포함)의 `키: 값` — 키는 따옴표
-///   없이 쓰고 바로 뒤에 `:` 를 둔다. `path:` 의 값은 경로(한 줄 스칼라)다.
-/// - 빌드 한정 키(`flavors:` · `platforms:`)의 값: 같은 줄에서 닫히는 `[…]` · 한 줄
-///   스칼라 · `null` · `~` · 빈 값이다. 빈 값이면 그 아래 키 들여쓰기 이상의
-///   `- 이름` 줄이 이름이다.
+///   없이 쓰고 바로 뒤에 `:` 를 둔다. `path:` 의 값은 경로([_isScalarValue])다.
+/// - 빌드 한정 키(`flavors:` · `platforms:`)의 값: [_isReadableRestrictionValue]
+///   다. 빈 값이면 그 아래 키 들여쓰기 이상의 `- 이름` 줄([_isScalarValue])이
+///   이름이다.
 /// - 그 밖의 키: 그 키보다 깊은 줄과 키 들여쓰기의 목록 줄은 그 키의 내용이라
 ///   건너뛴다(transformers 목록 등).
 ///
-/// 한 줄 스칼라는 [_isPlainScalar] 다. 목록 항목 안의 그 밖의 줄은 그 줄을 말하는
+/// 목록 항목 안의 그 밖의 줄은 그 줄을 말하는
 /// `unreadable`(이유 [UnreadableYamlReason.assetItem])로 돌려준다 — 예: 여러 줄에
 /// 걸친 `flavors: [`, 따옴표 키 `"flavors":`, 항목 자체가 flow 맵인 `- {path: …}`.
 FlutterAssetList readFlutterAssets(String pubspec) {
@@ -810,16 +822,17 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       return null;
     }
     final String key = match.group(1)!;
-    final String value = _readYamlValue(text.substring(match.end));
+    final String rest = text.substring(match.end);
+    final String value = _readYamlValue(rest);
     listKey = null;
     inOtherKey = false;
     if (key == 'path') {
-      if (!_isPlainScalar(value)) {
+      if (!_isScalarValue(rest)) {
         return false;
       }
       itemPath = _unquote(value);
     } else if (_buildRestrictionKeys.contains(key)) {
-      if (!_isReadableRestrictionValue(value)) {
+      if (!_isReadableRestrictionValue(rest)) {
         return false;
       }
       if (value.isEmpty) {
@@ -892,8 +905,7 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       itemIndent = indent;
       final String rest = trimmed.substring(1);
       itemKeyIndent = indent + 1 + rest.length - rest.trimLeft().length;
-      final String content = _readYamlValue(rest);
-      final bool? isKeyRead = readItemKey(content);
+      final bool? isKeyRead = readItemKey(rest.trim());
       if (isKeyRead == false) {
         return unreadableItemAt(i);
       }
@@ -901,7 +913,7 @@ FlutterAssetList readFlutterAssets(String pubspec) {
         if (!_isItemPathLine(rest)) {
           return unreadableItemAt(i);
         }
-        itemPath = _unquote(content);
+        itemPath = _unquote(_readYamlValue(rest));
       }
       continue;
     }
@@ -913,9 +925,9 @@ FlutterAssetList readFlutterAssets(String pubspec) {
           continue;
         }
       } else if (namesKey != null && isListItem && indent >= keyIndent) {
-        final name = _readYamlValue(trimmed.substring(1));
-        if (_isPlainScalar(name)) {
-          itemNames[namesKey]!.add(_unquote(name));
+        final String nameRest = trimmed.substring(1);
+        if (_isScalarValue(nameRest)) {
+          itemNames[namesKey]!.add(_unquote(_readYamlValue(nameRest)));
           continue;
         }
       } else if (inOtherKey &&
@@ -1956,6 +1968,17 @@ void main() {
         '    - path:\n      flavors: [dev]\n': '- path:',
         // 항목 첫 줄이 목록 표시로 시작한다(항목이 목록이다).
         '    - - assets/images/splash/\n': '- - assets/images/splash/',
+        // 따옴표 값의 닫는 따옴표 뒤에 주석 아닌 글자가 있다 — path: 값(첫 줄 ·
+        // 키 줄) · 빌드 한정 키의 같은 줄 값 · 이름 줄.
+        "    - path: 'assets/images/splash/''old/'\n":
+            "- path: 'assets/images/splash/''old/'",
+        "    - flavors: []\n      path: 'assets/images/splash/''old/'\n":
+            "path: 'assets/images/splash/''old/'",
+        '    - path: "assets/images/splash/" junk\n':
+            '- path: "assets/images/splash/" junk',
+        '$pathLine      flavors: "dev" junk\n': 'flavors: "dev" junk',
+        '$pathLine      platforms:\n        - "android" x\n        - ios\n':
+            '- "android" x',
       };
       for (final MapEntry<String, String> sample in unreadableItems.entries) {
         final String text = assetsPubspec(sample.key);
@@ -1985,6 +2008,25 @@ void main() {
         checkPubspec(itemPubspec('      platforms: [android, ios] # 둘 다\n')),
         isEmpty,
       );
+      // 따옴표 값 뒤의 끝 주석은 값이 아니고, 따옴표 안의 「공백 + #」 은 값이다
+      // — 항목 첫 줄과 키 줄이 같은 값을 읽는다.
+      for (final quotedItem in <String>[
+        '    - path: "assets/images/splash/" # c\n',
+        '    - flavors: []\n      path: "assets/images/splash/" # c\n',
+      ]) {
+        expect(checkPubspec(assetsPubspec(quotedItem)), isEmpty);
+      }
+      for (final quotedItem in <String>[
+        '    - path: "assets/images/splash/ #x/"\n',
+        '    - flavors: []\n      path: "assets/images/splash/ #x/"\n',
+      ]) {
+        expect(
+          readFlutterAssets(assetsPubspec(quotedItem)).assets,
+          <FlutterAssetEntry>[
+            (path: 'assets/images/splash/ #x/', isBuildRestricted: false),
+          ],
+        );
+      }
       for (final restrictedItem in <String>[
         '      flavors: [dev] # 끝 주석\n',
         '      flavors:\n        - dev\n',
