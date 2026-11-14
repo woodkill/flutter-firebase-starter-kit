@@ -686,7 +686,8 @@ bool _isBuildRestricted(List<String> flavors, List<String> platforms) =>
     (platforms.isNotEmpty && !_kitPlatforms.every(platforms.contains));
 
 /// 빌드 한정 키의 한 줄 값 [value] 에서 이름을 꺼낸다 — `[]` · `null` · `~` 는
-/// 이름이 없다.
+/// 이름이 없다. [value] 는 [_isReadableRestrictionValue] 를 지난 원문의 비지 않은
+/// 값([_readYamlValue])이다.
 List<String> _readInlineNames(String value) {
   if (value == 'null' || value == '~') {
     return const <String>[];
@@ -694,9 +695,8 @@ List<String> _readInlineNames(String value) {
   if (!value.startsWith('[')) {
     return <String>[_unquote(value)];
   }
-  final int end = value.endsWith(']') ? value.length - 1 : value.length;
   return <String>[
-    for (final String part in value.substring(1, end).split(','))
+    for (final String part in value.substring(1, value.length - 1).split(','))
       if (part.trim().isNotEmpty) _unquote(part.trim()),
   ];
 }
