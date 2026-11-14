@@ -1911,8 +1911,9 @@ fvm dart run flutter_native_splash:create
   - 글자 · 진행 표시 색은 테마(`context.colorScheme`)에서 읽는다 — 그 테마는 배경 밝기에 맞춘 테마다.
 - 내용을 바꾸면 그 시험 `test/features/splash/splash_body_test.dart` 도 함께 고친다.
   - 이 시험도 내 파일이다. 가로 화면 점검은 내 로고 대신 시험용 작은 로고로 그려 아래 내용이 가로 칸에 들어가는지만 본다.
-- 끝나지 않는 애니메이션을 넣었다면 라우터로 앱 전체를 여는 킷 시험이 끝나는지 돌려 본다.
-  - 이 시험들은 내 화면까지 그리므로 끝나지 않는 애니메이션이 있으면 시험의 기다림이 끝나지 않을 수 있다 — `test/core/router/app_router_nesting_test.dart` · `test/app_high_contrast_test.dart` · `test/core/router/session_ending_flow_test.dart` · `test/core/router/app_router_observers_test.dart` · `test/features/notifications/application/notification_settings_notifier_test.dart` · `test/widget_test.dart`.
+- `hasFailure` 가 참일 때도 도는 애니메이션이나 스플래시를 떠난 뒤에도 남는 타이머 · 스트림을 넣었다면 라우터로 앱 전체를 여는 킷 시험이 끝나는지 돌려 본다.
+  - 이 시험들은 내 화면까지 그리고 스플래시 화면이 사라질 때까지 기다리므로, 킷 기본 진행 표시처럼 화면과 함께 사라지는 애니메이션은 괜찮다.
+  - 위 두 경우는 그 기다림이 끝나지 않게 할 수 있다 — `test/core/router/app_router_nesting_test.dart` · `test/app_high_contrast_test.dart` · `test/core/router/session_ending_flow_test.dart` · `test/core/router/app_router_observers_test.dart` · `test/features/notifications/application/notification_settings_notifier_test.dart` · `test/widget_test.dart`.
 - 로고 자리 · 크기를 바꾸려면 킷 파일 `lib/features/splash/presentation/splash_frame.dart` 를 고친다.
   - 배경 고르기 · 로고 그리기도 이 파일이 한다. 이 파일을 고치면 킷 업데이트 때 생기는 충돌을 직접 푼다.
 
@@ -1963,8 +1964,8 @@ fvm dart run flutter_native_splash:create
   - 홈과 이어지게 하려면 ② 대로 스플래시 색을 홈 배경색과 같은 값으로 둔다.
   - 그 뒤 [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 로 테마 색을 바꾸면 스플래시 색도 함께 고친다 — 스플래시 색은 테마를 자동으로 따라가지 않는다.
 - **라우터로 앱 전체를 여는 킷 시험이 끝나지 않는다.**
-  - 로고 아래 내용에 끝나지 않는 애니메이션이 있다 — `app_router_nesting_test.dart` · `widget_test.dart` 같은 시험이 내 화면까지 그린다.
-  - ⑥ 대로 애니메이션을 정해진 시간 안에 끝나게 하거나 빼고 그 시험을 다시 돌린다.
+  - 로고 아래 내용에 `hasFailure` 가 참일 때도 도는 애니메이션이나 스플래시를 떠난 뒤에도 남는 타이머 · 스트림이 있다 — `app_router_nesting_test.dart` · `widget_test.dart` 같은 시험이 내 화면까지 그린다.
+  - `hasFailure` 가 참이면 그 애니메이션을 멈추고, 타이머 · 스트림은 화면이 사라질 때 닫은 뒤 그 시험을 다시 돌린다.
 
 ### 되돌리기
 
