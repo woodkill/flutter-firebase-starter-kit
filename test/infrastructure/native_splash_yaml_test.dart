@@ -1988,8 +1988,40 @@ void main() {
         '$pathLine      flavors: "dev" junk\n': 'flavors: "dev" junk',
         '$pathLine      platforms:\n        - "android" x\n        - ios\n':
             '- "android" x',
+        // 따옴표 하나뿐인 값 · 닫히지 않는 따옴표 값(첫 줄 「- 경로」 · path: 값).
+        '    - "\n': '- "',
+        '    - "assets/images/splash/\n': '- "assets/images/splash/',
+        '    - path: "assets/images/splash/\n':
+            '- path: "assets/images/splash/',
+        // 항목 첫 줄이 「:」 로 끝나는 키 꼴 · 복합 키 표시로 시작한다.
+        '    - path :\n': '- path :',
+        '    - ? path\n      : assets/images/splash/\n': '- ? path',
       };
-      for (final MapEntry<String, String> sample in unreadableItems.entries) {
+      // 빌드 한정 키의 같은 줄 값이 YAML 표시 글자로 시작한다 — 표시 글자마다
+      // 하나(flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자 · 뒤에 공백이 오는
+      // 복합 키 · 값 · 목록 표시).
+      const indicatorValues = <String>[
+        '{dev: 1}',
+        '[dev',
+        '!dev',
+        '&a',
+        '*a',
+        '|',
+        '>',
+        '%dev',
+        '@dev',
+        '`dev`',
+        '? dev',
+        ': dev',
+        '- dev',
+      ];
+      final unreadableSamples = <String, String>{
+        ...unreadableItems,
+        for (final indicatorValue in indicatorValues)
+          '$pathLine      flavors: $indicatorValue\n':
+              'flavors: $indicatorValue',
+      };
+      for (final MapEntry<String, String> sample in unreadableSamples.entries) {
         final String text = assetsPubspec(sample.key);
         expect(
           readFlutterAssets(text).unreadable?.reason,
@@ -2020,6 +2052,7 @@ void main() {
       // 따옴표 값 뒤의 끝 주석은 값이 아니고, 따옴표 안의 「공백 + #」 은 값이다
       // — 항목 첫 줄과 키 줄이 같은 값을 읽는다.
       for (final quotedItem in <String>[
+        '    - "assets/images/splash/" # c\n',
         '    - path: "assets/images/splash/" # c\n',
         '    - flavors: []\n      path: "assets/images/splash/" # c\n',
       ]) {
@@ -2036,7 +2069,26 @@ void main() {
           ],
         );
       }
+      // 따옴표 값은 「: 」 를 담아도 키 꼴이 아니라 경로다.
+      for (final quotedPath in <String>[
+        '    - "assets/a: b/"\n',
+        "    - 'assets/a: b/'\n",
+      ]) {
+        expect(
+          readFlutterAssets(assetsPubspec(quotedPath)).assets,
+          <FlutterAssetEntry>[(path: 'assets/a: b/', isBuildRestricted: false)],
+        );
+      }
+      // 빌드 한정 키의 null · ~ 는 이름이 없어 모든 빌드에 실린다.
+      for (final unnamedItem in <String>[
+        '      flavors: null\n',
+        '      platforms: ~\n',
+      ]) {
+        expect(checkPubspec(itemPubspec(unnamedItem)), isEmpty);
+      }
       for (final restrictedItem in <String>[
+        // 한 줄 스칼라 값도 이름으로 읽는다.
+        '      flavors: dev\n',
         '      flavors: [dev] # 끝 주석\n',
         '      flavors:\n        - dev\n',
         '      flavors:\n      - dev\n',
