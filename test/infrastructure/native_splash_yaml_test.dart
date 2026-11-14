@@ -7,7 +7,9 @@
 // 이름 · 두 값 · 붙여 넣을 Dart 선언을 담은 메시지로 실패한다.
 //
 // **YAML 을 파서 없이 줄 단위로 읽는다** — YAML 파서 패키지는 이 앱의 직접
-// 의존이 아니라 import 하면 `depend_on_referenced_packages` 진단이 난다.
+// 의존이 아니라 import 하면 `depend_on_referenced_packages` 진단이 난다. 읽는
+// 범위는 [readSplashYaml] 문서에 있고, 그 범위 밖 줄은 들여쓰기를 읽지 못했다는
+// 메시지로 실패한다.
 //
 // **주석을 먼저 걷어낸다** — 앞 공백을 걷어낸 줄이 `#` 로 시작하면 버린다. 설명
 // 주석이 키 이름을 말해도 값으로 읽지 않는다.
@@ -28,7 +30,8 @@
 //
 // 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향 · 알파) ·
 // 03(`android_12` 색) · 04(값 없음) · 05(플랫폼별 색 키) · 06(플랫폼별 로고 키) ·
-// 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림).
+// 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림) ·
+// 11(들여쓰기).
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_body.dart';
@@ -38,20 +41,29 @@ import '../helpers/source_text.dart';
 
 const String _yamlPath = 'flutter_native_splash.yaml';
 
-/// [readSplashYaml] 의 결과 — 블록을 찾았는지와 키 → 원값 맵 두 개.
+/// [readSplashYaml] 의 결과 — 블록을 찾았는지 · 읽지 못한 줄 · 키 → 원값 맵 두 개.
 ///
+/// 어느 줄을 어느 맵에 넣는지는 [readSplashYaml] 문서의 규칙을 따른다.
 /// - `hasBlock`: 들여쓰기 0 의 `flutter_native_splash:` 줄이 있다.
-/// - `hasAndroid12`: 그 블록 안에 들여쓰기 2 의 `android_12:` 줄이 있다.
-/// - `top`: 블록 안 들여쓰기 2 키 → 원값(따옴표 포함 · 주석 제외).
-/// - `android12`: `android_12:` 블록 안 들여쓰기 4 키 → 원값.
+/// - `hasAndroid12`: 그 블록의 top 키로 `android_12:` 줄이 있다.
+/// - `unreadable`: 규칙으로 자리를 정하지 못한 첫 줄(줄 번호 · 원문)이다. null 이
+///   아니면 두 맵을 믿지 않는다.
+/// - `top`: 블록의 top 키 → 원값(따옴표 포함 · 주석 제외).
+/// - `android12`: `android_12:` 블록의 키 → 원값.
 typedef SplashYamlBlocks = ({
   bool hasBlock,
   bool hasAndroid12,
+  String? unreadable,
   Map<String, String> top,
   Map<String, String> android12,
 });
 
 /// [yaml] 의 `flutter_native_splash:` 블록을 줄 단위로 읽는다.
+///
+/// 들여쓰기는 칸 수가 아니라 상대 깊이로 읽는다 — 블록 안 첫 키 줄의 들여쓰기가
+/// top 키, `android_12:` 다음 첫 줄의 들여쓰기가 `android_12` 키이고, 값이 빈 다른
+/// top 키 아래의 더 깊은 줄(목록 · 맵 내용)은 대조하지 않고 건너뛰며, 이 셋 중
+/// 어디에도 들지 않는 줄은 `unreadable` 로 돌려준다.
 ///
 /// 앞 공백을 걷어낸 줄이 `#` 로 시작하면 버린다(블록을 끝내지도 않는다). 값이
 /// 따옴표로 시작하면 짝 따옴표까지, 아니면 첫 「공백 + `#`」 앞까지를 값으로 본다
@@ -60,13 +72,12 @@ SplashYamlBlocks readSplashYaml(String yaml) {
   final top = <String, String>{};
   final android12 = <String, String>{};
   final List<String> lines = yaml.split('\n');
-  final int start = lines.indexWhere(
-    (String line) => line.trimRight() == 'flutter_native_splash:',
-  );
+  final int start = lines.indexWhere(_isBlockHead);
   if (start == -1) {
     return (
       hasBlock: false,
       hasAndroid12: false,
+      unreadable: null,
       top: top,
       android12: android12,
     );
@@ -74,8 +85,13 @@ SplashYamlBlocks readSplashYaml(String yaml) {
 
   var hasAndroid12 = false;
   var inAndroid12 = false;
+  // 값이 빈 top 키(android_12 밖) 아래 — 더 깊은 줄은 그 키의 내용이다.
+  var inOtherContainer = false;
+  int? topIndent;
+  int? android12Indent;
+  String? unreadable;
   for (var i = start + 1; i < lines.length; i++) {
-    final String line = lines[i];
+    final String line = lines[i].trimRight();
     final String trimmed = line.trimLeft();
     // 빈 줄 · 주석 줄은 들여쓰기와 무관하게 버린다 — 블록을 끝내지 않는다.
     if (trimmed.isEmpty || trimmed.startsWith('#')) {
@@ -85,29 +101,63 @@ SplashYamlBlocks readSplashYaml(String yaml) {
     if (indent == 0) {
       break;
     }
+    topIndent ??= indent;
+    final bool isListItem = trimmed == '-' || trimmed.startsWith('- ');
     final int colon = trimmed.indexOf(':');
-    if (colon == -1) {
-      continue;
-    }
-    final String key = trimmed.substring(0, colon).trim();
-    final String value = _readYamlValue(trimmed.substring(colon + 1));
-    if (indent == 2) {
+    final String key = colon == -1 ? '' : trimmed.substring(0, colon).trim();
+    final String value = colon == -1
+        ? ''
+        : _readYamlValue(trimmed.substring(colon + 1));
+
+    if (indent == topIndent && !isListItem && colon != -1) {
       inAndroid12 = key == 'android_12' && value.isEmpty;
+      inOtherContainer = !inAndroid12 && value.isEmpty;
+      android12Indent = null;
       if (inAndroid12) {
         hasAndroid12 = true;
       } else {
         top[key] = value;
       }
-    } else if (indent == 4 && inAndroid12) {
-      android12[key] = value;
+      continue;
     }
+    if (inAndroid12 && indent > topIndent) {
+      android12Indent ??= indent;
+      if (indent == android12Indent && !isListItem && colon != -1) {
+        android12[key] = value;
+        continue;
+      }
+    }
+    // YAML 은 목록 항목을 키와 같은 들여쓰기에 둘 수도 있다.
+    final bool isContainerContent =
+        indent > topIndent || (indent == topIndent && isListItem);
+    if (inOtherContainer && isContainerContent) {
+      continue;
+    }
+    unreadable = '${i + 1}번째 줄 「$trimmed」';
+    break;
+  }
+  if (topIndent == null) {
+    unreadable = '${start + 2}번째 줄부터 — flutter_native_splash: 블록에 키 줄이 없다';
   }
   return (
     hasBlock: true,
     hasAndroid12: hasAndroid12,
+    unreadable: unreadable,
     top: top,
     android12: android12,
   );
+}
+
+/// [line] 이 들여쓰기 0 의 `flutter_native_splash:` 머리 줄인지 본다 — 끝 주석은
+/// 걷어내고 본다.
+bool _isBlockHead(String line) {
+  if (line.isEmpty || line.startsWith(RegExp(r'[\s#]'))) {
+    return false;
+  }
+  final int colon = line.indexOf(':');
+  return colon != -1 &&
+      line.substring(0, colon) == 'flutter_native_splash' &&
+      _readYamlValue(line.substring(colon + 1)).isEmpty;
 }
 
 /// 키 뒤 [rest] 에서 값을 꺼낸다 — 따옴표 값은 짝 따옴표까지(따옴표 포함),
@@ -365,6 +415,7 @@ void _checkAndroid12Image(
 /// [yaml] 의 색 · 그림 경로를 기대 상수 값과 대조해 어긋남 메시지를 돌려준다.
 ///
 /// 빈 목록이면 통과다. 메시지는 키마다 하나이고 끝줄이 안내 절 이름이다.
+/// [readSplashYaml] 이 읽지 못한 줄이 있으면 그 줄을 말하는 메시지 하나만 낸다.
 /// - `color` · `color_dark` · `image` · `image_dark` 는 필수이고 [color] ·
 ///   [colorDark] · [image] · [imageDark] 와 같아야 한다. [color] · [colorDark]
 ///   는 불투명(알파 `0xFF`)이어야 한다.
@@ -386,6 +437,17 @@ List<String> findSplashMismatches(
       _buildMessage(
         'flutter_native_splash.yaml 에 들여쓰기 0 의 flutter_native_splash: 줄이 '
         '없다.',
+      ),
+    ];
+  }
+  final String? unreadable = blocks.unreadable;
+  if (unreadable != null) {
+    // 맵을 믿을 수 없으므로 값 문제 메시지를 함께 내지 않는다.
+    return <String>[
+      _buildMessage(
+        'flutter_native_splash.yaml 의 들여쓰기를 읽지 못했다 — $unreadable.\n'
+        'flutter_native_splash: 블록의 키는 모두 같은 들여쓰기로, android_12: '
+        '아래 키는 그보다 깊은 같은 들여쓰기로 적는다.',
       ),
     ];
   }
@@ -554,6 +616,11 @@ void main() {
         blocks.hasBlock,
         isTrue,
         reason: '$_yamlPath 에서 들여쓰기 0 의 flutter_native_splash: 줄을 찾지 못했다',
+      );
+      expect(
+        blocks.unreadable,
+        isNull,
+        reason: '$_yamlPath 의 들여쓰기를 읽지 못했다 — ${blocks.unreadable}',
       );
       expect(
         blocks.hasAndroid12,
@@ -881,6 +948,7 @@ void main() {
 
       final SplashYamlBlocks blocks = readSplashYaml(yaml);
       expect(blocks.hasBlock, isTrue);
+      expect(blocks.unreadable, isNull);
       expect(blocks.hasAndroid12, isTrue);
       expect(
         blocks.top,
@@ -987,6 +1055,85 @@ void main() {
           contains('스플래시 바꾸기'),
         ]),
       );
+    });
+
+    test('T-26-YAML-11: 들여쓰기는 칸 수가 아니라 상대 깊이로 읽고, 읽지 못한 '
+        '줄은 그 줄을 말하는 메시지 하나로 실패', () {
+      // 파일 전체 4칸 · 머리 줄 끝 주석 · android_12 아래 6칸(4칸 + 2) — 킷 값과
+      // 같으므로 통과한다.
+      const fourSpace =
+          'flutter_native_splash: # 네이티브 스플래시 설정\n'
+          '    color: "#FFFFFF"\n'
+          '    color_dark: "#000000"\n'
+          '    image: $_logo\n'
+          '    image_dark: $_logoDark\n'
+          '    android_12:\n'
+          '      image: $_logo\n'
+          '      image_dark: $_logoDark\n'
+          '      color: "#FFFFFF"\n'
+          '    web: false\n';
+      final SplashYamlBlocks fourBlocks = readSplashYaml(fourSpace);
+      expect(fourBlocks.hasBlock, isTrue);
+      expect(fourBlocks.unreadable, isNull);
+      expect(fourBlocks.hasAndroid12, isTrue);
+      expect(fourBlocks.top['color'], '"#FFFFFF"');
+      expect(fourBlocks.android12['color'], '"#FFFFFF"');
+      expect(_findFixtureMismatches(fourSpace), isEmpty);
+
+      // android_12 아래를 6칸으로 들여 써도 그 블록의 값으로 읽어 대조한다.
+      final List<String> sixSpace = _findFixtureMismatches(
+        _buildSplashYaml(
+          android12Images:
+              '      image: $_logo\n'
+              '      image_dark: $_logoDark\n',
+          android12Colors: '      color: "#123456"\n',
+        ),
+      );
+      expect(sixSpace, hasLength(1), reason: sixSpace.join('\n\n'));
+      expect(
+        sixSpace.single,
+        startsWith('android_12.color 는 #123456 인데 color 는 #FFFFFF 다'),
+      );
+
+      // 값이 빈 다른 top 키 아래 목록(더 깊게 · 같은 깊이)은 건너뛴다.
+      expect(
+        _findFixtureMismatches(
+          _buildSplashYaml(
+            topExtra:
+                '  info_plist_files:\n'
+                "    - 'ios/Runner/Info-Debug.plist'\n"
+                '  ios_extra_list:\n'
+                "  - 'ios/Runner/Info-Release.plist'\n",
+          ),
+        ),
+        isEmpty,
+      );
+
+      // android_12 안에서 들여쓰기가 섞이면 그 줄을 말하고 값 메시지는 내지 않는다.
+      final List<String> mixed = _findFixtureMismatches(
+        _buildSplashYaml(
+          android12Colors:
+              '    color: "#FFFFFF"\n'
+              '      color_dark: "#000000"\n',
+        ),
+      );
+      expect(mixed, hasLength(1), reason: mixed.join('\n\n'));
+      expect(
+        mixed.single,
+        allOf(<Matcher>[
+          contains('들여쓰기를 읽지 못했다'),
+          contains('「color_dark: "#000000"」'),
+          isNot(contains('따옴표')),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
+
+      // top 키보다 얕은 줄도 읽지 못한 줄이다.
+      final List<String> shallow = _findFixtureMismatches(
+        fourSpace.replaceFirst('    web: false\n', '  web: false\n'),
+      );
+      expect(shallow, hasLength(1), reason: shallow.join('\n\n'));
+      expect(shallow.single, contains('「web: false」'));
     });
   });
 }
