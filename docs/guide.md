@@ -1173,6 +1173,9 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 그림자 높이(elevation) · 화면 폭 분기 · 키보드 포커스 테두리 · 컴포넌트 모양(아래 시트 · 삭제 버튼 · 큰 버튼 높이)을 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
+- 스플래시의 로고 아래 글자 · 진행 표시는 `lib/app.dart` 의 테마가 아니라 `AppTheme.light()` · `AppTheme.dark()` 에 config `brandColor` 시드와 OS 대비 설정(0.0 · 1.0)만 넘긴 테마를 쓴다.
+  - `lib/app.dart` 에서 바꾼 시드 · 대비 단계 · 색 변형 · 컴포넌트 테마 · 글자 스타일은 스플래시에 보이지 않는다. `lib/core/theme/` 의 토큰 · `AppTheme` 을 고친 값은 스플래시에도 보인다.
+  - 라이트 · 다크는 스플래시 배경 밝기를 따르고, 배경색 · 로고는 [스플래시 바꾸기](#스플래시-바꾸기) 가 정한다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
 
@@ -1316,7 +1319,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접 넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` / `darkTheme: AppTheme.dark(seedColor: Colors.teal),`).
   - **라이트와 다크에 같은 시드를 넘긴다** — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋난다.
   - 이때 `context.appColors.brand` 는 넘긴 시드를 따르고, 알림 색은 config `brandColor` 를 따른다.
-  - 스플래시의 로고 아래 글자 · 진행 표시 색도 config `brandColor` 시드의 기본 테마를 쓴다 — `lib/app.dart` 에서 바꾼 시드 · 색 변형 · 컴포넌트 테마는 스플래시에 보이지 않는다.
+  - 스플래시는 이 시드를 따르지 않는다 — [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 머리의 스플래시 항목을 본다.
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
