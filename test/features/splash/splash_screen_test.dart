@@ -50,26 +50,31 @@ Widget _buildTestBody(BuildContext context, {required bool hasFailure}) =>
 /// [SplashScreen] 을 [router] 로 pump 한다 (기본 en — [locale] 로 바꾼다).
 ///
 /// 앱 테마는 [themeMode] 로 고른다 — 기본 [ThemeMode.system] 은 OS 밝기를
-/// 따르고, 시험의 OS 밝기 기본값이 라이트라 라이트 테마다.
+/// 따르고, 시험의 OS 밝기 기본값이 라이트라 라이트 테마다. [bundle] 을 주면
+/// 로고를 내 로고 파일 대신 그 자산 묶음에서 읽는다.
 Future<void> _pumpSplash(
   WidgetTester tester, {
   required SplashInitializer initializer,
   required GoRouter router,
   Locale locale = const Locale('en'),
   ThemeMode themeMode = ThemeMode.system,
+  AssetBundle? bundle,
 }) async {
+  final app = MaterialApp.router(
+    theme: AppTheme.light(),
+    darkTheme: AppTheme.dark(),
+    themeMode: themeMode,
+    locale: locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    routerConfig: router,
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [splashInitializerProvider.overrideWith((ref) => initializer)],
-      child: MaterialApp.router(
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        themeMode: themeMode,
-        locale: locale,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        routerConfig: router,
-      ),
+      child: bundle == null
+          ? app
+          : DefaultAssetBundle(bundle: bundle, child: app),
     ),
   );
 }
@@ -1235,9 +1240,14 @@ void main() {
       for (final locale in _sweepLocales) {
         final label = '${_formatSize(size)} · ${locale.languageCode}';
 
-        testWidgets('SB ($label): 스플래시 본문 넘침 0 · 261003-0fp', (tester) async {
+        // 로고 파일과 떼어 놓음 — 내 로고 파일 대신 킷 자리 그림 크기의 시험용
+        // 로고로 그려, adopter 가 로고를 바꿔도 「킷 배치에서 아래 내용이 가로
+        // 칸에 들어가는가」 라는 같은 뜻을 본다.
+        testWidgets('SB ($label): 스플래시 본문 넘침 0 · 시험용 로고 · '
+            '261003-0fp', (tester) async {
           // Test 1 방식 — init 이 5분 뒤에 끝나 대기 상태 첫 프레임만 본다.
           SplashConfig.overrideMinDuration = const Duration(minutes: 5);
+          final png = await _createLogoPng(tester, _kLandscapeLogoPngPixels);
           _setLogicalViewport(tester, size);
           final initializer = SplashInitializer(
             authRepository: _MockAuthRepository(),
@@ -1255,8 +1265,21 @@ void main() {
               initializer: initializer,
               router: router,
               locale: locale,
+              bundle: _PngAssetBundle(png),
             );
             await tester.pump();
+            // 시험용 로고를 디코딩해 그 크기로 배치한 프레임을 본다.
+            final logo = find.byType(Image);
+            await precacheImage(
+              tester.widget<Image>(logo).image,
+              tester.element(logo),
+            );
+            await tester.pump();
+            expect(
+              tester.getSize(logo),
+              const Size.square(_kLandscapeLogoPngPixels / _kImageScale),
+              reason: '$label 시험용 로고 크기',
+            );
             expect(tester.takeException(), isNull, reason: '$label 본문');
             final body = find.text('TEST_BODY running');
             expect(body, findsOneWidget, reason: '$label 시험용 표시');
@@ -1682,6 +1705,12 @@ const int _kLargePngPixels = 1152;
 
 /// 시험이 만드는 작은 로고 PNG 한 변 (px) — 화면에는 128.
 const int _kSmallPngPixels = 512;
+
+/// 가로 모드(SB) 시험용 로고 PNG 한 변 (px) — 킷 자리 그림과 같은 128 이라
+/// 화면에는 32.
+///
+/// 내 로고 파일과 떼어 놓아, adopter 가 로고를 바꿔도 SB 가 같은 뜻으로 남는다.
+const int _kLandscapeLogoPngPixels = 128;
 
 /// 로고 중심 점검 크기 (logical px) — 세로 폰 · 지원 최소 폭 세로 · 가로 폰.
 const _logoCenterSizes = <Size>[Size(360, 780), Size(280, 800), Size(780, 360)];
