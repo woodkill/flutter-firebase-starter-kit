@@ -1864,7 +1864,8 @@ done
   - yaml 색은 따옴표로 감싼다 — 따옴표 없는 `#` 값은 YAML 주석이 되어 빈 값이다.
 - `image` 와 `kSplashImage`, `image_dark` 와 `kSplashImageDark` 에 로고 그림 경로를 적는다(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
   - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다.
-  - 다른 디렉터리로 옮기면 그 파일이나 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에도 등록한다 — Flutter 스플래시는 등록된 자산만 읽는다.
+  - 다른 디렉터리로 옮기면 그 파일이나 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에 `flavors:` 없는 항목으로 등록한다 — Flutter 스플래시는 등록된 자산만 읽고, `flavors:` 로 한정한 항목은 다른 flavor 빌드에 실리지 않는다.
+  - 파일 이름은 대소문자까지 실제 파일과 같게 적는다 — 번들 자산 키는 대소문자를 구분한다.
 - `android_12:` 블록의 `image` · `image_dark` 줄은 지우지 말고 위의 `image` · `image_dark` 와 같은 값으로 둔다.
   - Android 12 이상의 OS SplashScreen 설정이다. `image` 가 없으면 로고 대신 런처 아이콘을, `image_dark` 가 없으면 다크에서도 라이트 로고를 그린다.
 - `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 `color` · `color_dark` 와 같은 값으로 둔다.
@@ -1877,6 +1878,7 @@ done
   - Flutter 스플래시는 이 그림 · 로고 뒤 원 · 상태 표시줄 숨김을 그리지 않으므로, 켜면 두 화면이 넘어갈 때 그 부분이 바뀐다.
 - `test/infrastructure/native_splash_yaml_test.dart` 가 두 파일의 값을 대조한다.
   - 값이 어긋나면 실패 메시지가 `splash_body.dart` 에 적을 선언(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 보여 준다.
+  - `flutter_native_splash:` · `android_12:` 와 `pubspec.yaml` 의 `flutter:` · `assets:` 는 블록 꼴(값을 키 다음 줄부터 들여 쓴 꼴)로 적는다 — 대조 시험은 flow 꼴(`{…}` · `[…]`)을 읽지 않는다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.
   - Flutter 스플래시의 로고 자리는 이 옵션을 따르지 않는다 — ⑥ 의 킷 파일이 정한다.
@@ -1946,11 +1948,14 @@ fvm dart run flutter_native_splash:create
 ### 문제 해결
 
 - **`native_splash_yaml_test.dart` 가 실패한다.**
-  - `flutter_native_splash.yaml` 과 `splash_body.dart` 의 값이 다르다.
+  - 두 파일의 값이 다르거나, 로고가 번들 자산이 아니거나, yaml 을 읽지 못했다.
   - 메시지가 보여 주는 선언을 `splash_body.dart` 에 그대로 적는다(또는 yaml 을 상수 값에 맞춘다).
   - 메시지가 플랫폼별 키나 `android_12.color` · `android_12.color_dark` 를 말하면 그 줄을 지우거나 짝 키와 같은 값으로 둔다.
   - 메시지가 `android_12.image` · `android_12.image_dark` 를 말하면 그 줄을 `android_12:` 블록에 두고 `image` · `image_dark` 와 같은 값으로 적는다.
   - 메시지가 배경 그림 키를 말하면 그 키를 지운다.
+  - 메시지가 `pubspec.yaml` 의 `assets:` · `flavors:` 나 파일 이름의 대소문자를 말하면 ② 대로 로고를 등록하고 경로를 적는다.
+  - 메시지가 알파를 말하면 상수를 ② 의 `Color(0xFF<6자리>)` 꼴로 고친다.
+  - 메시지가 들여쓰기나 flow 꼴을 말하면 메시지가 보여 주는 줄을 ② 의 블록 꼴로 고친다.
 - **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.**
   - 로고 원본이 너무 작다.
   - ① 의 규격 PNG 로 바꾸고 ③ 을 다시 한다.
