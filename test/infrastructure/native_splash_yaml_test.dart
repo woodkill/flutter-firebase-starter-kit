@@ -11,9 +11,10 @@
 // 범위는 [readSplashYaml] · [readFlutterAssets] 문서에 있다.
 //
 // **읽지 못한 줄은 그 줄을 말하는 메시지로 실패한다** — 들여쓰기로 자리를 정하지
-// 못한 줄과, 블록으로 읽어야 하는 키(`flutter_native_splash:` · `android_12:` ·
-// `flutter:` · `assets:`)의 flow 꼴(`{…}` · `[…]`) 값이 그 줄이다. 대조와 무관한
-// 키의 flow 값은 읽지 않고 지나간다.
+// 못한 줄, 블록으로 읽어야 하는 키(`flutter_native_splash:` · `android_12:` ·
+// `flutter:` · `assets:`)의 flow 꼴(`{…}` · `[…]`) 값, `assets:` 목록 항목 안에서
+// [readFlutterAssets] 문서의 읽는 꼴 밖의 줄이 그 줄이다. 대조와 무관한 키의 flow
+// 값은 읽지 않고 지나간다.
 //
 // **주석을 먼저 걷어낸다** — 앞 공백을 걷어낸 줄이 `#` 로 시작하면 버린다. 설명
 // 주석이 키 이름을 말해도 값으로 읽지 않는다.
@@ -53,19 +54,30 @@ import '../helpers/source_text.dart';
 
 const String _yamlPath = 'flutter_native_splash.yaml';
 
+/// 읽지 못한 줄의 이유 — 메시지가 말하는 원인과 고칠 꼴을 고른다.
+enum UnreadableYamlReason {
+  /// 들여쓰기로 자리를 정하지 못한 줄이다.
+  indent,
+
+  /// 블록으로 읽어야 하는 키의 값이 flow 꼴이다.
+  flow,
+
+  /// `flutter: assets:` 목록 항목 안에서 [readFlutterAssets] 가 읽는 꼴이 아니다.
+  assetItem,
+}
+
 /// 두 줄 파서가 읽지 못한 첫 줄 — 파일 머리 주석의 「읽지 못한 줄」 이다.
 ///
 /// - `line`: 줄 번호 · 원문(「N번째 줄 「…」」 꼴).
-/// - `isFlow`: 블록으로 읽어야 하는 키의 값이 flow 꼴이다 — 거짓이면 들여쓰기를
-///   읽지 못한 줄이다.
-typedef UnreadableYamlLine = ({String line, bool isFlow});
+/// - `reason`: 읽지 못한 이유다.
+typedef UnreadableYamlLine = ({String line, UnreadableYamlReason reason});
 
-/// [lines] 의 [index] 번째 줄을 [isFlow] 이유의 읽지 못한 줄로 만든다.
+/// [lines] 의 [index] 번째 줄을 [reason] 이유의 읽지 못한 줄로 만든다.
 UnreadableYamlLine _unreadableAt(
   List<String> lines,
   int index, {
-  bool isFlow = false,
-}) => (line: '${index + 1}번째 줄 「${lines[index].trim()}」', isFlow: isFlow);
+  UnreadableYamlReason reason = UnreadableYamlReason.indent,
+}) => (line: '${index + 1}번째 줄 「${lines[index].trim()}」', reason: reason);
 
 /// 값 [value] 가 flow 꼴(`{…}` · `[…]`)인지 본다.
 bool _isFlowValue(String value) =>
@@ -132,7 +144,11 @@ SplashYamlBlocks readSplashYaml(String yaml) {
     return (
       hasBlock: true,
       hasAndroid12: false,
-      unreadable: _unreadableAt(lines, start, isFlow: true),
+      unreadable: _unreadableAt(
+        lines,
+        start,
+        reason: UnreadableYamlReason.flow,
+      ),
       top: top,
       android12: android12,
     );
@@ -166,7 +182,7 @@ SplashYamlBlocks readSplashYaml(String yaml) {
 
     if (indent == topIndent && !isListItem && colon != -1) {
       if (key == 'android_12' && _isFlowValue(value)) {
-        unreadable = _unreadableAt(lines, i, isFlow: true);
+        unreadable = _unreadableAt(lines, i, reason: UnreadableYamlReason.flow);
         break;
       }
       inAndroid12 = key == 'android_12' && value.isEmpty;
@@ -198,7 +214,7 @@ SplashYamlBlocks readSplashYaml(String yaml) {
   if (topIndent == null) {
     unreadable = (
       line: '${start + 2}번째 줄부터 — flutter_native_splash: 블록에 키 줄이 없다',
-      isFlow: false,
+      reason: UnreadableYamlReason.indent,
     );
   }
   return (
@@ -267,18 +283,21 @@ String _buildUnreadableMessage(
   UnreadableYamlLine unreadable, {
   required String indentScope,
   required String indentHint,
-}) {
-  if (unreadable.isFlow) {
-    return _buildMessage(
-      '$file 의 ${unreadable.line} 을 읽지 못했다.\n'
-      'flow 꼴({…} · […])은 읽지 않는다 — 블록 꼴로 적는다.',
-    );
-  }
-  return _buildMessage(
+}) => _buildMessage(switch (unreadable.reason) {
+  UnreadableYamlReason.flow =>
+    '$file 의 ${unreadable.line} 을 읽지 못했다.\n'
+        'flow 꼴({…} · […])은 읽지 않는다 — 블록 꼴로 적는다.',
+  UnreadableYamlReason.indent =>
     '$file 의 $indentScope들여쓰기를 읽지 못했다 — ${unreadable.line}.\n'
-    '$indentHint',
-  );
-}
+        '$indentHint',
+  // 이 이유는 pubspec.yaml 의 assets: 목록에서만 난다.
+  UnreadableYamlReason.assetItem =>
+    '$file 의 ${unreadable.line} 을 읽지 못했다 — flutter: assets: 목록 항목에서 '
+        '읽는 꼴이 아니다.\n'
+        '목록 항목은 같은 들여쓰기의 「- 경로」 한 줄이나 「- path: 경로」 와 그 '
+        '아래 「키: 값」 줄로 적고, flavors: · platforms: 값은 같은 줄의 […] 이나 '
+        '그 아래 「- 이름」 줄로 적는다.',
+});
 
 /// `flutter_native_splash.yaml` 의 읽지 못한 줄 [unreadable] 메시지를 만든다.
 String _buildSplashUnreadableMessage(UnreadableYamlLine unreadable) =>
@@ -682,17 +701,37 @@ List<String> _readInlineNames(String value) {
   ];
 }
 
+/// 값 [value] 가 이 시험이 읽는 한 줄 스칼라인지 본다 — 비지 않았고 flow · 태그 ·
+/// 앵커 · 별칭 · 블록 스칼라 표시(`{` `[` `!` `&` `*` `|` `>`)로 시작하지 않는다.
+bool _isPlainScalar(String value) =>
+    value.isNotEmpty && !value.startsWith(RegExp(r'[{\[!&*|>]'));
+
+/// 빌드 한정 키의 같은 줄 값 [value] 를 읽을 수 있는지 본다 — 빈 값 · 한 줄 스칼라
+/// (`null` · `~` 포함) · 같은 줄에서 닫히는 `[…]` 다.
+bool _isReadableRestrictionValue(String value) =>
+    value.isEmpty ||
+    _isPlainScalar(value) ||
+    (value.startsWith('[') && value.endsWith(']'));
+
 /// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
 ///
 /// 들여쓰기는 상대 깊이로 읽는다 — `flutter:` 절 첫 키 줄의 들여쓰기가 절의 키,
 /// `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이고, 절의 다음 키 줄에서
-/// 목록이 끝나며, 그 밖의 줄과 `flutter:` · `assets:` 의 flow 꼴 값은
-/// `unreadable` 로 돌려준다.
+/// 목록이 끝난다. 목록 항목 밖의 그 밖의 줄과 `flutter:` · `assets:` 의 flow 꼴
+/// 값은 `unreadable` 로 돌려준다.
 ///
-/// 항목의 키(`- ` 뒤 글자 자리의 `키:` 줄) 가운데 `path:` 는 경로, `flavors:` ·
-/// `platforms:` 는 빌드 한정이다 — 한정 키는 한 줄 값(`[dev]`)이나 아래 목록
-/// 줄(`- dev`)로 읽는다. 그 밖의 키와 키 값의 내용(transformers 목록 등)은
-/// 건너뛴다.
+/// 목록 항목 안에서 읽는 꼴은 아래뿐이다.
+/// - 키 줄: `- ` 뒤 글자 자리(첫 줄의 `- 키: 값` 포함)의 `키: 값` — 키는 따옴표
+///   없이 쓰고 바로 뒤에 `:` 를 둔다. `path:` 의 값은 경로(한 줄 스칼라)다.
+/// - 빌드 한정 키(`flavors:` · `platforms:`)의 값: 같은 줄에서 닫히는 `[…]` · 한 줄
+///   스칼라 · `null` · `~` · 빈 값이다. 빈 값이면 그 아래 키 들여쓰기 이상의
+///   `- 이름` 줄이 이름이다.
+/// - 그 밖의 키: 그 키보다 깊은 줄과 키 들여쓰기의 목록 줄은 그 키의 내용이라
+///   건너뛴다(transformers 목록 등).
+///
+/// 한 줄 스칼라는 [_isPlainScalar] 다. 목록 항목 안의 그 밖의 줄은 그 줄을 말하는
+/// `unreadable`(이유 [UnreadableYamlReason.assetItem])로 돌려준다 — 예: 여러 줄에
+/// 걸친 `flavors: [`, 따옴표 키 `"flavors":`.
 FlutterAssetList readFlutterAssets(String pubspec) {
   final assets = <FlutterAssetEntry>[];
   final List<String> lines = pubspec.split('\n');
@@ -706,7 +745,11 @@ FlutterAssetList readFlutterAssets(String pubspec) {
   if (_readTopKeyValue(lines[start], 'flutter')!.isNotEmpty) {
     return (
       hasAssets: false,
-      unreadable: _unreadableAt(lines, start, isFlow: true),
+      unreadable: _unreadableAt(
+        lines,
+        start,
+        reason: UnreadableYamlReason.flow,
+      ),
       assets: assets,
     );
   }
@@ -720,6 +763,8 @@ FlutterAssetList readFlutterAssets(String pubspec) {
   var itemNames = <String, List<String>>{};
   // 값이 빈 빌드 한정 키 아래 — 목록 줄이 그 키의 이름이다.
   String? listKey;
+  // 마지막 키가 path · 빌드 한정 키가 아닌 그 밖의 키다 — 그 내용을 건너뛴다.
+  var inOtherKey = false;
 
   void addItem() {
     final path = itemPath;
@@ -733,29 +778,51 @@ FlutterAssetList readFlutterAssets(String pubspec) {
     itemPath = null;
     itemNames = <String, List<String>>{};
     listKey = null;
+    inOtherKey = false;
   }
 
-  // 항목 키 줄 [text](`키: 값`)을 읽는다 — `키:` 꼴이 아니면 false 다.
-  bool readItemKey(String text) {
+  // 항목 키 줄 [text] 를 읽는다 — `키: 값` 꼴이 아니면 null, 값을 읽지 못하면
+  // false 다.
+  bool? readItemKey(String text) {
     final Match? match = _yamlKeyPattern.firstMatch(text);
     if (match == null) {
-      return false;
+      return null;
     }
     final String key = match.group(1)!;
     final String value = _readYamlValue(text.substring(match.end));
     listKey = null;
+    inOtherKey = false;
     if (key == 'path') {
+      if (!_isPlainScalar(value)) {
+        return false;
+      }
       itemPath = _unquote(value);
     } else if (_buildRestrictionKeys.contains(key)) {
+      if (!_isReadableRestrictionValue(value)) {
+        return false;
+      }
       if (value.isEmpty) {
         listKey = key;
         itemNames[key] = <String>[];
       } else {
         itemNames[key] = _readInlineNames(value);
       }
+    } else {
+      inOtherKey = true;
     }
     return true;
   }
+
+  // [index] 번째 줄이 목록 항목 안에서 읽는 꼴이 아니다.
+  FlutterAssetList unreadableItemAt(int index) => (
+    hasAssets: hasAssets,
+    unreadable: _unreadableAt(
+      lines,
+      index,
+      reason: UnreadableYamlReason.assetItem,
+    ),
+    assets: assets,
+  );
 
   for (var i = start + 1; i < lines.length; i++) {
     final String line = lines[i].trimRight();
@@ -781,7 +848,11 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       if (_isFlowValue(value)) {
         return (
           hasAssets: true,
-          unreadable: _unreadableAt(lines, i, isFlow: true),
+          unreadable: _unreadableAt(
+            lines,
+            i,
+            reason: UnreadableYamlReason.flow,
+          ),
           assets: assets,
         );
       }
@@ -801,18 +872,33 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       final String rest = trimmed.substring(1);
       itemKeyIndent = indent + 1 + rest.length - rest.trimLeft().length;
       final String content = _readYamlValue(rest);
-      if (!readItemKey(content)) {
+      final bool? isKeyRead = readItemKey(content);
+      if (isKeyRead == false) {
+        return unreadableItemAt(i);
+      }
+      if (isKeyRead == null) {
         itemPath = _unquote(content);
       }
       continue;
     }
     if (itemIndent != null && indent > itemIndent) {
-      if (indent == itemKeyIndent && !isListItem) {
-        readItemKey(trimmed);
-      } else if (listKey != null && isListItem && indent >= itemKeyIndent!) {
-        itemNames[listKey]!.add(_unquote(_readYamlValue(trimmed.substring(1))));
+      final int keyIndent = itemKeyIndent!;
+      final namesKey = listKey;
+      if (indent == keyIndent && !isListItem) {
+        if (readItemKey(trimmed) ?? false) {
+          continue;
+        }
+      } else if (namesKey != null && isListItem && indent >= keyIndent) {
+        final name = _readYamlValue(trimmed.substring(1));
+        if (_isPlainScalar(name)) {
+          itemNames[namesKey]!.add(_unquote(name));
+          continue;
+        }
+      } else if (inOtherKey &&
+          (indent > keyIndent || (isListItem && indent == keyIndent))) {
+        continue;
       }
-      continue;
+      return unreadableItemAt(i);
     }
     return (
       hasAssets: hasAssets,
@@ -1577,7 +1663,7 @@ void main() {
         'flutter_native_splash: {color: "#FFFFFF"}\n',
       );
       expect(flowHead.hasBlock, isTrue);
-      expect(flowHead.unreadable?.isFlow, isTrue);
+      expect(flowHead.unreadable?.reason, UnreadableYamlReason.flow);
       expect(
         _findFixtureMismatches('flutter_native_splash: {color: "#FFFFFF"}\n'),
         <Matcher>[
@@ -1786,7 +1872,10 @@ void main() {
           'flutter:\n'
           '  uses-material-design: true\n'
           '  assets: [assets/images/splash/]\n';
-      expect(readFlutterAssets(flowAssets).unreadable?.isFlow, isTrue);
+      expect(
+        readFlutterAssets(flowAssets).unreadable?.reason,
+        UnreadableYamlReason.flow,
+      );
       final List<String> flowList = checkPubspec(flowAssets);
       expect(flowList, hasLength(1), reason: flowList.join('\n\n'));
       expect(
@@ -1804,6 +1893,78 @@ void main() {
           contains('1번째 줄 「flutter: {assets: [assets/images/splash/]}」'),
         ],
       );
+
+      // assets: 목록 항목 안에서 읽는 꼴 밖의 줄은 그 줄을 말하는 메시지 하나로
+      // 실패한다 — 빌드를 한정했다고도, assets: 에 없다고도 말하지 않는다.
+      String itemPubspec(String item) =>
+          'name: app\n'
+          'flutter:\n'
+          '  uses-material-design: true\n'
+          '  assets:\n'
+          '    - path: assets/images/splash/\n'
+          '$item'
+          '  generate: true\n';
+      // 항목 줄(경로 줄 뒤) → 메시지가 말해야 할 줄.
+      const unreadableItems = <String, String>{
+        // 빌드 한정 키의 같은 줄에서 닫히지 않는 flow 값.
+        '      flavors: [\n        dev\n      ]\n': 'flavors: [',
+        '      platforms: [android,\n        ios]\n': 'platforms: [android,',
+        // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄.
+        '      flavors:\n        [dev]\n': '[dev]',
+        // 항목 키 들여쓰기에서 알아보지 못한 줄(따옴표 키 · 콜론 앞 공백).
+        '      "flavors": [dev]\n': '"flavors": [dev]',
+        '      flavors : [dev]\n': 'flavors : [dev]',
+      };
+      for (final MapEntry<String, String> sample in unreadableItems.entries) {
+        final String text = itemPubspec(sample.key);
+        expect(
+          readFlutterAssets(text).unreadable?.reason,
+          UnreadableYamlReason.assetItem,
+          reason: sample.value,
+        );
+        final List<String> itemList = checkPubspec(text);
+        expect(itemList, hasLength(1), reason: itemList.join('\n\n'));
+        expect(
+          itemList.single,
+          allOf(<Matcher>[
+            contains(
+              '「${sample.value}」 을 읽지 못했다 — flutter: assets: 목록 항목에서 '
+              '읽는 꼴이 아니다',
+            ),
+            isNot(contains('한정한 항목에만')),
+            isNot(contains('에 없다')),
+            isNot(contains('flow 꼴')),
+            contains('스플래시 바꾸기'),
+          ]),
+        );
+      }
+      // 대조군 — 읽는 꼴의 같은 내용은 그대로 읽는다.
+      expect(
+        checkPubspec(itemPubspec('      platforms: [android, ios] # 둘 다\n')),
+        isEmpty,
+      );
+      for (final restrictedItem in <String>[
+        '      flavors: [dev] # 끝 주석\n',
+        '      flavors:\n        - dev\n',
+        '      flavors:\n      - dev\n',
+      ]) {
+        final List<String> restricted = checkPubspec(
+          itemPubspec(restrictedItem),
+        );
+        expect(restricted, hasLength(1), reason: restricted.join('\n\n'));
+        expect(restricted.single, contains('빌드를 한정한 항목에만 있다'));
+      }
+      // 그 밖의 키(transformers)의 내용은 건너뛴다 — 깊은 줄 · compact 목록.
+      const nestedTransformers =
+          '      transformers:\n'
+          '        - package: vector_graphics_compiler\n'
+          "          args: ['--tessellate']\n";
+      for (final transformers in <String>[
+        nestedTransformers,
+        '      transformers:\n      - package: sample_transformer\n',
+      ]) {
+        expect(checkPubspec(itemPubspec(transformers)), isEmpty);
+      }
 
       // 대조와 무관한 키의 flow 값은 읽지 않고 지나간다.
       expect(
