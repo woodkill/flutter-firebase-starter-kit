@@ -1316,6 +1316,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접 넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` / `darkTheme: AppTheme.dark(seedColor: Colors.teal),`).
   - **라이트와 다크에 같은 시드를 넘긴다** — 서로 다른 시드를 넘기면 두 모드의 팔레트가 어긋난다.
   - 이때 `context.appColors.brand` 는 넘긴 시드를 따르고, 알림 색은 config `brandColor` 를 따른다.
+  - 스플래시의 로고 아래 글자 · 진행 표시 색도 config `brandColor` 시드의 기본 테마를 쓴다 — `lib/app.dart` 에서 바꾼 시드 · 색 변형 · 컴포넌트 테마는 스플래시에 보이지 않는다.
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
