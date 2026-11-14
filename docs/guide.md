@@ -1884,14 +1884,13 @@ fvm flutter pub get
 fvm dart run flutter_native_splash:create
 ```
 
-**④ 다시 만든 파일을 모두 커밋한다.**
-- 이 명령이 덮어쓰는 파일이다.
+**④ ③ 이 다시 만든 파일을 알아 둔다.**
+- 이 명령이 덮어쓰는 파일이다 — ⑧ 에서 함께 커밋한다.
 
 - `android/app/src/main/res/drawable*/` 의 `launch_background.xml` · `background.png` · `splash.png` · `android12splash.png`
 - `android/app/src/main/res/values*/styles.xml`(`values` · `values-night` · `values-v31` · `values-night-v31`)
 - `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Assets.xcassets/LaunchBackground.imageset/`
 - `ios/Runner/Base.lproj/LaunchScreen.storyboard`
-- ① · ② 에서 고친 로고 · `flutter_native_splash.yaml` · `splash_body.dart` 도 함께 커밋한다.
 
 **iOS LaunchImage.**
 - `flutter_native_splash:create` 가 `ios/Runner/Assets.xcassets/LaunchImage.imageset/` 의 `LaunchImage.png` · `LaunchImage@2x.png` · `LaunchImage@3x.png`(라이트)와 `LaunchImageDark.png` · `LaunchImageDark@2x.png` · `LaunchImageDark@3x.png`(다크) 6개를 만든다.
@@ -1921,6 +1920,11 @@ fvm dart run flutter_native_splash:create
 - `config/<flavor>.json`(dev 면 `config/dev.json`)의 `splashMinDurationMs`(밀리초)를 고친다.
   - 키 설명은 [위저드가 채우는 설정 키](setup.md#위저드가-채우는-설정-키) 표에 있다.
   - 값은 빌드 때 들어가므로 바꾼 뒤 다시 빌드한다.
+
+**⑧ 바꾼 파일을 모두 커밋한다.**
+- ④ 의 파일과 ① ~ ⑥ 에서 고친 로고 · `flutter_native_splash.yaml` · `splash_body.dart` · `splash_body_test.dart` · ARB · `lib/l10n/generated/` 의 생성 파일을 함께 커밋한다.
+  - 로고를 다른 디렉터리로 옮겼다면 `pubspec.yaml` 도 함께 커밋한다.
+  - ⑦ 의 `config/<flavor>.json` 은 커밋하지 않는다 — 저장소에 올리지 않는 설정 파일이다.
 
 ### 확인 방법
 
@@ -1969,7 +1973,7 @@ fvm dart run flutter_native_splash:create
 
 ### 되돌리기
 
-- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml lib/features/splash/presentation/splash_body.dart test/features/splash/splash_body_test.dart` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
+- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml lib/features/splash/presentation/splash_body.dart test/features/splash/splash_body_test.dart lib/l10n/` 로 원본 · 설정 · 문구를 되돌리고 ③ 을 다시 한다.
 - 킷 새 판을 받을 때 스플래시 설정 · 로고 · `splash_body.dart` 는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행 · 40행대로 처리한다.
 
 ## 언어별 앱 이름 넣기 · 앱 언어 추가하기
