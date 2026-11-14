@@ -1831,35 +1831,47 @@ done
 
 ## 스플래시 바꾸기
 
-앱을 켤 때 처음 보이는 네이티브 스플래시(배경색 · 로고)를 내 것으로 바꾸는 절차다.
+앱을 켤 때 보이는 두 화면 — 네이티브 스플래시(OS 가 그리는 첫 화면)와 Flutter 스플래시(로고 · 진행 표시 · 준비 문구) — 를 함께 내 것으로 바꾸는 절차다.
+- 두 화면은 기기의 라이트 · 다크 설정을 따라 같은 배경색 · 같은 로고를 같은 자리 · 같은 크기로 보인다. 앱 설정의 테마는 홈 화면부터 적용된다.
 - 킷의 스플래시 로고 `assets/images/splash/logo.png` · `logo_dark.png` 는 128x128 투명 PNG 라 화면에 보이지 않는다 — 배경색(라이트 흰색 · 다크 검은색)만 보인다.
-- 내 로고로 바꿔야 스플래시에 로고가 나온다.
 
-**전제:** 스플래시 파일은 dev 의존성 `flutter_native_splash`(`pubspec.yaml`)가 만든다.
-- 설정은 저장소 루트의 `flutter_native_splash.yaml` 이다.
+**전제:** 네이티브 스플래시 파일은 `pubspec.yaml` 의 `dependencies` 에 있는 `flutter_native_splash` 가 만든다.
+- 네이티브 스플래시 설정은 저장소 루트의 `flutter_native_splash.yaml` 이다.
+- Flutter 스플래시의 배경색 · 로고 경로와 로고 아래 내용은 내 파일 `lib/features/splash/presentation/splash_body.dart` 에 있다.
 
 ### 단계
 
 **① 로고 그림을 바꾼다.**
 - `assets/images/splash/logo.png`(라이트) · `logo_dark.png`(다크)를 같은 이름의 내 그림으로 덮어쓴다.
 
-- PNG 이고 128x128 이상이다(알파 채널 유지).
-  - 권장 크기는 512x512 다.
+- 원본은 1152x1152 PNG 로 만든다(알파 채널 유지).
+  - 로고는 가운데 지름 약 750픽셀 원 안에 두고, 원 밖은 투명으로 둔다.
+  - 화면의 로고 크기는 원본 픽셀 ÷ 4 다(1152 → 288).
+- Android 12 이상은 원본 크기와 상관없이 로고 그림을 288 크기 상자로 그리고 가운데만 보인다.
+  - 그래서 이 규격이어야 네 화면(iOS · Android 11 이하 · Android 12 이상 · Flutter 스플래시)의 로고가 같은 크기다.
 - 128x128 보다 작게 두지 않는다 — iOS 는 `LaunchImage.imageset` 의 @1x · @2x · @3x 그림을 이 원본에서 만들고, 원본이 1x1 이면 파생 그림이 깨져 Xcode 빌드가 `Distill failed for unknown reasons` 로 실패한다.
   - 로고를 넣기 전 자리 그림도 128x128 이상 투명 PNG 로 둔다.
-- Android 12 이상은 로고를 원 안에 잘라 보인다.
-  - 원 밖이 잘려도 되게 여백을 둔다 — `flutter_native_splash` README 는 아이콘 배경이 없을 때 1152x1152 픽셀 그림의 지름 768 픽셀 원 안에 로고를 두라고 안내한다.
 
-**② 색 · 그림 경로를 정한다.**
-- `flutter_native_splash.yaml` 에서 고친다.
+**② 배경색 · 그림 경로를 두 파일에 같은 값으로 적는다.**
+- `flutter_native_splash.yaml` 과 `lib/features/splash/presentation/splash_body.dart` 를 함께 고친다.
 
-- `color` · `color_dark` — 라이트 · 다크 배경색(킷 값 `"#FFFFFF"` · `"#000000"`).
-- `image` · `image_dark` — 로고 그림 경로(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
-  - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다. 다른 이름을 쓰면 `test/infrastructure/native_splash_yaml_test.dart` 의 `image:` 단언도 새 경로로 고친다.
-- `android_12:` 블록 — Android 12 이상의 OS SplashScreen 설정이다.
-  - 같은 이름의 `image` · `image_dark` · `color` · `color_dark` 를 따로 둔다. 위의 값과 함께 고친다.
+- `color` 와 `kSplashColor`, `color_dark` 와 `kSplashColorDark` 에 라이트 · 다크 배경색을 적는다(킷 값 `"#FFFFFF"` · `"#000000"`).
+  - 상수는 `Color(0xFF<6자리>)` 꼴로 쓴다 — 예: yaml `"#F2B134"` 는 `Color(0xFFF2B134)` 다.
+  - yaml 색은 따옴표로 감싼다 — 따옴표 없는 `#` 값은 YAML 주석이 되어 빈 값이다.
+- `image` 와 `kSplashImage`, `image_dark` 와 `kSplashImageDark` 에 로고 그림 경로를 적는다(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
+  - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다.
+- `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 `color` · `color_dark` 와 같은 값으로 둔다.
+  - Android 12 이상의 OS SplashScreen 설정이다. 블록 안의 `image` · `image_dark` 도 위의 값과 함께 고친다.
+  - 줄은 지워도 되지만 `android_12:` 블록은 남긴다 — 대조 시험이 블록을 찾는다.
+- 플랫폼별 색 · 로고 키(`color_android` · `color_ios` · `color_dark_android` · `color_dark_ios` · `image_android` · `image_ios` · `image_dark_android` · `image_dark_ios`)는 지우거나 짝 키(`color` · `color_dark` · `image` · `image_dark`)와 같은 값으로 둔다.
+  - Flutter 스플래시는 Android 버전 · 플랫폼을 구분하지 않는다. 짝 키와 다르면 대조 시험이 그 키 이름으로 실패한다.
+- 배경 그림 키(`background_image` 로 시작하는 키)는 쓰지 않는다.
+  - Flutter 스플래시는 단색 배경만 그리므로 이 키가 있으면 대조 시험이 이유와 함께 실패한다.
+- `test/infrastructure/native_splash_yaml_test.dart` 가 두 파일의 값을 대조한다.
+  - 값이 어긋나면 실패 메시지가 `splash_body.dart` 에 적을 선언(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 보여 준다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.
+  - Flutter 스플래시의 로고 자리는 이 옵션을 따르지 않는다 — ⑥ 의 킷 파일이 정한다.
 
 **③ 네이티브 스플래시 파일을 다시 만든다.**
 
@@ -1875,6 +1887,7 @@ fvm dart run flutter_native_splash:create
 - `android/app/src/main/res/values*/styles.xml`(`values` · `values-night` · `values-v31` · `values-night-v31`)
 - `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Assets.xcassets/LaunchBackground.imageset/`
 - `ios/Runner/Base.lproj/LaunchScreen.storyboard`
+- ① · ② 에서 고친 로고 · `flutter_native_splash.yaml` · `splash_body.dart` 도 함께 커밋한다.
 
 **iOS LaunchImage.**
 - `flutter_native_splash:create` 가 `ios/Runner/Assets.xcassets/LaunchImage.imageset/` 의 `LaunchImage.png` · `LaunchImage@2x.png` · `LaunchImage@3x.png`(라이트)와 `LaunchImageDark.png` · `LaunchImageDark@2x.png` · `LaunchImageDark@3x.png`(다크) 6개를 만든다.
@@ -1882,12 +1895,36 @@ fvm dart run flutter_native_splash:create
 - `assets/images/splash/` 원본과 `flutter_native_splash.yaml` 을 고친 뒤 ③ 으로 반영한다.
 - `ios/Runner/Base.lproj/LaunchScreen.storyboard` 도 `flutter_native_splash` 가 관리한다 — 배경색 · 로고 위치는 Storyboard 를 손으로 고치지 말고 `flutter_native_splash.yaml` 의 `color` · `color_dark` · `ios_content_mode` 로 정한다.
 
+**⑤ 문구를 바꾼다.**
+- ARB 에서 준비 문구 `splashPreparing` 과 실패 대화상자 문구 `splashFailureTitle` · `splashFailureMessage` · `splashContinueOffline` · `splashErrorCodeFingerprint` 의 값을 고친다.
+  - 언어마다 ARB(`lib/l10n/app_ko.arb` · `app_en.arb` · `app_ja.arb`)가 따로 있다.
+  - ARB 를 고친 뒤 생성 파일을 다시 만드는 방법은 [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기) 를 따른다.
+
+**⑥ 로고 아래 내용을 바꾼다.**
+- `splash_body.dart` 의 `buildSplashBody(context, hasFailure: …)` 가 돌려주는 위젯을 고친다.
+  - 이 위젯이 로고 아래에 놓인다. 첫 간격(`Gap(spacing.xxl)`)이 로고와의 거리다.
+  - `hasFailure` 가 참이면 실패 대화상자를 띄운 뒤이므로 진행 표시를 숨긴다.
+  - 글자 · 진행 표시 색은 테마(`context.colorScheme`)에서 읽는다 — 그 테마는 배경 밝기에 맞춘 테마다.
+- 내용을 바꾸면 그 시험 `test/features/splash/splash_body_test.dart` 도 함께 고친다.
+  - 이 시험도 내 파일이다.
+- 끝나지 않는 애니메이션을 넣었다면 라우터로 앱 전체를 여는 킷 시험이 끝나는지 돌려 본다.
+  - 이 시험들은 내 화면까지 그리므로 끝나지 않는 애니메이션이 있으면 시험의 기다림이 끝나지 않을 수 있다 — `test/core/router/app_router_nesting_test.dart` · `test/app_high_contrast_test.dart` · `test/core/router/session_ending_flow_test.dart` · `test/core/router/app_router_observers_test.dart` · `test/features/notifications/application/notification_settings_notifier_test.dart` · `test/widget_test.dart`.
+- 로고 자리 · 크기를 바꾸려면 킷 파일 `lib/features/splash/presentation/splash_frame.dart` 를 고친다.
+  - 배경 고르기 · 로고 그리기도 이 파일이 한다. 이 파일을 고치면 킷 업데이트 때 생기는 충돌을 직접 푼다.
+
+**⑦ 최소 표시 시간을 정한다.**
+- `config/<flavor>.json`(dev 면 `config/dev.json`)의 `splashMinDurationMs`(밀리초)를 고친다.
+  - 키 설명은 [위저드가 채우는 설정 키](setup.md#위저드가-채우는-설정-키) 표에 있다.
+  - 값은 빌드 때 들어가므로 바꾼 뒤 다시 빌드한다.
+
 ### 확인 방법
 
-- `git status` 에 ④ 의 파일이 바뀐 것으로 보인다.
+- `fvm flutter test test/infrastructure/native_splash_yaml_test.dart test/features/splash/` 가 통과한다.
+- 커밋하기 전 `git status` 에 ④ 의 파일이 바뀐 것으로 보인다.
 - 앱을 완전히 종료한 뒤 다시 실행해 스플래시를 본다.
-  - 기기를 라이트 · 다크 모드로 바꿔 가며 두 그림을 모두 본다.
-  - Android 는 12 이상 기기와 그 아래 기기의 모양이 다르다.
+  - 기기를 라이트 · 다크 모드로 바꿔 가며 두 화면의 배경 · 로고가 같은지 본다.
+  - 로고는 움직이지 않고 그 아래 진행 표시 · 문구만 새로 나타난다.
+  - Android 는 12 이상 기기와 그 아래 기기를 모두 본다.
 
   ```bash
   fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
@@ -1895,20 +1932,39 @@ fvm dart run flutter_native_splash:create
 
 ### 문제 해결
 
+- **`native_splash_yaml_test.dart` 가 실패한다.**
+  - `flutter_native_splash.yaml` 과 `splash_body.dart` 의 값이 다르다.
+  - 메시지가 보여 주는 선언을 `splash_body.dart` 에 그대로 적는다(또는 yaml 을 상수 값에 맞춘다).
+  - 메시지가 플랫폼별 키나 `android_12.color` · `android_12.color_dark` 를 말하면 그 줄을 지우거나 짝 키와 같은 값으로 둔다.
+  - 메시지가 배경 그림 키를 말하면 그 키를 지운다.
 - **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.**
   - 로고 원본이 너무 작다.
-  - 128x128 이상 PNG 로 바꾸고 ③ 을 다시 한다.
+  - ① 의 규격 PNG 로 바꾸고 ③ 을 다시 한다.
 - **스플래시에 로고가 보이지 않는다.**
   - 로고가 킷의 투명 그림 그대로다.
   - ① 대로 내 그림으로 바꾸고 ③ 을 다시 한다.
+- **Android 12 이상에서 Flutter 스플래시로 넘어갈 때 로고 크기가 바뀐다.**
+  - 로고 원본이 1152x1152 가 아니다 — Android 12 이상만 원본 크기와 상관없이 288 크기 상자로 그린다.
+  - ① 의 1152x1152 규격으로 바꾸고 ③ 을 다시 한다.
 - **Android 12 이상에서 로고 가장자리가 잘린다.**
-  - 로고가 원 밖으로 나간다.
-  - ① 의 여백을 두고 ③ 을 다시 한다.
+  - 로고가 가운데 원 밖으로 나간다.
+  - ① 대로 지름 약 750픽셀 원 안에 두고 ③ 을 다시 한다.
+- **가로 화면에서 로고 아래 내용이 보이지 않는다.**
+  - 1152 규격 로고(288)가 가로 화면 높이를 거의 채운다.
+  - 아래 내용은 로고 상자 아래 남은 칸에서 스크롤된다.
+- **스플래시에서 홈 화면으로 넘어갈 때 배경색이 바뀐다.**
+  - 스플래시 두 화면의 배경은 스플래시 색(`flutter_native_splash.yaml` 의 색 = `splash_body.dart` 상수)과 기기의 라이트 · 다크 설정을 따르고, 홈 · 온보딩 등 그 뒤 화면은 앱 테마를 따른다.
+  - 두 값이 다르면 색이 바뀌는 것이 정상이다. 기기는 다크 · 앱 설정은 라이트이면 검은 스플래시 뒤에 밝은 홈이 보이는 것도 같은 이유다.
+  - 홈과 이어지게 하려면 ② 대로 스플래시 색을 홈 배경색과 같은 값으로 둔다.
+  - 그 뒤 [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 로 테마 색을 바꾸면 스플래시 색도 함께 고친다 — 스플래시 색은 테마를 자동으로 따라가지 않는다.
+- **라우터로 앱 전체를 여는 킷 시험이 끝나지 않는다.**
+  - 로고 아래 내용에 끝나지 않는 애니메이션이 있다 — `app_router_nesting_test.dart` · `widget_test.dart` 같은 시험이 내 화면까지 그린다.
+  - ⑥ 대로 애니메이션을 정해진 시간 안에 끝나게 하거나 빼고 그 시험을 다시 돌린다.
 
 ### 되돌리기
 
-- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
-- 킷 새 판을 받을 때 스플래시 설정 · 로고는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행대로 처리한다.
+- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml lib/features/splash/presentation/splash_body.dart test/features/splash/splash_body_test.dart` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
+- 킷 새 판을 받을 때 스플래시 설정 · 로고 · `splash_body.dart` 는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행 · 40행대로 처리한다.
 
 ## 언어별 앱 이름 넣기 · 앱 언어 추가하기
 
