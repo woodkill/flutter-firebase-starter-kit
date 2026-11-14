@@ -1869,6 +1869,8 @@ done
   - Flutter 스플래시는 Android 버전 · 플랫폼을 구분하지 않는다. 짝 키와 다르면 대조 시험이 그 키 이름으로 실패한다.
 - 배경 그림 키(`background_image` 로 시작하는 키)는 쓰지 않는다.
   - Flutter 스플래시는 단색 배경만 그리므로 이 키가 있으면 대조 시험이 이유와 함께 실패한다.
+- 브랜딩 그림 키(`branding` 으로 시작하는 키) · `android_12:` 블록의 `icon_background_color` · `icon_background_color_dark` · `fullscreen: true` 는 네이티브 스플래시만 그린다.
+  - Flutter 스플래시는 이 그림 · 로고 뒤 원 · 상태 표시줄 숨김을 그리지 않으므로, 켜면 두 화면이 넘어갈 때 그 부분이 바뀐다.
 - `test/infrastructure/native_splash_yaml_test.dart` 가 두 파일의 값을 대조한다.
   - 값이 어긋나면 실패 메시지가 `splash_body.dart` 에 적을 선언(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 보여 준다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
