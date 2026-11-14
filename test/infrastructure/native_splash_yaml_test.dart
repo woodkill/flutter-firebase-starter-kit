@@ -16,13 +16,17 @@
 // 생성기는 없으면 짝 키 값을 쓰고, Flutter 스플래시는 Android 버전 · 플랫폼을
 // 구분하지 않는다.
 //
+// **`android_12` 의 그림 키는 있어야 하고 `image` · `image_dark` 와 같아야 한다** —
+// 생성기는 이 두 값이 없을 때 짝 키로 되돌아가지 않는다(없으면 런처 아이콘 ·
+// `image_dark` 가 없으면 `android_12.image`).
+//
 // **배경 그림 키는 쓰지 않는다** — Flutter 스플래시는 단색 배경만 그린다.
 //
 // 사용자 안내: `docs/guide.md` 「스플래시 바꾸기」.
 //
 // 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향) ·
 // 03(`android_12` 색) · 04(값 없음) · 05(플랫폼별 색 키) · 06(플랫폼별 로고 키) ·
-// 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄).
+// 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림).
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_body.dart';
@@ -293,11 +297,49 @@ void _checkPairImage(
   }
 }
 
+/// `android_12:` 블록의 그림 키 [key] 가 있고 짝 [pairKey] 의 [pairPath] 와
+/// 같은지 본다.
+///
+/// 색 키와 달리 지우면 안 된다 — 생성기는 이 값이 없을 때 top-level 경로로
+/// 되돌아가지 않는다. [missingEffect] 는 없을 때 네이티브 스플래시가 그리는 것이다.
+void _checkAndroid12Image(
+  List<String> messages,
+  Map<String, String> android12,
+  String key,
+  String pairKey,
+  String? pairPath,
+  String missingEffect,
+) {
+  final String? raw = android12[key];
+  final String path = raw == null ? '' : _unquote(raw);
+  if (path.isEmpty) {
+    messages.add(
+      _buildMessage(
+        'flutter_native_splash.yaml 의 android_12.$key 값이 없다 — 이 값이 '
+        '없으면 Android 12 이상 네이티브 스플래시는 $missingEffect.\n'
+        'android_12: 블록에 $key: 줄을 두고 $pairKey 와 같은 경로를 적는다.',
+      ),
+    );
+    return;
+  }
+  // 짝 키 값 문제는 이미 메시지로 알렸다.
+  if (pairPath != null && path != pairPath) {
+    messages.add(
+      _buildMessage(
+        'android_12.$key 는 $path 인데 $pairKey 는 $pairPath 다 — 같은 경로를 '
+        '적는다(Flutter 스플래시는 Android 버전을 구분하지 않는다)',
+      ),
+    );
+  }
+}
+
 /// [yaml] 의 색 · 그림 경로를 기대 상수 값과 대조해 어긋남 메시지를 돌려준다.
 ///
 /// 빈 목록이면 통과다. 메시지는 키마다 하나이고 끝줄이 안내 절 이름이다.
 /// - `color` · `color_dark` · `image` · `image_dark` 는 필수이고 [color] ·
 ///   [colorDark] · [image] · [imageDark] 와 같아야 한다.
+/// - `android_12.image` · `android_12.image_dark` 는 필수이고 `image` ·
+///   `image_dark` 와 같아야 한다.
 /// - `android_12.color` · `android_12.color_dark` · 플랫폼별 색 · 로고 키는
 ///   없거나 짝 키와 같아야 한다.
 /// - `background_image` 로 시작하는 키는 있으면 어긋남이다.
@@ -366,6 +408,25 @@ List<String> findSplashMismatches(
     'color_dark',
     darkHex,
   );
+  // android_12 그림 키 — 생성기(flutter_native_splash 2.4.7 cli_commands.dart)는
+  // android_12.image 를 이 블록에서만 읽고, android_12.image_dark 가 없으면
+  // android_12.image 를 쓴다.
+  _checkAndroid12Image(
+    messages,
+    android12,
+    'image',
+    'image',
+    lightImage,
+    '로고 대신 런처 아이콘을 그린다',
+  );
+  _checkAndroid12Image(
+    messages,
+    android12,
+    'image_dark',
+    'image_dark',
+    darkImage,
+    '다크 모드에서도 android_12.image(라이트 로고)를 그린다',
+  );
 
   // 플랫폼별 색 키 — 생성기 cli_commands.dart 의 color_android · color_ios ·
   // color_dark_android · color_dark_ios.
@@ -408,12 +469,16 @@ const String _logo = 'assets/images/splash/logo.png';
 const String _logoDark = 'assets/images/splash/logo_dark.png';
 
 /// 킷 yaml 꼴 fixture 를 만든다 — 바꿀 값 · 더할 줄만 넘긴다.
+///
+/// [android12Images] 가 null 이면 `android_12:` 블록의 그림 키를 [image] ·
+/// [imageDark] 와 같은 값으로 둔다.
 String _buildSplashYaml({
   String color = '"#FFFFFF"',
   String colorDark = '"#000000"',
   String image = _logo,
   String imageDark = _logoDark,
   String topExtra = '',
+  String? android12Images,
   String android12Colors =
       '    color: "#FFFFFF"\n'
       '    color_dark: "#000000"\n',
@@ -426,8 +491,7 @@ String _buildSplashYaml({
     '$topExtra'
     '\n'
     '  android_12:\n'
-    '    image: $_logo\n'
-    '    image_dark: $_logoDark\n'
+    '${android12Images ?? '    image: $image\n    image_dark: $imageDark\n'}'
     '$android12Colors'
     '\n'
     '  fullscreen: false\n'
@@ -750,7 +814,9 @@ void main() {
           '  image_dark: assets/images/splash/logo_dark.png\n'
           '  android_12:\n'
           '    # color: "#123456"\n'
+          '    image: assets/images/splash/logo.png\n'
           '  # 들여쓰기 2 주석은 android_12 블록을 끝내지 않는다\n'
+          '    image_dark: assets/images/splash/logo_dark.png\n'
           '    color_dark: "#000000"\n'
           '  web: false # web: true 로 두지 않는다\n';
 
@@ -769,7 +835,11 @@ void main() {
       );
       expect(
         blocks.android12,
-        equals(<String, String>{'color_dark': '"#000000"'}),
+        equals(<String, String>{
+          'image': 'assets/images/splash/logo.png',
+          'image_dark': 'assets/images/splash/logo_dark.png',
+          'color_dark': '"#000000"',
+        }),
       );
       expect(_findFixtureMismatches(yaml), isEmpty);
 
@@ -782,6 +852,82 @@ void main() {
       );
       expect(messages, hasLength(1), reason: messages.join('\n\n'));
       expect(messages.single, startsWith('android_12.color_dark 는 #654321'));
+    });
+
+    test('T-26-YAML-10: android_12.image · image_dark 는 없으면 실패 · image · '
+        'image_dark 와 다르면 실패 · 같으면 통과', () {
+      // 같음 → 통과(따옴표는 정규화).
+      expect(
+        _findFixtureMismatches(
+          _buildSplashYaml(
+            android12Images:
+                '    image: "$_logo"\n'
+                "    image_dark: '$_logoDark'\n",
+          ),
+        ),
+        isEmpty,
+      );
+
+      // image_dark 만 없음 → 다크에서 라이트 로고를 그린다는 메시지.
+      final List<String> noDark = _findFixtureMismatches(
+        _buildSplashYaml(android12Images: '    image: $_logo\n'),
+      );
+      expect(noDark, hasLength(1), reason: noDark.join('\n\n'));
+      expect(
+        noDark.single,
+        allOf(<Matcher>[
+          contains('android_12.image_dark 값이 없다'),
+          contains('라이트 로고'),
+          contains('image_dark 와 같은 경로를 적는다'),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
+
+      // 둘 다 없음 → 키마다 메시지(image 는 런처 아이콘).
+      final List<String> none = _findFixtureMismatches(
+        _buildSplashYaml(android12Images: ''),
+      );
+      expect(none, hasLength(2), reason: none.join('\n\n'));
+      expect(
+        none[0],
+        allOf(<Matcher>[
+          contains('android_12.image 값이 없다'),
+          contains('런처 아이콘'),
+        ]),
+      );
+      expect(none[1], contains('android_12.image_dark 값이 없다'));
+
+      // 빈 값도 없음과 같다.
+      final List<String> empty = _findFixtureMismatches(
+        _buildSplashYaml(
+          android12Images:
+              '    image: ""\n'
+              '    image_dark: $_logoDark\n',
+        ),
+      );
+      expect(empty, hasLength(1), reason: empty.join('\n\n'));
+      expect(empty.single, contains('android_12.image 값이 없다'));
+
+      // 다름 → 키 이름 · 두 경로가 든 메시지.
+      final List<String> differs = _findFixtureMismatches(
+        _buildSplashYaml(
+          android12Images:
+              '    image: assets/images/splash/logo_a12.png\n'
+              '    image_dark: $_logoDark\n',
+        ),
+      );
+      expect(differs, hasLength(1), reason: differs.join('\n\n'));
+      expect(
+        differs.single,
+        allOf(<Matcher>[
+          startsWith(
+            'android_12.image 는 assets/images/splash/logo_a12.png 인데 image 는 '
+            '$_logo 다',
+          ),
+          contains('같은 경로를 적는다'),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
     });
   });
 }

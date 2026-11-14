@@ -1860,9 +1860,10 @@ done
   - yaml 색은 따옴표로 감싼다 — 따옴표 없는 `#` 값은 YAML 주석이 되어 빈 값이다.
 - `image` 와 `kSplashImage`, `image_dark` 와 `kSplashImageDark` 에 로고 그림 경로를 적는다(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
   - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다.
+- `android_12:` 블록의 `image` · `image_dark` 줄은 지우지 말고 위의 `image` · `image_dark` 와 같은 값으로 둔다.
+  - Android 12 이상의 OS SplashScreen 설정이다. `image` 가 없으면 로고 대신 런처 아이콘을, `image_dark` 가 없으면 다크에서도 라이트 로고를 그린다.
 - `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 `color` · `color_dark` 와 같은 값으로 둔다.
-  - Android 12 이상의 OS SplashScreen 설정이다. 블록 안의 `image` · `image_dark` 도 위의 값과 함께 고친다.
-  - 줄은 지워도 되지만 `android_12:` 블록은 남긴다 — 대조 시험이 블록을 찾는다.
+  - 색 줄은 지워도 되지만 `android_12:` 블록은 남긴다 — 대조 시험이 블록을 찾는다.
 - 플랫폼별 색 · 로고 키(`color_android` · `color_ios` · `color_dark_android` · `color_dark_ios` · `image_android` · `image_ios` · `image_dark_android` · `image_dark_ios`)는 지우거나 짝 키(`color` · `color_dark` · `image` · `image_dark`)와 같은 값으로 둔다.
   - Flutter 스플래시는 Android 버전 · 플랫폼을 구분하지 않는다. 짝 키와 다르면 대조 시험이 그 키 이름으로 실패한다.
 - 배경 그림 키(`background_image` 로 시작하는 키)는 쓰지 않는다.
@@ -1936,6 +1937,7 @@ fvm dart run flutter_native_splash:create
   - `flutter_native_splash.yaml` 과 `splash_body.dart` 의 값이 다르다.
   - 메시지가 보여 주는 선언을 `splash_body.dart` 에 그대로 적는다(또는 yaml 을 상수 값에 맞춘다).
   - 메시지가 플랫폼별 키나 `android_12.color` · `android_12.color_dark` 를 말하면 그 줄을 지우거나 짝 키와 같은 값으로 둔다.
+  - 메시지가 `android_12.image` · `android_12.image_dark` 를 말하면 그 줄을 `android_12:` 블록에 두고 `image` · `image_dark` 와 같은 값으로 적는다.
   - 메시지가 배경 그림 키를 말하면 그 키를 지운다.
 - **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.**
   - 로고 원본이 너무 작다.
