@@ -1,6 +1,7 @@
 // 스플래시 화면의 틀 — 킷 파일이다. 내 화면의 값(배경색 · 로고)과 로고 아래
 // 내용은 `splash_body.dart` 에 둔다. 로고 자리 · 크기를 바꾸려면 이 파일을
 // 고쳐야 하고, 킷 업데이트 때 생기는 충돌은 직접 푼다.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,7 +25,8 @@ typedef SplashBodyBuilder =
 ///   (없으면 [kSplashColorDark]) 배경에 [kSplashImageDark] 를 그린다 —
 ///   네이티브 스플래시가 앱 설정을 따를 수 없어서다.
 /// - 로고는 화면 정가운데에 원본 픽셀 ÷ 4 크기로 그린다(네이티브 스플래시와
-///   같은 규칙). 화면보다 커도 줄이지 않는다.
+///   같은 규칙). 화면보다 커도 줄이지 않는다. 로고를 읽지 못하면 그 자리를
+///   비우고 디버그 로그에 경로와 원인을 남긴다.
 /// - 로고 아래 내용은 배경 밝기로 고른 라이트 · 다크 테마 아래에서 그린다.
 ///   테마는 본문 안쪽에만 씌운다 — 화면 위에 띄우는 대화상자 · 알림 막대는 앱
 ///   테마 그대로다.
@@ -96,7 +98,18 @@ class SplashFrame extends StatelessWidget {
                     child: Image.asset(
                       logoAsset,
                       scale: 4,
-                      errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      errorBuilder: (_, error, stackTrace) {
+                        // 로고를 읽지 못하면 자리는 비우되 원인은 디버그 로그로
+                        // 남긴다 — 경로가 pubspec.yaml 의 flutter: assets: 에
+                        // 등록되지 않은 경우가 흔하다.
+                        if (kDebugMode) {
+                          debugPrint(
+                            'splash_logo load failed ($logoAsset): '
+                            '$error\n$stackTrace',
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
                     ),
                   ),
                   LayoutId(

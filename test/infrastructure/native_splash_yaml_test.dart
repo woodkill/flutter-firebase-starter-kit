@@ -26,12 +26,17 @@
 //
 // **색 상수는 불투명이어야 한다** — yaml 색에는 알파가 없다.
 //
+// **로고 경로는 번들 자산이어야 한다** — 생성기는 파일 시스템에서 읽지만 Flutter
+// 스플래시는 `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽는다.
+//
 // 사용자 안내: `docs/guide.md` 「스플래시 바꾸기」.
 //
 // 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향 · 알파) ·
 // 03(`android_12` 색) · 04(값 없음) · 05(플랫폼별 색 키) · 06(플랫폼별 로고 키) ·
 // 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림) ·
-// 11(들여쓰기).
+// 11(들여쓰기) · 12(저장소 로고 = 번들 자산) · 13(번들 자산 어긋남).
+
+import 'dart:io';
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_body.dart';
@@ -549,6 +554,162 @@ List<String> findSplashMismatches(
         'color · color_dark 로 배경을 정한다',
       ),
     );
+  }
+  return messages;
+}
+
+const String _pubspecPath = 'pubspec.yaml';
+
+/// [readFlutterAssets] 의 결과 — `flutter: assets:` 목록과 읽지 못한 줄.
+///
+/// 어느 줄을 목록 항목으로 읽는지는 [readFlutterAssets] 문서의 규칙을 따른다.
+/// - `hasAssets`: 맨 위 `flutter:` 절에 `assets:` 키가 있다.
+/// - `unreadable`: 규칙으로 자리를 정하지 못한 첫 줄이다. null 이 아니면
+///   `assets` 를 믿지 않는다.
+/// - `assets`: 항목의 자산 경로(따옴표 · 끝 주석 제외 · `path:` 꼴은 그 값).
+typedef FlutterAssetList = ({
+  bool hasAssets,
+  String? unreadable,
+  List<String> assets,
+});
+
+/// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
+///
+/// 들여쓰기는 상대 깊이로 읽는다 — `flutter:` 절 첫 키 줄의 들여쓰기가 절의 키,
+/// `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이고, 항목보다 깊은 줄은 그
+/// 항목의 속성으로 건너뛰며, 절의 다음 키 줄에서 목록이 끝나고, 그 밖의 줄은
+/// `unreadable` 로 돌려준다.
+FlutterAssetList readFlutterAssets(String pubspec) {
+  final assets = <String>[];
+  final List<String> lines = pubspec.split('\n');
+  final int start = lines.indexWhere(
+    (String line) =>
+        !line.startsWith(RegExp(r'[\s#]')) &&
+        line.startsWith('flutter:') &&
+        _readYamlValue(line.substring('flutter:'.length)).isEmpty,
+  );
+  if (start == -1) {
+    return (hasAssets: false, unreadable: null, assets: assets);
+  }
+  int? sectionIndent;
+  int? itemIndent;
+  var inAssets = false;
+  var hasAssets = false;
+  for (var i = start + 1; i < lines.length; i++) {
+    final String line = lines[i].trimRight();
+    final String trimmed = line.trimLeft();
+    if (trimmed.isEmpty || trimmed.startsWith('#')) {
+      continue;
+    }
+    final int indent = line.length - trimmed.length;
+    if (indent == 0) {
+      break;
+    }
+    sectionIndent ??= indent;
+    final bool isListItem = trimmed == '-' || trimmed.startsWith('- ');
+    if (indent == sectionIndent && !isListItem) {
+      if (inAssets) {
+        break;
+      }
+      final int colon = trimmed.indexOf(':');
+      if (colon != -1 &&
+          trimmed.substring(0, colon).trim() == 'assets' &&
+          _readYamlValue(trimmed.substring(colon + 1)).isEmpty) {
+        inAssets = true;
+        hasAssets = true;
+      }
+      continue;
+    }
+    if (!inAssets) {
+      // 다른 키의 내용이다.
+      continue;
+    }
+    if (isListItem && (itemIndent == null || indent == itemIndent)) {
+      itemIndent = indent;
+      String entry = _readYamlValue(trimmed.substring(1));
+      if (entry.startsWith('path:')) {
+        entry = _readYamlValue(entry.substring('path:'.length));
+      }
+      assets.add(_unquote(entry));
+      continue;
+    }
+    if (itemIndent != null && indent > itemIndent) {
+      // 항목의 속성(flavors · transformers 등)이다.
+      continue;
+    }
+    return (
+      hasAssets: hasAssets,
+      unreadable: '${i + 1}번째 줄 「$trimmed」',
+      assets: assets,
+    );
+  }
+  return (hasAssets: hasAssets, unreadable: null, assets: assets);
+}
+
+/// 자산 키 [path] 가 [assets] 목록에 들어가는지 본다 — 같은 파일 항목이거나,
+/// `/` 로 끝나는 디렉터리 항목의 바로 아래 파일이다(하위 디렉터리는 따로
+/// 선언해야 한다).
+bool _isBundledAsset(String path, List<String> assets) => assets.any(
+  (String entry) =>
+      entry == path ||
+      (entry.endsWith('/') &&
+          path.startsWith(entry) &&
+          !path.substring(entry.length).contains('/')),
+);
+
+/// 로고 경로 상수(이름 → 경로) [logos] 가 번들 자산인지 [pubspec] · [fileExists]
+/// 로 대조해 어긋남 메시지를 돌려준다.
+///
+/// 네이티브 스플래시 생성기는 파일 시스템에서 경로를 읽지만 Flutter 스플래시는
+/// `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽는다 — 등록이 빠지면
+/// 네이티브 스플래시에만 로고가 보인다. 빈 목록이면 통과다.
+List<String> findLogoAssetMismatches(
+  String pubspec, {
+  required Map<String, String> logos,
+  required bool Function(String path) fileExists,
+}) {
+  final FlutterAssetList list = readFlutterAssets(pubspec);
+  final String? unreadable = list.unreadable;
+  if (unreadable != null) {
+    return <String>[
+      _buildMessage(
+        '$_pubspecPath 의 flutter: assets: 들여쓰기를 읽지 못했다 — $unreadable.\n'
+        '목록 항목은 모두 같은 들여쓰기의 「- 경로」 줄로 적는다.',
+      ),
+    ];
+  }
+  final messages = <String>[];
+  for (final MapEntry<String, String> logo in logos.entries) {
+    final String constName = logo.key;
+    final String path = logo.value;
+    if (path.startsWith('./')) {
+      messages.add(
+        _buildMessage(
+          '$_bodyPath 의 $constName 는 $path 다 — 자산 키는 ./ 없이 적는다(yaml '
+          '도 같은 값으로 고친다): '
+          "const String $constName = '${path.substring(2)}';",
+        ),
+      );
+      continue;
+    }
+    if (!fileExists(path)) {
+      messages.add(
+        _buildMessage(
+          '$_bodyPath 의 $constName 인 $path 파일이 없다 — 로고 그림을 그 경로에 '
+          '둔다.',
+        ),
+      );
+    }
+    if (!_isBundledAsset(path, list.assets)) {
+      messages.add(
+        _buildMessage(
+          '$_bodyPath 의 $constName 인 $path 가 $_pubspecPath 의 flutter: '
+          'assets: 에 없다 — Flutter 스플래시는 등록된 자산만 읽으므로 로고가 '
+          '비어 보인다.\n'
+          'assets: 에 그 파일이나 그 파일이 든 디렉터리(끝에 /)를 더한다.',
+        ),
+      );
+    }
   }
   return messages;
 }
@@ -1134,6 +1295,108 @@ void main() {
       );
       expect(shallow, hasLength(1), reason: shallow.join('\n\n'));
       expect(shallow.single, contains('「web: false」'));
+    });
+
+    test('T-26-YAML-12: 저장소 로고 경로 상수는 파일이 있고 pubspec.yaml 의 '
+        'flutter: assets: 에 등록된 번들 자산이다', () {
+      final String pubspec = readTrackedFile(_pubspecPath);
+      final FlutterAssetList list = readFlutterAssets(pubspec);
+      // 양성 대조 — 목록을 실제로 읽었다.
+      expect(
+        list.hasAssets,
+        isTrue,
+        reason: '$_pubspecPath 에 flutter: assets: 가 없다',
+      );
+      expect(list.assets, isNotEmpty);
+      final List<String> messages = findLogoAssetMismatches(
+        pubspec,
+        logos: <String, String>{
+          'kSplashImage': kSplashImage,
+          'kSplashImageDark': kSplashImageDark,
+        },
+        fileExists: (String path) => File(path).existsSync(),
+      );
+      expect(messages, isEmpty, reason: messages.join('\n\n'));
+    });
+
+    test('T-26-YAML-13: 등록되지 않은 디렉터리 · 하위 디렉터리 · ./ · 없는 파일은 '
+        '실패 · 파일 항목 · path: 항목은 통과', () {
+      const pubspec =
+          'name: app\n'
+          'flutter:\n'
+          '  uses-material-design: true\n'
+          '  fonts:\n'
+          '    - family: Sample\n'
+          '      fonts:\n'
+          '        - asset: assets/fonts/sample.ttf\n'
+          '  assets:\n'
+          '    - assets/images/splash/ # 스플래시 로고\n'
+          '    # 주석 줄은 항목이 아니다\n'
+          '    - "assets/brand/logo_file.png"\n'
+          '    - path: assets/flavor/\n'
+          '      flavors:\n'
+          '        - dev\n'
+          '  generate: true\n';
+      bool exists(String _) => true;
+      List<String> check(String path) => findLogoAssetMismatches(
+        pubspec,
+        logos: <String, String>{'kSplashImage': path},
+        fileExists: exists,
+      );
+
+      final FlutterAssetList list = readFlutterAssets(pubspec);
+      expect(list.unreadable, isNull);
+      expect(list.assets, <String>[
+        'assets/images/splash/',
+        'assets/brand/logo_file.png',
+        'assets/flavor/',
+      ]);
+      expect(check(_logo), isEmpty);
+      expect(check('assets/brand/logo_file.png'), isEmpty);
+      expect(check('assets/flavor/logo.png'), isEmpty);
+
+      final List<String> unregistered = check('assets/brand/logo.png');
+      expect(unregistered, hasLength(1), reason: unregistered.join('\n\n'));
+      expect(
+        unregistered.single,
+        allOf(<Matcher>[
+          contains(
+            'kSplashImage 인 assets/brand/logo.png 가 pubspec.yaml 의 '
+            'flutter: assets: 에 없다',
+          ),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
+      expect(
+        check('assets/images/splash/sub/logo.png').single,
+        contains('flutter: assets: 에 없다'),
+      );
+      expect(
+        check('./$_logo').single,
+        allOf(<Matcher>[
+          contains('./ 없이 적는다'),
+          contains("const String kSplashImage = '$_logo';"),
+        ]),
+      );
+      final List<String> missing = findLogoAssetMismatches(
+        pubspec,
+        logos: <String, String>{'kSplashImageDark': _logoDark},
+        fileExists: (String _) => false,
+      );
+      expect(missing, hasLength(1), reason: missing.join('\n\n'));
+      expect(missing.single, contains('$_logoDark 파일이 없다'));
+
+      // 목록 들여쓰기가 섞이면 그 줄을 말하는 메시지 하나로 실패한다.
+      final List<String> mixed = findLogoAssetMismatches(
+        pubspec.replaceFirst(
+          '    - "assets/brand/logo_file.png"\n',
+          '   - "assets/brand/logo_file.png"\n',
+        ),
+        logos: <String, String>{'kSplashImage': _logo},
+        fileExists: exists,
+      );
+      expect(mixed, hasLength(1), reason: mixed.join('\n\n'));
+      expect(mixed.single, contains('들여쓰기를 읽지 못했다'));
     });
   });
 }

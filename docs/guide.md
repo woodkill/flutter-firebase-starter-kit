@@ -1860,6 +1860,7 @@ done
   - yaml 색은 따옴표로 감싼다 — 따옴표 없는 `#` 값은 YAML 주석이 되어 빈 값이다.
 - `image` 와 `kSplashImage`, `image_dark` 와 `kSplashImageDark` 에 로고 그림 경로를 적는다(킷 값 `assets/images/splash/logo.png` · `assets/images/splash/logo_dark.png`).
   - ① 처럼 같은 이름으로 덮어쓰면 고치지 않는다.
+  - 다른 디렉터리로 옮기면 그 파일이나 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에도 등록한다 — Flutter 스플래시는 등록된 자산만 읽는다.
 - `android_12:` 블록의 `image` · `image_dark` 줄은 지우지 말고 위의 `image` · `image_dark` 와 같은 값으로 둔다.
   - Android 12 이상의 OS SplashScreen 설정이다. `image` 가 없으면 로고 대신 런처 아이콘을, `image_dark` 가 없으면 다크에서도 라이트 로고를 그린다.
 - `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 `color` · `color_dark` 와 같은 값으로 둔다.

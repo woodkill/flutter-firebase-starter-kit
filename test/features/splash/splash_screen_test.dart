@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:firebase_auth/firebase_auth.dart' as fb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1636,6 +1637,37 @@ void main() {
       );
       expect(tester.getCenter(logo), size.center(Offset.zero));
     });
+
+    testWidgets('T-26-FRAME-11: 로고를 읽지 못하면 자리를 비우고 예외 없이 경로가 든 '
+        '디버그 로그를 남긴다', (tester) async {
+      final logs = <String>[];
+      final DebugPrintCallback original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) {
+          logs.add(message);
+        }
+      };
+      try {
+        await _pumpFrame(tester, bundle: _MissingAssetBundle());
+        final logo = find.byType(Image);
+        final ImageProvider provider = tester.widget<Image>(logo).image;
+        final element = tester.element(logo);
+        await tester.runAsync(
+          () => precacheImage(provider, element, onError: (_, _) {}),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        expect(tester.takeException(), isNull);
+        expect(tester.getSize(logo), Size.zero);
+      } finally {
+        debugPrint = original;
+      }
+      expect(
+        logs,
+        contains(startsWith('splash_logo load failed ($kSplashImage)')),
+      );
+    });
   });
 }
 
@@ -1727,6 +1759,14 @@ class _PngAssetBundle extends CachingAssetBundle {
 
   @override
   Future<ByteData> load(String key) async => _png;
+}
+
+/// 모든 자산 키에서 읽기 실패를 던지는 시험용 자산 묶음이다 — 등록되지 않은
+/// 로고 경로와 같은 실패다.
+class _MissingAssetBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) async =>
+      throw FlutterError('Unable to load asset: "$key".');
 }
 
 /// OS 밝기 · 접근성 시험 값을 시험이 끝나면 되돌리도록 등록한다.
