@@ -1935,8 +1935,11 @@ void main() {
         '$pathLine      flavors: [\n        dev\n      ]\n': 'flavors: [',
         '$pathLine      platforms: [android,\n        ios]\n':
             'platforms: [android,',
-        // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄.
+        // 빌드 한정 키의 같은 줄 값이 태그로 시작한다.
+        '$pathLine      flavors: !!seq [dev]\n': 'flavors: !!seq [dev]',
+        // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄 · 이름이 flow 꼴인 줄.
         '$pathLine      flavors:\n        [dev]\n': '[dev]',
+        '$pathLine      flavors:\n        - [dev]\n': '- [dev]',
         // 항목 키 들여쓰기에서 알아보지 못한 줄(따옴표 키 · 콜론 앞 공백).
         '$pathLine      "flavors": [dev]\n': '"flavors": [dev]',
         '$pathLine      flavors : [dev]\n': 'flavors : [dev]',
@@ -1947,6 +1950,10 @@ void main() {
         '    -\n      path: assets/images/splash/\n': '-',
         '    - "path": assets/images/splash/\n':
             '- "path": assets/images/splash/',
+        // 항목 첫 줄이 콜론 앞 공백 키 · 값이 빈 path: 다.
+        '    - path : assets/images/splash/\n':
+            '- path : assets/images/splash/',
+        '    - path:\n      flavors: [dev]\n': '- path:',
         // 항목 첫 줄이 목록 표시로 시작한다(항목이 목록이다).
         '    - - assets/images/splash/\n': '- - assets/images/splash/',
       };
