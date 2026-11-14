@@ -1906,7 +1906,7 @@ fvm dart run flutter_native_splash:create
   - `hasFailure` 가 참이면 실패 대화상자를 띄운 뒤이므로 진행 표시를 숨긴다.
   - 글자 · 진행 표시 색은 테마(`context.colorScheme`)에서 읽는다 — 그 테마는 배경 밝기에 맞춘 테마다.
 - 내용을 바꾸면 그 시험 `test/features/splash/splash_body_test.dart` 도 함께 고친다.
-  - 이 시험도 내 파일이다.
+  - 이 시험도 내 파일이다. 가로 화면 점검은 내 로고 대신 시험용 작은 로고로 그려 아래 내용이 가로 칸에 들어가는지만 본다.
 - 끝나지 않는 애니메이션을 넣었다면 라우터로 앱 전체를 여는 킷 시험이 끝나는지 돌려 본다.
   - 이 시험들은 내 화면까지 그리므로 끝나지 않는 애니메이션이 있으면 시험의 기다림이 끝나지 않을 수 있다 — `test/core/router/app_router_nesting_test.dart` · `test/app_high_contrast_test.dart` · `test/core/router/session_ending_flow_test.dart` · `test/core/router/app_router_observers_test.dart` · `test/features/notifications/application/notification_settings_notifier_test.dart` · `test/widget_test.dart`.
 - 로고 자리 · 크기를 바꾸려면 킷 파일 `lib/features/splash/presentation/splash_frame.dart` 를 고친다.
@@ -1949,9 +1949,9 @@ fvm dart run flutter_native_splash:create
 - **Android 12 이상에서 로고 가장자리가 잘린다.**
   - 로고가 가운데 원 밖으로 나간다.
   - ① 대로 지름 약 750픽셀 원 안에 두고 ③ 을 다시 한다.
-- **가로 화면에서 로고 아래 내용이 보이지 않는다.**
-  - 1152 규격 로고(288)가 가로 화면 높이를 거의 채운다.
-  - 아래 내용은 로고 상자 아래 남은 칸에서 스크롤된다.
+- **가로 화면에서 로고 아래 진행 표시 · 문구가 보이지 않거나 일부만 보인다.**
+  - 1152 규격 로고(288)는 가로 화면 높이를 거의 다 채워 로고만 보일 수 있다 — 정상이다.
+  - 로고 아래에 남은 칸이 있을 때만 아래 내용이 그 칸에서 스크롤된다.
 - **스플래시에서 홈 화면으로 넘어갈 때 배경색이 바뀐다.**
   - 스플래시 두 화면의 배경은 스플래시 색(`flutter_native_splash.yaml` 의 색 = `splash_body.dart` 상수)과 기기의 라이트 · 다크 설정을 따르고, 홈 · 온보딩 등 그 뒤 화면은 앱 테마를 따른다.
   - 두 값이 다르면 색이 바뀌는 것이 정상이다. 기기는 다크 · 앱 설정은 라이트이면 검은 스플래시 뒤에 밝은 홈이 보이는 것도 같은 이유다.
