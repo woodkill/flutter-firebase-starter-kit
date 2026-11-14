@@ -1924,13 +1924,13 @@ fvm dart run flutter_native_splash:create
 
 **⑧ 바꾼 파일을 모두 커밋한다.**
 - ④ 의 파일과 ① ~ ⑥ 에서 고친 로고 · `flutter_native_splash.yaml` · `splash_body.dart` · `splash_body_test.dart` · ARB · `lib/l10n/generated/` 의 생성 파일을 함께 커밋한다.
+  - 커밋하기 전 `git status` 에 ④ 의 파일이 바뀐 것으로 보이는지 본다.
   - 로고를 다른 디렉터리로 옮겼다면 `pubspec.yaml` 도 함께 커밋한다.
   - ⑦ 의 `config/<flavor>.json` 은 커밋하지 않는다 — 저장소에 올리지 않는 설정 파일이다.
 
 ### 확인 방법
 
 - `fvm flutter test test/infrastructure/native_splash_yaml_test.dart test/features/splash/` 가 통과한다.
-- 커밋하기 전 `git status` 에 ④ 의 파일이 바뀐 것으로 보인다.
 - 앱을 완전히 종료한 뒤 다시 실행해 스플래시를 본다.
   - 기기를 라이트 · 다크 모드로 바꿔 가며 두 화면의 배경 · 로고가 같은지 본다.
   - 로고는 움직이지 않고 그 아래 진행 표시 · 문구만 새로 나타난다.
@@ -1974,7 +1974,9 @@ fvm dart run flutter_native_splash:create
 
 ### 되돌리기
 
-- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml lib/features/splash/presentation/splash_body.dart test/features/splash/splash_body_test.dart lib/l10n/` 로 원본 · 설정 · 문구를 되돌리고 ③ 을 다시 한다.
+- 커밋하기 전이면 `git checkout -- assets/images/splash/ flutter_native_splash.yaml lib/features/splash/presentation/splash_body.dart test/features/splash/splash_body_test.dart` 로 원본과 설정을 되돌리고 ③ 을 다시 한다.
+- ⑤ 에서 고친 문구는 ARB 의 그 값을 원래대로 적은 뒤 ⑤ 처럼 생성 파일을 다시 만든다.
+  - ARB 파일을 통째로 되돌리면 그 파일의 다른 문구 수정도 함께 사라진다.
 - 킷 새 판을 받을 때 스플래시 설정 · 로고 · `splash_body.dart` 는 내 값이고 생성물은 다시 만들어 덮어쓴다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 14행 · 15행 · 40행대로 처리한다.
 
 ## 언어별 앱 이름 넣기 · 앱 언어 추가하기
