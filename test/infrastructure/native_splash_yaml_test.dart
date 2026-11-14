@@ -295,8 +295,8 @@ String _buildUnreadableMessage(
     '$file 의 ${unreadable.line} 을 읽지 못했다 — flutter: assets: 목록 항목에서 '
         '읽는 꼴이 아니다.\n'
         '목록 항목은 같은 들여쓰기의 「- 경로」 한 줄이나 「- path: 경로」 와 그 '
-        '아래 「키: 값」 줄로 적고, flavors: · platforms: 값은 같은 줄의 […] 이나 '
-        '그 아래 「- 이름」 줄로 적는다.',
+        '아래 따옴표 없는 「키: 값」 줄로 적고, flavors: · platforms: 값은 같은 '
+        '줄의 […] 이나 그 아래 「- 이름」 줄로 적는다.',
 });
 
 /// `flutter_native_splash.yaml` 의 읽지 못한 줄 [unreadable] 메시지를 만든다.
@@ -667,7 +667,8 @@ typedef FlutterAssetList = ({
   List<FlutterAssetEntry> assets,
 });
 
-/// `키: 값` 꼴 줄의 키 — 키 뒤 `:` 다음은 공백이거나 줄 끝이다.
+/// `키: 값` 꼴 줄의 키 — 키는 따옴표 없이 영문자 · `_` 로 시작하고 영문자 ·
+/// 숫자 · `_` · `-` 만 쓰며, 바로 뒤 `:` 다음은 공백이거나 줄 끝이다.
 final RegExp _yamlKeyPattern = RegExp(r'^([A-Za-z_][\w-]*):(?=\s|$)');
 
 /// 자산 항목의 빌드 한정 키 — Flutter 도구는 이 키의 이름에 맞는 빌드에만 그
@@ -747,15 +748,23 @@ bool _isItemPathLine(String rest) {
 
 /// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
 ///
-/// 들여쓰기는 상대 깊이로 읽는다 — `flutter:` 절 첫 키 줄의 들여쓰기가 절의 키,
-/// `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이고, 절의 다음 키 줄에서
-/// 목록이 끝난다. 목록 항목 밖의 그 밖의 줄과 `flutter:` · `assets:` 의 flow 꼴
-/// 값은 `unreadable` 로 돌려준다.
+/// 들여쓰기는 상대 깊이로 읽는다.
+/// - `flutter:` 절 첫 줄(빈 줄 · 주석 줄 제외)의 들여쓰기가 절의 키다. 그
+///   들여쓰기의 값이 빈 `assets:` 줄 앞의 줄(절의 다른 키와 그 내용)은 읽지 않고
+///   건너뛴다.
+/// - `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이다. 절 들여쓰기의 `- `
+///   아닌 줄(다음 키 줄)에서 목록이 끝나고, 그 뒤 줄은 읽지 않는다.
+/// - 목록 안에서 항목 줄도 목록을 끝내는 줄도 아닌 줄은, 항목보다 깊으면 아래
+///   「목록 항목 안」 의 꼴로 읽는다. 아니면(첫 `- ` 줄 앞의 줄 · 항목보다 얕은 줄
+///   · 항목 들여쓰기의 `- ` 아닌 줄) 이유 [UnreadableYamlReason.indent] 의
+///   `unreadable` 로 돌려준다.
+/// - `flutter:` · `assets:` 의 flow 꼴 값은 이유 [UnreadableYamlReason.flow] 의
+///   `unreadable` 로 돌려준다.
 ///
 /// 목록 항목 안에서 읽는 꼴은 아래뿐이다.
 /// - 항목 첫 줄: `- 경로`([_isItemPathLine])나 `- 키: 값` 이다.
-/// - 키 줄: `- ` 뒤 글자 자리(첫 줄의 `- 키: 값` 포함)의 `키: 값` — 키는 따옴표
-///   없이 쓰고 바로 뒤에 `:` 를 둔다. `path:` 의 값은 경로([_isScalarValue])다.
+/// - 키 줄: `- ` 뒤 글자 자리(첫 줄의 `- 키: 값` 포함)의 `키: 값` — 키는
+///   [_yamlKeyPattern] 꼴이다. `path:` 의 값은 경로([_isScalarValue])다.
 /// - 빌드 한정 키(`flavors:` · `platforms:`)의 값: [_isReadableRestrictionValue]
 ///   다. 빈 값이면 그 아래 키 들여쓰기 이상의 `- 이름` 줄([_isScalarValue])이
 ///   이름이다.
