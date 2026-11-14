@@ -28,7 +28,8 @@
 //
 // **로고 경로는 번들 자산이어야 한다** — 생성기는 파일 시스템에서 읽지만 Flutter
 // 스플래시는 `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽고, 자산 키는
-// 파일 이름의 대소문자를 구분한다.
+// 파일 이름의 대소문자를 구분한다. `flavors:` 로 한정한 항목은 그 flavor 빌드에만
+// 실리므로 등록으로 보지 않는다.
 //
 // 사용자 안내: `docs/guide.md` 「스플래시 바꾸기」.
 //
@@ -562,27 +563,50 @@ List<String> findSplashMismatches(
 
 const String _pubspecPath = 'pubspec.yaml';
 
+/// [readFlutterAssets] 가 읽은 `flutter: assets:` 항목 하나.
+///
+/// - `path`: 자산 경로(따옴표 · 끝 주석 제외 · `path:` 꼴은 그 값).
+/// - `hasFlavors`: 항목에 flavor 이름이 하나 이상인 `flavors:` 가 있다 — Flutter
+///   도구는 그 항목을 그 flavor 빌드에만 싣는다(`flavors: []` 는 한정이 아니다).
+typedef FlutterAssetEntry = ({String path, bool hasFlavors});
+
 /// [readFlutterAssets] 의 결과 — `flutter: assets:` 목록과 읽지 못한 줄.
 ///
 /// 어느 줄을 목록 항목으로 읽는지는 [readFlutterAssets] 문서의 규칙을 따른다.
 /// - `hasAssets`: 맨 위 `flutter:` 절에 `assets:` 키가 있다.
 /// - `unreadable`: 규칙으로 자리를 정하지 못한 첫 줄이다. null 이 아니면
 ///   `assets` 를 믿지 않는다.
-/// - `assets`: 항목의 자산 경로(따옴표 · 끝 주석 제외 · `path:` 꼴은 그 값).
+/// - `assets`: `path` 가 있는 항목들이다.
 typedef FlutterAssetList = ({
   bool hasAssets,
   String? unreadable,
-  List<String> assets,
+  List<FlutterAssetEntry> assets,
 });
+
+/// `키: 값` 꼴 줄의 키 — 키 뒤 `:` 다음은 공백이거나 줄 끝이다.
+final RegExp _yamlKeyPattern = RegExp(r'^([A-Za-z_][\w-]*):(?=\s|$)');
+
+/// `flavors:` 의 한 줄 값 [value] 에 flavor 이름이 있는지 본다 — `[]` · `null`
+/// · `~` 는 이름이 없다.
+bool _hasFlavorNames(String value) {
+  if (value.startsWith('[')) {
+    final int end = value.endsWith(']') ? value.length - 1 : value.length;
+    return value.substring(1, end).trim().isNotEmpty;
+  }
+  return value != 'null' && value != '~';
+}
 
 /// [pubspec] 의 맨 위 `flutter:` 절에서 `assets:` 목록을 줄 단위로 읽는다.
 ///
 /// 들여쓰기는 상대 깊이로 읽는다 — `flutter:` 절 첫 키 줄의 들여쓰기가 절의 키,
-/// `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이고, 항목보다 깊은 줄은 그
-/// 항목의 속성으로 건너뛰며, 절의 다음 키 줄에서 목록이 끝나고, 그 밖의 줄은
-/// `unreadable` 로 돌려준다.
+/// `assets:` 다음 첫 `- ` 줄의 들여쓰기가 목록 항목이고, 절의 다음 키 줄에서
+/// 목록이 끝나며, 그 밖의 줄은 `unreadable` 로 돌려준다.
+///
+/// 항목의 키(`- ` 뒤 글자 자리의 `키:` 줄) 가운데 `path:` 는 경로, `flavors:` 는
+/// flavor 한정이다 — `flavors:` 는 한 줄 값(`[dev]`)이나 아래 목록 줄(`- dev`)로
+/// 읽는다. 그 밖의 키와 키 값의 내용(transformers 목록 등)은 건너뛴다.
 FlutterAssetList readFlutterAssets(String pubspec) {
-  final assets = <String>[];
+  final assets = <FlutterAssetEntry>[];
   final List<String> lines = pubspec.split('\n');
   final int start = lines.indexWhere(
     (String line) =>
@@ -597,6 +621,44 @@ FlutterAssetList readFlutterAssets(String pubspec) {
   int? itemIndent;
   var inAssets = false;
   var hasAssets = false;
+  // 지금 항목의 키 들여쓰기 · 경로 · flavor 한정 여부.
+  int? itemKeyIndent;
+  String? itemPath;
+  var itemHasFlavors = false;
+  // 값이 빈 `flavors:` 키 아래 — 목록 줄이 flavor 이름이다.
+  var inFlavors = false;
+
+  void addItem() {
+    final path = itemPath;
+    if (path != null) {
+      assets.add((path: path, hasFlavors: itemHasFlavors));
+    }
+    itemPath = null;
+    itemHasFlavors = false;
+    inFlavors = false;
+  }
+
+  // 항목 키 줄 [text](`키: 값`)을 읽는다 — `키:` 꼴이 아니면 false 다.
+  bool readItemKey(String text) {
+    final Match? match = _yamlKeyPattern.firstMatch(text);
+    if (match == null) {
+      return false;
+    }
+    final String key = match.group(1)!;
+    final String value = _readYamlValue(text.substring(match.end));
+    inFlavors = false;
+    if (key == 'path') {
+      itemPath = _unquote(value);
+    } else if (key == 'flavors') {
+      if (value.isEmpty) {
+        inFlavors = true;
+      } else {
+        itemHasFlavors = _hasFlavorNames(value);
+      }
+    }
+    return true;
+  }
+
   for (var i = start + 1; i < lines.length; i++) {
     final String line = lines[i].trimRight();
     final String trimmed = line.trimLeft();
@@ -627,16 +689,22 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       continue;
     }
     if (isListItem && (itemIndent == null || indent == itemIndent)) {
+      addItem();
       itemIndent = indent;
-      String entry = _readYamlValue(trimmed.substring(1));
-      if (entry.startsWith('path:')) {
-        entry = _readYamlValue(entry.substring('path:'.length));
+      final String rest = trimmed.substring(1);
+      itemKeyIndent = indent + 1 + rest.length - rest.trimLeft().length;
+      final String content = _readYamlValue(rest);
+      if (!readItemKey(content)) {
+        itemPath = _unquote(content);
       }
-      assets.add(_unquote(entry));
       continue;
     }
     if (itemIndent != null && indent > itemIndent) {
-      // 항목의 속성(flavors · transformers 등)이다.
+      if (indent == itemKeyIndent && !isListItem) {
+        readItemKey(trimmed);
+      } else if (inFlavors && isListItem && indent >= itemKeyIndent!) {
+        itemHasFlavors = true;
+      }
       continue;
     }
     return (
@@ -645,6 +713,7 @@ FlutterAssetList readFlutterAssets(String pubspec) {
       assets: assets,
     );
   }
+  addItem();
   return (hasAssets: hasAssets, unreadable: null, assets: assets);
 }
 
@@ -714,6 +783,16 @@ List<String> findLogoAssetMismatches(
       ),
     ];
   }
+  // 대조 시험이 읽는 yaml 은 모든 flavor 공통이므로 로고는 모든 flavor 빌드에
+  // 실려야 한다 — flavors: 없는 항목만 등록으로 본다.
+  final plainAssets = <String>[
+    for (final FlutterAssetEntry entry in list.assets)
+      if (!entry.hasFlavors) entry.path,
+  ];
+  final flavorAssets = <String>[
+    for (final FlutterAssetEntry entry in list.assets)
+      if (entry.hasFlavors) entry.path,
+  ];
   final messages = <String>[];
   for (final MapEntry<String, String> logo in logos.entries) {
     final String constName = logo.key;
@@ -749,7 +828,20 @@ List<String> findLogoAssetMismatches(
         ),
       );
     }
-    if (!_isBundledAsset(path, list.assets)) {
+    if (_isBundledAsset(path, plainAssets)) {
+      continue;
+    }
+    if (_isBundledAsset(path, flavorAssets)) {
+      messages.add(
+        _buildMessage(
+          '$_bodyPath 의 $constName 인 $path 는 $_pubspecPath 의 flutter: '
+          'assets: 에서 flavors: 로 한정한 항목에만 있다 — flavors: 로 한정한 '
+          '항목은 다른 flavor 빌드에 실리지 않는다.\n'
+          'flavors: 없는 항목으로 등록한다(그 파일이나 그 파일이 든 디렉터리, '
+          '끝에 /).',
+        ),
+      );
+    } else {
       messages.add(
         _buildMessage(
           '$_bodyPath 의 $constName 인 $path 가 $_pubspecPath 의 flutter: '
@@ -1368,8 +1460,9 @@ void main() {
       expect(messages, isEmpty, reason: messages.join('\n\n'));
     });
 
-    test('T-26-YAML-13: 등록되지 않은 디렉터리 · 하위 디렉터리 · ./ · 없는 파일은 '
-        '실패 · 파일 항목 · path: 항목은 통과', () {
+    test('T-26-YAML-13: 등록되지 않은 디렉터리 · 하위 디렉터리 · ./ · 없는 파일 · '
+        'flavors: 로 한정한 항목은 실패 · 파일 항목 · flavors: 없는 path: 항목은 '
+        '통과', () {
       const pubspec =
           'name: app\n'
           'flutter:\n'
@@ -1385,6 +1478,16 @@ void main() {
           '    - path: assets/flavor/\n'
           '      flavors:\n'
           '        - dev\n'
+          '    - path: assets/flavor_flow/\n'
+          '      flavors: [dev, stg]\n'
+          '    - flavors:\n'
+          '      - prod\n'
+          '      path: assets/flavor_first/\n'
+          '    - path: assets/plain_path/ # flavors 없는 path 항목\n'
+          '      transformers:\n'
+          '        - package: sample_transformer\n'
+          '    - path: assets/empty_flavors/\n'
+          '      flavors: []\n'
           '  generate: true\n';
       // 파일은 모두 그 이름 그대로 있다고 본다 — 파일 판정은 아래 따로 본다.
       String resolveSame(String path) => path;
@@ -1396,14 +1499,44 @@ void main() {
 
       final FlutterAssetList list = readFlutterAssets(pubspec);
       expect(list.unreadable, isNull);
-      expect(list.assets, <String>[
-        'assets/images/splash/',
-        'assets/brand/logo_file.png',
-        'assets/flavor/',
+      expect(list.assets, <FlutterAssetEntry>[
+        (path: 'assets/images/splash/', hasFlavors: false),
+        (path: 'assets/brand/logo_file.png', hasFlavors: false),
+        (path: 'assets/flavor/', hasFlavors: true),
+        (path: 'assets/flavor_flow/', hasFlavors: true),
+        (path: 'assets/flavor_first/', hasFlavors: true),
+        (path: 'assets/plain_path/', hasFlavors: false),
+        (path: 'assets/empty_flavors/', hasFlavors: false),
       ]);
       expect(check(_logo), isEmpty);
       expect(check('assets/brand/logo_file.png'), isEmpty);
-      expect(check('assets/flavor/logo.png'), isEmpty);
+      expect(check('assets/plain_path/logo.png'), isEmpty);
+      // flavors: [] 는 이름이 없어 모든 flavor 빌드에 실린다.
+      expect(check('assets/empty_flavors/logo.png'), isEmpty);
+
+      // flavors: 로 한정한 항목(목록 줄 · 한 줄 값 · path 앞 키)에만 있으면
+      // 실패한다.
+      for (final flavorDirectory in <String>[
+        'assets/flavor/',
+        'assets/flavor_flow/',
+        'assets/flavor_first/',
+      ]) {
+        final List<String> flavored = check('${flavorDirectory}logo.png');
+        expect(flavored, hasLength(1), reason: flavored.join('\n\n'));
+        expect(
+          flavored.single,
+          allOf(<Matcher>[
+            contains(
+              'kSplashImage 인 ${flavorDirectory}logo.png 는 pubspec.yaml 의 '
+              'flutter: assets: 에서 flavors: 로 한정한 항목에만 있다',
+            ),
+            contains('다른 flavor 빌드에 실리지 않는다'),
+            contains('flavors: 없는 항목으로 등록한다'),
+            isNot(contains('flow 꼴')),
+            contains('스플래시 바꾸기'),
+          ]),
+        );
+      }
 
       final List<String> unregistered = check('assets/brand/logo.png');
       expect(unregistered, hasLength(1), reason: unregistered.join('\n\n'));
