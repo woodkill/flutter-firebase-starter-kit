@@ -1960,9 +1960,13 @@ void main() {
             'platforms: [android,',
         // 빌드 한정 키의 같은 줄 값이 태그로 시작한다.
         '$pathLine      flavors: !!seq [dev]\n': 'flavors: !!seq [dev]',
-        // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄 · 이름이 flow 꼴인 줄.
+        // 값이 빈 빌드 한정 키 아래 「- 이름」 이 아닌 줄 · 이름이 flow 꼴인 줄 ·
+        // 그 밖의 키(transformers) 목록 뒤의 빌드 한정 키 아래 「- 이름」 이 아닌 줄.
         '$pathLine      flavors:\n        [dev]\n': '[dev]',
         '$pathLine      flavors:\n        - [dev]\n': '- [dev]',
+        '$pathLine      transformers:\n      - package: y\n      platforms:\n'
+                '        [ios]\n':
+            '[ios]',
         // 항목 키 들여쓰기에서 알아보지 못한 줄(따옴표 키 · 콜론 앞 공백).
         '$pathLine      "flavors": [dev]\n': '"flavors": [dev]',
         '$pathLine      flavors : [dev]\n': 'flavors : [dev]',
@@ -2004,8 +2008,8 @@ void main() {
         '    - path: "assets/a\\\\b/"\n': r'- path: "assets/a\\b/"',
       };
       // 빌드 한정 키의 같은 줄 값이 YAML 표시 글자로 시작한다 — 표시 글자마다
-      // 하나(flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자 · 뒤에 공백이 오는
-      // 복합 키 · 값 · 목록 표시).
+      // 하나(flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자 · 뒤에 공백이 오거나
+      // 줄이 끝나는 복합 키 · 값 · 목록 표시).
       const indicatorValues = <String>[
         '{dev: 1}',
         '[dev',
@@ -2020,6 +2024,9 @@ void main() {
         '? dev',
         ': dev',
         '- dev',
+        '?',
+        ':',
+        '-',
       ];
       final unreadableSamples = <String, String>{
         ...unreadableItems,
@@ -2056,6 +2063,15 @@ void main() {
         checkPubspec(itemPubspec('      platforms: [android, ios] # 둘 다\n')),
         isEmpty,
       );
+      // 「- 」 뒤 공백 셋인 항목 · 값이 빈 flavors: 다음 키 줄 아래 목록 줄 ·
+      // 따옴표 원소의 platforms: […].
+      for (final readableItem in <String>[
+        '    -   path: assets/images/splash/\n        flavors: []\n',
+        '$pathLine      flavors:\n      transformers:\n      - package: x\n',
+        '$pathLine      platforms: ["android", "ios"]\n',
+      ]) {
+        expect(checkPubspec(assetsPubspec(readableItem)), isEmpty);
+      }
       // 따옴표 값 뒤의 끝 주석은 값이 아니고, 따옴표 안의 「공백 + #」 은 값이다
       // — 항목 첫 줄과 키 줄이 같은 값을 읽는다.
       for (final quotedItem in <String>[
@@ -2103,6 +2119,7 @@ void main() {
       for (final restrictedItem in <String>[
         // 한 줄 스칼라 값도 이름으로 읽는다.
         '      flavors: dev\n',
+        '      flavors: qa\n',
         '      flavors: [dev] # 끝 주석\n',
         '      flavors:\n        - dev\n',
         '      flavors:\n      - dev\n',
