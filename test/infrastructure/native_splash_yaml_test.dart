@@ -701,10 +701,12 @@ List<String> _readInlineNames(String value) {
   ];
 }
 
-/// 값 [value] 가 이 시험이 읽는 한 줄 스칼라인지 본다 — 비지 않았고 flow · 태그 ·
-/// 앵커 · 별칭 · 블록 스칼라 표시(`{` `[` `!` `&` `*` `|` `>`)로 시작하지 않는다.
+/// 값 [value] 가 이 시험이 읽는 한 줄 스칼라인지 본다 — 비지 않았고 YAML 표시로
+/// 시작하지 않는다: flow · 태그 · 앵커 · 별칭 · 블록 스칼라 · 예약 글자(`{` `[` `!`
+/// `&` `*` `|` `>` `%` `@` `` ` ``)와 뒤에 공백이 오는 `?` · `:` · `-`(복합 키 ·
+/// 목록).
 bool _isPlainScalar(String value) =>
-    value.isNotEmpty && !value.startsWith(RegExp(r'[{\[!&*|>]'));
+    value.isNotEmpty && !value.startsWith(RegExp(r'[{\[!&*|>%@`]|[?:-](\s|$)'));
 
 /// 빌드 한정 키의 같은 줄 값 [value] 를 읽을 수 있는지 본다 — 빈 값 · 한 줄 스칼라
 /// (`null` · `~` 포함) · 같은 줄에서 닫히는 `[…]` 다.
@@ -1945,6 +1947,8 @@ void main() {
         '    -\n      path: assets/images/splash/\n': '-',
         '    - "path": assets/images/splash/\n':
             '- "path": assets/images/splash/',
+        // 항목 첫 줄이 목록 표시로 시작한다(항목이 목록이다).
+        '    - - assets/images/splash/\n': '- - assets/images/splash/',
       };
       for (final MapEntry<String, String> sample in unreadableItems.entries) {
         final String text = assetsPubspec(sample.key);
