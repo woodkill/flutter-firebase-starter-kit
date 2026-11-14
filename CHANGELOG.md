@@ -14,6 +14,20 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- `flutter_native_splash.yaml` 의 `color` · `color_dark` 를 내 색으로 바꾼 저장소는 이 판을 받은 뒤 새 내 파일 `lib/features/splash/presentation/splash_body.dart` 가 킷 값(`Color(0xFFFFFFFF)` · `Color(0xFF000000)`)으로 들어오므로, 그 파일의 `kSplashColor` · `kSplashColorDark` 에 yaml 과 같은 색을 `Color(0xFF<6자리>)` 꼴로 적는다(yaml `"#F2B134"` 면 `Color(0xFFF2B134)`) — 안 하면 `test/infrastructure/native_splash_yaml_test.dart` 가 실패하고 그 메시지가 적을 줄(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 알려 준다. 로고 그림 경로(`image` · `image_dark`)를 다른 이름으로 바꿨다면 `kSplashImage` · `kSplashImageDark` 에도 같은 경로를 적는다. `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 색과 같은 값으로 두고(블록은 남긴다), 플랫폼별 색 · 로고 키와 배경 그림 키도 그 시험이 보므로 `docs/guide.md` 「스플래시 바꾸기」 ② 대로 맞춘다. yaml 의 색 · 그림 경로를 바꾸지 않았다면 할 일이 없다.
+- `lib/features/splash/presentation/splash_screen.dart` 의 화면 부분(`build()` 의 진행 표시 · 문구 · 간격)을 고친 저장소는 이 판을 받을 때 그 파일에서 `CONFLICT (content)` 가 난다. 충돌 블록은 킷 쪽(`=======` 와 `>>>>>>>` 사이)을 받는다 — 그 파일에서 화면 부분만 고쳤다면 `git checkout --theirs -- lib/features/splash/presentation/splash_screen.dart` 로 받고 `git add lib/features/splash/presentation/splash_screen.dart` 한다. 고쳤던 로고 아래 내용(진행 표시 · 문구 · 간격)은 `lib/features/splash/presentation/splash_body.dart` 의 `buildSplashBody` 로 옮기고, 그 시험 `test/features/splash/splash_body_test.dart` 의 단언도 함께 고친다 — 배경색 · 로고는 위 항목의 상수가 정하고, 로고는 킷 파일 `lib/features/splash/presentation/splash_frame.dart` 가 화면 정가운데에 그린다. 화면을 고치지 않았다면 할 일이 없다.
+- 디자인 리터럴 가드 시험 `test/core/theme/design_literal_scan_test.dart` 의 `_designLiteralMarkerCount` 를 내 값으로 고친 저장소는 이 판을 받을 때 그 줄에서 `CONFLICT (content)` 가 난다 — 킷 값이 `14` → `15` 로 바뀌었으므로(스플래시 로고 크기 표시 하나가 없어지고 배경색 상수 표시 둘이 생긴다) 충돌 블록을 내 값에 킷 변화량 `+1` 을 더한 값 한 줄(`const int _designLiteralMarkerCount = <내 값 + 1>;`)로 바꾸고 `git add test/core/theme/design_literal_scan_test.dart` 한다. 충돌을 모두 푼 뒤 `git commit --no-edit` 로 merge 를 마친다. 그 값을 고치지 않았다면 merge 로 끝난다.
+
+### Added
+
+- 사용자 소유 파일 `lib/features/splash/presentation/splash_body.dart` 가 생긴다 — 스플래시 배경색 상수 `kSplashColor` · `kSplashColorDark`, 로고 경로 상수 `kSplashImage` · `kSplashImageDark`, 로고 아래 내용을 만드는 `buildSplashBody` 가 있고, 그 시험 `test/features/splash/splash_body_test.dart` 와 함께 사용자 소유 표면 40행(킷이 고칠 가능성 `낮음` · 충돌 시 조치 「내 값」)이다. 킷 틀 `lib/features/splash/presentation/splash_frame.dart`(`SplashFrame` · `SplashBodyBuilder`)가 배경 · 로고 · 상태 표시줄을 그리고 로고 아래에 그 내용을 놓으며, `SplashScreen(bodyBuilder: …)` 인자로 다른 내용을 넘길 수 있다(킷 스플래시 시험이 시험용 내용을 넘긴다). `test/infrastructure/native_splash_yaml_test.dart` 가 `flutter_native_splash.yaml` 의 색 · 그림 경로(`android_12:` 블록 · 플랫폼별 키 포함)를 그 상수와 대조하고, 어긋나면 고칠 선언을 메시지로 보여 준다. 두 스플래시를 함께 바꾸는 절차는 `docs/guide.md` 「스플래시 바꾸기」 에 있다.
+
+### Changed
+
+- Flutter 스플래시의 배경 · 로고가 앱 테마가 아니라 기기의 라이트 · 다크 설정을 따라 네이티브 스플래시와 같은 값이다 — 킷 기본 화면 배경이 테마 표면색에서 `#FFFFFF` · `#000000` 으로 바뀌고, 다크면 `logo_dark.png` 를 그린다. 로고는 화면 정가운데에 원본 ÷ 4 크기로 놓여 네이티브 스플래시에서 넘어갈 때 움직이지 않고, 글자 · 진행 표시 색과 상태 표시줄 아이콘은 배경 밝기를 따른다. 실패 대화상자는 앱 테마 그대로다. `docs/guide.md` 「스플래시 바꾸기」 의 권장 로고 원본이 1152x1152(가운데 지름 약 750픽셀 원 안 · 원 밖 투명) 규격으로 바뀐다 — 이 규격이어야 Android 12 이상에서도 두 화면의 로고 크기가 같다. 라우터로 앱 전체를 여는 킷 시험(`test/core/router/app_router_nesting_test.dart` · `test/widget_test.dart` 등)은 내 `buildSplashBody` 를 그린다. 바뀐 킷 파일은 `lib/features/splash/presentation/splash_screen.dart` · `splash_frame.dart`(새) · `lib/features/demo/presentation/demo_screen.dart`(주석) · `scripts/release_user_action.sh`(40행 판정) · `docs/guide.md` · `assets/images/splash/README.md` · 시험이고, 위 「사용자 조치」 의 세 경우가 아니면 merge 로 끝난다.
+
 ## [1.0.0-rc.14] - 2026-11-13
 
 ### 사용자 조치
