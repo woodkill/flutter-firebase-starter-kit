@@ -79,10 +79,17 @@ class SplashFrame extends StatelessWidget {
           );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // 밝은 배경에는 어두운 아이콘, 어두운 배경에는 밝은 아이콘이다.
-      value: isBackgroundDark
-          ? SystemUiOverlayStyle.light
-          : SystemUiOverlayStyle.dark,
+      // 밝은 배경에는 어두운 아이콘, 어두운 배경에는 밝은 아이콘이다. SDK 프리셋
+      // (`SystemUiOverlayStyle.light` · `.dark`)은 내비게이션 바 색까지 담으므로
+      // 상태 표시줄 필드만 담는다 — statusBarBrightness 는 iOS 용으로 반대 값이다.
+      value: SystemUiOverlayStyle(
+        statusBarIconBrightness: isBackgroundDark
+            ? Brightness.light
+            : Brightness.dark,
+        statusBarBrightness: isBackgroundDark
+            ? Brightness.dark
+            : Brightness.light,
+      ),
       child: Scaffold(
         backgroundColor: background,
         body: Theme(

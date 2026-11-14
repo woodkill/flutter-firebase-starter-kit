@@ -1536,19 +1536,19 @@ void main() {
     });
 
     testWidgets('T-26-FRAME-06: 상태 표시줄 아이콘 밝기 — 밝은 배경 dark · '
-        '어두운 배경 light', (tester) async {
+        '어두운 배경 light · 내비게이션 바 값은 걸지 않는다', (tester) async {
       _expectInjectedColorsOpposite();
       await _pumpFrame(tester, color: _kBrightInjected);
-      expect(
-        _statusBarIconBrightness(tester),
-        Brightness.dark,
+      _expectStatusBarOnly(
+        _overlayStyle(tester),
+        iconBrightness: Brightness.dark,
         reason: '밝은 배경',
       );
 
       await _pumpFrame(tester, color: _kDarkInjected);
-      expect(
-        _statusBarIconBrightness(tester),
-        Brightness.light,
+      _expectStatusBarOnly(
+        _overlayStyle(tester),
+        iconBrightness: Brightness.light,
         reason: '어두운 배경',
       );
     });
@@ -1841,16 +1841,32 @@ ExactAssetImage _logoProvider(WidgetTester tester) {
 ThemeData _bodyTheme(WidgetTester tester) =>
     Theme.of(tester.element(find.text('TEST_BODY running')));
 
-/// 틀이 상태 표시줄에 거는 아이콘 밝기를 읽는다.
-Brightness? _statusBarIconBrightness(WidgetTester tester) => tester
+/// 틀이 시스템 UI 에 거는 스타일을 읽는다.
+SystemUiOverlayStyle _overlayStyle(WidgetTester tester) => tester
     .widget<AnnotatedRegion<SystemUiOverlayStyle>>(
       find.descendant(
         of: find.byType(SplashFrame),
         matching: find.byType(AnnotatedRegion<SystemUiOverlayStyle>),
       ),
     )
-    .value
-    .statusBarIconBrightness;
+    .value;
+
+/// [style] 이 상태 표시줄 필드만 담는지 단언한다 — 아이콘 밝기 =
+/// [iconBrightness] · iOS 상태 표시줄 밝기 = 그 반대 · 내비게이션 바 값 없음.
+void _expectStatusBarOnly(
+  SystemUiOverlayStyle style, {
+  required Brightness iconBrightness,
+  required String reason,
+}) {
+  expect(style.statusBarIconBrightness, iconBrightness, reason: reason);
+  expect(
+    style.statusBarBrightness,
+    iconBrightness == Brightness.dark ? Brightness.light : Brightness.dark,
+    reason: reason,
+  );
+  expect(style.systemNavigationBarColor, isNull, reason: reason);
+  expect(style.systemNavigationBarIconBrightness, isNull, reason: reason);
+}
 
 /// 한 변 [pixels] px 정사각 PNG 바이트를 만든다(`runAsync` 안에서 인코딩).
 Future<ByteData> _createLogoPng(WidgetTester tester, int pixels) async {
