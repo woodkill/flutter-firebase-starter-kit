@@ -294,8 +294,9 @@ String _buildUnreadableMessage(
     '$file 의 ${unreadable.line} 을 읽지 못했다 — flutter: assets: 목록 항목에서 '
         '읽는 꼴이 아니다.\n'
         '목록 항목은 같은 들여쓰기의 「- 경로」 한 줄이나 「- path: 경로」 와 그 '
-        '아래 따옴표 없는 「키: 값」 줄로 적고, flavors: · platforms: 값은 같은 '
-        '줄의 […] 이나 그 아래 「- 이름」 줄로 적는다.',
+        '아래 따옴표 없는 「키: 값」 줄로 적고, 따옴표로 감싼 값 안에는 같은 따옴표와 '
+        r'\ 를 쓰지 않으며, flavors: · platforms: 값은 같은 줄의 […] 이나 그 아래 '
+        '「- 이름」 줄로 적는다.',
 });
 
 /// `flutter_native_splash.yaml` 의 읽지 못한 줄 [unreadable] 메시지를 만든다.
@@ -2041,6 +2042,7 @@ void main() {
             isNot(contains('한정한 항목에만')),
             isNot(contains('에 없다')),
             isNot(contains('flow 꼴')),
+            contains(r'따옴표로 감싼 값 안에는 같은 따옴표와 \ 를 쓰지 않으며'),
             contains('스플래시 바꾸기'),
           ]),
         );
