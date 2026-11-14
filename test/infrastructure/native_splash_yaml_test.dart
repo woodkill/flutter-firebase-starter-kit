@@ -27,14 +27,16 @@
 // **색 상수는 불투명이어야 한다** — yaml 색에는 알파가 없다.
 //
 // **로고 경로는 번들 자산이어야 한다** — 생성기는 파일 시스템에서 읽지만 Flutter
-// 스플래시는 `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽는다.
+// 스플래시는 `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽고, 자산 키는
+// 파일 이름의 대소문자를 구분한다.
 //
 // 사용자 안내: `docs/guide.md` 「스플래시 바꾸기」.
 //
 // 시험 ID: T-26-YAML-01(저장소 yaml ↔ 상수) · 02(색 상수 어긋남 양방향 · 알파) ·
 // 03(`android_12` 색) · 04(값 없음) · 05(플랫폼별 색 키) · 06(플랫폼별 로고 키) ·
 // 07(배경 그림 키) · 08(로고 경로 상수) · 09(주석 줄) · 10(`android_12` 그림) ·
-// 11(들여쓰기) · 12(저장소 로고 = 번들 자산) · 13(번들 자산 어긋남).
+// 11(들여쓰기) · 12(저장소 로고 = 번들 자산) · 13(번들 자산 어긋남) · 14(로고 파일
+// 이름 대소문자).
 
 import 'dart:io';
 
@@ -657,16 +659,50 @@ bool _isBundledAsset(String path, List<String> assets) => assets.any(
           !path.substring(entry.length).contains('/')),
 );
 
-/// 로고 경로 상수(이름 → 경로) [logos] 가 번들 자산인지 [pubspec] · [fileExists]
-/// 로 대조해 어긋남 메시지를 돌려준다.
+/// [path] 파일의 실제 경로를 마지막 경로 조각의 대소문자까지 돌려준다 — 없으면
+/// null 이다.
+///
+/// 파일 시스템에 묻지 않고 부모 디렉터리 목록의 이름과 글자 그대로 비교한다 —
+/// macOS 파일 시스템은 이름의 대소문자를 무시하므로 `File.existsSync` 는 대소문자가
+/// 틀린 이름에도 참이지만, 번들 자산 키는 대소문자를 구분한다. 글자 그대로 같은
+/// 이름이 없고 대소문자만 다른 이름이 있으면 그 이름으로 바꾼 경로를 돌려준다.
+String? findActualPath(String path) {
+  final int slash = path.lastIndexOf('/');
+  final String name = path.substring(slash + 1);
+  final directory = Directory(slash == -1 ? '.' : path.substring(0, slash));
+  if (name.isEmpty || !directory.existsSync()) {
+    return null;
+  }
+  final names = <String>[
+    for (final FileSystemEntity entity in directory.listSync())
+      if (entity is File)
+        entity.path.substring(
+          entity.path.lastIndexOf(Platform.pathSeparator) + 1,
+        ),
+  ];
+  if (names.contains(name)) {
+    return path;
+  }
+  final String lowerName = name.toLowerCase();
+  for (final actualName in names) {
+    if (actualName.toLowerCase() == lowerName) {
+      return '${path.substring(0, slash + 1)}$actualName';
+    }
+  }
+  return null;
+}
+
+/// 로고 경로 상수(이름 → 경로) [logos] 가 번들 자산인지 [pubspec] ·
+/// [resolveActualPath] 로 대조해 어긋남 메시지를 돌려준다.
 ///
 /// 네이티브 스플래시 생성기는 파일 시스템에서 경로를 읽지만 Flutter 스플래시는
 /// `pubspec.yaml` 의 `flutter: assets:` 에 등록된 자산만 읽는다 — 등록이 빠지면
-/// 네이티브 스플래시에만 로고가 보인다. 빈 목록이면 통과다.
+/// 네이티브 스플래시에만 로고가 보인다. [resolveActualPath] 는 [findActualPath]
+/// 꼴로 실제 경로(없으면 null)를 돌려준다. 빈 목록이면 통과다.
 List<String> findLogoAssetMismatches(
   String pubspec, {
   required Map<String, String> logos,
-  required bool Function(String path) fileExists,
+  required String? Function(String path) resolveActualPath,
 }) {
   final FlutterAssetList list = readFlutterAssets(pubspec);
   final String? unreadable = list.unreadable;
@@ -692,11 +728,24 @@ List<String> findLogoAssetMismatches(
       );
       continue;
     }
-    if (!fileExists(path)) {
+    final String? actualPath = resolveActualPath(path);
+    if (actualPath == null) {
       messages.add(
         _buildMessage(
           '$_bodyPath 의 $constName 인 $path 파일이 없다 — 로고 그림을 그 경로에 '
           '둔다.',
+        ),
+      );
+    } else if (actualPath != path) {
+      final String actualName = actualPath.substring(
+        actualPath.lastIndexOf('/') + 1,
+      );
+      messages.add(
+        _buildMessage(
+          '$_bodyPath 의 $constName 인 $path 는 파일 이름의 대소문자가 실제 '
+          '파일($actualName)과 다르다 — 번들 자산 키는 대소문자를 구분한다.\n'
+          '상수와 yaml 을 실제 이름으로 고친다: '
+          "const String $constName = '$actualPath';",
         ),
       );
     }
@@ -1314,7 +1363,7 @@ void main() {
           'kSplashImage': kSplashImage,
           'kSplashImageDark': kSplashImageDark,
         },
-        fileExists: (String path) => File(path).existsSync(),
+        resolveActualPath: findActualPath,
       );
       expect(messages, isEmpty, reason: messages.join('\n\n'));
     });
@@ -1337,11 +1386,12 @@ void main() {
           '      flavors:\n'
           '        - dev\n'
           '  generate: true\n';
-      bool exists(String _) => true;
+      // 파일은 모두 그 이름 그대로 있다고 본다 — 파일 판정은 아래 따로 본다.
+      String resolveSame(String path) => path;
       List<String> check(String path) => findLogoAssetMismatches(
         pubspec,
         logos: <String, String>{'kSplashImage': path},
-        fileExists: exists,
+        resolveActualPath: resolveSame,
       );
 
       final FlutterAssetList list = readFlutterAssets(pubspec);
@@ -1381,7 +1431,7 @@ void main() {
       final List<String> missing = findLogoAssetMismatches(
         pubspec,
         logos: <String, String>{'kSplashImageDark': _logoDark},
-        fileExists: (String _) => false,
+        resolveActualPath: (String _) => null,
       );
       expect(missing, hasLength(1), reason: missing.join('\n\n'));
       expect(missing.single, contains('$_logoDark 파일이 없다'));
@@ -1393,10 +1443,52 @@ void main() {
           '   - "assets/brand/logo_file.png"\n',
         ),
         logos: <String, String>{'kSplashImage': _logo},
-        fileExists: exists,
+        resolveActualPath: resolveSame,
       );
       expect(mixed, hasLength(1), reason: mixed.join('\n\n'));
       expect(mixed.single, contains('들여쓰기를 읽지 못했다'));
+    });
+
+    test('T-26-YAML-14: 로고 파일은 이름의 대소문자까지 실제 파일과 같아야 '
+        '통과 — 대소문자를 무시하는 파일 시스템에서도 실패', () {
+      // 실제 디렉터리에 logo.png 를 두고 판정한다 — 저장소 로고와 무관하다.
+      final Directory directory = Directory.systemTemp.createTempSync(
+        'splash_logo_case_',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      File('${directory.path}/logo.png').writeAsBytesSync(const <int>[]);
+      final base = '${directory.path}/';
+      final pubspec =
+          'name: app\n'
+          'flutter:\n'
+          '  assets:\n'
+          '    - $base\n';
+      List<String> check(String path) => findLogoAssetMismatches(
+        pubspec,
+        logos: <String, String>{'kSplashImage': path},
+        resolveActualPath: findActualPath,
+      );
+
+      expect(findActualPath('${base}logo.png'), '${base}logo.png');
+      expect(findActualPath('${base}LOGO.PNG'), '${base}logo.png');
+      expect(findActualPath('${base}none.png'), isNull);
+      expect(findActualPath('${base}missing/logo.png'), isNull);
+
+      expect(check('${base}logo.png'), isEmpty);
+      final List<String> upper = check('${base}LOGO.PNG');
+      expect(upper, hasLength(1), reason: upper.join('\n\n'));
+      expect(
+        upper.single,
+        allOf(<Matcher>[
+          contains('${base}LOGO.PNG 는 파일 이름의 대소문자가 실제 파일(logo.png)과 다르다'),
+          contains('번들 자산 키는 대소문자를 구분한다'),
+          contains("const String kSplashImage = '${base}logo.png';"),
+          contains('스플래시 바꾸기'),
+        ]),
+      );
+      final List<String> none = check('${base}none.png');
+      expect(none, hasLength(1), reason: none.join('\n\n'));
+      expect(none.single, contains('${base}none.png 파일이 없다'));
     });
   });
 }
