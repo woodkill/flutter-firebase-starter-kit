@@ -15,7 +15,7 @@
 #   BASE <40자 해시>
 #   TARGET <40자 해시>
 #   CHANGED <경로>                         # 바뀐 경로마다(작업 일지 디렉터리 제외) · 0줄 가능
-#   LOW_ROWS <번호 공백 구분 오름차순>      # 예: LOW_ROWS 3 5 8 14 15 16 22 28
+#   LOW_ROWS <번호 공백 구분 오름차순>      # 예: LOW_ROWS 3 5 8 14 15 16 22 28 40
 #   LOW_ROW_CONTROL row=<행> n=<수> <ERE>   # LOW_PATTERNS 한 줄마다, 그 뒤에 그 꼴의 LOW_ROW_HIT 줄들
 #   LOW_ROW_HIT row=<행> <경로>
 #   OTHER_ROW_HIT row=<행> <경로>           # INFO_PATTERNS 일치(기록만)
@@ -64,6 +64,8 @@ LOW_PATTERNS=$(cat <<'LOW_PATTERNS_END'
 16 ^ios/Runner/Assets\.xcassets/AppIcon\.appiconset/
 22 ^android/app/src/main/res/drawable/ic_notification\.xml$
 28 ^ios/Runner/Runner\.entitlements$
+40 ^lib/features/splash/presentation/splash_body\.dart$
+40 ^test/features/splash/splash_body_test\.dart$
 LOW_PATTERNS_END
 )
 

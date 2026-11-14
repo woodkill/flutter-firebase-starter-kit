@@ -3780,6 +3780,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 37 | `functions/.env.<projectId>` (git 밖) | 함수 환경 값(`SEND_TEST_PUSH_ENABLED` 등) — `EMAIL_APP_NAME` · `EMAIL_BRAND_COLOR` · `EMAIL_LOGO_URL` · `EMAIL_RESULT_PAGE_URL` 네 줄은 `scripts/deploy_email.sh` 가 쓴다 | 없음 | 충돌 없음 |
 | 38 | `lib/features/settings/presentation/developer_rows.dart` | 설정 「개발자」 묶음에 더하는 개발용 행 목록(`buildAppDeveloperRows()`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
 | 39 | `lib/features/settings/presentation/app_settings_sections.dart` | 설정 화면에 더하는 앱 고유 묶음 목록(`buildAppSettingsSections`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
+| 40 | `lib/features/splash/presentation/splash_body.dart` · `test/features/splash/splash_body_test.dart` | Flutter 스플래시의 배경색 · 로고 그림 경로 상수와 로고 아래 내용(`buildSplashBody`) | 낮음 | 내 값 |
 
 ### 확인 방법
 

@@ -39,7 +39,7 @@ const String _scriptRel = 'scripts/release_user_action.sh';
 const String _fixedDate = '2026-01-01T00:00:00+0000';
 
 /// 사용자 소유 표면 표의 `낮음` 행 번호 — 스크립트 `LOW_PATTERNS` 의 행 집합과 같다.
-const Set<int> _lowRows = <int>{3, 5, 8, 14, 15, 16, 22, 28};
+const Set<int> _lowRows = <int>{3, 5, 8, 14, 15, 16, 22, 28, 40};
 
 /// 표의 기록만 하는 행 번호 — 스크립트 `INFO_PATTERNS` 의 행 집합과 같다.
 const Set<int> _infoRows = <int>{7, 10, 23, 24, 32};
@@ -58,7 +58,7 @@ const String _usageLine =
     'usage: bash scripts/release_user_action.sh <BASE> <TARGET>';
 
 /// fixture 표의 데이터 행 수.
-const int _fixtureRowCount = 32;
+const int _fixtureRowCount = 40;
 
 /// `낮음` 행마다 그 행 경로 꼴에 걸리는 표본 경로(행 · 경로).
 const List<(int, String)> _lowSamples = <(int, String)>[
@@ -77,6 +77,8 @@ const List<(int, String)> _lowSamples = <(int, String)>[
   (16, 'ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json'),
   (22, 'android/app/src/main/res/drawable/ic_notification.xml'),
   (28, 'ios/Runner/Runner.entitlements'),
+  (40, 'lib/features/splash/presentation/splash_body.dart'),
+  (40, 'test/features/splash/splash_body_test.dart'),
 ];
 
 /// 기록만 하는 행(`INFO_PATTERNS`)의 표본 경로(행 · 경로).
@@ -261,7 +263,7 @@ String _readDefaultGrade(int row) {
 /// fixture 의 `docs/guide.md` 문자열을 만든다 — [grades] 는 행별 넷째 칸 덮어쓰기다.
 ///
 /// 「### 다른 표」 와 「### 확인 방법」 의 미끼 표는 넷째 칸이 `낮음` 인 번호 행을 담는다.
-/// 스크립트가 「### 사용자 소유 표면」 절 범위를 자르지 않으면 `LOW_ROWS` 에 1 · 2 · 40 이 섞여
+/// 스크립트가 「### 사용자 소유 표면」 절 범위를 자르지 않으면 `LOW_ROWS` 에 1 · 2 · 41 이 섞여
 /// exit 3 이 나도록 둔 장치다.
 String _buildGuide({Map<int, String> grades = const <int, String>{}}) {
   final buffer = StringBuffer()
@@ -295,7 +297,7 @@ String _buildGuide({Map<int, String> grades = const <int, String>{}}) {
     ..writeln('| # | 항목 | 내용 | 등급 | 비고 |')
     ..writeln('|---|---|---|---|---|')
     ..writeln('| 1 | 미끼 | 미끼 | 낮음 | 미끼 |')
-    ..writeln('| 40 | 미끼 | 미끼 | 낮음 | 미끼 |');
+    ..writeln('| 41 | 미끼 | 미끼 | 낮음 | 미끼 |');
   return buffer.toString();
 }
 
@@ -419,7 +421,7 @@ void main() {
   test('T-174-UA-03: 패턴 블록 꼴 · 행 집합 · fixture 표본이 스크립트와 맞는다', () {
     final List<(int, RegExp)> low = _readLowPatterns();
     final List<(int, RegExp)> info = _readInfoPatterns();
-    expect(low, hasLength(15));
+    expect(low, hasLength(17));
     expect(_collectRows(low), _lowRows);
     expect(info, hasLength(5));
     expect(_collectRows(info), _infoRows);
@@ -476,10 +478,10 @@ void main() {
       'CHANGED $_plainPath',
     ], reason: '작업 일지 디렉터리 변경은 CHANGED 에 나오지 않는다');
     expect(
-      lines.where((String l) => l == 'LOW_ROWS 3 5 8 14 15 16 22 28'),
+      lines.where((String l) => l == 'LOW_ROWS 3 5 8 14 15 16 22 28 40'),
       hasLength(1),
     );
-    expect(_selectLines(lines, 'LOW_ROW_CONTROL '), hasLength(15));
+    expect(_selectLines(lines, 'LOW_ROW_CONTROL '), hasLength(17));
     expect(_selectLines(lines, 'LOW_ROW_HIT '), isEmpty);
     expect(lines.where((String l) => l == 'LOW_ROW_HITS 0'), hasLength(1));
     expect(lines.last, 'USER_ACTION_VERDICT none low_hits=0');
