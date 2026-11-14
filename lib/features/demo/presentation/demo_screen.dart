@@ -34,8 +34,7 @@ import '../../onboarding/presentation/onboarding_notifier.dart';
 // IN-03 — 매직 넘버를 저장소의 지배적 규약 2가지(설계 토큰 유도 / 파일 상단
 // 명명 상수)로 정리한다. 아이콘 크기 · 모서리 둥글기는 `AppIconSizes` ·
 // `AppRadius` 토큰을 쓰고, 아래 값들은 토큰 단계에서 유도되지 않는 컴포넌트
-// 고유 치수(스와치 · 스페이싱 막대 · 썸네일)라 파일 상단 명명 상수로 둔다
-// (splash_screen.dart 의 `_kLogoSize` 선례).
+// 고유 치수(스와치 · 스페이싱 막대 · 썸네일)라 파일 상단 명명 상수로 둔다.
 
 /// 컬러 스와치 한 변의 길이 (logical pixel, IN-03).
 // design-literal: 색 견본 한 변 — 데모 화면만 쓰는 치수다
