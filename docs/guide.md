@@ -1878,8 +1878,8 @@ done
   - Flutter 스플래시는 이 그림 · 로고 뒤 원 · 상태 표시줄 숨김을 그리지 않으므로, 켜면 두 화면이 넘어갈 때 그 부분이 바뀐다.
 - `test/infrastructure/native_splash_yaml_test.dart` 가 두 파일의 값을 대조한다.
   - 값이 어긋나면 실패 메시지가 `splash_body.dart` 에 적을 선언(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 보여 준다.
-  - `flutter_native_splash:` · `android_12:` 와 `pubspec.yaml` 의 `flutter:` · `assets:` 는 블록 꼴(값을 키 다음 줄부터 들여 쓴 꼴)로 적는다 — 대조 시험은 flow 꼴(`{…}` · `[…]`)을 읽지 않는다.
-  - 같은 블록의 키 · 목록 항목은 같은 들여쓰기로 적고, `flutter_native_splash:` 블록 안 다른 키의 flow 값은 한 줄로 적는다 — 대조 시험은 들여쓰기가 섞인 줄과 여러 줄에 걸친 flow 값을 읽지 못하고 그 줄을 말하며 실패한다.
+  - `flutter_native_splash:` · `android_12:` 와 `pubspec.yaml` 의 `flutter:` · `assets:` 는 블록 꼴(값을 키 다음 줄부터 들여 쓴 꼴)로 적는다.
+  - 같은 블록의 키 · 목록 항목은 같은 들여쓰기로 적고, `flutter_native_splash:` 블록 안 다른 키의 flow 값은 한 줄로 적는다 — 대조 시험이 읽는 꼴과 그 밖의 줄을 말하며 실패하는 규칙은 그 시험 파일의 `readSplashYaml` · `readFlutterAssets` 문서 주석에 있다.
   - `assets:` 목록 항목은 `- 경로` 한 줄이나 따옴표 없는 `키: 값` 줄로 적고, `flavors:` · `platforms:` 값은 같은 줄의 `[…]` 이나 그 아래 `- 이름` 줄로 적는다 — 대조 시험이 읽는 항목 꼴과 그 밖의 줄을 말하며 실패하는 규칙은 그 시험 파일의 `readFlutterAssets` 문서 주석에 있다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.

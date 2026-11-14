@@ -13,8 +13,7 @@
 // **읽지 못한 줄은 그 줄을 말하는 메시지로 실패한다** — 들여쓰기로 자리를 정하지
 // 못한 줄, 블록으로 읽어야 하는 키(`flutter_native_splash:` · `android_12:` ·
 // `flutter:` · `assets:`)의 flow 꼴(`{…}` · `[…]`) 값, `assets:` 목록 항목 안에서
-// [readFlutterAssets] 문서의 읽는 꼴 밖의 줄이 그 줄이다. 대조와 무관한 키의 flow
-// 값은 읽지 않고 지나간다.
+// [readFlutterAssets] 문서의 읽는 꼴 밖의 줄이 그 줄이다.
 //
 // **주석을 먼저 걷어낸다** — 앞 공백을 걷어낸 줄이 `#` 로 시작하면 버린다. 설명
 // 주석이 키 이름을 말해도 값으로 읽지 않는다.
@@ -1716,7 +1715,7 @@ void main() {
         ],
       );
 
-      // 대조와 무관한 키의 flow 값은 읽지 않고 지나간다.
+      // 대조와 무관한 키의 한 줄 flow 값은 읽지 않고 지나간다.
       expect(
         _findFixtureMismatches(
           _buildSplashYaml(
@@ -2111,7 +2110,7 @@ void main() {
         expect(checkPubspec(itemPubspec(transformers)), isEmpty);
       }
 
-      // 대조와 무관한 키의 flow 값은 읽지 않고 지나간다.
+      // assets: 앞 절의 다른 키의 flow 값은 읽지 않고 건너뛴다.
       expect(
         checkPubspec(
           pubspec.replaceFirst(
