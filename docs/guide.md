@@ -1880,6 +1880,7 @@ done
   - 값이 어긋나면 실패 메시지가 `splash_body.dart` 에 적을 선언(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 보여 준다.
   - `flutter_native_splash:` · `android_12:` 와 `pubspec.yaml` 의 `flutter:` · `assets:` 는 블록 꼴(값을 키 다음 줄부터 들여 쓴 꼴)로 적는다 — 대조 시험은 flow 꼴(`{…}` · `[…]`)을 읽지 않는다.
   - 같은 블록의 키 · 목록 항목은 같은 들여쓰기로 적고, `flutter_native_splash:` 블록 안 다른 키의 flow 값은 한 줄로 적는다 — 대조 시험은 들여쓰기가 섞인 줄과 여러 줄에 걸친 flow 값을 읽지 못하고 그 줄을 말하며 실패한다.
+  - `assets:` 목록 항목은 `- 경로` 한 줄이나 따옴표 없는 `키: 값` 줄로 적고, `flavors:` · `platforms:` 값은 같은 줄의 `[…]` 이나 그 아래 `- 이름` 줄로 적는다 — 대조 시험은 이 꼴이 아닌 항목 줄을 만나면 그 줄을 말하며 실패하고, 정확한 꼴(그 밖의 키 아래 내용은 건너뛴다)은 그 시험 파일의 `readFlutterAssets` 문서 주석에 있다.
 - `android: true` · `ios: true` · `web: false` 는 그대로 둔다(웹은 킷 지원 범위 밖이다).
 - 그 밖의 옵션(로고 배치 `ios_content_mode` 등)은 `flutter_native_splash` 공식 README 를 본다.
   - Flutter 스플래시의 로고 자리는 이 옵션을 따르지 않는다 — ⑥ 의 킷 파일이 정한다.
@@ -1956,7 +1957,7 @@ fvm dart run flutter_native_splash:create
   - 메시지가 배경 그림 키를 말하면 그 키를 지운다.
   - 메시지가 `pubspec.yaml` 의 `assets:` · 빌드를 한정한 항목(`flavors:` · `platforms:`)이나 파일 이름의 대소문자를 말하면 ② 대로 로고를 등록하고 경로를 적는다.
   - 메시지가 알파를 말하면 상수를 ② 의 `Color(0xFF<6자리>)` 꼴로 고친다.
-  - 메시지가 들여쓰기나 flow 꼴을 말하면 메시지가 보여 주는 줄을 ② 의 블록 꼴 · 들여쓰기 규칙대로 고친다.
+  - 메시지가 어느 줄을 읽지 못했다고 말하면(들여쓰기 · flow 꼴 · `assets:` 목록 항목의 꼴) 메시지가 보여 주는 줄을 ② 의 블록 꼴 · 들여쓰기 규칙 · 항목 꼴대로 고친다.
 - **iOS 빌드가 `Distill failed for unknown reasons` 로 실패한다.**
   - 로고 원본이 너무 작다.
   - ① 의 규격 PNG 로 바꾸고 ③ 을 다시 한다.
