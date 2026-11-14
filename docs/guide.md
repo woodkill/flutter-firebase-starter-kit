@@ -1174,7 +1174,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
 - 스플래시의 로고 아래 글자 · 진행 표시는 `lib/app.dart` 의 테마가 아니라 `AppTheme.light()` · `AppTheme.dark()` 에 config `brandColor` 시드와 OS 대비 설정(0.0 · 1.0)만 넘긴 테마를 쓴다.
-  - `lib/app.dart` 에서 바꾼 시드 · 대비 단계 · 색 변형 · 컴포넌트 테마 · 글자 스타일은 스플래시에 보이지 않는다. `lib/core/theme/` 의 토큰 · `AppTheme` 을 고친 값은 스플래시에도 보인다.
+  - `lib/app.dart` 의 테마 줄에서 바꾼 것(시드 · 대비 단계 · 색 변형 · 컴포넌트 테마 · `copyWith(extensions:)` 로 넣은 토큰 · 글자 스타일)은 스플래시에 보이지 않는다. `lib/core/theme/` 의 기본값이나 `AppTheme` 을 고친 값은 스플래시에도 보인다.
   - 라이트 · 다크는 스플래시 배경 밝기를 따르고, 배경색 · 로고는 [스플래시 바꾸기](#스플래시-바꾸기) 가 정한다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
