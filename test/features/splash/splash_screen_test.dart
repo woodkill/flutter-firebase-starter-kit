@@ -11,7 +11,6 @@ import 'package:flutter_starter_kit/core/error/app_exception.dart';
 import 'package:flutter_starter_kit/core/error/result.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
-import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/auth/data/auth_repository.dart';
 import 'package:flutter_starter_kit/features/auth/domain/user.dart';
@@ -19,7 +18,6 @@ import 'package:flutter_starter_kit/features/splash/presentation/splash_error_co
 import 'package:flutter_starter_kit/features/splash/presentation/splash_initializer.dart';
 import 'package:flutter_starter_kit/features/splash/presentation/splash_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
-import 'package:flutter_starter_kit/shared/widgets/small_progress_indicator.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -39,6 +37,12 @@ class _MockFirebaseUser extends Mock implements fb.User {}
 
 User _stubUser({String uid = 'anon-uid'}) =>
     User(uid: uid, emailVerified: false, createdAt: DateTime.utc(2026, 4, 21));
+
+/// 킷 시험용 로고 아래 내용 — 내 화면(`splash_body.dart`)에 기대지 않는다.
+///
+/// 실패 신호(`hasFailure`)가 넘어왔는지만 글자로 드러낸다.
+Widget _buildTestBody(BuildContext context, {required bool hasFailure}) =>
+    Text(hasFailure ? 'TEST_BODY failed' : 'TEST_BODY running');
 
 /// [SplashScreen] 을 [router] 로 pump 한다 (기본 en — [locale] 로 바꾼다).
 Future<void> _pumpSplash(
@@ -68,7 +72,7 @@ GoRouter _testRouter() {
       GoRoute(
         path: AppRoutes.splash,
         name: AppRoutes.splashName,
-        builder: (_, _) => const SplashScreen(),
+        builder: (_, _) => const SplashScreen(bodyBuilder: _buildTestBody),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -104,7 +108,7 @@ GoRouter _testRouterWithRedirect({required void Function() onRedirect}) {
       GoRoute(
         path: AppRoutes.splash,
         name: AppRoutes.splashName,
-        builder: (_, _) => const SplashScreen(),
+        builder: (_, _) => const SplashScreen(bodyBuilder: _buildTestBody),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -150,7 +154,7 @@ GoRouter _testRouterPinnedToSplash({
       GoRoute(
         path: AppRoutes.splash,
         name: AppRoutes.splashName,
-        builder: (_, _) => const SplashScreen(),
+        builder: (_, _) => const SplashScreen(bodyBuilder: _buildTestBody),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -172,7 +176,7 @@ GoRouter _testRouterWithLogin() {
       GoRoute(
         path: AppRoutes.splash,
         name: AppRoutes.splashName,
-        builder: (_, _) => const SplashScreen(),
+        builder: (_, _) => const SplashScreen(bodyBuilder: _buildTestBody),
       ),
       GoRoute(
         path: AppRoutes.login,
@@ -210,42 +214,15 @@ void main() {
   });
 
   group('SplashScreen (Phase 10 AUTH-08, D-22, D-25, D-27, WARNING #13)', () {
-    testWidgets(
-      'Test 1: 로고 + CircularProgressIndicator + splashPreparing 텍스트 렌더',
-      (tester) async {
-        // 초기 빌드 단계만 검증. minDuration 을 길게 설정해 init 완료되지
-        // 않도록 고정하고, tester.pump() 1회만 실행하여 pending timer 로
-        // dispose 가 실패하지 않도록 Home 이동 전에 FakeAsync 루프를 닫는다.
-        SplashConfig.overrideMinDuration = const Duration(minutes: 5);
-
-        final mockRepo = _MockAuthRepository();
-        final initializer = SplashInitializer(
-          authRepository: mockRepo,
-          isFirebaseInitialized: false,
-          currentUserIsNull: true,
-          onboardingFuture: Future.value(false),
-          isSocialLinkInProgress: false,
-        );
-        final router = _testRouter();
-        addTearDown(router.dispose);
-
-        await tester.runAsync(() async {
-          await _pumpSplash(tester, initializer: initializer, router: router);
-          // 첫 프레임만 렌더 — init 은 5분 뒤 resolve 이므로 아직 진행 중.
-          await tester.pump();
-          expect(find.text('Getting things ready...'), findsOneWidget);
-          expect(find.byType(CircularProgressIndicator), findsOneWidget);
-          expect(find.byType(Image), findsOneWidget);
-        });
-      },
-    );
-
-    testWidgets('T-24-LIT-04: 초기화 중 스플래시는 공용 SmallProgressIndicator 를 '
-        '아이콘 토큰 크기 · 선 굵기 2 로 하나만 그린다', (tester) async {
+    testWidgets('Test 1: 로고 + 시험용 로고 아래 내용 렌더', (tester) async {
+      // 초기 빌드 단계만 검증. minDuration 을 길게 설정해 init 완료되지
+      // 않도록 고정하고, tester.pump() 1회만 실행하여 pending timer 로
+      // dispose 가 실패하지 않도록 Home 이동 전에 FakeAsync 루프를 닫는다.
       SplashConfig.overrideMinDuration = const Duration(minutes: 5);
 
+      final mockRepo = _MockAuthRepository();
       final initializer = SplashInitializer(
-        authRepository: _MockAuthRepository(),
+        authRepository: mockRepo,
         isFirebaseInitialized: false,
         currentUserIsNull: true,
         onboardingFuture: Future.value(false),
@@ -256,25 +233,10 @@ void main() {
 
       await tester.runAsync(() async {
         await _pumpSplash(tester, initializer: initializer, router: router);
+        // 첫 프레임만 렌더 — init 은 5분 뒤 resolve 이므로 아직 진행 중.
         await tester.pump();
-
-        final indicator = find.byType(SmallProgressIndicator);
-        expect(indicator, findsOneWidget);
-        final expectedDimension = AppTheme.light()
-            .extension<AppIconSizes>()!
-            .md;
-        expect(
-          tester.widget<SmallProgressIndicator>(indicator).dimension,
-          expectedDimension,
-        );
-        expect(tester.getSize(indicator), Size.square(expectedDimension));
-        final spinner = tester.widget<CircularProgressIndicator>(
-          find.descendant(
-            of: indicator,
-            matching: find.byType(CircularProgressIndicator),
-          ),
-        );
-        expect(spinner.strokeWidth, 2);
+        expect(find.text('TEST_BODY running'), findsOneWidget);
+        expect(find.byType(Image), findsOneWidget);
       });
     });
 
@@ -343,7 +305,7 @@ void main() {
 
     testWidgets(
       'Test 3b (10-REVIEW CR-02): initialize() 가 Result.failure 반환이 아니라 '
-      'throw 해도 실패 다이얼로그가 뜨고 스피너가 사라진다',
+      'throw 해도 실패 다이얼로그가 뜨고 로고 아래 내용에 실패 신호가 넘어간다',
       (tester) async {
         // 재현 수단은 실제 누출원과 동일한 경로다 — initialize() 의 첫 문장
         // `await onboardingFuture` 가 try 밖이므로 이 future 의 error 가
@@ -377,11 +339,12 @@ void main() {
         expect(find.byType(AlertDialog), findsOneWidget);
         expect(find.text('Retry'), findsOneWidget);
         expect(find.text('Sign in later'), findsOneWidget);
-        // _hasFailure == true 로 전이되어 무한 스피너가 사라졌다는 관측 증거.
+        // _hasFailure == true 가 로고 아래 내용에 넘어갔다는 관측 증거 — 진행
+        // 표시를 숨기는 것은 그 신호를 받은 내 화면의 몫이다.
         expect(
-          find.byType(CircularProgressIndicator),
-          findsNothing,
-          reason: '예상 외 throw 도 탈출구가 있어야 한다 (무한 스피너 금지)',
+          find.text('TEST_BODY failed'),
+          findsOneWidget,
+          reason: '예상 외 throw 도 실패 신호가 로고 아래 내용에 넘어가야 한다',
         );
       },
     );
@@ -890,8 +853,9 @@ void main() {
           ),
         );
 
-        // `/splash` 에 머무는 동안 CircularProgressIndicator 가 프레임을 계속
-        // 스케줄하므로 pumpAndSettle 은 타임아웃한다 — 명시적 pump 반복만 쓴다.
+        // 명시적 pump 반복만 쓴다 — 내 화면(`buildSplashBody`)의 진행 표시는
+        // 프레임을 계속 요청해 pumpAndSettle 이 타임아웃한다. 이 시험은 애니메이션
+        // 없는 시험용 화면을 넣지만 pump 꼴은 그대로 둔다.
         for (var i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 10));
         }
@@ -1037,8 +1001,8 @@ void main() {
           ),
         );
 
-        // `/splash` 에 머무는 동안 스피너가 프레임을 계속 요청하므로
-        // pumpAndSettle 대신 명시적 pump 만 쓴다.
+        // pumpAndSettle 대신 명시적 pump 만 쓴다 — 내 화면의 진행 표시는 프레임을
+        // 계속 요청한다(이 시험은 시험용 화면을 넣지만 pump 꼴은 그대로 둔다).
         for (var i = 0; i < 5; i++) {
           await tester.pump(const Duration(milliseconds: 10));
         }
@@ -1285,14 +1249,12 @@ void main() {
             );
             await tester.pump();
             expect(tester.takeException(), isNull, reason: '$label 본문');
-            final preparing = find.text(
-              lookupAppLocalizations(locale).splashPreparing,
-            );
-            expect(preparing, findsOneWidget, reason: '$label 준비 문구');
+            final body = find.text('TEST_BODY running');
+            expect(body, findsOneWidget, reason: '$label 시험용 표시');
             expect(
-              tester.getRect(preparing).bottom,
+              tester.getRect(body).bottom,
               lessThanOrEqualTo(size.height),
-              reason: '$label 준비 문구가 화면 안',
+              reason: '$label 시험용 표시가 화면 안',
             );
           });
         });

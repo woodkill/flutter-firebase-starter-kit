@@ -14,23 +14,9 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
-import '../../../shared/widgets/small_progress_indicator.dart';
 import 'splash_error_code.dart';
+import 'splash_frame.dart';
 import 'splash_initializer.dart';
-
-/// 스플래시 로고 자산 경로 (IN-02 — 프로젝트별 커스터마이징 포인트).
-///
-/// 다른 로고로 교체하려면 `assets/images/splash/` 아래에 동일 경로의 PNG 를
-/// 배치하거나 본 상수를 갱신한다. Image.asset 본체와 [Image.errorBuilder]
-/// 양쪽에서 공유한다.
-const String _kLogoAsset = 'assets/images/splash/logo.png';
-
-/// 스플래시 로고 변/높이 (logical pixel, IN-02 — 프로젝트별 커스터마이징 포인트).
-///
-/// 디자인 시스템 변경 시 본 값만 갱신하면 정상 표시 + 에러 placeholder
-/// 양쪽이 동기된다.
-// design-literal: 스플래시 로고 한 곳만 쓰는 크기라 토큰이 아니다
-const double _kLogoSize = 128;
 
 /// SplashScreen State 수명당 보류 재초기화 최대 횟수 (quick 260914-k81).
 ///
@@ -62,9 +48,18 @@ const int _kMaxDeferredReinitCount = 1;
 ///
 /// 테스트 시 [SplashConfig.overrideMinDuration] = `Duration(milliseconds: 1)`
 /// 로 실대기를 1ms 로 단축한다 (WARNING #13 seam pattern).
+///
+/// 화면은 킷 틀 [SplashFrame] 과 내 파일 `splash_body.dart` 의
+/// `buildSplashBody` 가 함께 그린다.
 class SplashScreen extends ConsumerStatefulWidget {
   /// [SplashScreen] 을 생성한다.
-  const SplashScreen({super.key});
+  const SplashScreen({this.bodyBuilder, super.key});
+
+  /// 로고 아래 내용을 만드는 함수 — null 이면 `buildSplashBody`(사용자 소유
+  /// `splash_body.dart`)를 쓴다.
+  ///
+  /// 킷 시험은 시험용 화면을 넘겨 내 화면에 기대지 않는다.
+  final SplashBodyBuilder? bodyBuilder;
 
   @override
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
@@ -481,39 +476,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       }
     });
 
-    final l10n = context.l10n;
-    final spacing = context.appSpacing;
-    final colorScheme = context.colorScheme;
-    final typography = context.appTypography;
-
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Image.asset(
-                _kLogoAsset,
-                width: _kLogoSize,
-                height: _kLogoSize,
-                errorBuilder: (_, _, _) =>
-                    const SizedBox(width: _kLogoSize, height: _kLogoSize),
-              ),
-              Gap(spacing.xxl),
-              if (!_hasFailure)
-                SmallProgressIndicator(dimension: context.appIconSizes.md),
-              Gap(spacing.sm),
-              Text(
-                l10n.splashPreparing,
-                style: typography.bodyMedium.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SplashFrame(
+      hasFailure: _hasFailure,
+      bodyBuilder: widget.bodyBuilder,
     );
   }
 }
