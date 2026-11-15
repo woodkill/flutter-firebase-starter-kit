@@ -83,6 +83,12 @@ final class WizardSession {
   /// 로그인 수단 단계가 체크 목록을 마치면 끈다.
   bool isProviderSelectionRequested = false;
 
+  /// 앱 아이콘을 새 원본으로 다시 만들어 달라는 요청(`--app-icon`)이 남아 있으면
+  /// true.
+  ///
+  /// 앱 아이콘 단계가 다시 만든 뒤 끈다.
+  bool isAppIconRebuildRequested = false;
+
   /// 이번 실행에서 계산한 Android 디버그 서명 키 지문 — 아직 계산 전이면 null.
   ///
   /// 「계산할 수 없음」 도 담는다 — keytool 을 한 실행 안에서 다시 부르지 않는다.

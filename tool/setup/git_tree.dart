@@ -78,6 +78,55 @@ Future<List<String>> findDirtyTrackedFiles(
   ];
 }
 
+/// [relativePaths] 의 미커밋 변경과 추적 안 된 파일을 보는 git 명령을 만든다.
+///
+/// 경로는 [normalizeRepoPath] 로 맞춰 `--` 뒤에 넘긴다 — git 은 그 경로만 본다.
+/// gitignored 파일은 git 이 보이지 않는다.
+Command buildUncommittedFilesCommand(
+  List<String> relativePaths, {
+  String? workingDirectory,
+}) => Command('git', <String>[
+  'status',
+  '--porcelain',
+  '--untracked-files=all',
+  '--',
+  for (final String path in relativePaths)
+    if (normalizeRepoPath(path).isNotEmpty) normalizeRepoPath(path),
+], workingDirectory: workingDirectory);
+
+/// [relativePaths] 가운데 커밋하지 않은 변경이 있는 추적 파일과 추적 안 된 파일을
+/// git 이 보인 순서로 모은다.
+///
+/// 추적 파일의 수정 · 삭제와 아직 추적하지 않는 새 파일을 함께 본다 — 쓰기 전
+/// 디스크의 대상이 모두 깨끗한 추적 파일이어야 git 으로 되돌릴 수 있다.
+/// gitignored 파일은 보지 않는다. 넘긴 경로가 없으면 git 을 부르지 않고 빈
+/// 목록이다(경로 없는 `--` 는 저장소 전체를 본다). git 이 실패하면
+/// [GitTreeException] 을 던진다.
+Future<List<String>> findUncommittedFiles(
+  WizardContext context,
+  List<String> relativePaths,
+) async {
+  final Command command = buildUncommittedFilesCommand(
+    relativePaths,
+    workingDirectory: context.projectRoot,
+  );
+  if (command.arguments.last == '--') return const <String>[];
+  final CommandResult result = await context.runner.capture(command);
+  if (!result.isSuccess) {
+    throw GitTreeException(
+      'git 작업 트리 상태를 읽지 못했습니다 (종료 코드 ${result.exitCode})',
+      result: result,
+    );
+  }
+  final paths = <String>[];
+  for (final String line in const LineSplitter().convert(result.stdout)) {
+    for (final String path in _parseStatusPaths(line)) {
+      if (!paths.contains(path)) paths.add(path);
+    }
+  }
+  return paths;
+}
+
 /// 저장소 상대 경로를 git 출력과 같은 꼴로 맞춘다 — 앞 `./` 와 끝 `/` 를 뗀다.
 ///
 /// `l10n.yaml` 의 `arb-dir: ./lib/l10n` 처럼 사람이 쓴 경로를 git 이 보이는

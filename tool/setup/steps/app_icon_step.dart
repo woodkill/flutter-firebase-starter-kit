@@ -1,7 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
 
 import '../command_runner.dart';
 import '../confirm.dart';
+import '../file_mode.dart';
+import '../git_tree.dart';
+import '../icons/home_icon_specs.dart';
+import '../icons/icon_pipeline.dart';
 import '../providers/icon_specs.dart';
 import '../providers/path_input.dart';
 import '../providers/provider_catalog.dart';
@@ -11,33 +19,87 @@ import '../wizard.dart';
 /// `sips -g` 로 읽은 이미지 크기 · 형식.
 typedef ImageProbe = ({int width, int height, String format});
 
+/// 홈 화면 아이콘 20장의 상태 — tracked 파일 바이트와 킷 기본 지문으로 가른다.
+enum HomeIconState {
+  /// 20장이 모두 킷 기본 지문과 같다 — 원본을 물어 새로 만든다.
+  kitDefault,
+
+  /// 20장이 모두 킷 기본 지문과 다르다 — 사용자가 고른 아이콘이다.
+  mine,
+
+  /// 일부만 킷 기본 지문과 같다 — 덮어쓰지 않는다.
+  mixed,
+
+  /// 하나라도 없거나 읽을 수 없다 — 덮어쓰지 않는다.
+  missing,
+}
+
 /// 직전 검사가 정한 실행 갈래.
 enum _IconMode {
-  /// 사본이 없어 원본 경로를 묻는다.
-  askSource,
+  /// 원본을 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
+  full,
 
-  /// 보관한 사본으로 없는 파일만 만든다.
-  fromCopy,
-
-  /// 지금은 만들 수 없다(사본 여럿 · 폴더 자리가 파일).
+  /// 지금은 만들지 않는다(판정이 덮어쓰기를 막음 · 폴더 자리가 파일).
   deferred,
 
-  /// 켠 대상 파일이 모두 있다.
+  /// 할 일이 없다.
   done,
 }
 
-/// 앱 아이콘 단계 — 켠 수단 중 콘솔 아이콘 칸이 있는 provider 마다 원본 하나로
-/// 규격 PNG 를 만든다.
+/// 만들 파일 하나 — 저장소 상대 경로 · 바이트와 메모리 확인 기준.
+final class _PlannedFile {
+  const _PlannedFile(
+    this.relativePath,
+    this.bytes, {
+    this.side,
+    this.colorType,
+    this.maxBytes,
+  });
+
+  /// 저장소 루트 기준 경로.
+  final String relativePath;
+
+  /// 쓸 바이트.
+  final Uint8List bytes;
+
+  /// PNG 면 기대하는 한 변 — PNG 가 아니면 null.
+  final int? side;
+
+  /// PNG 면 기대하는 color type — PNG 가 아니면 null.
+  final int? colorType;
+
+  /// 용량 상한 — 없으면 null.
+  final int? maxBytes;
+}
+
+/// 원본 질문 결과 — 고른 원본 경로 또는 단계를 끝낼 결과 중 하나.
+typedef _SourceAnswer = ({String? path, StepOutcome? outcome});
+
+/// 그림 계산 결과 — 만들 파일 목록 또는 단계를 끝낼 결과 중 하나.
+typedef _Rendered = ({List<_PlannedFile> files, StepOutcome? outcome});
+
+/// 앱 아이콘 단계 — 원본 이미지 하나로 홈 화면 아이콘(iOS 15장 · Android legacy
+/// 5장 · adaptive)과 켠 수단의 콘솔 아이콘을 함께 만든다.
 ///
-/// 파일이 있으면 끝난 것이다 — 상태 파일을 두지 않고 [iconsDirectory] 의 파일로
-/// 판정한다. 원본은 바꾸지 않는다: 원본을 `source.<형식>` 사본으로 복사한 뒤 그
-/// 사본에서 만들고, 자르기 · 여백 · 확대 없이 정사각 원본만 받는다. 사본이 있는
-/// 다시 실행은 원본 경로를 묻지 않고 없는 파일만 만든다. 만든 뒤 크기 · 형식 ·
-/// 용량을 다시 읽어 확인하고, 결과 표를 보인 뒤 Finder 로 폴더를 연다.
+/// 판정은 「킷 기본 그대로인가」 하나다 — 홈 화면 20장의 tracked 바이트를 킷
+/// 기본 지문과 비교하고, 상태 파일로 위저드가 만든 아이콘인지 가르지 않는다.
+/// 킷 기본이면 원본을 묻고, sips 로 sRGB PNG 로 바꾼 뒤 채운 그림 하나에서 모든
+/// 크기를 만든다. 쓰기 전에 대상 경로의 미커밋 변경을 찾아 있으면 멈추고, 만든
+/// 바이트는 메모리에서 크기 · 형식 · 용량을 확인한 뒤에만 쓴다.
 final class AppIconStep implements DeferrableStep {
-  /// 켠 로그인 수단 [enabledProviders] 에서 아이콘 대상을 골라 단계를 만든다.
-  AppIconStep({required Set<String> enabledProviders})
-    : targets = selectIconTargets(enabledProviders);
+  /// 켠 로그인 수단 [enabledProviders] 에서 콘솔 아이콘 대상을 골라 단계를
+  /// 만든다.
+  ///
+  /// [dependsOn] 은 기다릴 단계 id 다 — 아이콘만 다시 만드는 실행은 빈 목록을
+  /// 넘긴다. [kitDefaultDigests] 는 킷 기본 지문 표(저장소 상대 경로 → sha256)를
+  /// 바꿔 넣을 때만 준다 — 없으면 킷이 담은 지문이다.
+  AppIconStep({
+    required Set<String> enabledProviders,
+    List<String> dependsOn = const <String>['providers'],
+    Map<String, String>? kitDefaultDigests,
+  }) : targets = selectIconTargets(enabledProviders),
+       _dependsOn = dependsOn,
+       _kitDigests = kitDefaultDigests ?? buildKitDefaultDigests();
 
   /// 단계 id.
   static const String stepId = 'app_icon';
@@ -52,11 +114,17 @@ final class AppIconStep implements DeferrableStep {
   /// 단계는 그대로다.
   static const int maxSourceAttempts = 3;
 
+  /// 아이콘을 새 원본으로 다시 만드는 명령.
+  static const String rebuildCommand = './setup.sh --app-icon';
+
+  /// 아이콘을 바꾸는 법.
+  static const String replaceHint = '바꾸려면: $rebuildCommand';
+
   /// 원본 질문 전에 보이는 안내.
   static const String sourceGuide =
-      'provider 콘솔에 올릴 아이콘을 원본 이미지 하나로 만듭니다 — 정사각 · '
-      '${minSourceSide}x$minSourceSide 이상(PNG · JPEG · HEIC 등 — PDF · SVG 같은 '
-      '벡터는 받지 않습니다). '
+      '홈 화면 앱 아이콘과 켠 로그인 수단의 콘솔 아이콘을 원본 이미지 하나로 '
+      '만듭니다 — 정사각 · ${minSourceSide}x$minSourceSide 이상(PNG · JPEG · '
+      'HEIC 등 — PDF · SVG 같은 벡터는 받지 않습니다). '
       'Finder 에서 파일을 이 창으로 끌어다 놓아도 됩니다';
 
   /// 원본 경로 질문.
@@ -89,16 +157,25 @@ final class AppIconStep implements DeferrableStep {
   /// 상한보다 클 때의 까닭 머리(뒤에 지금 크기).
   static const String tooLargeReason = '너무 큰 이미지입니다 — 지금 ';
 
-  /// 아이콘을 바꾸는 법.
-  static const String replaceHint = '바꾸려면 $iconsDirectory 를 지우고 다시 실행';
+  /// 홈 화면 아이콘이 킷 기본 그대로일 때의 까닭.
+  static const String kitDefaultReason = '킷 기본 아이콘입니다 — 원본 이미지를 묻습니다';
 
-  /// 사본이 여럿일 때의 까닭.
-  static const String multipleSourcesReason =
-      '$iconsDirectory 에 원본 사본($sourceCopyBaseName.*)이 여럿입니다 — '
-      '$iconsDirectory 를 지우고 다시 실행하세요';
+  /// 쓰기 대상에 커밋하지 않은 변경이 있을 때의 까닭(뒤에 경로 줄).
+  static const String dirtyReason =
+      '홈 화면 아이콘 파일에 커밋하지 않은 변경이 있습니다 — 커밋하거나 되돌린 뒤 '
+      '다시 실행하세요';
+
+  /// 원본을 PNG 로 바꾸지 못했을 때의 까닭 머리(뒤에 종료 코드).
+  ///
+  /// 원문에는 저장소 밖 원본의 절대 경로가 섞일 수 있어 종료 코드만 보인다.
+  static const String convertFailedReason =
+      '원본 이미지를 PNG 로 바꾸지 못했습니다 — sips 종료 코드 ';
+
+  /// 바꾼 원본을 PNG 로 읽지 못했을 때의 까닭.
+  static const String unreadableConvertedReason = '바꾼 원본을 읽지 못했습니다';
 
   /// 결과 표 제목.
-  static const String summaryTitle = 'provider 콘솔에 올릴 앱 아이콘';
+  static const String summaryTitle = '만든 앱 아이콘';
 
   /// 결과 표 끝의 올리는 법 안내를 만든다 — [iconsPath] 는 아이콘 폴더의 절대
   /// 경로이고 `~` 로 줄이지 않는다.
@@ -109,19 +186,19 @@ final class AppIconStep implements DeferrableStep {
       '브라우저의 파일 선택 창에서 ⌘⇧G 로 $iconsPath 경로를 붙여 넣거나 '
       '열린 Finder 창에서 끌어다 놓으세요';
 
-  /// 만들다 만 아이콘을 지우지 못했을 때의 머리(뒤에 상대 경로 · [discardFailedHint]).
-  static const String discardFailedReason = '만들다 만 아이콘을 지우지 못했습니다 — ';
-
-  /// 지우지 못한 아이콘 경로 뒤의 안내.
-  static const String discardFailedHint = '를 직접 지우고 다시 실행하세요';
-
   /// Finder 열기가 실패했을 때의 한 줄.
   static const String openFailedNote =
       'Finder 를 열지 못했습니다 — 파일은 $iconsDirectory 에 있습니다';
 
-  /// 켠 로그인 수단 [enabledProviders] 에 아이콘 대상이 있으면 true.
+  /// 켠 로그인 수단 [enabledProviders] 에 콘솔 아이콘 대상이 있으면 true.
   static bool isRequiredFor(Set<String> enabledProviders) =>
       selectIconTargets(enabledProviders).isNotEmpty;
+
+  /// 원본을 쓰기 전에 미커밋 변경을 찾는 경로 — 홈 화면 20장 · adaptive 7개.
+  static List<String> listWritePaths() => <String>[
+    for (final HomeIconFile file in homeIconFiles) file.relativePath,
+    ...listAdaptiveFilePaths(),
+  ];
 
   /// [absolutePath] 이미지의 크기 · 형식을 읽는 명령을 만든다.
   static Command buildProbeCommand(String absolutePath) =>
@@ -134,6 +211,31 @@ final class AppIconStep implements DeferrableStep {
         'format',
         absolutePath,
       ]);
+
+  /// [sourcePath] 이미지를 sRGB PNG [outputPath] 로 바꾸는 명령을 만든다.
+  ///
+  /// 크기는 바꾸지 않는다 — 줄이기 · 합성은 그림 계산이 한다. 화면에는 원본
+  /// 자리에 [display] 를, 출력 자리에 작업 폴더의 상대 경로를 보인다.
+  static Command buildConvertCommand(
+    String sourcePath,
+    String outputPath, {
+    required String display,
+  }) => Command(
+    '/usr/bin/sips',
+    <String>[
+      '-s',
+      'format',
+      'png',
+      '-m',
+      srgbProfilePath,
+      sourcePath,
+      '--out',
+      outputPath,
+    ],
+    display:
+        'sips -s format png -m ${quoteForShellDisplay(srgbProfilePath)} '
+        '${quoteForShellDisplay(display)} --out $iconWorkDirectory/source.png',
+  );
 
   static final RegExp _widthPattern = RegExp(
     r'^\s*pixelWidth:\s*(\d+)\s*$',
@@ -148,12 +250,6 @@ final class AppIconStep implements DeferrableStep {
   static final RegExp _formatPattern = RegExp(
     r'^\s*format:\s*(\w+)\s*$',
     multiLine: true,
-  );
-
-  // 사본 이름 꼴 — 형식 자리는 [_formatPattern] 이 읽는 글자와 같다.
-  static final RegExp _sourceCopyPattern = RegExp(
-    '^${RegExp.escape(sourceCopyBaseName)}'
-    r'\.\w+$',
   );
 
   /// `sips -g` 결과 [result] 에서 크기 · 형식을 읽는다 — 이미지가 아니면 null.
@@ -172,37 +268,6 @@ final class AppIconStep implements DeferrableStep {
     final String? format = _formatPattern.firstMatch(result.stdout)?.group(1);
     if (width == null || height == null || format == null) return null;
     return (width: width, height: height, format: format);
-  }
-
-  /// [projectRoot] 의 사본 [sourceFileName] 에서 [spec] 규격 PNG 를 만드는 명령을
-  /// 만든다.
-  ///
-  /// 크기는 높이 · 너비 순이고 형식은 소문자 `png` 다. 입력 · 출력은 늘
-  /// [iconsDirectory] 안의 절대 경로이고 화면에는 상대 경로를 보인다.
-  static Command buildResizeCommand(
-    String projectRoot,
-    String sourceFileName,
-    IconSpec spec,
-  ) {
-    final side = '${spec.side}';
-    final input = '$iconsDirectory/$sourceFileName';
-    return Command(
-      '/usr/bin/sips',
-      <String>[
-        '-z',
-        side,
-        side,
-        '-s',
-        'format',
-        'png',
-        '$projectRoot/$input',
-        '--out',
-        '$projectRoot/${spec.relativePath}',
-      ],
-      display:
-          'sips -z $side $side -s format png $input '
-          '--out ${spec.relativePath}',
-    );
   }
 
   /// [projectRoot] 의 [iconsDirectory] 를 Finder 로 여는 명령을 만든다.
@@ -229,12 +294,40 @@ final class AppIconStep implements DeferrableStep {
     return null;
   }
 
-  /// 켠 수단 가운데 아이콘 대상의 규격(로그인 수단 표 순서).
+  /// [projectRoot] 의 홈 화면 아이콘 20장을 킷 기본 지문 [kitDigests] 와 비교해
+  /// 상태를 가른다.
+  ///
+  /// 하나라도 없거나 읽을 수 없으면 [HomeIconState.missing], 모두 지문과 같으면
+  /// [HomeIconState.kitDefault], 모두 다르면 [HomeIconState.mine], 그 밖은
+  /// [HomeIconState.mixed] 다. 파일 바이트만 보고 프로세스를 부르지 않는다.
+  static HomeIconState classifyHomeIcons(
+    String projectRoot,
+    Map<String, String> kitDigests,
+  ) {
+    var kitMatches = 0;
+    for (final HomeIconFile file in homeIconFiles) {
+      final List<int> bytes;
+      try {
+        bytes = File('$projectRoot/${file.relativePath}').readAsBytesSync();
+      } on FileSystemException {
+        return HomeIconState.missing;
+      }
+      if (sha256.convert(bytes).toString() == kitDigests[file.relativePath]) {
+        kitMatches++;
+      }
+    }
+    if (kitMatches == homeIconFiles.length) return HomeIconState.kitDefault;
+    if (kitMatches == 0) return HomeIconState.mine;
+    return HomeIconState.mixed;
+  }
+
+  /// 켠 수단 가운데 콘솔 아이콘 대상의 규격(로그인 수단 표 순서).
   final List<IconSpec> targets;
 
-  _IconMode _mode = _IconMode.askSource;
-  List<IconSpec> _missing = const <IconSpec>[];
-  String _sourceName = '';
+  final List<String> _dependsOn;
+  final Map<String, String> _kitDigests;
+
+  _IconMode _mode = _IconMode.deferred;
 
   @override
   String get id => stepId;
@@ -243,7 +336,7 @@ final class AppIconStep implements DeferrableStep {
   String get title => stepTitle;
 
   @override
-  List<String> get dependsOn => const <String>['providers'];
+  List<String> get dependsOn => _dependsOn;
 
   @override
   String get proceedLabel => '진행';
@@ -251,92 +344,162 @@ final class AppIconStep implements DeferrableStep {
   @override
   String get deferLabel => '지금 안 함';
 
-  // 저장소 안 gitignored 파일만 만든다 — 지우고 다시 실행하면 되돌릴 수 있다.
+  // tracked 파일은 미커밋 검사 뒤에만 쓰고 git 으로 되돌릴 수 있다.
   @override
   bool get isCostlyOrIrreversible => false;
 
   @override
   Future<CheckResult> check(WizardContext context) async {
+    _mode = _IconMode.deferred;
     final String folder = context.resolve(iconsDirectory);
-    if (FileSystemEntity.typeSync(folder) == FileSystemEntityType.file) {
-      _mode = _IconMode.deferred;
+    if (targets.isNotEmpty &&
+        FileSystemEntity.typeSync(folder) == FileSystemEntityType.file) {
       return const Deferred(
         '$iconsDirectory 가 폴더가 아니라 파일입니다 — 그 파일을 옮기고 다시 실행하세요',
       );
     }
-    _missing = targets
-        .where(
-          (IconSpec spec) =>
-              !File(context.resolve(spec.relativePath)).existsSync(),
-        )
-        .toList();
-    if (_missing.isEmpty) {
-      _mode = _IconMode.done;
-      return Done('${_joinNames(targets)} 용 ${targets.length}개 · $replaceHint');
+    if (context.session.isAppIconRebuildRequested) {
+      _mode = _IconMode.full;
+      return const Todo(kitDefaultReason);
     }
-    final List<String> sources;
-    try {
-      sources = _listSourceCopies(folder);
-    } on FileSystemException catch (e) {
-      _mode = _IconMode.deferred;
-      return Deferred('$iconsDirectory 를 읽지 못했습니다 — ${e.message}');
+    switch (classifyHomeIcons(context.projectRoot, _kitDigests)) {
+      case HomeIconState.kitDefault:
+        _mode = _IconMode.full;
+        return const Todo(kitDefaultReason);
+      case HomeIconState.mine:
+        return _checkMine(context);
+      case HomeIconState.mixed || HomeIconState.missing:
+        return const Deferred('홈 화면 아이콘을 덮어쓰지 않습니다 — 다시 만들려면: $rebuildCommand');
     }
-    if (sources.length > 1) {
-      _mode = _IconMode.deferred;
-      return const Deferred(multipleSourcesReason);
-    }
-    if (sources.length == 1) {
-      _mode = _IconMode.fromCopy;
-      _sourceName = sources.single;
-      return Todo('${_joinNames(_missing)} 용 파일이 없습니다 — 보관한 원본으로 만듭니다');
-    }
-    _mode = _IconMode.askSource;
-    return Todo('원본 이미지가 없습니다 — 경로를 묻습니다 (${_joinNames(_missing)} 용)');
   }
+
+  /// 「내 아이콘」 의 콘솔 아이콘 상태를 판정한다.
+  CheckResult _checkMine(WizardContext context) {
+    if (targets.isEmpty) {
+      _mode = _IconMode.done;
+      return const Done('내 아이콘 · $replaceHint');
+    }
+    final Uint8List ios1024 = File(
+      context.resolve(ios1024Path),
+    ).readAsBytesSync();
+    final isMarkerCurrent =
+        _readMarker(context) == sha256.convert(ios1024).toString();
+    if (isMarkerCurrent && _findMissingTargets(context).isEmpty) {
+      _mode = _IconMode.done;
+      return Done(
+        '내 아이콘 · ${_joinNames(targets)} 콘솔용 ${targets.length}개 · '
+        '$replaceHint',
+      );
+    }
+    return const Deferred('콘솔 아이콘이 홈 화면 아이콘과 다릅니다 — 다시 만들려면: $rebuildCommand');
+  }
+
+  /// 표식 파일 한 줄을 읽는다 — 없거나 읽지 못하면 null.
+  String? _readMarker(WizardContext context) {
+    try {
+      return File(
+        context.resolve(homeIconMarkerPath),
+      ).readAsStringSync().trim();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// 켠 대상 가운데 콘솔 아이콘 파일이 없는 것.
+  List<IconSpec> _findMissingTargets(WizardContext context) => targets
+      .where(
+        (IconSpec spec) =>
+            !File(context.resolve(spec.relativePath)).existsSync(),
+      )
+      .toList();
 
   @override
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
-    _IconMode.askSource => <String>[
-      _buildAskSourceNote(),
-      buildOpenCommand(context.projectRoot).render(),
-    ],
-    _IconMode.fromCopy => <String>[
-      for (final IconSpec spec in _missing)
-        buildResizeCommand(context.projectRoot, _sourceName, spec).render(),
-      buildOpenCommand(context.projectRoot).render(),
+    _IconMode.full => <String>[
+      _buildFullNote(),
+      _buildTrackedNote(),
+      buildConvertCommand(
+        '<원본 이미지>',
+        context.resolve('$iconWorkDirectory/source.png'),
+        display: '<원본 이미지>',
+      ).render(),
+      if (targets.isNotEmpty) buildOpenCommand(context.projectRoot).render(),
     ],
     _IconMode.deferred || _IconMode.done => const <String>[],
   };
 
-  /// 원본 경로를 묻는 갈래의 계획 안내 줄을 만든다.
-  String _buildAskSourceNote() =>
-      '(원본 이미지 경로를 물은 뒤 $iconsDirectory/$sourceCopyBaseName.<원본 형식> '
-      '으로 복사하고 ${_joinNames(_missing)} 용 PNG 를 sips 로 만듭니다)';
+  /// 원본을 묻는 갈래의 첫 계획 안내 줄을 만든다.
+  String _buildFullNote() {
+    final consoles = targets.isEmpty ? '을' : '과 ${_joinNames(targets)} 콘솔 아이콘을';
+    return '(원본 이미지 경로를 물은 뒤 PNG 로 바꾸고 홈 화면 아이콘 iOS '
+        '${_countIosFiles()}장 · Android legacy ${_countLegacyFiles()}장 · '
+        'adaptive ${listAdaptiveFilePaths().length}개 파일$consoles 만듭니다)';
+  }
+
+  /// 원본을 묻는 갈래가 바꾸는 · 새로 쓰는 파일 안내 줄을 만든다.
+  String _buildTrackedNote() =>
+      '(바뀌는 추적 파일: $iosAppIconDirectory/Icon-App-*.png '
+      '${_countIosFiles()} · $androidResDirectory/mipmap-*/ic_launcher.png '
+      '${_countLegacyFiles()} — 새 파일: '
+      '$androidResDirectory/mipmap-*/ic_launcher_foreground.png '
+      '${adaptiveDensities.length} · $adaptiveIconXmlPath · '
+      '$adaptiveBackgroundPath)';
 
   @override
   Future<StepOutcome> apply(WizardContext context) async {
     // 위저드는 실행 직전에 check 를 부르므로 그 판정(_mode)을 그대로 쓴다.
-    switch (_mode) {
-      case _IconMode.deferred || _IconMode.done:
-        return const Applied();
-      case _IconMode.fromCopy:
-        return await _applyFromCopy(context);
-      case _IconMode.askSource:
-        return await _applyAskSource(context);
+    try {
+      return switch (_mode) {
+        _IconMode.full => await _applyFull(context),
+        _IconMode.deferred || _IconMode.done => const Applied(),
+      };
+    } on GitTreeException catch (e) {
+      return Failed(e.message, result: e.result);
+    } on FileSystemException catch (e) {
+      return Failed('아이콘 파일을 쓰지 못했습니다 — ${e.message}');
+    } finally {
+      _deleteWorkDirectory(context);
     }
   }
 
-  /// 원본 경로를 묻고 검사한 뒤 사본을 만들고 아이콘을 만든다.
+  /// 미커밋 검사 뒤 원본을 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
+  Future<StepOutcome> _applyFull(WizardContext context) async {
+    final List<String> dirty = await findUncommittedFiles(
+      context,
+      listWritePaths(),
+    );
+    if (dirty.isNotEmpty) {
+      return Failed(
+        '$dirtyReason\n${dirty.map((String path) => '    $path').join('\n')}',
+      );
+    }
+    final _SourceAnswer answer = await _askSource(context);
+    final String? source = answer.path;
+    if (source == null) return answer.outcome ?? const Declined();
+    final (:Uint8List? bytes, :StepOutcome? outcome) = await _convertSource(
+      context,
+      source,
+      display: describePath(context, source),
+    );
+    if (bytes == null) return outcome ?? const Declined();
+    final _Rendered rendered = _renderAll(bytes);
+    if (rendered.outcome case final StepOutcome stop) return stop;
+    return await _writeAll(context, rendered.files, includesHomeIcons: true);
+  }
+
+  /// 원본 경로를 묻고 검사한다.
   ///
   /// 빈 값은 미루기, 입력 끝 · [maxSourceAttempts] 회 틀림은 거절이다. 맞지 않는
   /// 원본은 까닭 한 줄 뒤 경로만 다시 묻는다.
-  Future<StepOutcome> _applyAskSource(WizardContext context) async {
+  Future<_SourceAnswer> _askSource(WizardContext context) async {
     context.terminal.writeLine('  $sourceGuide');
     for (var attempt = 0; attempt < maxSourceAttempts; attempt++) {
       final String? answer = context.terminal.ask(sourceQuestion);
-      if (answer == null) return const Declined();
+      if (answer == null) return (path: null, outcome: const Declined());
       final String trimmed = answer.trim();
-      if (trimmed.isEmpty) return DeferredByUser(deferLabel);
+      if (trimmed.isEmpty) {
+        return (path: null, outcome: DeferredByUser(deferLabel));
+      }
       final String unquoted = parseDroppedPath(trimmed);
       // 따옴표로 감싼 `file://` 답은 따옴표만 벗겨진 주소로 돌아오므로 그 값으로
       // 한 번 더 바꾼다. 바꿀 수 없는 주소는 손대지 않은 값이 돌아와 그대로다.
@@ -373,7 +536,12 @@ final class AppIconStep implements DeferrableStep {
         // 보인다. 실행 기록(.setup/logs, gitignored)에는 명령 줄 · 출력 원문과
         // 함께 그 경로가 남는다 — sips -g 출력 첫 줄이 경로 자체라 표시형만 바꿔서는
         // 가릴 수 없다.
-        return Failed('원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 ${probed.exitCode}');
+        return (
+          path: null,
+          outcome: Failed(
+            '원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 ${probed.exitCode}',
+          ),
+        );
       }
       final ImageProbe? probe = parseProbe(probed);
       if (probe == null) {
@@ -385,76 +553,150 @@ final class AppIconStep implements DeferrableStep {
         context.terminal.writeLine('  $problem');
         continue;
       }
-      final copyName = '$sourceCopyBaseName.${probe.format}';
-      final String copyPath = context.resolve('$iconsDirectory/$copyName');
-      try {
-        Directory(context.resolve(iconsDirectory)).createSync(recursive: true);
-        if (path != copyPath) File(path).copySync(copyPath);
-      } on FileSystemException catch (e) {
-        return Failed('원본 사본을 만들지 못했습니다 — ${e.message}');
-      }
-      return await _buildIcons(context, copyName);
+      return (path: path, outcome: null);
     }
-    return const Declined();
+    return (path: null, outcome: const Declined());
   }
 
-  /// 보관한 사본을 다시 읽어 검사한 뒤 없는 아이콘만 만든다.
-  Future<StepOutcome> _applyFromCopy(WizardContext context) async {
-    final shown = '$iconsDirectory/$_sourceName';
-    final CommandResult probed = await context.runner.capture(
-      buildProbeCommand(context.resolve(shown)),
-    );
-    if (!probed.isSuccess) {
-      return Failed('보관한 원본 크기를 읽지 못했습니다 — $shown', result: probed);
-    }
-    final ImageProbe? probe = parseProbe(probed);
-    final String? problem = probe == null
-        ? '이미지로 읽히지 않습니다'
-        : findSourceProblem(probe);
-    if (problem != null) {
-      return Failed('보관한 원본 $shown 이 맞지 않습니다 — $problem — $replaceHint');
-    }
-    return await _buildIcons(context, _sourceName);
-  }
-
-  /// 사본 [sourceName] 에서 없는 대상 아이콘을 만들고 확인 · 결과 표 · Finder 를
-  /// 잇는다.
+  /// [source] 를 작업 폴더의 sRGB PNG 로 바꾸고 그 바이트를 읽는다.
   ///
-  /// 이미 있는 대상 파일은 건드리지 않는다. 파일마다 만든 직후 확인하고, 변환 ·
-  /// 확인에 걸린 파일은 지워 다시 실행이 다시 만들게 한다. 지우지 못한 파일은
-  /// 다음 검사가 존재만 보고 「끝남」 으로 여기므로 화면 한 줄이 직접 지우라고
-  /// 알린다 — 그 파일 말고 남은 대상 파일은 확인을 거친 것이다.
-  Future<StepOutcome> _buildIcons(
+  /// 작업 폴더는 지우고 새로 만든다. 화면에는 원본 자리에 [display] 를 보인다.
+  Future<({Uint8List? bytes, StepOutcome? outcome})> _convertSource(
     WizardContext context,
-    String sourceName,
-  ) async {
-    final String root = context.projectRoot;
-    try {
-      // sips 는 --out 의 부모 폴더가 없으면 엉뚱한 이름의 파일을 만든다.
-      Directory(context.resolve(iconsDirectory)).createSync(recursive: true);
-    } on FileSystemException catch (e) {
-      return Failed('$iconsDirectory 를 만들지 못했습니다 — ${e.message}');
-    }
-    for (final IconSpec spec in _missing) {
-      final CommandResult result = await context.runner.stream(
-        buildResizeCommand(root, sourceName, spec),
+    String source, {
+    required String display,
+  }) async {
+    final work = Directory(context.resolve(iconWorkDirectory));
+    if (work.existsSync()) work.deleteSync(recursive: true);
+    work.createSync(recursive: true);
+    final output = '${work.path}/source.png';
+    final CommandResult converted = await context.runner.capture(
+      buildConvertCommand(source, output, display: display),
+    );
+    if (!converted.isSuccess) {
+      return (
+        bytes: null,
+        outcome: Failed('$convertFailedReason${converted.exitCode}'),
       );
-      if (!result.isSuccess) {
-        _discard(context, spec);
-        return Failed('${_findName(spec)} 아이콘을 만들지 못했습니다', result: result);
-      }
-      // 만든 직후 바로 확인한다 — 확인을 거치지 않은 파일이 남으면 다음 검사가
-      // 「파일이 있으면 끝」 으로 보아 영구히 확인을 건너뛴다.
-      final Failed? failure = await _verifyIcon(context, spec);
-      if (failure != null) {
-        _discard(context, spec);
-        return failure;
-      }
+    }
+    final file = File(output);
+    if (!file.existsSync()) {
+      return (bytes: null, outcome: const Failed(unreadableConvertedReason));
+    }
+    return (bytes: file.readAsBytesSync(), outcome: null);
+  }
+
+  /// 바꾼 원본 [converted] 에서 홈 화면 · adaptive · 콘솔 파일을 모두 계산한다.
+  _Rendered _renderAll(Uint8List converted) {
+    final decoded = decodeIconPng(converted);
+    if (decoded == null) {
+      return (
+        files: const <_PlannedFile>[],
+        outcome: const Failed(unreadableConvertedReason),
+      );
+    }
+    final normalized = normalizeIcon(decoded);
+    final filled = buildFilledIcon(
+      normalized,
+      backgroundRgb: defaultBackgroundRgb,
+    );
+    final squares = <int, Uint8List>{};
+    Uint8List encodeSide(int side) =>
+        squares.putIfAbsent(side, () => encodeSquareIcon(filled, side));
+    final int adaptiveBackground = switch (paintedBackground) {
+      PaintedBackground.edge => averageEdgeRgb(filled),
+      PaintedBackground.white => defaultBackgroundRgb,
+    };
+    return (
+      files: <_PlannedFile>[
+        for (final HomeIconFile file in homeIconFiles)
+          _PlannedFile(
+            file.relativePath,
+            encodeSide(file.side),
+            side: file.side,
+            colorType: 2,
+          ),
+        for (final AdaptiveDensity density in adaptiveDensities)
+          _PlannedFile(
+            density.foregroundPath,
+            encodeAdaptiveForeground(
+              filled,
+              canvasSide: density.canvasSide,
+              logoDp: paintedForegroundDp,
+            ),
+            side: density.canvasSide,
+            colorType: 6,
+          ),
+        _PlannedFile(adaptiveIconXmlPath, utf8.encode(buildAdaptiveIconXml())),
+        _PlannedFile(
+          adaptiveBackgroundPath,
+          utf8.encode(buildAdaptiveBackgroundXml(adaptiveBackground)),
+        ),
+        ..._planConsoleFiles(encodeSide),
+      ],
+      outcome: null,
+    );
+  }
+
+  /// 켠 대상의 콘솔 아이콘 파일을 [encodeSide] 로 계산한다.
+  List<_PlannedFile> _planConsoleFiles(Uint8List Function(int) encodeSide) =>
+      <_PlannedFile>[
+        for (final IconSpec spec in targets)
+          _PlannedFile(
+            spec.relativePath,
+            encodeSide(spec.side),
+            side: spec.side,
+            colorType: 2,
+            maxBytes: spec.maxBytes,
+          ),
+      ];
+
+  /// [files] 를 메모리에서 확인한 뒤 쓰고 표식 · 결과 표 · Finder 를 잇는다.
+  ///
+  /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 콘솔 아이콘을 모두 쓴 뒤
+  /// 마지막에 표식을 쓴다 — 중간에 실패하면 다음 실행이 콘솔 아이콘을 다시
+  /// 만든다. 켠 대상이 없으면 [iconsDirectory] 를 만들지 않는다.
+  Future<StepOutcome> _writeAll(
+    WizardContext context,
+    List<_PlannedFile> files, {
+    required bool includesHomeIcons,
+  }) async {
+    for (final file in files) {
+      final String? problem = _findOutputProblem(file);
+      if (problem != null) return Failed(problem);
+    }
+    for (final file in files) {
+      File(context.resolve(file.relativePath))
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync(file.bytes, flush: true);
+    }
+    if (targets.isNotEmpty) {
+      final Uint8List ios1024 = File(
+        context.resolve(ios1024Path),
+      ).readAsBytesSync();
+      _writeMarker(context, sha256.convert(ios1024).toString());
     }
     writeSummary(
       context.terminal,
       title: summaryTitle,
       rows: <SummaryRow>[
+        if (includesHomeIcons) ...<SummaryRow>[
+          SummaryRow(
+            '홈 화면 — iOS',
+            '$iosAppIconDirectory/Icon-App-*.png ${_countIosFiles()}장',
+          ),
+          SummaryRow(
+            '홈 화면 — Android',
+            '$androidResDirectory/mipmap-*/ic_launcher.png '
+                '${_countLegacyFiles()}장',
+          ),
+          SummaryRow(
+            '홈 화면 — Android adaptive',
+            '$androidResDirectory/mipmap-*/ic_launcher_foreground.png '
+                '${adaptiveDensities.length}장 · ic_launcher.xml · '
+                'ic_launcher_background.xml',
+          ),
+        ],
         for (final IconSpec spec in targets)
           SummaryRow(
             '${_findName(spec)} — ${spec.rowLabel}',
@@ -464,89 +706,78 @@ final class AppIconStep implements DeferrableStep {
       notes: <String>[
         for (final IconSpec spec in targets)
           if (buildIconNote(spec) case final String note) note,
-        buildUploadGuide(context.resolve(iconsDirectory)),
+        if (targets.isNotEmpty)
+          buildUploadGuide(context.resolve(iconsDirectory)),
       ],
     );
-    final CommandResult opened = await context.runner.stream(
-      buildOpenCommand(root),
-    );
-    if (!opened.isSuccess) context.terminal.writeLine('  $openFailedNote');
+    if (targets.isNotEmpty) {
+      final CommandResult opened = await context.runner.stream(
+        buildOpenCommand(context.projectRoot),
+      );
+      if (!opened.isSuccess) context.terminal.writeLine('  $openFailedNote');
+    }
+    context.session.isAppIconRebuildRequested = false;
     return const Applied();
   }
 
-  /// 만든 [spec] 파일의 크기 · 형식 · 용량을 확인한다 — 맞으면 null, 아니면 실패.
-  ///
-  /// `sips -g` 는 읽을 수 없는 파일에도 0 으로 끝나므로 0 이 아닌 종료 코드는
-  /// 도구 자체의 실패다 — 그 결과 원문을 실패에 실어 보인다.
-  Future<Failed?> _verifyIcon(WizardContext context, IconSpec spec) async {
-    final String path = context.resolve(spec.relativePath);
-    final String name = _findName(spec);
-    final CommandResult probed = await context.runner.capture(
-      buildProbeCommand(path),
-    );
-    if (!probed.isSuccess) {
-      return Failed(
-        '$name 아이콘 크기를 읽지 못했습니다 — ${spec.relativePath}',
-        result: probed,
-      );
+  /// 만든 [file] 이 기대와 다른 까닭을 찾는다 — 맞으면 null.
+  String? _findOutputProblem(_PlannedFile file) {
+    final int? side = file.side;
+    if (side != null) {
+      final PngHeader? header = readPngHeader(file.bytes);
+      if (header == null ||
+          header.width != side ||
+          header.height != side ||
+          header.colorType != file.colorType) {
+        return '만든 아이콘이 규격과 다릅니다 — ${file.relativePath}';
+      }
     }
-    final ImageProbe? probe = parseProbe(probed);
-    if (probe == null) {
-      return Failed('$name 아이콘을 읽지 못했습니다 — ${spec.relativePath}');
+    final int? maxBytes = file.maxBytes;
+    if (maxBytes != null && file.bytes.length > maxBytes) {
+      return '만든 아이콘이 용량 상한을 넘습니다 — ${file.relativePath}: '
+          '${file.bytes.length} 바이트 (상한 $maxBytes 바이트)';
     }
-    final int bytes;
-    try {
-      bytes = File(path).lengthSync();
-    } on FileSystemException catch (e) {
-      return Failed('$name 아이콘 용량을 읽지 못했습니다 — ${e.message}');
-    }
-    final bool isSpec =
-        probe.width == spec.side &&
-        probe.height == spec.side &&
-        probe.format == 'png' &&
-        bytes <= spec.maxBytes;
-    if (isSpec) return null;
-    return Failed(
-      '$name 아이콘이 규격과 다릅니다 — ${spec.relativePath}: '
-      '지금 ${formatSize(probe)} ${probe.format} · $bytes 바이트 '
-      '(규격 ${spec.side}x${spec.side} png · ${spec.maxBytes} 바이트 이하)',
-    );
+    return null;
   }
 
-  /// 이번 실행에서 만들다 만 [spec] 파일을 지운다 — 지우지 못하면 직접 지우라는
-  /// 한 줄을 화면에 쓴다.
+  /// 표식 파일에 [digest] 한 줄을 쓴다 — 파일 0600.
   ///
-  /// 다음 검사는 파일 존재만 보므로 남은 파일은 「끝남」 으로 판정된다 — 그 파일은
-  /// 사용자가 지워야 한다. 예외 원문에는 저장소의 절대 경로가 들어 있어 상대 경로와
-  /// 운영체제의 까닭만 보인다.
-  void _discard(WizardContext context, IconSpec spec) {
-    final file = File(context.resolve(spec.relativePath));
+  /// 내용을 쓰기 전에 빈 파일로 만들어 권한부터 좁힌다. 실패하면 조용히 그친다
+  /// — 표식이 없거나 옛 값이면 다음 실행이 콘솔 아이콘을 다시 만들 뿐이다.
+  void _writeMarker(WizardContext context, String digest) {
+    final file = File(context.resolve(homeIconMarkerPath));
     try {
-      if (file.existsSync()) file.deleteSync();
-    } on FileSystemException catch (e) {
-      final String osReason = e.osError?.message ?? '';
-      context.terminal.writeLine(
-        '  $discardFailedReason${spec.relativePath} $discardFailedHint'
-        '${osReason.isEmpty ? '' : ' ($osReason)'}',
-      );
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync('');
+      restrictFileMode(file.path, ownerOnlyFileMode);
+      file.writeAsStringSync('$digest\n', flush: true);
+    } on FileSystemException {
+      return;
+    } on ProcessException {
+      return;
     }
   }
 
-  /// [folder] 안에서 사본 이름 꼴(`source.<형식>`)의 파일 이름을 이름 순으로
-  /// 모은다.
-  ///
-  /// `source.png.orig` 같은 이름은 사본이 아니라 세지 않는다. 폴더가 없으면 빈
-  /// 목록이다.
-  List<String> _listSourceCopies(String folder) {
-    final directory = Directory(folder);
-    if (!directory.existsSync()) return const <String>[];
-    final names = <String>[
-      for (final FileSystemEntity entity in directory.listSync())
-        if (entity is File)
-          entity.path.substring(entity.path.lastIndexOf('/') + 1),
-    ];
-    return names.where(_sourceCopyPattern.hasMatch).toList()..sort();
+  /// 작업 폴더를 지운다 — 없거나 지우지 못하면 조용히 그친다.
+  void _deleteWorkDirectory(WizardContext context) {
+    final work = Directory(context.resolve(iconWorkDirectory));
+    try {
+      if (work.existsSync()) work.deleteSync(recursive: true);
+    } on FileSystemException {
+      return;
+    }
   }
+
+  /// iOS 홈 화면 아이콘 수.
+  int _countIosFiles() => homeIconFiles
+      .where(
+        (HomeIconFile file) =>
+            file.relativePath.startsWith(iosAppIconDirectory),
+      )
+      .length;
+
+  /// Android legacy 홈 화면 아이콘 수.
+  int _countLegacyFiles() => homeIconFiles.length - _countIosFiles();
 
   /// [spec] 의 화면 이름을 찾는다.
   String _findName(IconSpec spec) =>
