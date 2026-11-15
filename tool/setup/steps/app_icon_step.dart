@@ -195,6 +195,39 @@ final class AppIconStep implements DeferrableStep {
   /// 이미 있던 콘솔 아이콘을 바꿨을 때의 결과 표 노트.
   static const String reuploadNote = '콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
 
+  /// 같은 이름의 Android 아이콘 리소스가 이미 있을 때의 까닭(뒤에 경로 줄).
+  static const String conflictReason =
+      '같은 이름의 아이콘 리소스가 이미 있습니다 — 옮기거나 지운 뒤 다시 실행하세요 '
+      '(빌드가 같은 이름 리소스를 함께 받지 못합니다)';
+
+  /// 홈 화면 아이콘을 쓰다 실패해 되돌렸을 때의 까닭 머리(뒤에 실패 까닭).
+  static const String rolledBackReason = '홈 화면 아이콘을 쓰지 못해 쓰기 전으로 되돌렸습니다 — ';
+
+  /// 쓰다 실패한 뒤 git 되돌림도 실패했을 때의 까닭 머리(뒤에 실패 까닭).
+  static const String restoreFailedReason =
+      '홈 화면 아이콘을 쓰지 못했고 쓰기 전으로 되돌리지도 못했습니다 — ';
+
+  /// git 되돌림이 실패했을 때 경로 줄 앞에 보이는 안내.
+  static const String restoreGuide = '아래 파일을 git checkout -- <경로> 로 되돌리세요';
+
+  /// 되돌릴 때 새로 만든 파일을 지우지 못했을 때 경로 줄 앞에 보이는 안내.
+  static const String deleteGuide = '새로 만든 아래 파일을 지우지 못했습니다 — 지운 뒤 다시 실행하세요';
+
+  /// adaptive 배경색 리소스 이름 — 다른 values 파일이 같은 이름을 정의하면
+  /// 빌드가 실패한다.
+  static const String _backgroundResourceName = 'ic_launcher_background';
+
+  /// values XML 안의 배경색 리소스 정의(`name="…"` · 작은따옴표도 받음).
+  static final RegExp _backgroundDefinitionPattern = RegExp(
+    'name\\s*=\\s*["\']$_backgroundResourceName["\']',
+  );
+
+  /// mipmap 폴더에서 이 단계의 리소스와 이름이 겹치는 파일 이름(확장자 앞).
+  static const Set<String> _launcherResourceNames = <String>{
+    'ic_launcher',
+    'ic_launcher_foreground',
+  };
+
   static final RegExp _hexColorPattern = RegExp(r'^#?([0-9a-fA-F]{6})$');
 
   /// 배경색 답 [answer] 를 `0xRRGGBB` 로 읽는다 — 꼴이 맞지 않으면 null.
@@ -293,6 +326,85 @@ final class AppIconStep implements DeferrableStep {
     final String? format = _formatPattern.firstMatch(result.stdout)?.group(1);
     if (width == null || height == null || format == null) return null;
     return (width: width, height: height, format: format);
+  }
+
+  /// 쓰기 전에 있던 [relativePaths] 를 커밋 내용으로 되돌리는 명령을 만든다.
+  ///
+  /// 쓰기 전 미커밋 검사를 지난 경로만 넘긴다 — 그래서 커밋 내용이 곧 쓰기 전
+  /// 내용이다. 추적하지 않는 경로가 섞이면 git 이 아무것도 되돌리지 않고 실패한다.
+  static Command buildRestoreCommand(
+    List<String> relativePaths, {
+    String? workingDirectory,
+  }) => Command('git', <String>[
+    'checkout',
+    '--',
+    ...relativePaths,
+  ], workingDirectory: workingDirectory);
+
+  /// 제자리에 쓴 iOS 1024 바이트 [bytes] 가 맞지 않는 까닭을 찾는다 — 맞으면 null.
+  ///
+  /// 한 변 [filledIconSide] 의 정사각 · color type 2(RGB) · 투명색 청크 없음이어야
+  /// 한다 — App Store 는 알파 채널이 있는 앱 아이콘을 거절한다.
+  static String? findPlacedIos1024Problem(Uint8List bytes) {
+    final PngHeader? header = readPngHeader(bytes);
+    if (header == null) return 'PNG 로 읽지 못했습니다';
+    if (header.width != filledIconSide || header.height != filledIconSide) {
+      return '${filledIconSide}x$filledIconSide 가 아닙니다 — 지금 '
+          '${header.width}x${header.height}';
+    }
+    if (header.colorType != 2 || readPngHasAlpha(bytes) != false) {
+      return '알파 채널이 있습니다';
+    }
+    return null;
+  }
+
+  /// [projectRoot] 의 Android 리소스에서 이 단계가 쓸 리소스와 이름이 겹치는
+  /// 파일을 찾아 저장소 상대 경로를 정렬해 돌려준다.
+  ///
+  /// `mipmap-*` 폴더의 `ic_launcher.*` · `ic_launcher_foreground.*` 가운데 이
+  /// 단계가 쓰는 경로가 아닌 것과, adaptive 배경색 파일 밖의 `values*` XML 가운데
+  /// 같은 배경색 이름을 정의하는 것이다. 같은 이름을 둘 받으면 빌드가 실패한다.
+  /// `drawable*` 은 리소스 종류가 달라 보지 않는다. 리소스 폴더가 없으면 빈
+  /// 목록이다.
+  static List<String> findConflictingIconResources(String projectRoot) {
+    final res = Directory('$projectRoot/$androidResDirectory');
+    if (!res.existsSync()) return const <String>[];
+    final Set<String> ownPaths = listWritePaths().toSet();
+    final found = <String>[];
+    for (final FileSystemEntity folder in res.listSync()) {
+      if (folder is! Directory) continue;
+      final String folderName = _readBaseName(folder.path);
+      final bool isMipmap = folderName.startsWith('mipmap-');
+      final bool isValues =
+          folderName == 'values' || folderName.startsWith('values-');
+      if (!isMipmap && !isValues) continue;
+      for (final FileSystemEntity entry in folder.listSync()) {
+        if (entry is! File) continue;
+        final String name = _readBaseName(entry.path);
+        final relativePath = '$androidResDirectory/$folderName/$name';
+        if (ownPaths.contains(relativePath)) continue;
+        final bool isConflict = isMipmap
+            ? _launcherResourceNames.contains(name.split('.').first)
+            : name.endsWith('.xml') && _hasBackgroundDefinition(entry);
+        if (isConflict) found.add(relativePath);
+      }
+    }
+    return found..sort();
+  }
+
+  /// [path] 의 마지막 이름.
+  static String _readBaseName(String path) =>
+      path.substring(path.lastIndexOf('/') + 1);
+
+  /// values XML [file] 이 adaptive 배경색 이름을 정의하는지 — 읽지 못하면 false.
+  static bool _hasBackgroundDefinition(File file) {
+    try {
+      return _backgroundDefinitionPattern.hasMatch(
+        utf8.decode(file.readAsBytesSync(), allowMalformed: true),
+      );
+    } on FileSystemException {
+      return false;
+    }
   }
 
   /// [projectRoot] 의 [iconsDirectory] 를 Finder 로 여는 명령을 만든다.
@@ -549,6 +661,15 @@ final class AppIconStep implements DeferrableStep {
         '$dirtyReason\n${dirty.map((String path) => '    $path').join('\n')}',
       );
     }
+    final List<String> conflicts = findConflictingIconResources(
+      context.projectRoot,
+    );
+    if (conflicts.isNotEmpty) {
+      return Failed(
+        '$conflictReason\n'
+        '${conflicts.map((String path) => '    $path').join('\n')}',
+      );
+    }
     final _SourceAnswer answer = await _askSource(context);
     final String? source = answer.path;
     if (source == null) return answer.outcome ?? const Declined();
@@ -760,6 +881,11 @@ final class AppIconStep implements DeferrableStep {
             side: file.side,
             colorType: 2,
           ),
+        _PlannedFile(adaptiveIconXmlPath, utf8.encode(buildAdaptiveIconXml())),
+        _PlannedFile(
+          adaptiveBackgroundPath,
+          utf8.encode(buildAdaptiveBackgroundXml(adaptiveBackground)),
+        ),
         for (final AdaptiveDensity density in adaptiveDensities)
           _PlannedFile(
             density.foregroundPath,
@@ -771,11 +897,6 @@ final class AppIconStep implements DeferrableStep {
             side: density.canvasSide,
             colorType: 6,
           ),
-        _PlannedFile(adaptiveIconXmlPath, utf8.encode(buildAdaptiveIconXml())),
-        _PlannedFile(
-          adaptiveBackgroundPath,
-          utf8.encode(buildAdaptiveBackgroundXml(adaptiveBackground)),
-        ),
         ..._planConsoleFiles(encodeSide),
       ],
       outcome: null,
@@ -797,9 +918,11 @@ final class AppIconStep implements DeferrableStep {
 
   /// [files] 를 메모리에서 확인한 뒤 쓰고 표식 · 결과 표 · Finder 를 잇는다.
   ///
-  /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 콘솔 아이콘을 모두 쓴 뒤
-  /// 마지막에 표식을 쓴다 — 중간에 실패하면 다음 실행이 콘솔 아이콘을 다시
-  /// 만든다. 켠 대상이 없으면 [iconsDirectory] 를 만들지 않는다.
+  /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 홈 화면 · adaptive 파일을 먼저
+  /// 쓰고 iOS 1024 를 다시 읽는다 — 그 사이 실패하면 쓰기 전으로 되돌리고 멈춘다.
+  /// 그 뒤 콘솔 아이콘을 모두 쓰고 마지막에 표식을 쓴다 — 콘솔 쪽에서 실패하면
+  /// 홈 화면은 그대로 두고 다음 실행이 콘솔 아이콘을 다시 만든다. 켠 대상이
+  /// 없으면 [iconsDirectory] 를 만들지 않는다.
   Future<StepOutcome> _writeAll(
     WizardContext context,
     List<_PlannedFile> files, {
@@ -812,7 +935,19 @@ final class AppIconStep implements DeferrableStep {
     final bool hasReplacedConsoleIcon = targets.any(
       (IconSpec spec) => File(context.resolve(spec.relativePath)).existsSync(),
     );
+    final Set<String> homePaths = listWritePaths().toSet();
+    if (includesHomeIcons) {
+      final StepOutcome? failure = await _placeHomeIcons(
+        context,
+        <_PlannedFile>[
+          for (final file in files)
+            if (homePaths.contains(file.relativePath)) file,
+        ],
+      );
+      if (failure != null) return failure;
+    }
     for (final file in files) {
+      if (homePaths.contains(file.relativePath)) continue;
       File(context.resolve(file.relativePath))
         ..parent.createSync(recursive: true)
         ..writeAsBytesSync(file.bytes, flush: true);
@@ -867,6 +1002,107 @@ final class AppIconStep implements DeferrableStep {
     context.session.isAppIconRebuildRequested = false;
     return const Applied();
   }
+
+  /// 홈 화면 · adaptive 파일 [files] 를 순서대로 제자리에 쓰고 iOS 1024 를 다시
+  /// 읽는다 — 끝나면 null, 실패하면 쓰기 전으로 되돌린 뒤의 결과다.
+  ///
+  /// 쓰기 전에 디스크에 있던 경로를 먼저 적어 둔다. 미커밋 검사를 지났으므로 그
+  /// 경로는 모두 깨끗한 추적 파일이다.
+  Future<StepOutcome?> _placeHomeIcons(
+    WizardContext context,
+    List<_PlannedFile> files,
+  ) async {
+    final existedBefore = <String>{
+      for (final file in files)
+        if (File(context.resolve(file.relativePath)).existsSync())
+          file.relativePath,
+    };
+    final written = <String>[];
+    for (final file in files) {
+      try {
+        File(context.resolve(file.relativePath))
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(file.bytes, flush: true);
+      } on FileSystemException catch (e) {
+        return await _restoreHomeIcons(
+          context,
+          written,
+          existedBefore,
+          '${file.relativePath} (${_describeFileError(e)})',
+        );
+      }
+      written.add(file.relativePath);
+    }
+    final String? problem = _checkPlacedIos1024(context);
+    if (problem == null) return null;
+    return await _restoreHomeIcons(context, written, existedBefore, problem);
+  }
+
+  /// 제자리의 iOS 1024 를 디스크에서 다시 읽어 맞지 않는 까닭을 찾는다 — 맞으면
+  /// null.
+  String? _checkPlacedIos1024(WizardContext context) {
+    final Uint8List bytes;
+    try {
+      bytes = File(context.resolve(ios1024Path)).readAsBytesSync();
+    } on FileSystemException catch (e) {
+      return '$ios1024Path 를 다시 읽지 못했습니다 (${_describeFileError(e)})';
+    }
+    final String? problem = findPlacedIos1024Problem(bytes);
+    return problem == null ? null : '다시 읽은 $ios1024Path — $problem';
+  }
+
+  /// 이번에 쓴 [written] 을 쓰기 전으로 되돌리고 실패 결과를 만든다 — [reason] 은
+  /// 쓰기를 멈춘 까닭이다.
+  ///
+  /// 쓰기 전에 있던 파일([existedBefore])은 지우지 않고 git 으로 커밋 내용에
+  /// 되돌리고, 새로 만든 파일은 지운다.
+  Future<StepOutcome> _restoreHomeIcons(
+    WizardContext context,
+    List<String> written,
+    Set<String> existedBefore,
+    String reason,
+  ) async {
+    final tracked = <String>[];
+    final created = <String>[];
+    for (final path in written) {
+      if (existedBefore.contains(path)) {
+        tracked.add(path);
+      } else {
+        created.add(path);
+      }
+    }
+    final undeleted = <String>[];
+    for (final path in created) {
+      try {
+        File(context.resolve(path)).deleteSync();
+      } on FileSystemException catch (e) {
+        undeleted.add('    $path (${_describeFileError(e)})');
+      }
+    }
+    if (tracked.isNotEmpty) {
+      final CommandResult restored = await context.runner.capture(
+        buildRestoreCommand(tracked, workingDirectory: context.projectRoot),
+      );
+      if (!restored.isSuccess) {
+        return Failed(
+          '$restoreFailedReason$reason\n$restoreGuide\n'
+          '${tracked.map((String path) => '    $path').join('\n')}'
+          '${undeleted.isEmpty ? '' : '\n$deleteGuide\n${undeleted.join('\n')}'}',
+          result: restored,
+        );
+      }
+    }
+    if (undeleted.isNotEmpty) {
+      return Failed(
+        '$rolledBackReason$reason\n$deleteGuide\n${undeleted.join('\n')}',
+      );
+    }
+    return Failed('$rolledBackReason$reason');
+  }
+
+  /// 파일 예외 [error] 의 OS 까닭 한 줄 — 경로는 넣지 않는다.
+  static String _describeFileError(FileSystemException error) =>
+      error.osError?.message ?? error.message;
 
   /// 만든 [file] 이 기대와 다른 까닭을 찾는다 — 맞으면 null.
   String? _findOutputProblem(_PlannedFile file) {
