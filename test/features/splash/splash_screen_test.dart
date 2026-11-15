@@ -1535,7 +1535,7 @@ void main() {
       );
     });
 
-    testWidgets('T-26-FRAME-12: 어두운 배경이면 아래 내용 테마 = 앱 다크 테마 · 대비 '
+    testWidgets('T-26-FRAME-12: 어두운 배경이면 아래 내용 팔레트 = 앱 다크 팔레트 · 대비 '
         '높임 켜면 1.0 · 끄면 0.0', (tester) async {
       final ColorScheme highContrast = AppTheme.dark(
         seedColor: AppTheme.brandColor,
