@@ -398,20 +398,35 @@ final class AppIconStep implements DeferrableStep {
         : FailedWriteUndo.keep;
   }
 
-  /// 제자리에 쓴 iOS 1024 바이트 [bytes] 가 맞지 않는 까닭을 찾는다 — 맞으면 null.
+  /// 알파 채널이 있을 때의 iOS 1024 까닭.
+  static const String _alphaProblem = '알파 채널이 있습니다 · App Store 업로드가 거절될 수 있습니다';
+
+  /// iOS 1024 바이트 [bytes] 를 콘솔 아이콘 재료로 그대로 쓸 수 없는 까닭을
+  /// 찾는다 — 쓸 수 있으면 null.
   ///
-  /// 한 변 [filledIconSide] 의 정사각 · color type 2(RGB) · 투명색 청크 없음이어야
-  /// 한다 — App Store 는 알파 채널이 있는 앱 아이콘을 거절한다.
-  static String? findPlacedIos1024Problem(Uint8List bytes) {
+  /// PNG 로 읽혀야 하고, 한 변 [filledIconSide] 의 정사각이어야 하며, 알파 채널
+  /// (알파가 있는 color type · 투명색 청크)이 없어야 한다 — App Store 는 알파
+  /// 채널이 있는 앱 아이콘을 거절한다. color type 은 가리지 않는다(회색 · 팔레트도
+  /// 받는다). 「내 아이콘」 판정이 이 결과로 남은 일을 정한다.
+  static String? findIos1024Problem(Uint8List bytes) {
     final PngHeader? header = readPngHeader(bytes);
     if (header == null) return 'PNG 로 읽지 못했습니다';
     if (header.width != filledIconSide || header.height != filledIconSide) {
       return '${filledIconSide}x$filledIconSide 가 아닙니다 — 지금 '
           '${header.width}x${header.height}';
     }
-    if (header.colorType != 2 || readPngHasAlpha(bytes) != false) {
-      return '알파 채널이 있습니다';
-    }
+    if (readPngHasAlpha(bytes) != false) return _alphaProblem;
+    return null;
+  }
+
+  /// 제자리에 쓴 iOS 1024 바이트 [bytes] 가 맞지 않는 까닭을 찾는다 — 맞으면 null.
+  ///
+  /// [findIos1024Problem] 에 더해 위저드가 쓴 그대로의 color type 2(RGB)여야
+  /// 한다.
+  static String? findPlacedIos1024Problem(Uint8List bytes) {
+    final String? problem = findIos1024Problem(bytes);
+    if (problem != null) return problem;
+    if (readPngHeader(bytes)?.colorType != 2) return _alphaProblem;
     return null;
   }
 
@@ -542,6 +557,14 @@ final class AppIconStep implements DeferrableStep {
   @override
   bool get isCostlyOrIrreversible => false;
 
+  /// 홈 화면 · 콘솔 아이콘 상태로 이번 실행의 갈래를 정한다.
+  ///
+  /// 켠 대상이 있는데 [iconsDirectory] 자리가 파일이면 남은 일이다. 다시 만들기
+  /// 요청이 있으면 원본을 묻는 할 일이다. 그 밖은 [classifyHomeIcons] 로 가른다
+  /// — 킷 기본이면 원본을 묻는 할 일, 섞임 · 없음이면 남은 일, 내 아이콘이면
+  /// iOS 1024 를 [findIos1024Problem] 으로 보아 그대로 쓸 수 없을 때 남은 일이고
+  /// 쓸 수 있으면 콘솔 아이콘 상태로 끝 · 콘솔만 다시를 정한다. 남은 일 갈래는
+  /// 아무것도 쓰지 않는다.
   @override
   Future<CheckResult> check(WizardContext context) async {
     _mode = _IconMode.deferred;
@@ -579,9 +602,10 @@ final class AppIconStep implements DeferrableStep {
     }
   }
 
-  /// 「내 아이콘」 의 iOS 1024 알파와 콘솔 아이콘 상태를 판정한다.
+  /// 「내 아이콘」 의 iOS 1024 와 콘솔 아이콘 상태를 판정한다.
   ///
-  /// iOS 1024 를 읽지 못하거나 알파가 있으면 덮어쓰지 않는 남은 일이다. 켠 대상이
+  /// iOS 1024 를 그대로 쓸 수 없으면([findIos1024Problem] — 못 읽음 · 크기 ·
+  /// 알파) 덮어쓰지 않는 남은 일이다. 켠 대상이
   /// 없으면 표식을 보지 않고 끝난 것이다. 켠 대상마다 파일이 있고 표식의 그 수단
   /// 줄이 지금 iOS 1024 지문이면 끝났고, 하나라도 아니면 콘솔 아이콘만 다시
   /// 만든다. 그때 할 일 줄의 꼬리는 [_buildReuploadTail] 이 정한다 — sips 를
@@ -590,17 +614,9 @@ final class AppIconStep implements DeferrableStep {
     final Uint8List ios1024 = File(
       context.resolve(ios1024Path),
     ).readAsBytesSync();
-    final bool? hasAlpha = readPngHasAlpha(ios1024);
-    if (hasAlpha == null) {
-      return const Deferred(
-        'iOS 1024 아이콘을 PNG 로 읽지 못했습니다 — 다시 만들려면: $rebuildCommand',
-      );
-    }
-    if (hasAlpha) {
-      return const Deferred(
-        'iOS 1024 아이콘에 알파 채널이 있습니다 — App Store 업로드가 거절될 수 '
-        '있습니다 · 다시 만들려면: $rebuildCommand',
-      );
+    final String? problem = findIos1024Problem(ios1024);
+    if (problem != null) {
+      return Deferred('iOS 1024 아이콘 — $problem · 다시 만들려면: $rebuildCommand');
     }
     if (targets.isEmpty) {
       _mode = _IconMode.done;
@@ -788,6 +804,7 @@ final class AppIconStep implements DeferrableStep {
     final decoded = decodeIconPng(bytes);
     if (decoded == null) return const Failed(unreadableConvertedReason);
     final normalized = normalizeIcon(decoded);
+    // 검사가 크기를 이미 거른다 — sips 변환이 크기를 바꾼 경우만 여기서 막는다.
     if (normalized.width != filledIconSide ||
         normalized.height != filledIconSide) {
       return Failed(

@@ -559,7 +559,7 @@ void main() {
       expect(
         h.lines,
         contains(
-          '  ✗ 앱 아이콘 — iOS 1024 아이콘에 알파 채널이 있습니다 — App Store '
+          '  ✗ 앱 아이콘 — iOS 1024 아이콘 — 알파 채널이 있습니다 · App Store '
           '업로드가 거절될 수 있습니다 · 다시 만들려면: ./setup.sh --app-icon',
         ),
       );
@@ -578,11 +578,48 @@ void main() {
       expect(
         h.lines,
         contains(
-          '  ✗ 앱 아이콘 — iOS 1024 아이콘을 PNG 로 읽지 못했습니다 — 다시 만들려면: '
+          '  ✗ 앱 아이콘 — iOS 1024 아이콘 — PNG 로 읽지 못했습니다 · 다시 만들려면: '
           './setup.sh --app-icon',
         ),
       );
       expect(h.runner.calls, isEmpty);
+    });
+
+    test('512 RGB 면 크기 까닭의 남은 일 · 진행 질문 0 · sips 0', () async {
+      writeFinishedMine(box.root);
+      box
+          .repoFile(ios1024Path)
+          .writeAsBytesSync(buildOpaqueRgbIconPng(side: 512));
+      final h = _Harness(box, const <String?>[]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — iOS 1024 아이콘 — 1024x1024 가 아닙니다 — 지금 512x512 · '
+          '다시 만들려면: ./setup.sh --app-icon',
+        ),
+      );
+      expect(h.screen.asks, isEmpty);
+      expect(h.countSipsCalls(), 0);
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('알파 없는 1024 회색 PNG 는 남은 일이 아니다', () async {
+      writeFinishedMine(box.root);
+      final gray = img.Image(width: 1024, height: 1024, numChannels: 1);
+      box.repoFile(ios1024Path).writeAsBytesSync(img.encodePng(gray));
+      expect(
+        readPngHeader(box.repoFile(ios1024Path).readAsBytesSync())?.colorType,
+        0,
+      );
+      writeHomeIconMarker(box.root);
+      final h = _Harness(box, const <String?>[]);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains(mineKakaoDoneLine));
     });
   });
 
