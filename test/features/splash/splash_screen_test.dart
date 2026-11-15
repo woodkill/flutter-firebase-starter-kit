@@ -1535,6 +1535,49 @@ void main() {
       );
     });
 
+    testWidgets('T-26-FRAME-12: 어두운 배경이면 아래 내용 테마 = 앱 다크 테마 · 대비 '
+        '높임 켜면 1.0 · 끄면 0.0', (tester) async {
+      final ColorScheme highContrast = AppTheme.dark(
+        seedColor: AppTheme.brandColor,
+        contrastLevel: 1,
+      ).colorScheme;
+      final ColorScheme standardContrast = AppTheme.dark(
+        seedColor: AppTheme.brandColor,
+      ).colorScheme;
+      expect(
+        highContrast.onSurfaceVariant,
+        isNot(standardContrast.onSurfaceVariant),
+        reason: '두 다크 팔레트가 같으면 이 시험은 아무것도 가리지 못한다',
+      );
+      final ColorScheme plainDark = ThemeData(
+        brightness: Brightness.dark,
+      ).colorScheme;
+      expect(
+        standardContrast,
+        isNot(plainDark),
+        reason: '기본 다크 테마와 같으면 변이를 못 가린다',
+      );
+      expect(highContrast, isNot(plainDark));
+      expect(
+        ThemeData.estimateBrightnessForColor(_kDarkInjected),
+        Brightness.dark,
+      );
+      _restoreOsSettingsAfterTest(tester);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await _pumpFrame(tester, colorDark: _kDarkInjected);
+      expect(_bodyTheme(tester).brightness, Brightness.dark);
+      expect(
+        _bodyTheme(tester).colorScheme,
+        standardContrast,
+        reason: '대비 높임 꺼짐',
+      );
+
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(highContrast: true);
+      await tester.pump();
+      expect(_bodyTheme(tester).colorScheme, highContrast, reason: '대비 높임 켜짐');
+    });
+
     testWidgets('T-26-FRAME-06: 상태 표시줄 아이콘 밝기 — 밝은 배경 dark · '
         '어두운 배경 light · 내비게이션 바 값은 걸지 않는다', (tester) async {
       _expectInjectedColorsOpposite();
