@@ -51,6 +51,9 @@ git clone <your-repo-url> && cd <your-repo>
 
 # 4. stg · prod 설정(선택)
 ./setup.sh --flavor stg
+
+# 5. 앱 아이콘만 다시 만들기(선택)
+./setup.sh --app-icon
 ```
 
 위저드는 개발 도구와 Xcode 를 준비하고, Firebase 프로젝트를 만들거나 골라 Firestore · Storage · 이메일 로그인 · 익명 로그인을 켜고, 앱을 등록해 설정 파일을 만들고, rules 와 Cloud Functions 를 배포한 뒤 dev flavor 앱을 실행해 로그인을 확인한다.
