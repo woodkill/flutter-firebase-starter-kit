@@ -12,6 +12,7 @@ import 'package:image/image.dart' as img;
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/icons/home_icon_specs.dart';
+import '../../../tool/setup/providers/icon_specs.dart';
 import 'fakes.dart';
 
 final Map<int, Uint8List> _opaqueRgbCache = <int, Uint8List>{};
@@ -113,11 +114,25 @@ Map<String, String> writeKitDefaultHomeIcons(String root) {
 String readHomeIconDigest(String root) =>
     _digest(File('$root/$ios1024Path').readAsBytesSync());
 
-/// [root] 저장소에 지금 iOS 1024 바이트의 sha256 한 줄을 표식으로 쓴다.
-void writeHomeIconMarker(String root) {
+/// [root] 저장소의 지금 iOS 1024 지문으로 [tokens] 수단마다 한 줄씩 쓴 표식
+/// 본문 — 줄은 `<sha256> <token>` 이고 token 순이다.
+String buildHomeIconMarkerText(String root, Iterable<String> tokens) {
+  final String digest = readHomeIconDigest(root);
+  final List<String> sorted = tokens.toList()..sort();
+  return sorted.map((String token) => '$digest $token\n').join();
+}
+
+/// [root] 저장소에 지금 iOS 1024 지문의 표식을 쓴다 — 줄은 [tokens] 수단마다
+/// 하나이고, 없으면 콘솔 아이콘 칸이 있는 모든 수단이다.
+void writeHomeIconMarker(String root, {Iterable<String>? tokens}) {
   File('$root/$homeIconMarkerPath')
     ..parent.createSync(recursive: true)
-    ..writeAsStringSync('${readHomeIconDigest(root)}\n');
+    ..writeAsStringSync(
+      buildHomeIconMarkerText(
+        root,
+        tokens ?? iconSpecs.map((IconSpec spec) => spec.token),
+      ),
+    );
 }
 
 /// [root] 저장소용 git 실행 환경 — 부모의 `GIT_*` 를 빼고 사용자 · 시스템 설정을

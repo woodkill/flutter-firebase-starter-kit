@@ -314,8 +314,8 @@ void main() {
       encodeSquareIcon(filled, 128),
     );
     expect(
-      box.repoFile(homeIconMarkerPath).readAsStringSync().trim(),
-      digestOf(ios1024),
+      box.repoFile(homeIconMarkerPath).readAsStringSync(),
+      buildHomeIconMarkerText(box.root, const <String>['kakao']),
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
     expect(h.output, contains('── ${AppIconStep.summaryTitle} ──'));
@@ -600,7 +600,7 @@ void main() {
       final flipped = digest.startsWith('0')
           ? '1${digest.substring(1)}'
           : '0${digest.substring(1)}';
-      box.repoFile(homeIconMarkerPath).writeAsStringSync('$flipped\n');
+      box.repoFile(homeIconMarkerPath).writeAsStringSync('$flipped kakao\n');
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
@@ -668,8 +668,8 @@ void main() {
       );
       expect(h.lines, contains(reuploadNoteLine));
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync().trim(),
-        digestOf(ios1024),
+        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(ios1024, buildOpaqueRgbIconPng());
       expect(before[homeIconFiles[1].relativePath], isNot(isEmpty));
@@ -688,6 +688,110 @@ void main() {
       expect(h.lines, isNot(contains(reuploadNoteLine)));
       expect(box.readHomeIcons(), expected);
       expect(h.lines, contains(mineKakaoDoneLine));
+    });
+  });
+
+  group('T-28-ICON-15: 표식은 수단마다 — 다시 켠 수단의 옛 콘솔 아이콘은 다시 만든다', () {
+    const kakaoNaverTodoHead =
+        '  ✗ 앱 아이콘 — Kakao · Naver 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 '
+        '만듭니다';
+    const kakaoNaver = <String>{'kakao', 'naver'};
+
+    /// 「내 아이콘」 20장과 Kakao · Naver 콘솔 파일(옛 바이트)을 둔다.
+    void writeMineWithKakaoNaver() {
+      writeMyHomeIcons(box.root);
+      for (final token in kakaoNaver) {
+        box.repoFile(findIconSpec(token)!.relativePath)
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(const <int>[1, 2, 3]);
+      }
+    }
+
+    test('표식에 다시 켠 수단 줄이 없으면 ✓ 가 아니라 콘솔만 다시', () async {
+      writeMineWithKakaoNaver();
+      writeHomeIconMarker(box.root, tokens: const <String>['kakao']);
+      final h = _Harness(box, <String?>['2'], enabled: kakaoNaver);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains(startsWith(kakaoNaverTodoHead)));
+      expect(h.lines, isNot(contains(startsWith('  ✓ 앱 아이콘'))));
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('다시 켠 수단 줄이 옛 지문이어도 콘솔만 다시', () async {
+      writeMineWithKakaoNaver();
+      box.repoFile(homeIconMarkerPath)
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '${readHomeIconDigest(box.root)} kakao\n${'a' * 64} naver\n',
+        );
+      final h = _Harness(box, <String?>['2'], enabled: kakaoNaver);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains(startsWith(kakaoNaverTodoHead)));
+    });
+
+    test('두 수단 줄 모두 지금 지문이면 ✓', () async {
+      writeMineWithKakaoNaver();
+      writeHomeIconMarker(box.root, tokens: kakaoNaver);
+      final h = _Harness(box, const <String?>[], enabled: kakaoNaver);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '  ✓ 앱 아이콘 — 내 아이콘 · Kakao · Naver 콘솔용 2개 · 바꾸려면: '
+          './setup.sh --app-icon',
+        ),
+      );
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('꼴이 다른 한 줄 표식은 빈 표 — 콘솔만 다시', () async {
+      writeFinishedMine(box.root);
+      box
+          .repoFile(homeIconMarkerPath)
+          .writeAsStringSync('${readHomeIconDigest(box.root)}\n');
+      final h = _Harness(box, <String?>['2']);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains(startsWith('  ✗ 앱 아이콘 — Kakao 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)')),
+      );
+    });
+
+    test('쓸 때 켠 수단 줄만 새 지문 · 끈 수단 줄은 그대로', () async {
+      writeMyHomeIcons(box.root);
+      final oldNaverLine = '${'b' * 64} naver';
+      box.repoFile(homeIconMarkerPath)
+        ..createSync(recursive: true)
+        ..writeAsStringSync('${'c' * 64} kakao\n$oldNaverLine\n');
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final h = _Harness(box, <String?>['1'])
+        ..registerConvert('${box.root}/$ios1024Path', ios1024)
+        ..registerOpen();
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        '${digestOf(ios1024)} kakao\n$oldNaverLine\n',
+      );
+      expect(h.lines, contains(mineKakaoDoneLine));
+    });
+
+    test('parseMarker · formatMarker — 꼴이 맞는 줄만 · token 순', () {
+      final String a = 'a' * 64;
+      final String b = 'b' * 64;
+      expect(
+        AppIconStep.parseMarker('$b naver\n  $a kakao  \n$a\nxyz line\n'),
+        <String, String>{'naver': b, 'kakao': a},
+      );
+      expect(AppIconStep.parseMarker(''), isEmpty);
+      expect(
+        AppIconStep.formatMarker(<String, String>{'naver': b, 'kakao': a}),
+        '$a kakao\n$b naver\n',
+      );
     });
   });
 

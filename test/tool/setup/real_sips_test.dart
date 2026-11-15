@@ -389,8 +389,8 @@ void main() {
         expect(ios1024.width, 1024);
         expect(ios1024.alpha, 'no');
         expect(
-          File('${dir.repo}/$homeIconMarkerPath').readAsStringSync().trim(),
-          readHomeIconDigest(dir.repo),
+          File('${dir.repo}/$homeIconMarkerPath').readAsStringSync(),
+          buildHomeIconMarkerText(dir.repo, const <String>['kakao']),
         );
         expect(
           Directory('${dir.repo}/$iconWorkDirectory').existsSync(),

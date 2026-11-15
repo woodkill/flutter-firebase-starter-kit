@@ -264,8 +264,8 @@ void main() {
       );
       expect(box.repoFile(kakaoIconPath).existsSync(), isTrue);
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync().trim(),
-        readHomeIconDigest(box.root),
+        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(run.countOpenCalls(), 1);
       afterFirstRun = box.readWriteTargets();
@@ -336,8 +336,8 @@ void main() {
       );
       expect(box.repoFile(kakaoIconPath).readAsBytesSync(), isNot(kakaoBefore));
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync().trim(),
-        readHomeIconDigest(box.root),
+        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(run.session.isAppIconRebuildRequested, isFalse);
       final List<String> lines = run.lines;

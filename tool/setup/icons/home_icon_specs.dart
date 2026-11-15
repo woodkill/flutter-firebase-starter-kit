@@ -263,8 +263,8 @@ const PaintedBackground paintedBackground = PaintedBackground.edge;
 /// 투명한 원본을 채울 배경색 질문의 기본값(`0xRRGGBB` · Enter 값) — 흰색.
 const int defaultBackgroundRgb = 0xFFFFFF;
 
-/// 홈 화면 아이콘을 만든 원본의 표식 파일 이름 — 그때 iOS 1024 바이트의 sha256
-/// 한 줄을 담는다.
+/// 콘솔 아이콘을 어느 iOS 1024 에서 만들었는지 적는 표식 파일 이름 — 줄마다
+/// `<그때 iOS 1024 바이트의 sha256> <수단 token>` 을 담는다.
 ///
 /// 원본 사본 이름(`source.<형식>`)과 겹치지 않게 `source.` 로 시작하지 않는다.
 const String homeIconMarkerName = 'home-icon.sha256';

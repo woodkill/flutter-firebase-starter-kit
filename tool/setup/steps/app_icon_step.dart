@@ -251,6 +251,26 @@ final class AppIconStep implements DeferrableStep {
     return hex == null ? null : int.parse(hex, radix: 16);
   }
 
+  /// 표식 한 줄 — `<sha256 소문자 16진 64자> <수단 token>`.
+  static final RegExp _markerLinePattern = RegExp(r'^([0-9a-f]{64}) (\S+)$');
+
+  /// 표식 본문 [text] 를 수단 token → 그 콘솔 아이콘을 만든 iOS 1024 지문 표로
+  /// 읽는다.
+  ///
+  /// 줄마다 `<sha256> <token>` 이다. 앞뒤 공백은 무시하고 꼴이 맞지 않는 줄은
+  /// 건너뛴다 — 꼴이 다른 표식은 빈 표가 되어 모든 콘솔 아이콘을 다시 만든다.
+  static Map<String, String> parseMarker(String text) => <String, String>{
+    for (final String line in const LineSplitter().convert(text))
+      if (_markerLinePattern.firstMatch(line.trim()) case final RegExpMatch m)
+        m.group(2)!: m.group(1)!,
+  };
+
+  /// 수단 token → iOS 1024 지문 표 [entries] 를 token 순 표식 본문으로 쓴다.
+  static String formatMarker(Map<String, String> entries) {
+    final List<String> tokens = entries.keys.toList()..sort();
+    return tokens.map((String token) => '${entries[token]} $token\n').join();
+  }
+
   /// 결과 표 끝의 올리는 법 안내를 만든다 — [iconsPath] 는 아이콘 폴더의 절대
   /// 경로이고 `~` 로 줄이지 않는다.
   ///
@@ -553,8 +573,9 @@ final class AppIconStep implements DeferrableStep {
   /// 「내 아이콘」 의 iOS 1024 알파와 콘솔 아이콘 상태를 판정한다.
   ///
   /// iOS 1024 를 읽지 못하거나 알파가 있으면 덮어쓰지 않는 남은 일이다. 켠 대상이
-  /// 없으면 표식을 보지 않고 끝난 것이다. 표식이 지금 iOS 1024 지문과 같고 켠
-  /// 대상 파일이 모두 있으면 끝났고, 아니면 콘솔 아이콘만 다시 만든다.
+  /// 없으면 표식을 보지 않고 끝난 것이다. 켠 대상마다 파일이 있고 표식의 그 수단
+  /// 줄이 지금 iOS 1024 지문이면 끝났고, 하나라도 아니면 콘솔 아이콘만 다시
+  /// 만든다.
   CheckResult _checkMine(WizardContext context) {
     final Uint8List ios1024 = File(
       context.resolve(ios1024Path),
@@ -575,10 +596,13 @@ final class AppIconStep implements DeferrableStep {
       _mode = _IconMode.done;
       return const Done('내 아이콘 · $replaceHint');
     }
-    final isMarkerCurrent =
-        _readMarker(context) == sha256.convert(ios1024).toString();
+    final digest = sha256.convert(ios1024).toString();
+    final Map<String, String> made = _readMarker(context);
     final List<IconSpec> missing = _findMissingTargets(context);
-    if (isMarkerCurrent && missing.isEmpty) {
+    final bool isCurrent = targets.every(
+      (IconSpec spec) => made[spec.token] == digest,
+    );
+    if (isCurrent && missing.isEmpty) {
       _mode = _IconMode.done;
       return Done(
         '내 아이콘 · ${_joinNames(targets)} 콘솔용 ${targets.length}개 · '
@@ -601,14 +625,15 @@ final class AppIconStep implements DeferrableStep {
       )
       .length;
 
-  /// 표식 파일 한 줄을 읽는다 — 없거나 읽지 못하면 null.
-  String? _readMarker(WizardContext context) {
+  /// 표식 파일을 수단 token → iOS 1024 지문 표로 읽는다 — 없거나 읽지 못하면
+  /// 빈 표다.
+  Map<String, String> _readMarker(WizardContext context) {
     try {
-      return File(
-        context.resolve(homeIconMarkerPath),
-      ).readAsStringSync().trim();
+      return parseMarker(
+        File(context.resolve(homeIconMarkerPath)).readAsStringSync(),
+      );
     } on FileSystemException {
-      return null;
+      return const <String, String>{};
     }
   }
 
@@ -948,9 +973,10 @@ final class AppIconStep implements DeferrableStep {
   ///
   /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 홈 화면 · adaptive 파일을 먼저
   /// 쓰고 iOS 1024 를 다시 읽는다 — 그 사이 실패하면 쓰기 전으로 되돌리고 멈춘다.
-  /// 그 뒤 콘솔 아이콘을 모두 쓰고 마지막에 표식을 쓴다 — 콘솔 쪽에서 실패하면
-  /// 홈 화면은 그대로 두고 다음 실행이 콘솔 아이콘을 다시 만든다. 켠 대상이
-  /// 없으면 [iconsDirectory] 를 만들지 않는다.
+  /// 그 뒤 콘솔 아이콘을 모두 쓰고 마지막에 표식의 켠 대상 줄만 지금 iOS 1024
+  /// 지문으로 바꾼다 — 끈 수단 줄은 그 파일처럼 그대로 둔다. 콘솔 쪽에서
+  /// 실패하면 홈 화면은 그대로 두고 다음 실행이 콘솔 아이콘을 다시 만든다. 켠
+  /// 대상이 없으면 [iconsDirectory] 를 만들지 않는다.
   Future<StepOutcome> _writeAll(
     WizardContext context,
     List<_PlannedFile> files, {
@@ -984,7 +1010,11 @@ final class AppIconStep implements DeferrableStep {
       final Uint8List ios1024 = File(
         context.resolve(ios1024Path),
       ).readAsBytesSync();
-      _writeMarker(context, sha256.convert(ios1024).toString());
+      final digest = sha256.convert(ios1024).toString();
+      _writeMarker(context, <String, String>{
+        ..._readMarker(context),
+        for (final IconSpec spec in targets) spec.token: digest,
+      });
     }
     writeSummary(
       context.terminal,
@@ -1163,17 +1193,17 @@ final class AppIconStep implements DeferrableStep {
     return null;
   }
 
-  /// 표식 파일에 [digest] 한 줄을 쓴다 — 파일 0600.
+  /// 표식 파일에 수단 token → iOS 1024 지문 표 [entries] 를 쓴다 — 파일 0600.
   ///
   /// 내용을 쓰기 전에 빈 파일로 만들어 권한부터 좁힌다. 실패하면 조용히 그친다
   /// — 표식이 없거나 옛 값이면 다음 실행이 콘솔 아이콘을 다시 만들 뿐이다.
-  void _writeMarker(WizardContext context, String digest) {
+  void _writeMarker(WizardContext context, Map<String, String> entries) {
     final file = File(context.resolve(homeIconMarkerPath));
     try {
       file.parent.createSync(recursive: true);
       file.writeAsStringSync('');
       restrictFileMode(file.path, ownerOnlyFileMode);
-      file.writeAsStringSync('$digest\n', flush: true);
+      file.writeAsStringSync(formatMarker(entries), flush: true);
     } on FileSystemException {
       return;
     } on ProcessException {
