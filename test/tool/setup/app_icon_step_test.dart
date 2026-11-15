@@ -927,4 +927,494 @@ void main() {
       );
     });
   });
+
+  /// 킷 기본 저장소에서 원본 답 [answers] 로 돌릴 실행 — 미커밋 검사는 깨끗하다.
+  _Harness buildSourceRun(
+    Map<String, String> kit,
+    List<String?> answers, {
+    Set<String> enabled = const <String>{'kakao'},
+  }) => _Harness(
+    box,
+    <String?>['1', ...answers],
+    kitDigests: kit,
+    enabled: enabled,
+  )..registerDirty();
+
+  /// 원본 경로 질문 수.
+  int countSourceAsks(_Harness h) =>
+      h.screen.asks.where((String q) => q == AppIconStep.sourceQuestion).length;
+
+  /// 변환 명령(`--out`) 호출 수.
+  int countConvertCalls(_Harness h) => h.runner.calls
+      .where((FakeCall call) => call.key.contains(' --out '))
+      .length;
+
+  /// 홈 화면 20장이 [before] 그대로이고 adaptive · 아이콘 폴더 · 작업 폴더가
+  /// 없는지 본다.
+  void expectNothingWritten(Map<String, List<int>> before) {
+    expect(box.readHomeIcons(), before);
+    for (final String path in listAdaptiveFilePaths()) {
+      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+    }
+    expect(Directory(box.iconsPath).existsSync(), isFalse);
+    expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
+  }
+
+  group('T-28-SRC-01: 없는 파일 · 폴더 · 비이미지 → 까닭 한 줄씩 · 경로만 다시', () {
+    late Map<String, String> kit;
+    late Uint8List goodBytes;
+    late String good;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      goodBytes = buildOpaqueRgbaIconPng();
+      good = box.writeHomeFile('good.png', goodBytes);
+    });
+
+    test('없는 파일 · 비이미지 뒤 맞는 원본 → 셋째 답 뒤에만 변환', () async {
+      final String text = box.writeHomeFile('notes.txt', <int>[1, 2, 3]);
+      final missing = '${box.home}/missing.png';
+      final _Harness h = buildSourceRun(kit, <String?>[missing, text, good]);
+      h
+        ..registerProbe(good)
+        ..registerConvert(good, goodBytes)
+        ..registerOpen();
+      h.runner.on(
+        buildProbeKey(text),
+        CommandResult(
+          0,
+          '$text\n  pixelWidth: <nil>\n  pixelHeight: <nil>\n  format: txt\n',
+          '',
+        ),
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      final int missingAt = h.lines.indexOf(
+        '  ${AppIconStep.missingFileReason}~/missing.png',
+      );
+      final int textAt = h.lines.indexOf(
+        '  ${AppIconStep.notImageReason}~/notes.txt',
+      );
+      expect(missingAt, greaterThan(0));
+      expect(textAt, greaterThan(missingAt));
+      expect(countSourceAsks(h), 3);
+      expect(h.runner.countCalls(RunMode.capture, buildProbeKey(missing)), 0);
+      final List<String> keys = h.runner.calls
+          .map((FakeCall c) => c.key)
+          .toList();
+      final int goodProbeAt = keys.indexOf(buildProbeKey(good));
+      expect(goodProbeAt, greaterThan(keys.indexOf(buildProbeKey(text))));
+      expect(
+        keys.indexOf(buildConvertKey(box.root, good)),
+        greaterThan(goodProbeAt),
+      );
+      expect(countConvertCalls(h), 1);
+      expect(h.lines, contains(mineKakaoDoneLine));
+      expect(h.output, isNot(contains(box.home)));
+    });
+
+    test('폴더 → 폴더라는 까닭 · 크기 읽기 0 · 맞는 원본은 ✓', () async {
+      final folder = '${box.home}/Logos';
+      Directory(folder).createSync();
+      final _Harness h = buildSourceRun(kit, <String?>[folder, good]);
+      h
+        ..registerProbe(good)
+        ..registerConvert(good, goodBytes)
+        ..registerOpen();
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.lines, contains('  ${AppIconStep.folderReason}~/Logos'));
+      expect(
+        h.output,
+        isNot(contains('${AppIconStep.missingFileReason}~/Logos')),
+      );
+      expect(h.runner.countCalls(RunMode.capture, buildProbeKey(folder)), 0);
+      expect(countSourceAsks(h), 2);
+      expect(h.lines, contains(mineKakaoDoneLine));
+    });
+  });
+
+  test('T-28-SRC-02: 비정사각 · 1023 · 16385 세 번 → 멈춤 · 변환 0 · 「너무 큰」 이 '
+      '정사각 판정보다 먼저', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final Map<String, List<int>> before = box.readHomeIcons();
+    final String wide = box.writeHomeFile('wide.png', <int>[1]);
+    final String small = box.writeHomeFile('small.png', <int>[2]);
+    final String huge = box.writeHomeFile('huge.png', <int>[3]);
+    final _Harness h = buildSourceRun(kit, <String?>[wide, small, huge]);
+    h.runner
+      ..on(buildProbeKey(wide), buildProbeResult(wide, 1920, 1080))
+      ..on(buildProbeKey(small), buildProbeResult(small, 1023, 1023))
+      ..on(buildProbeKey(huge), buildProbeResult(huge, 16385, 1000));
+
+    final int code = await h.run();
+
+    expect(code, wizardExitStopped);
+    final int wideAt = h.lines.indexOf(
+      '  ${AppIconStep.notSquareReason}1920x1080',
+    );
+    final int smallAt = h.lines.indexOf(
+      '  ${AppIconStep.tooSmallReason}1023x1023',
+    );
+    final int hugeAt = h.lines.indexOf(
+      '  ${AppIconStep.tooLargeReason}16385x1000',
+    );
+    expect(wideAt, greaterThan(0));
+    expect(smallAt, greaterThan(wideAt));
+    expect(hugeAt, greaterThan(smallAt));
+    expect(h.output, isNot(contains('${AppIconStep.notSquareReason}16385')));
+    expect(countSourceAsks(h), AppIconStep.maxSourceAttempts);
+    expect(countConvertCalls(h), 0);
+    expect(h.output, contains(stopLine));
+    expect(h.countOpenCalls(), 0);
+    expectNothingWritten(before);
+    expect(
+      AppIconStep.findSourceProblem((
+        width: 16385,
+        height: 16385,
+        format: 'png',
+      )),
+      '${AppIconStep.tooLargeReason}16385x16385',
+    );
+    expect(
+      AppIconStep.findSourceProblem((
+        width: 16384,
+        height: 16384,
+        format: 'png',
+      )),
+      isNull,
+    );
+  });
+
+  group('T-28-SRC-03: 경로 질문 빈 값 · 입력 끝', () {
+    const deferredLine = '  ✗ 앱 아이콘 — 지금 안 함';
+
+    test('빈 값 → 지금 안 함 ✗ 줄 · 종료 0 · 쓰기 0', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildSourceRun(kit, <String?>['  ']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(h.lines, contains(deferredLine));
+      expect(h.countSipsCalls(), 0);
+      expectNothingWritten(before);
+    });
+
+    test('입력 끝 → 멈춤 · 쓰기 0', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildSourceRun(kit, const <String?>[]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.output, contains(stopLine));
+      expect(h.lines, isNot(contains(deferredLine)));
+      expect(h.countSipsCalls(), 0);
+      expectNothingWritten(before);
+    });
+  });
+
+  group('T-28-SRC-04: 따옴표 · file:// · 끌어다 놓기 escape · 빈 따옴표', () {
+    late Map<String, String> kit;
+    late Uint8List goodBytes;
+    late String good;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      goodBytes = buildOpaqueRgbaIconPng();
+      good = box.writeHomeFile('My Logos/app icon.png', goodBytes);
+    });
+
+    /// 원본 답 [answers] 뒤 맞는 원본으로 끝나는 실행.
+    _Harness buildGoodRun(List<String?> answers) => buildSourceRun(kit, answers)
+      ..registerProbe(good)
+      ..registerConvert(good, goodBytes)
+      ..registerOpen();
+
+    final readableAnswers = <({String name, String Function(String) build})>[
+      (name: '큰따옴표', build: (String path) => '"$path"'),
+      (name: '작은따옴표', build: (String path) => "'$path'"),
+      (
+        name: 'file:// 주소',
+        build: (String path) => 'file://${path.replaceAll(' ', '%20')}',
+      ),
+      (name: '큰따옴표로 감싼 file:// 주소', build: (String path) => '"file://$path"'),
+      (
+        name: '끌어다 놓기 escape',
+        build: (String path) => '${path.replaceAll(' ', r'\ ')} ',
+      ),
+    ];
+    for (final item in readableAnswers) {
+      test('${item.name} → 까닭 줄 0 · 그 원본 크기 읽기 한 번 · ✓', () async {
+        final _Harness h = buildGoodRun(<String?>[item.build(good)]);
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone);
+        for (final reason in <String>[
+          AppIconStep.missingFileReason,
+          AppIconStep.emptyPathReason,
+          AppIconStep.unconvertibleAddressReason,
+          AppIconStep.folderReason,
+        ]) {
+          expect(h.output, isNot(contains(reason)));
+        }
+        expect(h.runner.countCalls(RunMode.capture, buildProbeKey(good)), 1);
+        expect(countSourceAsks(h), 1);
+        expect(h.lines, contains(mineKakaoDoneLine));
+        expect(h.output, isNot(contains(box.home)));
+      });
+    }
+
+    final unusableAnswers =
+        <({String name, String Function(String home) build, String reason})>[
+          (
+            name: '빈 큰따옴표',
+            build: (String _) => '""',
+            reason: AppIconStep.emptyPathReason,
+          ),
+          (
+            name: '빈 작은따옴표',
+            build: (String _) => "''",
+            reason: AppIconStep.emptyPathReason,
+          ),
+          (
+            name: '조각 안 %2F 주소',
+            build: (String home) => 'file://$home/a%2Fb.png',
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+          (
+            name: '작은따옴표로 감싼 %2F 주소',
+            build: (String home) => "'file://$home/a%2Fb.png'",
+            reason: AppIconStep.unconvertibleAddressReason,
+          ),
+        ];
+    for (final item in unusableAnswers) {
+      test('${item.name} → 경로 없는 까닭 한 줄 · 크기 읽기 0 · 맞는 원본은 ✓', () async {
+        final String answer = item.build(box.home);
+        final _Harness h = buildGoodRun(<String?>[answer, good]);
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone);
+        expect(
+          h.lines.where((String l) => l == '  ${item.reason}'),
+          hasLength(1),
+        );
+        expect(h.output, isNot(contains(AppIconStep.missingFileReason)));
+        expect(h.output, isNot(contains(box.home)));
+        expect(
+          h.runner.calls
+              .where((FakeCall c) => c.key.startsWith('/usr/bin/sips -g '))
+              .map((FakeCall c) => c.key),
+          <String>[buildProbeKey(good)],
+        );
+        expect(countSourceAsks(h), 2);
+        expect(h.lines, contains(mineKakaoDoneLine));
+      });
+    }
+
+    test('경로 없는 까닭으로 다시 묻기도 상한에 센다 → 멈춤 · sips 0', () async {
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildSourceRun(kit, <String?>[
+        '""',
+        'file://${box.home}/a%2Fb.png',
+        "''",
+      ]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(countSourceAsks(h), AppIconStep.maxSourceAttempts);
+      expect(h.output, contains(stopLine));
+      expect(h.countSipsCalls(), 0);
+      expectNothingWritten(before);
+    });
+  });
+
+  group('T-28-SRC-05: sips 실패 → 종료 코드만 · 원본 절대 경로 없음', () {
+    late Map<String, String> kit;
+    late Map<String, List<int>> before;
+    late String source;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      before = box.readHomeIcons();
+      source = box.writeHomeFile('Secret Folder/logo.png', <int>[1, 2, 3]);
+    });
+
+    test('크기 읽기가 0 이 아닌 종료 코드 → 이미지 판정 대신 실패', () async {
+      final _Harness h = buildSourceRun(kit, <String?>[source, '2']);
+      h.runner.on(
+        buildProbeKey(source),
+        CommandResult(127, '', 'sips: $source: No such file or directory'),
+      );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.lines, contains('  실패 — 원본 이미지 크기를 읽지 못했습니다 — sips 종료 코드 127'));
+      expect(h.output, isNot(contains(AppIconStep.notImageReason)));
+      expect(h.output, isNot(contains(source)));
+      expect(h.output, isNot(contains(box.home)));
+      expect(countSourceAsks(h), 1);
+      expect(countConvertCalls(h), 0);
+      expectNothingWritten(before);
+    });
+
+    test('변환이 0 이 아닌 종료 코드 → 같은 꼴 · 쓰기 0', () async {
+      final _Harness h = buildSourceRun(kit, <String?>[source, '2'])
+        ..registerProbe(source)
+        ..registerConvert(
+          source,
+          const <int>[],
+          result: CommandResult(13, '', 'sips: $source: Error 13'),
+        );
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(h.lines, contains('  실패 — ${AppIconStep.convertFailedReason}13'));
+      expect(h.output, isNot(contains(source)));
+      expect(h.output, isNot(contains(box.home)));
+      expect(h.countOpenCalls(), 0);
+      expectNothingWritten(before);
+    });
+  });
+
+  group('T-28-SRC-06: 배경색 입력 — # 유무 · 대소문자 · 16진 6자리만', () {
+    late Map<String, String> kit;
+    late Uint8List logo;
+    late String source;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      logo = buildTransparentLogoPng();
+      source = box.writeHomeFile('logo.png', logo);
+    });
+
+    /// 투명 원본을 넣고 배경색 답 [answers] 를 주는 실행.
+    _Harness buildColorRun(List<String?> answers) =>
+        buildSourceRun(kit, <String?>[source, ...answers])
+          ..registerProbe(source)
+          ..registerConvert(source, logo)
+          ..registerOpen();
+
+    test('# 없는 1a2b3c 는 #1A2B3C · 3자리는 까닭 뒤 다시', () async {
+      final _Harness h = buildColorRun(<String?>['#FFF', '1a2b3c']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.lines.where(
+          (String l) => l == '  ${AppIconStep.backgroundFormatReason}',
+        ),
+        hasLength(1),
+      );
+      expect(
+        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        buildAdaptiveBackgroundXml(0x1A2B3C),
+      );
+      final img.Pixel corner = decodeIconPng(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+      )!.getPixel(0, 0);
+      expect(<num>[corner.r, corner.g, corner.b], <num>[0x1A, 0x2B, 0x3C]);
+    });
+
+    test('#FFF · zzzzzz · #1234567 세 번 틀림 → 멈춤 · 쓰기 0', () async {
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildColorRun(<String?>['#FFF', 'zzzzzz', '#1234567']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.backgroundQuestion),
+        hasLength(AppIconStep.maxSourceAttempts),
+      );
+      expect(
+        h.lines.where(
+          (String l) => l == '  ${AppIconStep.backgroundFormatReason}',
+        ),
+        hasLength(3),
+      );
+      expect(h.output, contains(stopLine));
+      expectNothingWritten(before);
+    });
+
+    test('배경색 질문에서 입력 끝 → 멈춤 · 쓰기 0', () async {
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildColorRun(const <String?>[]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(
+        h.screen.asks.where((String q) => q == AppIconStep.backgroundQuestion),
+        hasLength(1),
+      );
+      expect(h.output, contains(stopLine));
+      expectNothingWritten(before);
+    });
+
+    test('parseBackgroundColor 표본', () {
+      final samples = <String, int?>{
+        '1a2b3c': 0x1A2B3C,
+        '#1A2B3C': 0x1A2B3C,
+        '  #1a2B3c  ': 0x1A2B3C,
+        'ffffff': 0xFFFFFF,
+        '#FFF': null,
+        'zzzzzz': null,
+        '#1234567': null,
+        '##123456': null,
+        '#12 456': null,
+        '': null,
+      };
+      for (final MapEntry<String, int?> sample in samples.entries) {
+        expect(
+          AppIconStep.parseBackgroundColor(sample.key),
+          sample.value,
+          reason: sample.key,
+        );
+      }
+    });
+  });
+
+  group('T-28-SRC-07: 바꾼 원본이 짧거나 PNG 가 아니거나 잘림 → 읽지 못함 · 쓰기 0', () {
+    final Uint8List fullPng = buildOpaqueRgbaIconPng();
+    final converted = <String, List<int>>{
+      '7바이트': const <int>[1, 2, 3, 4, 5, 6, 7],
+      '40바이트 비 PNG': List<int>.filled(40, 0x41),
+      '정상 PNG 앞 절반': fullPng.sublist(0, fullPng.length ~/ 2),
+    };
+    for (final MapEntry<String, List<int>> item in converted.entries) {
+      test(item.key, () async {
+        final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+        final Map<String, List<int>> before = box.readHomeIcons();
+        final String source = box.writeHomeFile('logo.png', fullPng);
+        final _Harness h = buildSourceRun(kit, <String?>[source, '2'])
+          ..registerProbe(source)
+          ..registerConvert(source, item.value);
+
+        final int code = await h.run();
+
+        expect(code, wizardExitStopped);
+        expect(
+          h.lines,
+          contains('  실패 — ${AppIconStep.unreadableConvertedReason}'),
+        );
+        expect(h.screen.asks, isNot(contains(AppIconStep.backgroundQuestion)));
+        expect(h.countOpenCalls(), 0);
+        expectNothingWritten(before);
+      });
+    }
+  });
 }
