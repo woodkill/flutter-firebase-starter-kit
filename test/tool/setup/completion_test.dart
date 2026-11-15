@@ -401,8 +401,44 @@ void main() {
       '수단 줄 · golden 안내 없음', () async {
     writeCompletionFixture(root);
     final FakeCommandRunner runner = buildStatusRunner(
-      ' M lib/l10n/app_ko.arb\n',
+      ' M lib/l10n/app_ko.arb\n M $ios1024Path\n',
     );
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showAppIconCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    // 아이콘 파일이 아닌 ko ARB 는 커밋 명령에 넣지 않고 수만 알린다.
+    expect(
+      terminal.output.toString(),
+      joinOutputLines(<String>[
+        '',
+        appIconHintLine,
+        ...buildCommitHintLines(ios1024Path),
+        '',
+        buildOtherChangesLine(1),
+      ]),
+    );
+    expect(terminal.output.toString(), isNot(contains(summaryKoArbPath)));
+    expect(terminal.output.toString(), isNot(contains(providersHintLine)));
+    expect(terminal.output.toString(), isNot(contains(goldenSummaryLine)));
+    expect(runner.calls.map((FakeCall call) => call.key), <String>[
+      _gitStatusKey,
+    ]);
+  });
+
+  test('T-28-DONE-04 앱 아이콘 끝 요약 — 아이콘 파일이 아닌 변경만 있으면 커밋 '
+      '안내 없이 그 수만 알린다', () async {
+    final runner = FakeCommandRunner()
+      ..on(
+        _gitStatusKey,
+        const CommandResult(
+          0,
+          ' M lib/features/foo/foo_screen.dart\n M pubspec.yaml\n',
+          '',
+        ),
+      );
     final terminal = ScriptedTerminal(const <String?>[]);
 
     await showAppIconCompletionSummary(
@@ -414,14 +450,38 @@ void main() {
       joinOutputLines(<String>[
         '',
         appIconHintLine,
-        ...buildCommitHintLines(summaryKoArbPath),
+        '',
+        buildOtherChangesLine(2),
       ]),
     );
-    expect(terminal.output.toString(), isNot(contains(providersHintLine)));
-    expect(terminal.output.toString(), isNot(contains(goldenSummaryLine)));
-    expect(runner.calls.map((FakeCall call) => call.key), <String>[
-      _gitStatusKey,
-    ]);
+    expect(terminal.output.toString(), isNot(contains(commitHintHeading)));
+    expect(
+      buildOtherChangesLine(2),
+      '아이콘 파일이 아닌 미커밋 추적 파일 2개는 커밋 명령에 넣지 않았습니다',
+    );
+  });
+
+  test('T-28-DONE-05 보통 끝 요약은 아이콘 파일이 아닌 변경도 커밋 안내에 넣는다', () async {
+    final runner = FakeCommandRunner()
+      ..on(
+        _gitStatusKey,
+        const CommandResult(0, ' M pubspec.yaml\n M $ios1024Path\n', ''),
+      );
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    expect(
+      terminal.output.toString(),
+      joinOutputLines(<String>[
+        '',
+        providersHintLine,
+        appIconHintLine,
+        ...buildCommitHintLinesFor(<String>[ios1024Path, 'pubspec.yaml']),
+      ]),
+    );
   });
 
   group('T-28-DONE-03 새 adaptive 파일을 커밋 안내에 더함', () {

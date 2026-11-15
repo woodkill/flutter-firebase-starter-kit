@@ -46,17 +46,42 @@ Future<void> showCompletionSummary(WizardContext context) async {
   await _showChangedFiles(context, withGoldenHint: true);
 }
 
+/// 앱 아이콘 끝 요약에서 커밋 명령에 넣지 않은 미커밋 추적 파일 [count] 개를
+/// 알리는 줄을 만든다.
+String buildOtherChangesLine(int count) =>
+    '아이콘 파일이 아닌 미커밋 추적 파일 $count개는 커밋 명령에 넣지 않았습니다';
+
 /// 앱 아이콘만 다시 만든 실행(`--app-icon`)의 끝 요약 — 앱 아이콘을 바꾸는
-/// 방법과 커밋 안내를 보인다.
+/// 방법과 아이콘 파일만 담은 커밋 안내를 보인다.
 ///
-/// 빈 줄 · [appIconHintLine] 뒤에 [showCommitHint] 와 같은 커밋 안내를 보인다.
+/// 빈 줄 · [appIconHintLine] 뒤에 커밋 안내를 보인다. 이 실행은 개발 도중에도
+/// 돌리므로 작업 트리의 다른 미커밋 변경이 위저드 결과가 아니다 — 그래서 커밋
+/// 목록은 바뀐 추적 파일 가운데 앱 아이콘 단계의 쓰기 경로
+/// ([AppIconStep.listWritePaths])와 새 adaptive 아이콘 파일뿐이다. 그 밖의 바뀐
+/// 추적 파일이 있으면 빈 줄 뒤 [buildOtherChangesLine] 한 줄로 수만 알린다.
 /// 로그인 수단 단계를 돌지 않으므로 [providersHintLine] 은 없고, ARB 를 바꾸지
-/// 않으므로 golden 갱신 안내도 없다.
+/// 않으므로 golden 갱신 안내도 없다. git 이 실패하면 [GitTreeException] 을
+/// 던진다.
 Future<void> showAppIconCompletionSummary(WizardContext context) async {
   context.terminal
     ..writeLine('')
     ..writeLine(appIconHintLine);
-  await _showChangedFiles(context, withGoldenHint: false);
+  final Set<String> iconPaths = AppIconStep.listWritePaths().toSet();
+  final List<String> changed = await listChangedTrackedFiles(context);
+  final iconChanged = <String>[
+    for (final String path in changed)
+      if (iconPaths.contains(path)) path,
+  ];
+  _writeCommitLines(context, <String>{
+    ...iconChanged,
+    ...await _listNewIconFiles(context),
+  });
+  final int otherCount = changed.toSet().length - iconChanged.toSet().length;
+  if (otherCount > 0) {
+    context.terminal
+      ..writeLine('')
+      ..writeLine(buildOtherChangesLine(otherCount));
+  }
 }
 
 /// 모든 단계가 끝난 뒤 바뀐 추적 파일 목록과 커밋 명령을 보여 준다.
@@ -92,11 +117,17 @@ Future<void> _writeCommitHint(
   WizardContext context,
   List<String> changed,
 ) async {
-  final List<String> paths = <String>{
+  _writeCommitLines(context, <String>{
     ...changed,
     ...await _listMovedKotlinFiles(context),
     ...await _listNewIconFiles(context),
-  }.toList()..sort();
+  });
+}
+
+/// 커밋할 경로 [pathSet] 을 정렬해 머리 줄 · 경로 줄 · 커밋 명령을 쓴다 — 비면
+/// 아무것도 쓰지 않는다.
+void _writeCommitLines(WizardContext context, Set<String> pathSet) {
+  final List<String> paths = pathSet.toList()..sort();
   if (paths.isEmpty) return;
   context.terminal
     ..writeLine('')
