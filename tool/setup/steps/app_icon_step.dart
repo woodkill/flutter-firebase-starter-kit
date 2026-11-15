@@ -36,8 +36,8 @@ enum HomeIconState {
 
 /// 쓰다 실패한 경로 하나를 되돌리는 방법.
 enum FailedWriteUndo {
-  /// 쓰기 전에 있던 추적 파일 — git 으로 커밋 내용에 되돌린다.
-  checkout,
+  /// 쓰기 전에 있던 파일 — 쓰기 직전에 떠 둔 바이트로 되돌린다.
+  restore,
 
   /// 이번에 새로 생긴 파일 — 지운다.
   delete,
@@ -224,12 +224,19 @@ final class AppIconStep implements DeferrableStep {
   /// 홈 화면 아이콘을 쓰다 실패해 되돌렸을 때의 까닭 머리(뒤에 실패 까닭).
   static const String rolledBackReason = '홈 화면 아이콘을 쓰지 못해 쓰기 전으로 되돌렸습니다 — ';
 
-  /// 쓰다 실패한 뒤 git 되돌림도 실패했을 때의 까닭 머리(뒤에 실패 까닭).
+  /// 쓰다 실패한 뒤 떠 둔 바이트로 되돌리기도 실패했을 때의 까닭 머리(뒤에 실패
+  /// 까닭).
   static const String restoreFailedReason =
       '홈 화면 아이콘을 쓰지 못했고 쓰기 전으로 되돌리지도 못했습니다 — ';
 
-  /// git 되돌림이 실패했을 때 경로 줄 앞에 보이는 안내.
+  /// 떠 둔 바이트로 되돌리지 못한 파일 가운데 git 이 추적하는 것의 경로 줄 앞에
+  /// 보이는 안내.
   static const String restoreGuide = '아래 파일을 git checkout -- <경로> 로 되돌리세요';
+
+  /// 떠 둔 바이트로 되돌리지 못한 파일 가운데 git 이 추적하지 않는 것(또는 추적
+  /// 여부를 읽지 못한 것)의 경로 줄 앞에 보이는 안내.
+  static const String unrestorableGuide =
+      '아래 파일은 git 으로 되돌릴 수 없어 쓰기 전 내용으로 되살리지 못했습니다';
 
   /// 되돌릴 때 새로 만든 파일을 지우지 못했을 때 경로 줄 앞에 보이는 안내.
   static const String deleteGuide = '새로 만든 아래 파일을 지우지 못했습니다 — 지운 뒤 다시 실행하세요';
@@ -369,30 +376,30 @@ final class AppIconStep implements DeferrableStep {
     return (width: width, height: height, format: format);
   }
 
-  /// 쓰기 전에 있던 [relativePaths] 를 커밋 내용으로 되돌리는 명령을 만든다.
+  /// [relativePaths] 가운데 git 이 추적하는 경로를 보이는 명령을 만든다.
   ///
-  /// 쓰기 전 미커밋 검사를 지난 경로만 넘긴다 — 그래서 커밋 내용이 곧 쓰기 전
-  /// 내용이다. 추적하지 않는 경로가 섞이면 git 이 아무것도 되돌리지 않고 실패한다.
-  static Command buildRestoreCommand(
+  /// 떠 둔 바이트로 되돌리지 못한 파일에 `git checkout --` 안내를 붙일지 가를
+  /// 때만 쓴다 — 되돌림 자체는 git 에 기대지 않는다.
+  static Command buildTrackedFilesCommand(
     List<String> relativePaths, {
     String? workingDirectory,
   }) => Command('git', <String>[
-    'checkout',
+    'ls-files',
     '--',
     ...relativePaths,
   ], workingDirectory: workingDirectory);
 
   /// 쓰다 실패한 경로를 되돌리는 방법을 정한다.
   ///
-  /// 쓰기 전에 있던 경로([existedBefore])는 열린 뒤 잘렸을 수 있어 git 으로
-  /// 커밋 내용에 되돌린다 — 바뀌지 않은 파일을 되돌려도 해가 없다. 없던 경로는
+  /// 쓰기 전에 있던 경로([existedBefore])는 열린 뒤 잘렸을 수 있어 떠 둔
+  /// 바이트로 되돌린다 — 바뀌지 않았으면 다시 쓰지 않는다. 없던 경로는
   /// 지금 종류([currentType] · 링크를 따라가지 않은 종류)가 파일일 때만 지우고,
   /// 폴더 · 링크 · 없음은 이 단계가 만든 것이 아니므로 그대로 둔다.
   static FailedWriteUndo decideFailedWriteUndo({
     required bool existedBefore,
     required FileSystemEntityType currentType,
   }) {
-    if (existedBefore) return FailedWriteUndo.checkout;
+    if (existedBefore) return FailedWriteUndo.restore;
     return currentType == FileSystemEntityType.file
         ? FailedWriteUndo.delete
         : FailedWriteUndo.keep;
@@ -556,7 +563,8 @@ final class AppIconStep implements DeferrableStep {
   @override
   String get deferLabel => '지금 안 함';
 
-  // tracked 파일은 미커밋 검사 뒤에만 쓰고 git 으로 되돌릴 수 있다.
+  // 홈 화면 파일은 미커밋 검사 뒤에만 쓰고, 쓰다 실패하면 쓰기 직전에 떠 둔
+  // 바이트로 되돌린다. 끝까지 쓴 결과는 추적 파일이면 git 으로 되돌릴 수 있다.
   @override
   bool get isCostlyOrIrreversible => false;
 
@@ -1159,17 +1167,20 @@ final class AppIconStep implements DeferrableStep {
   /// 홈 화면 · adaptive 파일 [files] 를 순서대로 제자리에 쓰고 iOS 1024 를 다시
   /// 읽는다 — 끝나면 null, 실패하면 쓰기 전으로 되돌린 뒤의 결과다.
   ///
-  /// 쓰기 전에 디스크에 있던 경로를 먼저 적어 둔다. 미커밋 검사를 지났으므로 그
-  /// 경로는 모두 깨끗한 추적 파일이다. 쓰다 실패한 경로는
-  /// [decideFailedWriteUndo] 가 정한 대로 되돌림에 넣는다.
+  /// 쓰기 직전에 디스크에 있던 파일의 바이트를 메모리에 떠 둔다 — 되돌림은 git
+  /// 에 기대지 않으므로 gitignored 파일 · 링크가 가리키는 파일도 쓰기 전 내용으로
+  /// 돌아간다. 쓰다 실패한 경로는 [decideFailedWriteUndo] 가 정한 대로 되돌림에
+  /// 넣는다.
   Future<StepOutcome?> _placeHomeIcons(
     WizardContext context,
     List<_PlannedFile> files,
   ) async {
-    final existedBefore = <String>{
+    final snapshot = <String, Uint8List>{
       for (final file in files)
         if (File(context.resolve(file.relativePath)).existsSync())
-          file.relativePath,
+          file.relativePath: File(
+            context.resolve(file.relativePath),
+          ).readAsBytesSync(),
     };
     final written = <String>[];
     for (final file in files) {
@@ -1179,7 +1190,7 @@ final class AppIconStep implements DeferrableStep {
           ..writeAsBytesSync(file.bytes, flush: true);
       } on FileSystemException catch (e) {
         final FailedWriteUndo undo = decideFailedWriteUndo(
-          existedBefore: existedBefore.contains(file.relativePath),
+          existedBefore: snapshot.containsKey(file.relativePath),
           currentType: FileSystemEntity.typeSync(
             context.resolve(file.relativePath),
             followLinks: false,
@@ -1191,7 +1202,7 @@ final class AppIconStep implements DeferrableStep {
             ...written,
             if (undo != FailedWriteUndo.keep) file.relativePath,
           ],
-          existedBefore,
+          snapshot,
           '${file.relativePath} (${_describeFileError(e)})',
         );
       }
@@ -1199,7 +1210,7 @@ final class AppIconStep implements DeferrableStep {
     }
     final String? problem = _checkPlacedIos1024(context);
     if (problem == null) return null;
-    return await _restoreHomeIcons(context, written, existedBefore, problem);
+    return await _restoreHomeIcons(context, written, snapshot, problem);
   }
 
   /// 제자리의 iOS 1024 를 디스크에서 다시 읽어 맞지 않는 까닭을 찾는다 — 맞으면
@@ -1218,50 +1229,75 @@ final class AppIconStep implements DeferrableStep {
   /// 이번에 쓴 [written] 을 쓰기 전으로 되돌리고 실패 결과를 만든다 — [reason] 은
   /// 쓰기를 멈춘 까닭이다.
   ///
-  /// 쓰기 전에 있던 파일([existedBefore])은 지우지 않고 git 으로 커밋 내용에
-  /// 되돌리고, 새로 만든 파일은 지운다.
+  /// 쓰기 전에 있던 파일([snapshot] 의 경로)은 지금 바이트가 떠 둔 바이트와 다를
+  /// 때만 그 바이트로 다시 쓰고, 새로 만든 파일은 지운다. 다시 쓰지 못한 파일이
+  /// 있으면 git 이 추적하는 것에만 [restoreGuide] 를 붙이고 나머지는
+  /// [unrestorableGuide] 아래에 보인다.
   Future<StepOutcome> _restoreHomeIcons(
     WizardContext context,
     List<String> written,
-    Set<String> existedBefore,
+    Map<String, Uint8List> snapshot,
     String reason,
   ) async {
-    final tracked = <String>[];
-    final created = <String>[];
-    for (final path in written) {
-      if (existedBefore.contains(path)) {
-        tracked.add(path);
-      } else {
-        created.add(path);
-      }
-    }
+    final unrestored = <String>[];
     final undeleted = <String>[];
-    for (final path in created) {
+    for (final path in written) {
+      final Uint8List? before = snapshot[path];
+      final file = File(context.resolve(path));
       try {
-        File(context.resolve(path)).deleteSync();
+        if (before == null) {
+          file.deleteSync();
+        } else if (!_isSameBytes(before, _readBytesOrNull(context, path))) {
+          file.writeAsBytesSync(before, flush: true);
+        }
       } on FileSystemException catch (e) {
-        undeleted.add('    $path (${_describeFileError(e)})');
+        if (before == null) {
+          undeleted.add('    $path (${_describeFileError(e)})');
+        } else {
+          unrestored.add(path);
+        }
       }
     }
-    if (tracked.isNotEmpty) {
-      final CommandResult restored = await context.runner.capture(
-        buildRestoreCommand(tracked, workingDirectory: context.projectRoot),
+    final deleteLines = undeleted.isEmpty
+        ? ''
+        : '\n$deleteGuide\n${undeleted.join('\n')}';
+    if (unrestored.isNotEmpty) {
+      final Set<String> tracked = await _listTrackedPaths(context, unrestored);
+      final String trackedLines = _formatPathBlock(
+        restoreGuide,
+        unrestored.where(tracked.contains),
       );
-      if (!restored.isSuccess) {
-        return Failed(
-          '$restoreFailedReason$reason\n$restoreGuide\n'
-          '${tracked.map((String path) => '    $path').join('\n')}'
-          '${undeleted.isEmpty ? '' : '\n$deleteGuide\n${undeleted.join('\n')}'}',
-          result: restored,
-        );
-      }
-    }
-    if (undeleted.isNotEmpty) {
+      final String otherLines = _formatPathBlock(
+        unrestorableGuide,
+        unrestored.where((String path) => !tracked.contains(path)),
+      );
       return Failed(
-        '$rolledBackReason$reason\n$deleteGuide\n${undeleted.join('\n')}',
+        '$restoreFailedReason$reason$trackedLines$otherLines$deleteLines',
       );
     }
-    return Failed('$rolledBackReason$reason');
+    return Failed('$rolledBackReason$reason$deleteLines');
+  }
+
+  /// 안내 [guide] 한 줄과 [paths] 경로 줄을 앞에 줄바꿈을 붙여 잇는다 — 경로가
+  /// 없으면 빈 문자열이다.
+  static String _formatPathBlock(String guide, Iterable<String> paths) {
+    if (paths.isEmpty) return '';
+    return '\n$guide\n${paths.map((String path) => '    $path').join('\n')}';
+  }
+
+  /// [relativePaths] 가운데 git 이 추적하는 경로 — git 이 실패하면 빈 집합이다.
+  Future<Set<String>> _listTrackedPaths(
+    WizardContext context,
+    List<String> relativePaths,
+  ) async {
+    final CommandResult result = await context.runner.capture(
+      buildTrackedFilesCommand(
+        relativePaths,
+        workingDirectory: context.projectRoot,
+      ),
+    );
+    if (!result.isSuccess) return const <String>{};
+    return const LineSplitter().convert(result.stdout).toSet();
   }
 
   /// 파일 예외 [error] 의 OS 까닭 한 줄 — 경로는 넣지 않는다.

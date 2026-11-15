@@ -169,8 +169,18 @@ String _runFixtureGitChecked(String root, List<String> arguments) {
 }
 
 /// [root] 를 빈 git 저장소로 만든다.
-void initGitFixture(String root) =>
-    _runFixtureGitChecked(root, const <String>['init', '-q']);
+///
+/// 사용자 전역 ignore 파일(`~/.config/git/ignore` 등)이 시험 경로를 숨기지 않게
+/// 저장소 설정의 `core.excludesFile` 을 빈 파일로 둔다 — 위저드가 부르는 git 도
+/// 이 설정을 읽는다.
+void initGitFixture(String root) {
+  _runFixtureGitChecked(root, const <String>['init', '-q']);
+  _runFixtureGitChecked(root, const <String>[
+    'config',
+    'core.excludesFile',
+    '/dev/null',
+  ]);
+}
 
 /// [root] 저장소의 모든 파일을 [message] 로 커밋한다 — 서명 · hook 없이.
 void commitGitFixture(String root, String message) {

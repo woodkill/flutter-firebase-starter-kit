@@ -228,7 +228,7 @@ void main() {
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
     expect(box.readStatus(), isEmpty);
-    expect(run.countCheckouts(), 1);
+    expect(run.countCheckouts(), 0);
     expect(
       run.fake.calls.where(
         (FakeCall call) => call.key.startsWith('/usr/bin/open '),
@@ -388,14 +388,9 @@ void main() {
     );
     expect(box.readWriteTargets(), before);
     expect(box.readStatus(), isEmpty);
-    expect(run.countCheckouts(), 1);
-    expect(
-      run.runner.gitKeys.singleWhere(
-        (String key) => key.startsWith('git checkout'),
-      ),
-      contains(blocked),
-      reason: '쓰다 실패한 있던 경로도 checkout 해야 한다',
-    );
+    // 되돌림은 떠 둔 바이트로 한다 — 쓰기에 실패해 바뀌지 않은 읽기 전용 파일은
+    // 다시 쓰지 않는다.
+    expect(run.countCheckouts(), 0);
     expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(session.isAppIconRebuildRequested, isTrue);
   });
@@ -444,7 +439,7 @@ void main() {
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
     expect(box.readStatus(), isEmpty);
-    expect(run.countCheckouts(), 1);
+    expect(run.countCheckouts(), 0);
     expect(
       run.fake.calls.where(
         (FakeCall call) => call.key.startsWith('/usr/bin/open '),
@@ -462,14 +457,69 @@ void main() {
           currentType: type,
         );
 
-    expect(decide(true, FileSystemEntityType.file), FailedWriteUndo.checkout);
+    expect(decide(true, FileSystemEntityType.file), FailedWriteUndo.restore);
     expect(
       decide(true, FileSystemEntityType.notFound),
-      FailedWriteUndo.checkout,
+      FailedWriteUndo.restore,
     );
     expect(decide(false, FileSystemEntityType.file), FailedWriteUndo.delete);
     expect(decide(false, FileSystemEntityType.directory), FailedWriteUndo.keep);
     expect(decide(false, FileSystemEntityType.link), FailedWriteUndo.keep);
     expect(decide(false, FileSystemEntityType.notFound), FailedWriteUndo.keep);
+  });
+
+  test('T-28-SAFE-07: gitignored adaptive 배경 파일 + 마지막 전경 자리 빈 폴더 → '
+      '쓰기 실패 → 20장 = HEAD · ignored 파일 = 원래 바이트 · git 되돌림 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    box.repoFile('.gitignore').writeAsStringSync('/$adaptiveBackgroundPath\n');
+    const localOnly = '<resources><!-- 로컬에만 둔 배경색 --></resources>\n';
+    box.repoFile(adaptiveBackgroundPath)
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync(localOnly);
+    commitGitFixture(box.root, 'kit default icons · ignored background');
+    final ProcessResult ignored = box.git(<String>[
+      'check-ignore',
+      '-q',
+      adaptiveBackgroundPath,
+    ]);
+    expect(ignored.exitCode, 0, reason: '배경 파일이 gitignored 가 아니다');
+    final String blocked = adaptiveDensities.last.foregroundPath;
+    Directory('${box.root}/$blocked').createSync(recursive: true);
+    final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
+    final String source = box.writeSource('logo.png', sourceBytes);
+    final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+      ..registerSource(source, sourceBytes);
+
+    final int code = await run.run();
+
+    expect(code, wizardExitStopped);
+    expect(
+      run.lines.where((String line) => line.startsWith(rolledBackLineHead)),
+      hasLength(1),
+    );
+    final ProcessResult diff = box.git(<String>[
+      'diff',
+      '--quiet',
+      'HEAD',
+      '--',
+      for (final HomeIconFile file in homeIconFiles) file.relativePath,
+    ]);
+    expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
+    for (final HomeIconFile file in homeIconFiles) {
+      expect(
+        box.repoFile(file.relativePath).readAsStringSync(),
+        'kit:${file.relativePath}',
+        reason: file.relativePath,
+      );
+    }
+    expect(box.repoFile(adaptiveBackgroundPath).readAsStringSync(), localOnly);
+    for (final String path in listAdaptiveFilePaths()) {
+      if (path == adaptiveBackgroundPath) continue;
+      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+    }
+    expect(Directory('${box.root}/$blocked').listSync(), isEmpty);
+    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.readStatus(), isEmpty);
+    expect(run.countCheckouts(), 0);
   });
 }

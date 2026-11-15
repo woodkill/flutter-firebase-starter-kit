@@ -98,8 +98,8 @@ Command buildUncommittedFilesCommand(
 /// git 이 보인 순서로 모은다.
 ///
 /// 추적 파일의 수정 · 삭제와 아직 추적하지 않는 새 파일을 함께 본다 — 쓰기 전
-/// 디스크의 대상이 모두 깨끗한 추적 파일이어야 git 으로 되돌릴 수 있다.
-/// gitignored 파일은 보지 않는다. 넘긴 경로가 없으면 git 을 부르지 않고 빈
+/// 대상에 커밋하지 않은 사용자 작업이 있으면 덮어쓰기 전에 멈추기 위해서다.
+/// gitignored 파일은 git 이 보이지 않아 보지 않는다. 넘긴 경로가 없으면 git 을 부르지 않고 빈
 /// 목록이다(경로 없는 `--` 는 저장소 전체를 본다). git 이 실패하면
 /// [GitTreeException] 을 던진다.
 Future<List<String>> findUncommittedFiles(
