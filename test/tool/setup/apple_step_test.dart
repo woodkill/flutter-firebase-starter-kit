@@ -1007,7 +1007,7 @@ void main() {
         'storage',
         'sign_in',
         'providers',
-        // Facebook 콘솔에는 아이콘 칸이 있어 로그인 수단 단계 바로 다음에 앱 아이콘 단계가 있다.
+        // 앱 아이콘 단계는 늘 로그인 수단 단계 바로 다음에 있다.
         'app_icon',
         'configure',
         'rules',

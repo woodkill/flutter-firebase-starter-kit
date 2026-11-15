@@ -33,6 +33,7 @@ import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
 import 'firebase_options_fixture.dart';
+import 'home_icon_fixture.dart';
 
 /// 흐름에서 앱 정체성 단계에 넣는 org.
 const String newOrg = 'com.acme';
@@ -265,6 +266,8 @@ void _writeBlankFixture(_Fixture fixture) {
       IdentityStep.arbPath,
       '{\n  "@@locale": "en",\n  "appTitle": "${rename.currentAppName}"\n}\n',
     );
+  // 홈 화면 아이콘 — 「내 아이콘」 20장을 커밋 전에 써 추적 파일로 둔다.
+  writeMyHomeIcons(fixture.root);
   fixture
     ..runGitChecked(<String>['init', '-q'])
     ..runGitChecked(<String>['add', '--all'])
@@ -475,7 +478,7 @@ final class _Run {
   void onEffect(Command command, void Function() effect) =>
       runner.effects[FakeCommandRunner.buildKey(command)] = effect;
 
-  /// 기본 21단계 · 끝 요약으로 위저드를 돌린다.
+  /// 기본 22단계 · 끝 요약으로 위저드를 돌린다.
   Future<int> run() =>
       runWizard(context, buildDevSteps(), onCompleted: showCommitHint);
 
@@ -1068,7 +1071,7 @@ void main() {
   tearDown(() => fixture.delete());
 
   test(
-    'T-19-FLOW-06: 백지 → 21단계 끝까지(출시용은 지금 안 함) · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
+    'T-19-FLOW-06: 백지 → 22단계 끝까지(출시용은 지금 안 함) · configure 가 앞 단계 변경 위에서 진행 · 끝 요약',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,
@@ -1231,7 +1234,7 @@ void main() {
   );
 
   test(
-    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 21단계 끝까지',
+    'T-19-FLOW-08: Firebase 추가 실패 → 콘솔 안내 → Enter 재검사(아직 → ✓) → 22단계 끝까지',
     () async {
       final run = _Run(fixture, <String?>[
         ...earlyInputs,

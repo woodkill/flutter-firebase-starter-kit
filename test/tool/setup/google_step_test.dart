@@ -881,7 +881,7 @@ void main() {
       final ids = <String>[for (final Step step in steps) step.id];
       final int start = ids.indexOf('providers');
 
-      // Google · Facebook 콘솔에는 아이콘 칸이 있어 앱 아이콘 단계가 그 사이에 있다.
+      // 앱 아이콘 단계는 늘 로그인 수단 단계 바로 다음에 있다.
       expect(ids.sublist(start, start + 6), <String>[
         'providers',
         'app_icon',
@@ -923,7 +923,7 @@ void main() {
       final ids = <String>[for (final Step step in steps) step.id];
 
       expect(ids.where((String id) => id.startsWith('google')), isEmpty);
-      // Kakao 콘솔에는 아이콘 칸이 있어 앱 아이콘 단계가 그 사이에 있다.
+      // 앱 아이콘 단계는 늘 로그인 수단 단계 바로 다음에 있다.
       expect(ids.indexOf('app_icon'), ids.indexOf('providers') + 1);
       expect(ids.indexOf('configure'), ids.indexOf('providers') + 2);
       final ConfigureStep configure = steps.whereType<ConfigureStep>().single;

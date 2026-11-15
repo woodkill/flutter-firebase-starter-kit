@@ -2,22 +2,24 @@
 /// 건너뛴다 · 쓰기는 시스템 임시 디렉터리뿐.
 ///
 /// 시험 실행기는 실행 파일이 `/usr/bin/sips` 인 명령만 실제 프로세스로 넘기고,
-/// `/usr/bin/open` 은 실행하지 않고 호출만 센다. 그 밖의 실행 파일은
-/// [StateError] 다. 원본 PNG 는 시험이 순수 Dart 로 만든다.
+/// `/usr/bin/open` 은 실행하지 않고 호출만 센다. 쓰기 전 미커밋 검사 git 명령은
+/// 실행하지 않고 빈 성공 결과로 답한다. 그 밖의 실행 파일은 [StateError] 다.
+/// 원본 PNG 는 시험이 `package:image` 로 만든다.
 ///
 /// 환경 변수 `SETUP_ICON_SIPS_KEEP` 이 `1` 이면 작업 루트를
 /// `<시스템 임시 디렉터리>/setup_icon_sips_keep` 로 두고 끝나도 지우지 않는다 —
 /// 만든 아이콘 · 화면 출력 · `summary.txt` 요약 줄을 셸 단계가 옮겨 남긴다.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
+import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/icons/home_icon_specs.dart';
 import '../../../tool/setup/log_sink.dart';
 import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/redactor.dart';
@@ -27,6 +29,7 @@ import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
+import 'home_icon_fixture.dart';
 
 /// 실제로 부르는 sips 실행 파일.
 const String sipsPath = '/usr/bin/sips';
@@ -42,85 +45,6 @@ const String keepDirectoryName = 'setup_icon_sips_keep';
 
 /// 원본 이미지 파일 이름 앞부분(공백 포함 — 끌어다 놓기 escape 를 밟는다).
 const String sourceBaseName = 'logo 1024';
-
-/// CRC32 표(다항식 0xEDB88320).
-final List<int> _crcTable = List<int>.generate(256, (int n) {
-  var c = n;
-  for (var k = 0; k < 8; k++) {
-    c = (c & 1) != 0 ? 0xEDB88320 ^ (c >> 1) : c >> 1;
-  }
-  return c;
-});
-
-/// [bytes] 의 CRC32 를 계산한다.
-int _computeCrc(List<int> bytes) {
-  var c = 0xFFFFFFFF;
-  for (final b in bytes) {
-    c = _crcTable[(c ^ b) & 0xFF] ^ (c >> 8);
-  }
-  return c ^ 0xFFFFFFFF;
-}
-
-/// [value] 를 4바이트 big-endian 으로 쓴다.
-List<int> _encodeUint32(int value) => <int>[
-  (value >> 24) & 0xFF,
-  (value >> 16) & 0xFF,
-  (value >> 8) & 0xFF,
-  value & 0xFF,
-];
-
-/// PNG 청크 하나(길이 · 종류 · 내용 · CRC)를 [out] 에 덧붙인다.
-void _addChunk(BytesBuilder out, String type, List<int> data) {
-  final List<int> typeBytes = ascii.encode(type);
-  out
-    ..add(_encodeUint32(data.length))
-    ..add(typeBytes)
-    ..add(data)
-    ..add(_encodeUint32(_computeCrc(<int>[...typeBytes, ...data])));
-}
-
-/// [path] 에 [width]x[height] RGBA 8비트 PNG 를 쓴다.
-///
-/// 테두리는 완전 투명이고 가운데 원만 불투명하다 — 알파 유지를 확인할 수 있다.
-void writeRgbaPng(String path, int width, int height) {
-  final rowLength = width * 4 + 1;
-  final raw = Uint8List(rowLength * height);
-  final double radius = min(width, height) * 0.3;
-  final double cx = width / 2;
-  final double cy = height / 2;
-  for (var y = 0; y < height; y++) {
-    final int row = y * rowLength;
-    // 줄 머리 필터 바이트 0(None) — 나머지는 RGBA 그대로.
-    raw[row] = 0;
-    for (var x = 0; x < width; x++) {
-      final double dx = x + 0.5 - cx;
-      final double dy = y + 0.5 - cy;
-      if (dx * dx + dy * dy > radius * radius) continue;
-      final int at = row + 1 + x * 4;
-      raw[at] = 30;
-      raw[at + 1] = 120;
-      raw[at + 2] = 220;
-      raw[at + 3] = 255;
-    }
-  }
-  final header = <int>[
-    ..._encodeUint32(width),
-    ..._encodeUint32(height),
-    8, // 비트 깊이
-    6, // 색 형식 RGBA
-    0, // 압축
-    0, // 필터
-    0, // 인터레이스 없음
-  ];
-  final out = BytesBuilder(copy: false)
-    ..add(const <int>[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
-  _addChunk(out, 'IHDR', header);
-  _addChunk(out, 'IDAT', zlib.encode(raw));
-  _addChunk(out, 'IEND', const <int>[]);
-  File(path)
-    ..createSync(recursive: true)
-    ..writeAsBytesSync(out.takeBytes());
-}
 
 /// 시험이 따로 다시 읽은 이미지 값.
 typedef MeasuredImage = ({int width, int height, String format, String alpha});
@@ -154,12 +78,17 @@ MeasuredImage measureImage(String path) {
   );
 }
 
-/// 실제 sips 만 실행하고 Finder 열기는 세기만 하는 실행기.
+/// 실제 sips 만 실행하고 Finder 열기 · 미커밋 검사는 세기만 하는 실행기.
 final class _RealSipsRunner implements CommandRunner {
   _RealSipsRunner(Terminal terminal, LogSink log)
     : _real = ProcessCommandRunner(terminal, log: log);
 
   final ProcessCommandRunner _real;
+
+  /// 미커밋 검사 git 명령의 키 — 빈 성공 결과(변경 없음)로 답한다.
+  static final String _uncommittedKey = FakeCommandRunner.buildKey(
+    buildUncommittedFilesCommand(AppIconStep.listWritePaths()),
+  );
 
   /// 단계가 부른 명령(순서대로 · 실행 여부 무관).
   final List<Command> calls = <Command>[];
@@ -169,6 +98,9 @@ final class _RealSipsRunner implements CommandRunner {
 
   /// 실행하지 않고 센 Finder 열기 호출 수.
   int openCount = 0;
+
+  /// 실행하지 않고 빈 결과로 답한 미커밋 검사 수.
+  int uncommittedCount = 0;
 
   /// [command] 가 sips 가 아니면 [StateError] 를 던지고, 맞으면 기록한다.
   Command _requireSips(Command command) {
@@ -182,6 +114,10 @@ final class _RealSipsRunner implements CommandRunner {
   @override
   Future<CommandResult> capture(Command command) async {
     calls.add(command);
+    if (FakeCommandRunner.buildKey(command) == _uncommittedKey) {
+      uncommittedCount++;
+      return const CommandResult(0, '', '');
+    }
     return await _real.capture(_requireSips(command));
   }
 
@@ -210,7 +146,7 @@ final class _CaseDir {
     Directory(sourceDir).createSync(recursive: true);
   }
 
-  /// 케이스 이름(`png` 등).
+  /// 케이스 이름(`kit` 등).
   final String name;
 
   /// 케이스 디렉터리 절대 경로.
@@ -224,9 +160,6 @@ final class _CaseDir {
 
   /// 사용자 홈.
   String get home => '$path/home';
-
-  /// 저장소의 아이콘 폴더 절대 경로.
-  String get iconsPath => '$repo/$iconsDirectory';
 }
 
 /// 한 번의 위저드 실행 결과.
@@ -234,8 +167,14 @@ typedef _RunResult = ({int code, String output, _RealSipsRunner runner});
 
 /// [dir] 저장소에서 로그인 수단 대역 + 앱 아이콘 단계를 [inputs] 로 돌린다.
 ///
-/// 화면 출력은 케이스 디렉터리의 `screen.txt` 에도 남긴다.
-Future<_RunResult> _runIconStep(_CaseDir dir, List<String?> inputs) async {
+/// 앱 아이콘 단계는 켠 수단 [enabledProviders] · 킷 기본 지문 [kitDigests] 로
+/// 만든다. 화면 출력은 케이스 디렉터리의 `screen.txt` 에도 남긴다.
+Future<_RunResult> _runIconStep(
+  _CaseDir dir,
+  List<String?> inputs, {
+  required Set<String> enabledProviders,
+  required Map<String, String> kitDigests,
+}) async {
   final screen = ScriptedTerminal(inputs);
   final log = MemoryLogSink(Redactor());
   final terminal = RedactingTerminal(screen, log.redactor, log);
@@ -252,7 +191,13 @@ Future<_RunResult> _runIconStep(_CaseDir dir, List<String?> inputs) async {
       random: Random(fixedTestRandomSeed),
       now: () => fixedTestNow,
     ),
-    <Step>[providersStandIn, AppIconStep(enabledProviders: allProviderTokens)],
+    <Step>[
+      providersStandIn,
+      AppIconStep(
+        enabledProviders: enabledProviders,
+        kitDefaultDigests: kitDigests,
+      ),
+    ],
   );
   final output = screen.output.toString();
   File('${dir.path}/screen.txt').writeAsStringSync(output);
@@ -292,154 +237,130 @@ void main() {
         '${workRoot.path}/summary.txt',
       ).writeAsStringSync('$line\n', mode: FileMode.append);
 
-      /// 원본 [source](sips 형식 [format]) 을 끌어다 놓기 답으로 넘겨 다섯
-      /// 아이콘을 만들고, 독립 재측정으로 규격 · 알파 [alpha] 를 확인한다.
-      Future<void> expectIconCase(
+      /// [dir] 저장소의 [relativePath] PNG 를 실제 sips 로 다시 읽어 한 변
+      /// [side] · 알파 [alpha] 를 확인하고 요약 줄을 남긴다.
+      void expectPng(
         _CaseDir dir,
-        String source, {
-        required String format,
+        String relativePath, {
+        required int side,
         required String alpha,
-      }) async {
-        final List<int> sourceBytes = File(source).readAsBytesSync();
+      }) {
+        final out = '${dir.repo}/$relativePath';
+        final MeasuredImage image = measureImage(out);
+        appendSummary(
+          'OUT ${dir.name} $relativePath '
+          'size=${image.width}x${image.height} '
+          'bytes=${File(out).lengthSync()} '
+          'format=${image.format} alpha=${image.alpha}',
+        );
+        expect(image.width, side, reason: relativePath);
+        expect(image.height, side, reason: relativePath);
+        expect(image.format, 'png', reason: relativePath);
+        expect(image.alpha, alpha, reason: relativePath);
+      }
 
-        final _RunResult run = await _runIconStep(dir, <String?>[
-          '1',
-          buildDroppedAnswer(source),
-        ]);
+      test('T-28-SIPS-01: 킷 기본 저장소에서 공백 든 이름의 알파 채널 PNG 원본을 '
+          '끌어다 놓으면 실제 sips 변환 뒤 홈 화면 · adaptive · Kakao 콘솔 '
+          '아이콘 · 표식이 생기고 iOS 1024 는 알파가 없다', () async {
+        final dir = _CaseDir(workRoot, 'kit');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final source = '${dir.sourceDir}/$sourceBaseName.png';
+        final List<int> sourceBytes = buildOpaqueRgbaIconPng();
+        File(source).writeAsBytesSync(sourceBytes);
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>['1', buildDroppedAnswer(source)],
+          enabledProviders: <String>{'kakao'},
+          kitDigests: kitDigests,
+        );
 
         expect(run.code, wizardExitDone, reason: run.output);
         expect(
           run.output,
-          contains('  ✓ ${AppIconStep.stepTitle} — '),
+          contains(
+            '  ✓ ${AppIconStep.stepTitle} — 내 아이콘 · Kakao 콘솔용 1개 · '
+            '${AppIconStep.replaceHint}',
+          ),
           reason: run.output,
         );
-        for (final IconSpec spec in iconSpecs) {
-          final out = '${dir.iconsPath}/${spec.fileName}';
-          final MeasuredImage image = measureImage(out);
-          final int bytes = File(out).lengthSync();
-          appendSummary(
-            'OUT ${dir.name} ${spec.token} '
-            'size=${image.width}x${image.height} bytes=$bytes '
-            'max=${spec.maxBytes} format=${image.format} alpha=${image.alpha}',
+        // 불투명 원본 — 배경색을 묻지 않는다.
+        expect(run.output, isNot(contains(AppIconStep.backgroundQuestion)));
+        for (final HomeIconFile file in homeIconFiles) {
+          expectPng(dir, file.relativePath, side: file.side, alpha: 'no');
+          expect(
+            sha256
+                .convert(
+                  File('${dir.repo}/${file.relativePath}').readAsBytesSync(),
+                )
+                .toString(),
+            isNot(kitDigests[file.relativePath]),
+            reason: file.relativePath,
           );
-          expect(image.width, spec.side, reason: spec.token);
-          expect(image.height, spec.side, reason: spec.token);
-          expect(image.format, 'png', reason: spec.token);
-          expect(image.alpha, alpha, reason: spec.token);
-          expect(bytes, lessThanOrEqualTo(spec.maxBytes), reason: spec.token);
         }
         expect(
-          File(
-            '${dir.iconsPath}/$sourceCopyBaseName.$format',
-          ).readAsBytesSync(),
-          sourceBytes,
+          homeIconFiles.where(
+            (HomeIconFile file) =>
+                file.relativePath.startsWith(iosAppIconDirectory),
+          ),
+          hasLength(15),
+        );
+        expect(
+          homeIconFiles.where(
+            (HomeIconFile file) =>
+                file.relativePath.startsWith(androidResDirectory),
+          ),
+          hasLength(5),
+        );
+        for (final AdaptiveDensity density in adaptiveDensities) {
+          expectPng(
+            dir,
+            density.foregroundPath,
+            side: density.canvasSide,
+            alpha: 'yes',
+          );
+        }
+        expect(adaptiveDensities, hasLength(5));
+        expect(
+          File('${dir.repo}/$adaptiveIconXmlPath').readAsStringSync(),
+          buildAdaptiveIconXml(),
+        );
+        expect(
+          File('${dir.repo}/$adaptiveBackgroundPath').existsSync(),
+          isTrue,
+        );
+        final IconSpec kakao = findIconSpec('kakao')!;
+        expectPng(dir, kakao.relativePath, side: kakao.side, alpha: 'no');
+        expect(kakao.side, 128);
+        expect(
+          File('${dir.repo}/${kakao.relativePath}').lengthSync(),
+          lessThanOrEqualTo(kakao.maxBytes),
+        );
+        final MeasuredImage ios1024 = measureImage('${dir.repo}/$ios1024Path');
+        expect(ios1024.width, 1024);
+        expect(ios1024.alpha, 'no');
+        expect(
+          File('${dir.repo}/$homeIconMarkerPath').readAsStringSync().trim(),
+          readHomeIconDigest(dir.repo),
+        );
+        expect(
+          Directory('${dir.repo}/$iconWorkDirectory').existsSync(),
+          isFalse,
         );
         expect(File(source).readAsBytesSync(), sourceBytes);
+        expect(run.runner.uncommittedCount, 1);
         expect(run.runner.openCount, 1);
+        expect(run.runner.executedPaths, isNotEmpty);
         expect(run.runner.executedPaths, everyElement(sipsPath));
         expect(
-          run.runner.calls.where((Command c) => c.executable == openPath),
+          run.runner.calls.where(
+            (Command c) =>
+                c.executable == sipsPath && c.arguments.contains('--out'),
+          ),
           hasLength(1),
         );
-      }
-
-      /// [dir] 의 1024 PNG 에서 실제 sips 로 [format] 원본을 만들어 경로를
-      /// 돌려준다 — 원본의 재측정 값은 작업 루트의 `sources.txt` 에 남긴다.
-      String deriveSource(_CaseDir dir, String format, String extension) {
-        final png = '${dir.sourceDir}/base.png';
-        writeRgbaPng(png, 1024, 1024);
-        final source = '${dir.sourceDir}/$sourceBaseName.$extension';
-        final ProcessResult made = Process.runSync(sipsPath, <String>[
-          '-s',
-          'format',
-          format,
-          png,
-          '--out',
-          source,
-        ]);
-        expect(made.exitCode, 0, reason: '${made.stderr}');
-        final MeasuredImage image = measureImage(source);
-        File('${workRoot.path}/sources.txt').writeAsStringSync(
-          'SRC ${dir.name} size=${image.width}x${image.height} '
-          'format=${image.format} alpha=${image.alpha}\n',
-          mode: FileMode.append,
-        );
-        expect(image.format, format);
-        return source;
-      }
-
-      test('T-20.1-SIPS-01: 공백 든 PNG 원본을 끌어다 놓으면 실제 sips 가 '
-          '다섯 provider 아이콘을 투명 배경 그대로 만든다', () async {
-        final dir = _CaseDir(workRoot, 'png');
-        final source = '${dir.sourceDir}/$sourceBaseName.png';
-        writeRgbaPng(source, 1024, 1024);
-
-        await expectIconCase(dir, source, format: 'png', alpha: 'yes');
-      });
-
-      test('T-20.1-SIPS-02: JPEG 원본도 다섯 provider 규격 PNG 가 되고 '
-          '알파는 없다', () async {
-        final dir = _CaseDir(workRoot, 'jpeg');
-        final String source = deriveSource(dir, 'jpeg', 'jpg');
-
-        await expectIconCase(dir, source, format: 'jpeg', alpha: 'no');
-      });
-
-      test('T-20.1-SIPS-02b: HEIC 원본도 다섯 provider 규격 PNG 가 되고 '
-          '투명 배경을 유지한다', () async {
-        final dir = _CaseDir(workRoot, 'heic');
-        final String source = deriveSource(dir, 'heic', 'heic');
-
-        await expectIconCase(dir, source, format: 'heic', alpha: 'yes');
-      });
-
-      test('T-20.1-SIPS-03: 비정사각 · 1024 미만 원본은 실제 sips 값으로 '
-          '지금 크기와 함께 거절되고 변환하지 않는다', () async {
-        final dir = _CaseDir(workRoot, 'reject');
-        final wide = '${dir.sourceDir}/wide 1920.png';
-        final small = '${dir.sourceDir}/small 512.png';
-        writeRgbaPng(wide, 1920, 1080);
-        writeRgbaPng(small, 512, 512);
-        final MeasuredImage wideImage = measureImage(wide);
-        final MeasuredImage smallImage = measureImage(small);
-        appendSummary(
-          'REJECT ${dir.name} '
-          'size=${wideImage.width}x${wideImage.height} reason=square',
-        );
-        appendSummary(
-          'REJECT ${dir.name} '
-          'size=${smallImage.width}x${smallImage.height} reason=small',
-        );
-
-        final _RunResult run = await _runIconStep(dir, <String?>[
-          '1',
-          buildDroppedAnswer(wide),
-          buildDroppedAnswer(small),
-          '',
-        ]);
-
-        expect(run.code, wizardExitDone, reason: run.output);
-        final List<String> lines = run.output.split('\n');
-        final int squareAt = lines.indexOf(
-          '  ${AppIconStep.notSquareReason}1920x1080',
-        );
-        final int smallAt = lines.indexOf(
-          '  ${AppIconStep.tooSmallReason}512x512',
-        );
-        expect(squareAt, greaterThanOrEqualTo(0), reason: run.output);
-        expect(smallAt, greaterThan(squareAt), reason: run.output);
-        expect(
-          lines,
-          contains('  ✗ ${AppIconStep.stepTitle} — 지금 안 함'),
-          reason: run.output,
-        );
-        expect(Directory(dir.iconsPath).existsSync(), isFalse);
-        expect(
-          run.runner.calls.where((Command c) => c.arguments.contains('-z')),
-          isEmpty,
-        );
-        expect(run.runner.executedPaths, <String>[sipsPath, sipsPath]);
-        expect(run.runner.openCount, 0);
       });
     },
   );

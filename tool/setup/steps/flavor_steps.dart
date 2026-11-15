@@ -53,9 +53,9 @@ import 'xcode_step.dart';
 /// 수단과 무관하게 맨 끝에 둔다 — release 빌드 전에만 필요해 미룰 수 있다. 새
 /// 단계는 진행 순서에 맞는 자리에 끼운다.
 ///
-/// 켠 로그인 수단에 콘솔 아이콘 칸이 있는 provider 가 있으면 로그인 수단 단계
-/// 바로 다음에 앱 아이콘 단계([AppIconStep])를 둔다 — 어느 단계도 그 단계를
-/// 기다리지 않아 미뤄도 provider 단계 · 함수 배포가 그대로 진행된다.
+/// 앱 아이콘 단계([AppIconStep])는 flavor · 켠 로그인 수단과 무관하게 늘 로그인
+/// 수단 단계 바로 다음에 둔다 — 어느 단계도 그 단계를 기다리지 않아 미뤄도 뒤
+/// 단계(provider 단계 · 함수 배포)가 그대로 진행된다.
 List<Step> buildSteps({
   required Flavor flavor,
   required Set<String> enabledProviders,
@@ -99,6 +99,14 @@ List<Step> buildSteps({
   ];
 }
 
+/// 앱 아이콘만 다시 만드는 실행의 단계 목록 — 의존 단계 없는 앱 아이콘 단계
+/// ([AppIconStep]) 하나다.
+///
+/// [enabledProviders] 는 콘솔 아이콘을 만들 켠 로그인 수단이다.
+List<Step> buildAppIconSteps({required Set<String> enabledProviders}) => <Step>[
+  AppIconStep(enabledProviders: enabledProviders, dependsOn: const <String>[]),
+];
+
 /// 로그인 수단 [token] 단계 뒤에 끼울 Android 쪽 단계 — 콘솔형 수단이 아니면 null.
 ///
 /// Android 쪽 단계는 함수 배포가 기다리는 로그인 수단 단계 목록에 넣지 않는다.
@@ -137,8 +145,7 @@ List<Step> _buildCommonSteps({
     StorageStep(),
     SignInStep(),
     ProvidersStep(),
-    if (AppIconStep.isRequiredFor(enabledProviders))
-      AppIconStep(enabledProviders: enabledProviders),
+    AppIconStep(enabledProviders: enabledProviders),
     if (isGoogleEnabled) GoogleStep(),
     ConfigureStep(requiresGoogleClient: isGoogleEnabled),
     if (isGoogleEnabled) ...<Step>[GoogleIosStep(), GoogleAndroidStep()],

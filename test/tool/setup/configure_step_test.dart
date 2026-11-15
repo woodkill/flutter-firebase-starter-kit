@@ -773,12 +773,13 @@ void main() {
     expect(readDevAndroidPackage(root), '$applicationId.dev');
   });
 
-  test('buildDevSteps 는 로그인 수단 단계 다음에 앱 등록 단계를 둔다', () {
+  test('buildDevSteps 는 로그인 수단 · 앱 아이콘 단계 다음에 앱 등록 단계를 둔다', () {
     final List<String> ids = buildDevSteps()
         .map((Step step) => step.id)
         .toList();
 
-    expect(ids.indexOf('configure'), ids.indexOf('providers') + 1);
+    expect(ids.indexOf('app_icon'), ids.indexOf('providers') + 1);
+    expect(ids.indexOf('configure'), ids.indexOf('providers') + 2);
   });
 
   group('T-20-STG-02: stg 문맥 앱 등록 — 스크립트 인자 · 완료 줄 · 경로가 stg', () {

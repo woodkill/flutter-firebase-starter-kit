@@ -51,6 +51,7 @@ import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
 import 'firebase_options_fixture.dart';
+import 'home_icon_fixture.dart';
 
 /// 흐름 fixture 의 프로젝트 ID(가짜).
 const String projectId = 'six-app-dev';
@@ -417,7 +418,8 @@ void writeFixture(String root, String relativePath, String content) {
 /// 앞 단계가 모두 끝나고 여섯 로그인 수단을 켠 저장소를 [root] 에 만든다.
 ///
 /// 로그인 수단의 키 자리는 example 의 자리표시 그대로다. iOS 설정 파일은 Google
-/// 로그인 정보(`CLIENT_ID` · `REVERSED_CLIENT_ID`)가 든 모양이다.
+/// 로그인 정보(`CLIENT_ID` · `REVERSED_CLIENT_ID`)가 든 모양이다. 홈 화면 아이콘은
+/// 「내 아이콘」 20장이고 콘솔 아이콘 파일 · 표식은 없다.
 void _writeSixProviderFixture(String root, _Values values) {
   final String jsonExample = File(
     UserFilesStep.jsonExamplePath,
@@ -564,6 +566,7 @@ void _writeSixProviderFixture(String root, _Values values) {
     'const kitSecret = defineSecret("$declaredSecret");\n',
   );
   writeFixture(root, FunctionsStep.modulesMarkerPath, '');
+  writeMyHomeIcons(root);
 }
 
 /// ruleset 응답 본문.
@@ -1092,7 +1095,7 @@ void _registerFinishedRun(_Harness h, _Values values) {
 
 /// 첫 실행 입력 — 단계 진행 순서대로.
 List<String?> _buildFirstRunInputs(_Values values, String p8Path) => <String?>[
-  '2', // 앱 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
+  '2', // 콘솔 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
   'y', // Google 로그인
   '1', // 동의 화면 값 표 — 이대로 진행
   'y', // Google — iOS 쪽
@@ -1315,11 +1318,12 @@ void main() {
       '질문 0', () async {
     final _FirstRun first = await runFirst();
     expect(first.code, wizardExitDone, reason: first.h.output);
-    // 아이콘 파일이 다 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(내용은 검사하지 않는다).
+    // 내 아이콘 · 지금 iOS 1024 지문의 표식 · 콘솔 아이콘 파일이 다 있으면 앱
+    // 아이콘 단계는 질문 없이 ✓ 다(콘솔 파일 내용은 검사하지 않는다).
     for (final IconSpec spec in iconSpecs) {
       writeFixture(root, spec.relativePath, 'icon');
     }
-    writeFixture(root, '$iconsDirectory/source.png', 'source');
+    writeHomeIconMarker(root);
 
     final h = _Harness(root, const <String?>[]);
     _registerFinishedRun(h, values);

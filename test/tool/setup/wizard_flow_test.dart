@@ -11,6 +11,7 @@ import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/firebase_app_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/icons/home_icon_specs.dart';
 import '../../../tool/setup/providers/fingerprints.dart';
 import '../../../tool/setup/providers/icon_specs.dart';
 import '../../../tool/setup/providers/keyed_provider_step.dart';
@@ -49,6 +50,7 @@ import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
 import 'firebase_options_fixture.dart';
+import 'home_icon_fixture.dart';
 
 /// 흐름 fixture 의 프로젝트 ID(가짜).
 const String projectId = 'my-app-dev';
@@ -266,6 +268,11 @@ const String localizedAppNamesTodoLine =
 const String localizedAppNamesDoneLine =
     '  ✓ ${AppNamesStep.stepTitle} — ja マイアプリ · ko 마이앱';
 
+/// Kakao 하나를 켠 「내 아이콘」 저장소의 앱 아이콘 ✓ 줄.
+const String kakaoMyIconDoneLine =
+    '  ✓ ${AppIconStep.stepTitle} — 내 아이콘 · Kakao 콘솔용 1개 · '
+    '${AppIconStep.replaceHint}';
+
 /// 모든 단계가 끝난 저장소의 DeviceCheck Key ID(실행 시점 조립).
 final String finishedDeviceCheckKeyId = 'K' * 10;
 
@@ -380,7 +387,8 @@ void writeLocalizedArbFixture(String root) {
 
 /// 모든 단계가 끝난 저장소 모양을 [root] 에 만든다.
 ///
-/// 킷의 추적 example 두 개만 저장소에서 읽고, 나머지는 가짜 값으로 쓴다.
+/// 킷의 추적 example 두 개만 저장소에서 읽고, 나머지는 가짜 값으로 쓴다. 홈 화면
+/// 아이콘은 「내 아이콘」 20장이다.
 void writeFinishedFixture(String root) {
   final String jsonExample = File(
     UserFilesStep.jsonExamplePath,
@@ -485,6 +493,7 @@ void writeFinishedFixture(String root) {
     'const kitSecret = defineSecret("$declaredSecret");\n',
   );
   writeFixture(root, FunctionsStep.modulesMarkerPath, '');
+  writeMyHomeIcons(root);
 }
 
 /// configure 스크립트가 만든 모양의 설정 파일 3개를 쓴다(가짜 키는 실행 시점 조립).
@@ -732,7 +741,7 @@ List<String?> buildKakaoFirstRunInputs(String nativeKey, String adminKey) =>
       'y', // 로그인 수단 단계
       '4', // 체크 목록 — Kakao
       'y', // 값 표
-      '2', // 앱 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
+      '2', // 콘솔 아이콘 — 지금 안 함(이 흐름은 아이콘을 만들지 않는다)
       'y', // Kakao 단계(다시 짠 뒤)
       '1', // 콘솔에서 키를 받았다
       nativeKey,
@@ -1024,14 +1033,6 @@ int countWriteRequests(FakeRestClient rest) => rest.requests
     )
     .length;
 
-/// 가짜 이미지 파일 바이트 [length] 개를 만든다(실행 시점 조립 · 내용 무관).
-List<int> _buildFakeIconBytes(int length) =>
-    List<int>.generate(length, (int i) => (i * 7 + 3) % 256);
-
-/// [path] 의 정사각 [side] PNG 크기 읽기 결과(`sips -g` 정상 출력 꼴).
-CommandResult _buildIconProbeResult(String path, int side) =>
-    ok('$path\n  pixelWidth: $side\n  pixelHeight: $side\n  format: png\n');
-
 void main() {
   late Directory tempDir;
   late String root;
@@ -1046,7 +1047,7 @@ void main() {
     if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
-  test('T-19-FLOW-01: buildDevSteps() id 순서가 21단계 그대로다', () {
+  test('T-19-FLOW-01: buildDevSteps() id 순서가 22단계 그대로다', () {
     expect(
       <String>[for (final Step step in buildDevSteps()) step.id],
       <String>[
@@ -1063,6 +1064,7 @@ void main() {
         'storage',
         'sign_in',
         'providers',
+        'app_icon',
         'configure',
         'rules',
         'app_check',
@@ -1075,7 +1077,7 @@ void main() {
     );
   });
 
-  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 19줄 · 출시용 ✗ · ? 끝 목록 · '
+  test('T-19-FLOW-02: 모든 단계가 끝난 저장소 재실행 → ✓ 20줄 · 출시용 ✗ · ? 끝 목록 · '
       '질문 · 쓰기 0', () async {
     final h = _Harness(root, const <String?>[]);
     _registerFinished(h);
@@ -1086,7 +1088,7 @@ void main() {
     final List<String> lines = const LineSplitter().convert(h.output);
     expect(
       lines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(19),
+      hasLength(20),
     );
     // 지문 없는 홈 — Play Integrity 만 할 수 없는 ✗(점검표 · 끝 목록 한 줄씩).
     expect(lines.where((String line) => line.startsWith('  ✗ ')), <String>[
@@ -1408,9 +1410,10 @@ void main() {
     final String nativeKey = buildFakeKakaoNativeKey();
     final String adminKey = buildFakeKakaoAdminKey();
     writeKakaoManifest(root);
-    // 아이콘 파일이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(내용은 검사하지 않는다).
+    // 내 아이콘 · 지금 iOS 1024 지문의 표식 · 콘솔 아이콘 파일이 있으면 앱 아이콘
+    // 단계는 질문 없이 ✓ 다(콘솔 파일 내용은 검사하지 않는다).
     writeFixture(root, findIconSpec('kakao')!.relativePath, 'icon');
-    writeFixture(root, '$iconsDirectory/source.png', 'source');
+    writeHomeIconMarker(root);
     final configPath = '$root/${UserFilesStep.jsonUserPath}';
     replaceJsonString(configPath, enabledProvidersKey, 'kakao');
     replaceJsonString(configPath, 'kakaoNativeAppKey', nativeKey);
@@ -1448,7 +1451,7 @@ void main() {
       lines.where(
         (String line) => line.startsWith('  ✓ ${AppIconStep.stepTitle} — '),
       ),
-      hasLength(1),
+      <String>[kakaoMyIconDoneLine],
     );
     expect(
       lines.where(
@@ -1602,7 +1605,7 @@ void main() {
   );
 
   test(
-    'T-20.1-WIRE-01: 아이콘 대상을 켰을 때만 로그인 수단 단계 바로 다음에 앱 아이콘 단계가 한 번 있고 flavor 마다 같다',
+    'T-28-WIRE-01: 모든 flavor · 켠 수단 조합에서 앱 아이콘 단계가 로그인 수단 단계 바로 다음에 한 번 있고 어떤 단계도 기다리지 않는다',
     () {
       const allProviders = <String>{
         'google',
@@ -1612,37 +1615,44 @@ void main() {
         'naver',
         'line',
       };
+      List<String> listIds(List<Step> steps) => <String>[
+        for (final Step step in steps) step.id,
+      ];
       for (final Flavor flavor in Flavor.values) {
-        List<Step> build(Set<String> enabled) =>
-            buildSteps(flavor: flavor, enabledProviders: enabled);
-        List<String> listIds(List<Step> steps) => <String>[
-          for (final Step step in steps) step.id,
-        ];
-
-        final List<String> kakao = listIds(build(<String>{'kakao'}));
-        expect(
-          kakao.indexOf(AppIconStep.stepId),
-          kakao.indexOf('providers') + 1,
-          reason: '$flavor',
-        );
-
-        final List<String> googleKakao = listIds(
-          build(<String>{'google', 'kakao'}),
-        );
-        final int start = googleKakao.indexOf('providers');
-        expect(googleKakao.sublist(start, start + 3), <String>[
-          'providers',
-          AppIconStep.stepId,
-          'google',
-        ], reason: '$flavor');
-
-        final List<Step> all = build(allProviders);
-        expect(
-          listIds(all).where((String id) => id == AppIconStep.stepId),
-          hasLength(1),
-          reason: '$flavor',
-        );
-        final AppIconStep icon = all.whereType<AppIconStep>().single;
+        for (final enabled in <Set<String>>[
+          <String>{},
+          <String>{'kakao'},
+          allProviders,
+        ]) {
+          final List<Step> steps = buildSteps(
+            flavor: flavor,
+            enabledProviders: enabled,
+          );
+          final List<String> ids = listIds(steps);
+          final reason = '$flavor $enabled';
+          expect(
+            ids.where((String id) => id == AppIconStep.stepId),
+            hasLength(1),
+            reason: reason,
+          );
+          expect(
+            ids.indexOf(AppIconStep.stepId),
+            ids.indexOf('providers') + 1,
+            reason: reason,
+          );
+          // 미뤄도 뒤 단계가 기다리지 않는다 — 어떤 단계도 앱 아이콘을 기다리지 않는다.
+          expect(
+            steps.where(
+              (Step step) => step.dependsOn.contains(AppIconStep.stepId),
+            ),
+            isEmpty,
+            reason: reason,
+          );
+        }
+        final AppIconStep icon = buildSteps(
+          flavor: flavor,
+          enabledProviders: allProviders,
+        ).whereType<AppIconStep>().single;
         expect(icon.targets.map((IconSpec spec) => spec.token), <String>[
           'google',
           'facebook',
@@ -1650,56 +1660,32 @@ void main() {
           'naver',
           'line',
         ], reason: '$flavor');
-        // 미뤄도 뒤 단계가 기다리지 않는다 — 어떤 단계도 앱 아이콘을 기다리지 않는다.
-        expect(
-          all.where((Step step) => step.dependsOn.contains(AppIconStep.stepId)),
-          isEmpty,
-          reason: '$flavor',
-        );
-
-        expect(
-          build(<String>{'google', 'kakao'})
-              .whereType<AppIconStep>()
-              .single
-              .targets
-              .map((IconSpec spec) => spec.token),
-          <String>['google', 'kakao'],
-          reason: '$flavor',
-        );
-        expect(
-          listIds(build(<String>{})),
-          isNot(contains(AppIconStep.stepId)),
-          reason: '$flavor',
-        );
-        expect(
-          listIds(build(<String>{'apple'})),
-          isNot(contains(AppIconStep.stepId)),
-          reason: '$flavor',
-        );
       }
+
+      final List<Step> rebuild = buildAppIconSteps(
+        enabledProviders: <String>{'kakao'},
+      );
+      expect(rebuild, hasLength(1));
+      final AppIconStep only = rebuild.whereType<AppIconStep>().single;
+      expect(only.dependsOn, isEmpty);
+      expect(only.targets.map((IconSpec spec) => spec.token), <String>[
+        'kakao',
+      ]);
     },
   );
 
   test(
-    'T-20.1-WIRE-02: --providers 로 Kakao 를 고른 같은 실행에서 끌어다 놓은 원본으로 앱 아이콘을 만들고 Kakao 값 표가 그 경로를 보인 뒤 배포까지 간다',
+    'T-28-WIRE-02: --providers 로 Kakao 를 고른 같은 실행에서 내 아이콘 저장소가 원본 질문 없이 iOS 1024 에서 Kakao 콘솔 아이콘을 만들고 값 표가 그 경로를 보인 뒤 배포까지 간다',
     () async {
       final String nativeKey = buildFakeKakaoNativeKey();
       final String adminKey = buildFakeKakaoAdminKey();
-      // 저장소 밖 원본 — 이름에 공백이 있어 Terminal 끌어다 놓기는 백슬래시를 붙인다.
-      final Directory sourceDir = Directory.systemTemp.createTempSync(
-        'wizard_icon_source_',
-      );
-      addTearDown(() {
-        if (sourceDir.existsSync()) sourceDir.deleteSync(recursive: true);
-      });
-      final sourcePath = '${sourceDir.path}/my icon.png';
-      File(sourcePath).writeAsBytesSync(_buildFakeIconBytes(64));
+      // 내 아이콘 · 지금 iOS 1024 지문의 표식 — 콘솔 아이콘 파일은 아직 없다.
+      writeHomeIconMarker(root);
       final h = _Harness(root, <String?>[
         'y', // 로그인 수단 단계
         '4', // 체크 목록 — Kakao
         'y', // 값 표
-        '1', // 앱 아이콘 — 진행
-        '${sourceDir.path}/my\\ icon.png ', // 원본 — 끌어다 놓은 모양
+        '1', // 콘솔 아이콘 — 진행
         'y', // Kakao 단계(다시 짠 뒤)
         '1', // 콘솔에서 키를 받았다
         nativeKey,
@@ -1709,39 +1695,43 @@ void main() {
       _prepareKakaoFirstRun(h, nativeKey: nativeKey, adminKey: adminKey);
       final IconSpec kakaoSpec = findIconSpec('kakao')!;
       final outputPath = '$root/${kakaoSpec.relativePath}';
-      final Command resize = AppIconStep.buildResizeCommand(
-        root,
-        'source.png',
-        kakaoSpec,
+      final ios1024 = '$root/$ios1024Path';
+      final convertedPath = '$root/$iconWorkDirectory/source.png';
+      final Command convert = AppIconStep.buildConvertCommand(
+        ios1024,
+        convertedPath,
+        display: ios1024Path,
       );
       final Command open = AppIconStep.buildOpenCommand(root);
       h
-        ..onCommand(
-          AppIconStep.buildProbeCommand(sourcePath),
-          _buildIconProbeResult(sourcePath, 1024),
-        )
-        ..onCommand(resize, ok())
-        ..onCommand(
-          AppIconStep.buildProbeCommand(outputPath),
-          _buildIconProbeResult(outputPath, kakaoSpec.side),
-        )
+        ..onCommand(convert, ok())
         ..onCommand(open, ok());
+      // sips 변환 대신 iOS 1024 바이트를 변환 결과 자리에 복사한다.
       h.runner.onEffect(
-        FakeCommandRunner.buildKey(resize),
-        () => File(outputPath).writeAsBytesSync(_buildFakeIconBytes(32)),
+        FakeCommandRunner.buildKey(convert),
+        () => File(
+          convertedPath,
+        ).writeAsBytesSync(File(ios1024).readAsBytesSync()),
       );
+      final String homeDigest = readHomeIconDigest(root);
 
       final int code = await h.run(onCompleted: showCompletionSummary);
       final String output = h.output;
 
       expect(code, wizardExitDone, reason: output);
       expect(File(outputPath).existsSync(), isTrue);
-      expect(File('$root/$iconsDirectory/source.png').existsSync(), isTrue);
-      final List<String> lines = const LineSplitter().convert(output);
+      expect(readHomeIconDigest(root), homeDigest);
+      expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
       expect(
-        lines,
-        contains('  ✓ 앱 아이콘 — Kakao 용 1개 · 바꾸려면 .setup/icons 를 지우고 다시 실행'),
+        h.runner.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(convert),
+        ),
+        1,
       );
+      expect(Directory('$root/$iconWorkDirectory').existsSync(), isFalse);
+      final List<String> lines = const LineSplitter().convert(output);
+      expect(lines, contains(kakaoMyIconDoneLine));
       final int iconHeader = lines.indexOf('▶ ${AppIconStep.stepTitle}');
       expect(iconHeader, greaterThanOrEqualTo(0));
       expect(iconHeader, lessThan(lines.indexOf('▶ ${KakaoStep.stepTitle}')));
@@ -1754,7 +1744,6 @@ void main() {
       expect(rows.last, contains(kakaoSpec.relativePath));
       expect(kakaoSpec.rowLabel, '앱 아이콘 올리기 · 선택');
       for (final streamed in <Command>[
-        resize,
         open,
         FunctionsStep.buildDeployCommand(),
       ]) {
@@ -1774,7 +1763,7 @@ void main() {
   );
 
   test('T-23-FLOW-01: 끝난 저장소에 appTitle 없는 ko · ja ARB 가 들어오면 '
-      '언어별 앱 이름만 할 일 → 입력 → 재실행은 ✓ 19줄 · 질문 0 · 바이트 그대로', () async {
+      '언어별 앱 이름만 할 일 → 입력 → 재실행은 ✓ 20줄 · 질문 0 · 바이트 그대로', () async {
     writeLocalizedArbFixture(root);
     final first = _Harness(root, const <String?>['y', 'マイアプリ', '마이앱', '1']);
     _registerFinished(first);
@@ -1797,7 +1786,7 @@ void main() {
     expect(first.output, contains(localizedAppNamesDoneLine));
     expect(
       firstLines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(19),
+      hasLength(20),
     );
     expect(first.countStepQuestions(), 1);
     expect(first.runner.countMode(RunMode.interactive), 0);
@@ -1837,7 +1826,7 @@ void main() {
     );
     expect(
       secondLines.where((String line) => line.startsWith('  ✓ ')),
-      hasLength(19),
+      hasLength(20),
     );
     expect(secondLines, contains(localizedAppNamesDoneLine));
     expect(second.screen.asks, isEmpty);

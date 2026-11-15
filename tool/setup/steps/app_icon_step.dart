@@ -219,10 +219,6 @@ final class AppIconStep implements DeferrableStep {
   static const String openFailedNote =
       'Finder 를 열지 못했습니다 — 파일은 $iconsDirectory 에 있습니다';
 
-  /// 켠 로그인 수단 [enabledProviders] 에 콘솔 아이콘 대상이 있으면 true.
-  static bool isRequiredFor(Set<String> enabledProviders) =>
-      selectIconTargets(enabledProviders).isNotEmpty;
-
   /// 원본을 쓰기 전에 미커밋 변경을 찾는 경로 — 홈 화면 20장 · adaptive 7개.
   static List<String> listWritePaths() => <String>[
     for (final HomeIconFile file in homeIconFiles) file.relativePath,

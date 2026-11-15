@@ -43,6 +43,7 @@ import '../../../tool/setup/wizard.dart';
 import 'fake_rest_client.dart';
 import 'fakes.dart';
 import 'firebase_options_fixture.dart';
+import 'home_icon_fixture.dart';
 
 /// dev 실행이 앱 정체성 단계에 넣은 org.
 const String newOrg = 'com.acme';
@@ -391,7 +392,10 @@ void _writeDevFinishedFixture(_Fixture fixture) {
     ..write(
       IdentityStep.arbPath,
       '{\n  "@@locale": "en",\n  "appTitle": "${rename.currentAppName}"\n}\n',
-    )
+    );
+  // 홈 화면 아이콘 — 「내 아이콘」 20장을 커밋 전에 써 추적 파일로 둔다.
+  writeMyHomeIcons(fixture.root);
+  fixture
     ..runGitChecked(<String>['init', '-q'])
     ..commitAll('init');
 
@@ -1194,8 +1198,9 @@ int _countAsks(_Run run, String question) =>
 /// dev 의 Kakao 를 제안받아 고르는 첫 stg 실행을 준비한다.
 ///
 /// 체크 목록은 Kakao 만 고르고, App Check 까지 첫 실행과 같이 간 뒤 Kakao
-/// 단계에서 콘솔 작업을 미룬다. 실행 전에 dev 가 만든 Kakao 아이콘 · 원본 사본을
-/// 둔다 — 파일이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(`.setup/` 은 gitignored).
+/// 단계에서 콘솔 작업을 미룬다. 실행 전에 dev 가 만든 Kakao 콘솔 아이콘 · 표식을
+/// 둔다 — 「내 아이콘」 저장소에서 표식이 지금 iOS 1024 지문과 같고 콘솔 파일이
+/// 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(`.setup/` 은 gitignored).
 _Run _prepareKakaoStgRun(_Fixture fixture) {
   final int checklist = firstRunInputs.indexOf(emailOnlyAnswer);
   final int kakaoNumber =
@@ -1212,9 +1217,8 @@ _Run _prepareKakaoStgRun(_Fixture fixture) {
     'y', // Kakao
     '2', // 콘솔 작업 뒤 다시 실행
   ];
-  fixture
-    ..write(findIconSpec(KakaoStep.token)!.relativePath, 'icon')
-    ..write('$iconsDirectory/source.png', 'source');
+  fixture.write(findIconSpec(KakaoStep.token)!.relativePath, 'icon');
+  writeHomeIconMarker(fixture.root);
   final run = _Run(fixture, inputs);
   _registerEarlySteps(run);
   _registerCloudSteps(run, isResumed: false);
@@ -1565,7 +1569,10 @@ void main() {
       final List<String> lines = const LineSplitter().convert(output);
       expect(
         lines,
-        contains(startsWith('  ✓ ${AppIconStep.stepTitle} — Kakao 용 1개 · ')),
+        contains(
+          '  ✓ ${AppIconStep.stepTitle} — 내 아이콘 · Kakao 콘솔용 1개 · '
+          '${AppIconStep.replaceHint}',
+        ),
       );
       expect(lines, isNot(contains('▶ ${AppIconStep.stepTitle}')));
       expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
