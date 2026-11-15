@@ -7,6 +7,8 @@ import 'arb_titles.dart';
 import 'command_runner.dart';
 import 'git_tree.dart';
 import 'gradle_identity.dart';
+import 'icons/home_icon_specs.dart';
+import 'steps/app_icon_step.dart';
 import 'steps/app_names_step.dart';
 import 'steps/identity_step.dart';
 import 'wizard.dart';
@@ -23,26 +25,47 @@ const String kotlinSourceRoot = 'android/app/src/main/kotlin';
 /// 끝 요약에서 로그인 수단을 바꾸는 방법을 알리는 줄.
 const String providersHintLine = '로그인 수단을 바꾸려면: ./setup.sh --providers';
 
-/// 모든 단계가 끝난 뒤의 끝 요약 — 로그인 수단을 바꾸는 방법 · 커밋 안내 ·
-/// golden 갱신 안내를 보인다.
+/// 끝 요약에서 앱 아이콘을 바꾸는 방법을 알리는 줄.
 ///
-/// 빈 줄 · [providersHintLine] 뒤에 [showCommitHint] 와 같은 커밋 안내를 보이고,
-/// 이번 실행이 ko ARB 나 영어 ARB 를 바꿔 ko 실효 제목이 커밋된 상태와 다르면 빈
-/// 줄 뒤 [AppNamesStep.goldenHintLine] 한 줄을 더한다. 바뀐 추적 파일 목록은 한 번만
-/// 읽는다. 위저드는 golden 갱신 명령을 실행하지 않는다.
+/// 앱 아이콘 단계의 ✓ 줄 안내와 같은 [AppIconStep.rebuildCommand] 에서 만든다.
+const String appIconHintLine = '앱 아이콘을 바꾸려면: ${AppIconStep.rebuildCommand}';
+
+/// 모든 단계가 끝난 뒤의 끝 요약 — 로그인 수단 · 앱 아이콘을 바꾸는 방법 · 커밋
+/// 안내 · golden 갱신 안내를 보인다.
+///
+/// 빈 줄 · [providersHintLine] · [appIconHintLine] 뒤에 [showCommitHint] 와 같은
+/// 커밋 안내를 보이고, 이번 실행이 ko ARB 나 영어 ARB 를 바꿔 ko 실효 제목이
+/// 커밋된 상태와 다르면 빈 줄 뒤 [AppNamesStep.goldenHintLine] 한 줄을 더한다.
+/// 바뀐 추적 파일 목록은 한 번만 읽는다. 위저드는 golden 갱신 명령을 실행하지
+/// 않는다.
 Future<void> showCompletionSummary(WizardContext context) async {
   context.terminal
     ..writeLine('')
-    ..writeLine(providersHintLine);
+    ..writeLine(providersHintLine)
+    ..writeLine(appIconHintLine);
   await _showChangedFiles(context, withGoldenHint: true);
+}
+
+/// 앱 아이콘만 다시 만든 실행(`--app-icon`)의 끝 요약 — 앱 아이콘을 바꾸는
+/// 방법과 커밋 안내를 보인다.
+///
+/// 빈 줄 · [appIconHintLine] 뒤에 [showCommitHint] 와 같은 커밋 안내를 보인다.
+/// 로그인 수단 단계를 돌지 않으므로 [providersHintLine] 은 없고, ARB 를 바꾸지
+/// 않으므로 golden 갱신 안내도 없다.
+Future<void> showAppIconCompletionSummary(WizardContext context) async {
+  context.terminal
+    ..writeLine('')
+    ..writeLine(appIconHintLine);
+  await _showChangedFiles(context, withGoldenHint: false);
 }
 
 /// 모든 단계가 끝난 뒤 바뀐 추적 파일 목록과 커밋 명령을 보여 준다.
 ///
 /// 목록은 추적 파일의 미커밋 변경(삭제 · 이름 바꾸기 포함)에 앱 정체성 단계가
-/// 옮긴 Kotlin 패키지 디렉터리의 새(추적하지 않는) 파일을 더한 것이다 — 그대로
-/// 커밋하면 옛 Kotlin 파일 삭제와 새 파일 추가가 함께 들어가 빌드되는 저장소가
-/// 된다. 위저드는 스테이징 · 커밋 · push 를 하지 않고 명령을 보이기만 한다. 목록이
+/// 옮긴 Kotlin 패키지 디렉터리의 새(추적하지 않는) 파일과 앱 아이콘 단계가 새로
+/// 만든 adaptive 아이콘 파일을 더한 것이다 — 그대로 커밋하면 옛 Kotlin 파일
+/// 삭제와 새 파일 추가, 바뀐 아이콘과 새 adaptive 파일이 함께 들어가 빌드되는
+/// 저장소가 된다. 위저드는 스테이징 · 커밋 · push 를 하지 않고 명령을 보이기만 한다. 목록이
 /// 비면 아무것도 보이지 않는다. git 이 실패하면 [GitTreeException] 을 던진다.
 Future<void> showCommitHint(WizardContext context) =>
     _showChangedFiles(context, withGoldenHint: false);
@@ -61,7 +84,8 @@ Future<void> _showChangedFiles(
   if (withGoldenHint) await _writeGoldenHint(context, changed);
 }
 
-/// 바뀐 추적 파일 [changed] 에 옮긴 Kotlin 새 파일을 더해 커밋 안내를 쓴다.
+/// 바뀐 추적 파일 [changed] 에 옮긴 Kotlin 새 파일과 새 adaptive 아이콘 파일을
+/// 더해 커밋 안내를 쓴다.
 ///
 /// 합친 목록이 비면 아무것도 쓰지 않는다.
 Future<void> _writeCommitHint(
@@ -71,6 +95,7 @@ Future<void> _writeCommitHint(
   final List<String> paths = <String>{
     ...changed,
     ...await _listMovedKotlinFiles(context),
+    ...await _listNewIconFiles(context),
   }.toList()..sort();
   if (paths.isEmpty) return;
   context.terminal
@@ -154,6 +179,37 @@ Future<List<String>> _listMovedKotlinFiles(WizardContext context) async {
   ];
 }
 
+/// 앱 아이콘 단계가 새로 만든 adaptive 아이콘 파일 가운데 추적하지 않는 것을 모은다.
+///
+/// adaptive XML([adaptiveIconXmlPath])이 디스크에 없으면 git 을 부르지 않고 빈
+/// 목록이다. 있으면 [androidResDirectory] 아래 추적하지 않는 파일 가운데
+/// [listAdaptiveFilePaths] 에 든 것만 넣는다 — 그 밖의 새 파일은 위저드가 만든
+/// 것이 아니라 넣지 않는다. git 이 실패하면 [GitTreeException] 을 던진다.
+Future<List<String>> _listNewIconFiles(WizardContext context) async {
+  if (!File(context.resolve(adaptiveIconXmlPath)).existsSync()) {
+    return const <String>[];
+  }
+  final CommandResult result = await context.runner.capture(
+    buildUntrackedFilesCommand(
+      androidResDirectory,
+      workingDirectory: context.projectRoot,
+    ),
+  );
+  if (!result.isSuccess) {
+    throw GitTreeException(
+      '$androidResDirectory 의 새 파일 목록을 읽지 못했습니다 (종료 코드 ${result.exitCode})',
+      result: result,
+    );
+  }
+  final Set<String> adaptivePaths = listAdaptiveFilePaths().toSet();
+  return <String>[
+    for (final String line in const LineSplitter().convert(result.stdout))
+      if (line.startsWith('?? ') &&
+          adaptivePaths.contains(_unquote(line.substring(3))))
+        _unquote(line.substring(3)),
+  ];
+}
+
 /// [directory] 아래 추적하지 않는 파일을 하나씩 보이는 git 명령을 만든다.
 Command buildUntrackedFilesCommand(
   String directory, {
@@ -166,7 +222,8 @@ Command buildUntrackedFilesCommand(
   directory,
 ], workingDirectory: workingDirectory);
 
-/// git 이 큰따옴표로 감싼 경로의 따옴표만 뗀다(Kotlin 경로는 이스케이프가 없다).
+/// git 이 큰따옴표로 감싼 경로의 따옴표만 뗀다(Kotlin · 아이콘 경로는 이스케이프가
+/// 없다).
 String _unquote(String path) =>
     path.length >= 2 && path.startsWith('"') && path.endsWith('"')
     ? path.substring(1, path.length - 1)

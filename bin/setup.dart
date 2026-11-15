@@ -33,7 +33,8 @@ const String logOpenFailedPrefix = '실행 기록 파일을 만들지 못했습�
 
 /// 설정 위저드 진입점 — `./setup.sh` 가 FVM 의 Dart 로 실행한다.
 ///
-/// 점검표를 먼저 보이고 첫 할 일 단계부터 차례로 진행한다. 실행마다
+/// 점검표를 먼저 보이고 첫 할 일 단계부터 차례로 진행한다. `--app-icon` 은 다른
+/// 단계 없이 앱 아이콘 단계 하나만 돌려 새 원본으로 아이콘을 다시 만든다. 실행마다
 /// `.setup/logs/` 에 기록 파일 하나를 남기고 마지막 줄에 그 경로를 보인다. 종료
 /// 코드는 0(모든 단계 끝) · 1(멈춤 · 거절 · 입력 끝 · 인자 오류) · 3(위저드 밖
 /// 작업 안내 후 종료)이다.
@@ -46,6 +47,11 @@ Future<void> main(List<String> arguments) async {
     ..addFlag(
       'providers',
       help: '로그인 수단 체크 목록을 엽니다 — 켜고 끌 수단을 고릅니다.',
+      negatable: false,
+    )
+    ..addFlag(
+      'app-icon',
+      help: '앱 아이콘만 새 원본 이미지로 다시 만듭니다 — 홈 화면 아이콘과 켠 로그인 수단의 콘솔 아이콘.',
       negatable: false,
     )
     ..addOption(
@@ -78,6 +84,16 @@ Future<void> main(List<String> arguments) async {
       ..writeln(parser.usage);
     return;
   }
+
+  // 아이콘만 다시 만드는 실행은 로그인 수단 단계를 돌지 않아 체크 목록을 열 자리가 없다.
+  if (results.flag('app-icon') && results.flag('providers')) {
+    writeArgumentError(
+      parser,
+      '--app-icon 은 --providers 와 함께 쓸 수 없습니다 — 로그인 수단을 바꾼 뒤 따로 실행하세요.',
+    );
+    return;
+  }
+  final bool isAppIconOnly = results.flag('app-icon');
 
   final String projectRoot = Directory.current.path;
   if (!File('$projectRoot/pubspec.yaml').existsSync() ||
@@ -138,18 +154,25 @@ Future<void> main(List<String> arguments) async {
       flavor: flavor,
     );
     context.session.isProviderSelectionRequested = results.flag('providers');
+    context.session.isAppIconRebuildRequested = isAppIconOnly;
     // 로그인 수단을 바꾸면 위저드가 config 를 다시 읽어 단계 목록을 새로 만든다.
-    List<Step> buildCurrentSteps() => buildSteps(
-      flavor: flavor,
-      enabledProviders: readEnabledProviders(
+    // 아이콘만 다시 만드는 실행도 고른 flavor 의 config 에서 켠 수단을 읽는다.
+    List<Step> buildCurrentSteps() {
+      final Set<String> enabledProviders = readEnabledProviders(
         context.resolve(context.paths.json),
-      ),
-    );
+      );
+      return isAppIconOnly
+          ? buildAppIconSteps(enabledProviders: enabledProviders)
+          : buildSteps(flavor: flavor, enabledProviders: enabledProviders);
+    }
+
     try {
       code = await runSetupWizard(
         context,
         buildCurrentSteps(),
-        onCompleted: showCompletionSummary,
+        onCompleted: isAppIconOnly
+            ? showAppIconCompletionSummary
+            : showCompletionSummary,
         rebuildSteps: buildCurrentSteps,
       );
     } finally {
