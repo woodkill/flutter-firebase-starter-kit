@@ -1764,7 +1764,7 @@ LayoutBuilder(
    fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
    ```
 
-5. 끝 요약에 콘솔 아이콘을 다시 올리라는 줄이 나왔으면 켠 수단의 콘솔에 올린다.
+5. 위저드의 「만든 앱 아이콘」 표 아래에 `콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요` 가 나왔으면 켠 수단의 콘솔에 새 아이콘을 다시 올린다.
    - 올리는 곳은 [로그인 수단 켜기](setup.md#로그인-수단-켜기) 의 수단별 절에 있다.
 
 **Apple 로그인 화면의 아이콘.**
@@ -1797,13 +1797,14 @@ LayoutBuilder(
 
 ### 되돌리기
 
-- 커밋하기 전이면 아래 명령으로 킷 아이콘으로 되돌리고 위저드가 새로 만든 파일 7개를 지운다.
+- 커밋하기 전이면 아래 명령으로 아이콘 파일을 마지막 커밋 상태로 되돌리고 위저드가 새로 만든 파일 7개를 지운다.
 
   ```bash
   git checkout -- ios/Runner/Assets.xcassets/AppIcon.appiconset/ android/app/src/main/res/mipmap-*/ic_launcher.png
   rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-*/ic_launcher_foreground.png android/app/src/main/res/values/ic_launcher_background.xml
   ```
 
+  - 아이콘을 아직 커밋한 적이 없으면 마지막 커밋 상태가 킷 기본 아이콘이다.
   - 폴더째 지우지 않는다 — `mipmap-anydpi-v26` 에 둔 다른 파일을 남기고, 빈 폴더는 git 이 보지 않는다.
   - adaptive 파일을 이미 커밋했다면 지우지 말고 그 파일도 `git checkout --` 로 되돌린다.
 - 킷 새 판을 받을 때 앱 아이콘 파일은 내 파일이다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 16행대로 충돌이 나면 `git checkout --ours -- <파일>` 로 내 파일을 남긴다.
