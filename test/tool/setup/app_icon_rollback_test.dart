@@ -392,4 +392,58 @@ void main() {
     expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(session.isAppIconRebuildRequested, isTrue);
   });
+
+  // iOS 1024 자리를 '/dev/null' 링크로 두면 쓰기는 성공하고 다시 읽기만 빈 바이트가
+  // 되는 자리가 생긴다 — 링크 꼴이라 macOS · Linux 에서만 돈다.
+  test('T-28-SAFE-05: 킷 기본 저장소 · iOS 1024 자리 = /dev/null 링크 → 쓰기 성공 · '
+      '다시 읽기 실패 → 20장 = HEAD · 새 adaptive 파일 0 · 링크 그대로 · 표식 · 콘솔 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final linkPath = '${box.root}/$ios1024Path';
+    box.repoFile(ios1024Path).deleteSync();
+    Link(linkPath).createSync('/dev/null');
+    // 빈 바이트의 sha256 — 링크가 가리키는 /dev/null 을 킷 기본으로 본다.
+    kit[ios1024Path] =
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+    commitGitFixture(box.root, 'kit default icons with null link');
+    final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
+    final String source = box.writeSource('logo.png', sourceBytes);
+    final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+      ..registerSource(source, sourceBytes);
+
+    final int code = await run.run();
+
+    expect(code, wizardExitStopped);
+    final Iterable<String> rolledBack = run.lines.where(
+      (String line) => line.startsWith(rolledBackLineHead),
+    );
+    expect(rolledBack, hasLength(1));
+    expect(rolledBack.single, contains('다시 읽은'));
+    expect(rolledBack.single, contains(ios1024Path));
+    final ProcessResult diff = box.git(<String>[
+      'diff',
+      '--quiet',
+      'HEAD',
+      '--',
+      for (final HomeIconFile file in homeIconFiles) file.relativePath,
+    ]);
+    expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
+    for (final String path in listAdaptiveFilePaths()) {
+      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+    }
+    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(
+      box.repoFile(findIconSpec('kakao')!.relativePath).existsSync(),
+      isFalse,
+    );
+    expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
+    expect(box.readStatus(), isEmpty);
+    expect(run.countCheckouts(), 1);
+    expect(
+      run.fake.calls.where(
+        (FakeCall call) => call.key.startsWith('/usr/bin/open '),
+      ),
+      isEmpty,
+    );
+    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
+  }, testOn: 'mac-os || linux');
 }
