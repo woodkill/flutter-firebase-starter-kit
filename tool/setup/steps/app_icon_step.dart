@@ -39,6 +39,9 @@ enum _IconMode {
   /// 원본을 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
   full,
 
+  /// 원본을 묻지 않고 iOS 1024 에서 콘솔 아이콘만 다시 만든다.
+  consoleOnly,
+
   /// 지금은 만들지 않는다(판정이 덮어쓰기를 막음 · 폴더 자리가 파일).
   deferred,
 
@@ -176,6 +179,32 @@ final class AppIconStep implements DeferrableStep {
 
   /// 결과 표 제목.
   static const String summaryTitle = '만든 앱 아이콘';
+
+  /// 투명한 원본일 때 배경색 질문 전에 보이는 안내.
+  static const String backgroundGuide =
+      '원본에 투명하거나 반투명한 픽셀이 있어 그 자리를 채울 색을 정합니다 — '
+      '홈 화면 · 콘솔 아이콘과 Android adaptive 배경이 같은 색이 됩니다';
+
+  /// 배경색 질문.
+  static const String backgroundQuestion = '배경색 (#RRGGBB)';
+
+  /// 배경색 꼴이 맞지 않을 때의 까닭.
+  static const String backgroundFormatReason =
+      '배경색은 #RRGGBB 꼴의 16진 6자리입니다 (예: #1A2B3C)';
+
+  /// 이미 있던 콘솔 아이콘을 바꿨을 때의 결과 표 노트.
+  static const String reuploadNote = '콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
+
+  static final RegExp _hexColorPattern = RegExp(r'^#?([0-9a-fA-F]{6})$');
+
+  /// 배경색 답 [answer] 를 `0xRRGGBB` 로 읽는다 — 꼴이 맞지 않으면 null.
+  ///
+  /// 앞뒤 공백은 무시하고 `#` 는 있어도 없어도 된다. 16진 6자리만 받고 대소문자는
+  /// 가리지 않는다 — 3자리 줄임 꼴은 받지 않는다.
+  static int? parseBackgroundColor(String answer) {
+    final String? hex = _hexColorPattern.firstMatch(answer.trim())?.group(1);
+    return hex == null ? null : int.parse(hex, radix: 16);
+  }
 
   /// 결과 표 끝의 올리는 법 안내를 만든다 — [iconsPath] 는 아이콘 폴더의 절대
   /// 경로이고 `~` 로 줄이지 않는다.
@@ -360,7 +389,11 @@ final class AppIconStep implements DeferrableStep {
     }
     if (context.session.isAppIconRebuildRequested) {
       _mode = _IconMode.full;
-      return const Todo(kitDefaultReason);
+      return Todo(
+        targets.isEmpty
+            ? '새 원본 이미지로 홈 화면 아이콘을 다시 만듭니다'
+            : '새 원본 이미지로 홈 화면 아이콘과 콘솔 아이콘을 다시 만듭니다',
+      );
     }
     switch (classifyHomeIcons(context.projectRoot, _kitDigests)) {
       case HomeIconState.kitDefault:
@@ -368,31 +401,69 @@ final class AppIconStep implements DeferrableStep {
         return const Todo(kitDefaultReason);
       case HomeIconState.mine:
         return _checkMine(context);
-      case HomeIconState.mixed || HomeIconState.missing:
-        return const Deferred('홈 화면 아이콘을 덮어쓰지 않습니다 — 다시 만들려면: $rebuildCommand');
+      case HomeIconState.mixed:
+        return const Deferred(
+          '홈 화면 아이콘 일부만 킷 기본입니다 — 덮어쓰지 않습니다 · '
+          '다시 만들려면: $rebuildCommand',
+        );
+      case HomeIconState.missing:
+        return Deferred(
+          '홈 화면 아이콘 파일이 없습니다(${_countUnreadableHomeIcons(context)}개) '
+          '— 다시 만들려면: $rebuildCommand',
+        );
     }
   }
 
-  /// 「내 아이콘」 의 콘솔 아이콘 상태를 판정한다.
+  /// 「내 아이콘」 의 iOS 1024 알파와 콘솔 아이콘 상태를 판정한다.
+  ///
+  /// iOS 1024 를 읽지 못하거나 알파가 있으면 덮어쓰지 않는 남은 일이다. 켠 대상이
+  /// 없으면 표식을 보지 않고 끝난 것이다. 표식이 지금 iOS 1024 지문과 같고 켠
+  /// 대상 파일이 모두 있으면 끝났고, 아니면 콘솔 아이콘만 다시 만든다.
   CheckResult _checkMine(WizardContext context) {
+    final Uint8List ios1024 = File(
+      context.resolve(ios1024Path),
+    ).readAsBytesSync();
+    final bool? hasAlpha = readPngHasAlpha(ios1024);
+    if (hasAlpha == null) {
+      return const Deferred(
+        'iOS 1024 아이콘을 PNG 로 읽지 못했습니다 — 다시 만들려면: $rebuildCommand',
+      );
+    }
+    if (hasAlpha) {
+      return const Deferred(
+        'iOS 1024 아이콘에 알파 채널이 있습니다 — App Store 업로드가 거절될 수 '
+        '있습니다 · 다시 만들려면: $rebuildCommand',
+      );
+    }
     if (targets.isEmpty) {
       _mode = _IconMode.done;
       return const Done('내 아이콘 · $replaceHint');
     }
-    final Uint8List ios1024 = File(
-      context.resolve(ios1024Path),
-    ).readAsBytesSync();
     final isMarkerCurrent =
         _readMarker(context) == sha256.convert(ios1024).toString();
-    if (isMarkerCurrent && _findMissingTargets(context).isEmpty) {
+    final List<IconSpec> missing = _findMissingTargets(context);
+    if (isMarkerCurrent && missing.isEmpty) {
       _mode = _IconMode.done;
       return Done(
         '내 아이콘 · ${_joinNames(targets)} 콘솔용 ${targets.length}개 · '
         '$replaceHint',
       );
     }
-    return const Deferred('콘솔 아이콘이 홈 화면 아이콘과 다릅니다 — 다시 만들려면: $rebuildCommand');
+    _mode = _IconMode.consoleOnly;
+    final bool hasExistingIcon = missing.length < targets.length;
+    return Todo(
+      '${_joinNames(targets)} 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 만듭니다'
+      '${hasExistingIcon ? ' — 만든 뒤 콘솔에 다시 올리세요' : ''}',
+    );
   }
+
+  /// 홈 화면 아이콘 가운데 없거나 읽을 수 없는 파일 수.
+  int _countUnreadableHomeIcons(WizardContext context) => homeIconFiles
+      .where(
+        (HomeIconFile file) =>
+            !File(context.resolve(file.relativePath)).existsSync(),
+      )
+      .length;
 
   /// 표식 파일 한 줄을 읽는다 — 없거나 읽지 못하면 null.
   String? _readMarker(WizardContext context) {
@@ -425,6 +496,14 @@ final class AppIconStep implements DeferrableStep {
       ).render(),
       if (targets.isNotEmpty) buildOpenCommand(context.projectRoot).render(),
     ],
+    _IconMode.consoleOnly => <String>[
+      buildConvertCommand(
+        context.resolve(ios1024Path),
+        context.resolve('$iconWorkDirectory/source.png'),
+        display: ios1024Path,
+      ).render(),
+      buildOpenCommand(context.projectRoot).render(),
+    ],
     _IconMode.deferred || _IconMode.done => const <String>[],
   };
 
@@ -451,6 +530,7 @@ final class AppIconStep implements DeferrableStep {
     try {
       return switch (_mode) {
         _IconMode.full => await _applyFull(context),
+        _IconMode.consoleOnly => await _applyConsoleOnly(context),
         _IconMode.deferred || _IconMode.done => const Applied(),
       };
     } on GitTreeException catch (e) {
@@ -482,9 +562,62 @@ final class AppIconStep implements DeferrableStep {
       display: describePath(context, source),
     );
     if (bytes == null) return outcome ?? const Declined();
-    final _Rendered rendered = _renderAll(bytes);
+    final _Rendered rendered = _renderAll(context, bytes);
     if (rendered.outcome case final StepOutcome stop) return stop;
     return await _writeAll(context, rendered.files, includesHomeIcons: true);
+  }
+
+  /// 원본을 묻지 않고 저장소의 iOS 1024 에서 켠 대상의 콘솔 아이콘만 다시
+  /// 만든다.
+  ///
+  /// gitignored 파일만 쓰므로 미커밋 검사를 하지 않는다.
+  Future<StepOutcome> _applyConsoleOnly(WizardContext context) async {
+    final (:Uint8List? bytes, :StepOutcome? outcome) = await _convertSource(
+      context,
+      context.resolve(ios1024Path),
+      display: ios1024Path,
+    );
+    if (bytes == null) return outcome ?? const Declined();
+    final decoded = decodeIconPng(bytes);
+    if (decoded == null) return const Failed(unreadableConvertedReason);
+    final normalized = normalizeIcon(decoded);
+    if (normalized.width != filledIconSide ||
+        normalized.height != filledIconSide) {
+      return Failed(
+        'iOS 1024 아이콘이 ${filledIconSide}x$filledIconSide 가 아닙니다 — 지금 '
+        '${normalized.width}x${normalized.height} · 다시 만들려면: '
+        '$rebuildCommand',
+      );
+    }
+    final filled = buildFilledIcon(
+      normalized,
+      backgroundRgb: defaultBackgroundRgb,
+    );
+    return await _writeAll(
+      context,
+      _planConsoleFiles((int side) => encodeSquareIcon(filled, side)),
+      includesHomeIcons: false,
+    );
+  }
+
+  /// 투명한 원본을 채울 배경색을 묻는다 — 고른 `0xRRGGBB` 또는 거절.
+  ///
+  /// 빈 값은 흰색이다. 꼴이 맞지 않으면 까닭 한 줄 뒤 다시 묻고
+  /// [maxSourceAttempts] 번 틀리거나 입력이 끝나면 거절이다.
+  int? _askBackgroundColor(WizardContext context) {
+    context.terminal.writeLine('  $backgroundGuide');
+    for (var attempt = 0; attempt < maxSourceAttempts; attempt++) {
+      final String? answer = context.terminal.ask(
+        backgroundQuestion,
+        defaultValue: '#FFFFFF',
+      );
+      if (answer == null) return null;
+      if (answer.trim().isEmpty) return defaultBackgroundRgb;
+      final int? rgb = parseBackgroundColor(answer);
+      if (rgb != null) return rgb;
+      context.terminal.writeLine('  $backgroundFormatReason');
+    }
+    return null;
   }
 
   /// 원본 경로를 묻고 검사한다.
@@ -587,7 +720,11 @@ final class AppIconStep implements DeferrableStep {
   }
 
   /// 바꾼 원본 [converted] 에서 홈 화면 · adaptive · 콘솔 파일을 모두 계산한다.
-  _Rendered _renderAll(Uint8List converted) {
+  ///
+  /// 투명 · 반투명 픽셀이 없으면 묻지 않고 알파만 없앤 그림이 전경 재료다. 있으면
+  /// 배경색을 한 번 물어 그 색으로 채우고, 전경은 알파를 남긴 로고, adaptive
+  /// 배경은 같은 색이다.
+  _Rendered _renderAll(WizardContext context, Uint8List converted) {
     final decoded = decodeIconPng(converted);
     if (decoded == null) {
       return (
@@ -596,17 +733,28 @@ final class AppIconStep implements DeferrableStep {
       );
     }
     final normalized = normalizeIcon(decoded);
+    final bool isTransparent = countTransparentPixels(normalized) > 0;
+    final int? chosenRgb = isTransparent ? _askBackgroundColor(context) : null;
+    if (isTransparent && chosenRgb == null) {
+      return (files: const <_PlannedFile>[], outcome: const Declined());
+    }
     final filled = buildFilledIcon(
       normalized,
-      backgroundRgb: defaultBackgroundRgb,
+      backgroundRgb: chosenRgb ?? defaultBackgroundRgb,
     );
+    final foregroundLayer = isTransparent ? buildLogoLayer(normalized) : filled;
+    final num foregroundDp = isTransparent
+        ? logoForegroundDp
+        : paintedForegroundDp;
     final squares = <int, Uint8List>{};
     Uint8List encodeSide(int side) =>
         squares.putIfAbsent(side, () => encodeSquareIcon(filled, side));
-    final int adaptiveBackground = switch (paintedBackground) {
-      PaintedBackground.edge => averageEdgeRgb(filled),
-      PaintedBackground.white => defaultBackgroundRgb,
-    };
+    final int adaptiveBackground =
+        chosenRgb ??
+        switch (paintedBackground) {
+          PaintedBackground.edge => averageEdgeRgb(filled),
+          PaintedBackground.white => defaultBackgroundRgb,
+        };
     return (
       files: <_PlannedFile>[
         for (final HomeIconFile file in homeIconFiles)
@@ -620,9 +768,9 @@ final class AppIconStep implements DeferrableStep {
           _PlannedFile(
             density.foregroundPath,
             encodeAdaptiveForeground(
-              filled,
+              foregroundLayer,
               canvasSide: density.canvasSide,
-              logoDp: paintedForegroundDp,
+              logoDp: foregroundDp,
             ),
             side: density.canvasSide,
             colorType: 6,
@@ -665,6 +813,9 @@ final class AppIconStep implements DeferrableStep {
       final String? problem = _findOutputProblem(file);
       if (problem != null) return Failed(problem);
     }
+    final bool hasReplacedConsoleIcon = targets.any(
+      (IconSpec spec) => File(context.resolve(spec.relativePath)).existsSync(),
+    );
     for (final file in files) {
       File(context.resolve(file.relativePath))
         ..parent.createSync(recursive: true)
@@ -706,6 +857,7 @@ final class AppIconStep implements DeferrableStep {
       notes: <String>[
         for (final IconSpec spec in targets)
           if (buildIconNote(spec) case final String note) note,
+        if (hasReplacedConsoleIcon) reuploadNote,
         if (targets.isNotEmpty)
           buildUploadGuide(context.resolve(iconsDirectory)),
       ],

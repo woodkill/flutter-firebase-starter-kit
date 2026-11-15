@@ -8,9 +8,6 @@ import '../wizard.dart';
 /// `.setup/` 은 gitignored 이고 `flutter clean` 에도 지워지지 않는다.
 const String iconsDirectory = '.setup/icons';
 
-/// 원본 사본의 이름 앞부분 — 사본 이름은 `source.<sips 형식>` 이다.
-const String sourceCopyBaseName = 'source';
-
 /// 원본 이미지 한 변의 하한(px) — 가장 큰 대상 규격에 맞춘다.
 const int minSourceSide = 1024;
 
@@ -18,7 +15,10 @@ const int minSourceSide = 1024;
 const int maxSourceSide = 16384;
 
 /// 아이콘 파일이 아직 없을 때 값 표에 보일 문장.
-const String missingIconValue = '(아직 없음 — 다시 실행하면 앱 아이콘 단계가 원본 이미지를 묻습니다)';
+///
+/// 홈 화면 아이콘이 킷 기본이면 앱 아이콘 단계가 원본을 묻고, 「내 아이콘」 이면
+/// 묻지 않고 iOS 1024 아이콘에서 만든다 — 두 경우에 같은 문장이 맞는다.
+const String missingIconValue = '(아직 없음 — 다시 실행하면 앱 아이콘 단계가 만듭니다)';
 
 /// provider 콘솔이 아이콘을 요구하는 정도.
 enum IconRequirement {

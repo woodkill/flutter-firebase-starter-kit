@@ -80,6 +80,28 @@ int findPaintedBackgroundRgb(img.Image filled) => switch (paintedBackground) {
   PaintedBackground.white => defaultBackgroundRgb,
 };
 
+/// 배경색 질문.
+const String backgroundQuestionText = '배경색 (#RRGGBB)';
+
+/// 배경색 형식이 틀렸을 때의 한 줄.
+const String backgroundFormatLine = '  배경색은 #RRGGBB 꼴의 16진 6자리입니다 (예: #1A2B3C)';
+
+/// 콘솔 아이콘을 바꿨을 때의 결과 표 노트 줄.
+const String reuploadNoteLine = '  · 콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
+
+/// 「내 아이콘」 · Kakao 콘솔 아이콘이 있는 ✓ 줄.
+const String mineKakaoDoneLine =
+    '  ✓ 앱 아이콘 — 내 아이콘 · Kakao 콘솔용 1개 · 바꾸려면: ./setup.sh --app-icon';
+
+/// [root] 에 「내 아이콘」 20장 · 표식 · Kakao 콘솔 아이콘을 둔다(끝난 상태).
+void writeFinishedMine(String root) {
+  writeMyHomeIcons(root);
+  writeHomeIconMarker(root);
+  File('$root/${findIconSpec('kakao')!.relativePath}')
+    ..createSync(recursive: true)
+    ..writeAsBytesSync(const <int>[1, 2, 3]);
+}
+
 /// 임시 저장소 · 임시 홈 한 쌍.
 final class _Sandbox {
   _Sandbox() : base = Directory.systemTemp.createTempSync('app_icon_step_') {
@@ -125,6 +147,7 @@ final class _Harness {
   _Harness(
     this.box,
     List<String?> inputs, {
+    this.enabled = const <String>{'kakao'},
     this.kitDigests,
     WizardSession? session,
   }) : screen = ScriptedTerminal(inputs),
@@ -133,7 +156,7 @@ final class _Harness {
   final _Sandbox box;
 
   /// 켠 로그인 수단.
-  final Set<String> enabled = const <String>{'kakao'};
+  final Set<String> enabled;
 
   /// 단계에 주입할 킷 기본 지문 — 없으면 킷이 담은 지문.
   final Map<String, String>? kitDigests;
@@ -328,6 +351,461 @@ void main() {
       expect(box.repoFile(path).existsSync(), isFalse, reason: path);
     }
     expect(Directory(box.iconsPath).existsSync(), isFalse);
+  });
+
+  group('T-28-ICON-03: 투명 원본 → 배경색 한 번 · 로고 전경 · 같은 배경색', () {
+    late Map<String, String> kit;
+    late Uint8List logo;
+    late String source;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      logo = buildTransparentLogoPng();
+      source = box.writeHomeFile('logo.png', logo);
+    });
+
+    _Harness buildRun(List<String?> answers) {
+      final h = _Harness(box, <String?>[
+        '1',
+        source,
+        ...answers,
+      ], kitDigests: kit)..registerDirty();
+      return h
+        ..registerProbe(source)
+        ..registerConvert(source, logo)
+        ..registerOpen();
+    }
+
+    test('Enter 면 흰색 · 로고 전경 · adaptive 배경 흰색 · iOS 1024 알파 없음', () async {
+      final _Harness h = buildRun(<String?>['']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.screen.asks.where((String q) => q == backgroundQuestionText),
+        hasLength(1),
+      );
+      final img.Image normalized = normalizeIcon(decodeIconPng(logo)!);
+      final img.Image filled = buildFilledIcon(
+        normalized,
+        backgroundRgb: 0xFFFFFF,
+      );
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      expect(ios1024, encodeSquareIcon(filled, 1024));
+      expect(readPngHeader(ios1024)?.colorType, 2);
+      expect(
+        box.repoFile(adaptiveDensities.last.foregroundPath).readAsBytesSync(),
+        encodeAdaptiveForeground(
+          buildLogoLayer(normalized),
+          canvasSide: 432,
+          logoDp: logoForegroundDp,
+        ),
+      );
+      expect(
+        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        buildAdaptiveBackgroundXml(0xFFFFFF),
+      );
+      expect(h.output, contains(mineKakaoDoneLine));
+    });
+
+    test('틀린 꼴은 까닭 뒤 다시 묻고 #1a2b3c 는 #1A2B3C 로 합성한다', () async {
+      final _Harness h = buildRun(<String?>['zz', '#abc', ' #1a2b3c ']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.screen.asks.where((String q) => q == backgroundQuestionText),
+        hasLength(3),
+      );
+      expect(
+        h.lines.where((String l) => l == backgroundFormatLine),
+        hasLength(2),
+      );
+      final img.Image filled = buildFilledIcon(
+        normalizeIcon(decodeIconPng(logo)!),
+        backgroundRgb: 0x1A2B3C,
+      );
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      expect(ios1024, encodeSquareIcon(filled, 1024));
+      final img.Pixel corner = decodeIconPng(ios1024)!.getPixel(0, 0);
+      expect(<num>[corner.r, corner.g, corner.b], <num>[0x1A, 0x2B, 0x3C]);
+      expect(
+        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        contains('<color name="ic_launcher_background">#1A2B3C</color>'),
+      );
+    });
+
+    test('세 번 틀리면 멈추고 아무것도 쓰지 않는다', () async {
+      final Map<String, List<int>> before = box.readHomeIcons();
+      final _Harness h = buildRun(<String?>['x', 'y', 'z']);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitStopped);
+      expect(box.readHomeIcons(), before);
+      expect(box.repoFile(adaptiveBackgroundPath).existsSync(), isFalse);
+      expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
+    });
+  });
+
+  test('T-28-ICON-04: 20장이 모두 킷 지문과 같으면 원본을 묻는 할 일', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    expect(
+      AppIconStep.classifyHomeIcons(box.root, kit),
+      HomeIconState.kitDefault,
+    );
+    final h = _Harness(box, <String?>['2'], kitDigests: kit);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone);
+    expect(
+      h.lines.where(
+        (String l) => l == '  ✗ 앱 아이콘 — 킷 기본 아이콘입니다 — 원본 이미지를 묻습니다',
+      ),
+      hasLength(1),
+    );
+    expect(h.lines, contains('  킷 기본 아이콘입니다 — 원본 이미지를 묻습니다'));
+    expect(h.lines, contains('▶ 앱 아이콘'));
+    expect(h.runner.calls, isEmpty);
+  });
+
+  group('T-28-ICON-05: 일부만 킷 지문 → 섞인 상태 · 모두 다르면 내 아이콘', () {
+    test('한 장만 1바이트 바뀌면 덮어쓰지 않는 남은 일', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      final String changed = homeIconFiles[3].relativePath;
+      box.repoFile(changed).writeAsBytesSync(<int>[
+        ...box.repoFile(changed).readAsBytesSync(),
+        0,
+      ]);
+      final Map<String, List<int>> before = box.readHomeIcons();
+      expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.mixed);
+      final h = _Harness(box, const <String?>[], kitDigests: kit);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — 홈 화면 아이콘 일부만 킷 기본입니다 — 덮어쓰지 않습니다 · '
+          '다시 만들려면: ./setup.sh --app-icon',
+        ),
+      );
+      expect(h.screen.asks, isEmpty);
+      expect(h.runner.calls, isEmpty);
+      expect(box.readHomeIcons(), before);
+    });
+
+    test('모두 다르면 내 아이콘', () {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(
+        '${box.base.path}/kit',
+      );
+      writeMyHomeIcons(box.root);
+      expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.mine);
+    });
+  });
+
+  test('T-28-ICON-06: 한 장 없음 → 없음 상태 · 쓰기 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    box.repoFile(homeIconFiles.last.relativePath).deleteSync();
+    final left = <String, String>{
+      for (final HomeIconFile file in homeIconFiles.take(19))
+        file.relativePath: digestOf(
+          box.repoFile(file.relativePath).readAsBytesSync(),
+        ),
+    };
+    expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.missing);
+    final h = _Harness(box, const <String?>[], kitDigests: kit);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone);
+    expect(
+      h.lines,
+      contains(
+        '  ✗ 앱 아이콘 — 홈 화면 아이콘 파일이 없습니다(1개) — 다시 만들려면: '
+        './setup.sh --app-icon',
+      ),
+    );
+    expect(h.runner.calls, isEmpty);
+    for (final MapEntry<String, String> entry in left.entries) {
+      expect(digestOf(box.repoFile(entry.key).readAsBytesSync()), entry.value);
+    }
+    expect(box.repoFile(homeIconFiles.last.relativePath).existsSync(), isFalse);
+    expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+  });
+
+  group('T-28-ICON-07: 내 아이콘의 iOS 1024 알파 · 읽을 수 없음 → 남은 일', () {
+    test('color type 6 이면 알파 까닭과 다시 만드는 명령', () async {
+      writeMyHomeIcons(box.root);
+      box.repoFile(ios1024Path).writeAsBytesSync(buildOpaqueRgbaIconPng());
+      writeHomeIconMarker(box.root);
+      final h = _Harness(box, const <String?>[]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — iOS 1024 아이콘에 알파 채널이 있습니다 — App Store '
+          '업로드가 거절될 수 있습니다 · 다시 만들려면: ./setup.sh --app-icon',
+        ),
+      );
+      expect(h.screen.asks, isEmpty);
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('PNG 로 읽히지 않으면 읽을 수 없음', () async {
+      writeMyHomeIcons(box.root);
+      box.repoFile(ios1024Path).writeAsStringSync('not a png');
+      final h = _Harness(box, const <String?>[]);
+
+      final int code = await h.run();
+
+      expect(code, wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — iOS 1024 아이콘을 PNG 로 읽지 못했습니다 — 다시 만들려면: '
+          './setup.sh --app-icon',
+        ),
+      );
+      expect(h.runner.calls, isEmpty);
+    });
+  });
+
+  test('T-28-ICON-08: 내 아이콘 · 알파 없음 · 표식 일치 · 콘솔 파일 있음 → ✓', () async {
+    writeFinishedMine(box.root);
+    final h = _Harness(box, const <String?>[]);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitDone);
+    expect(h.lines.where((String l) => l == mineKakaoDoneLine), hasLength(1));
+    expect(h.screen.asks, isEmpty);
+    expect(h.runner.calls, isEmpty);
+  });
+
+  group('T-28-ICON-09: 표식이 다르거나 없거나 콘솔 파일이 없으면 콘솔만 다시', () {
+    const todoHead = '  ✗ 앱 아이콘 — Kakao 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 만듭니다';
+    const reuploadTail = ' — 만든 뒤 콘솔에 다시 올리세요';
+
+    test('표식 한 글자 다름', () async {
+      writeFinishedMine(box.root);
+      final String digest = readHomeIconDigest(box.root);
+      final flipped = digest.startsWith('0')
+          ? '1${digest.substring(1)}'
+          : '0${digest.substring(1)}';
+      box.repoFile(homeIconMarkerPath).writeAsStringSync('$flipped\n');
+      final h = _Harness(box, <String?>['2']);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains('$todoHead$reuploadTail'));
+      expect(h.runner.calls, isEmpty);
+    });
+
+    test('표식 없음', () async {
+      writeFinishedMine(box.root);
+      box.repoFile(homeIconMarkerPath).deleteSync();
+      final h = _Harness(box, <String?>['2']);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains('$todoHead$reuploadTail'));
+    });
+
+    test('켠 대상 파일 하나 없음', () async {
+      writeFinishedMine(box.root);
+      box.repoFile(findIconSpec('kakao')!.relativePath).deleteSync();
+      final h = _Harness(box, <String?>['2']);
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains(todoHead));
+    });
+  });
+
+  group('T-28-ICON-10: 콘솔만 다시 — 원본 질문 0 · git 0 · iOS 1024 에서 만든다', () {
+    Future<_Harness> runConsoleOnly({required bool hasOldIcon}) async {
+      writeMyHomeIcons(box.root);
+      final File kakaoFile = box.repoFile(findIconSpec('kakao')!.relativePath);
+      if (hasOldIcon) {
+        kakaoFile
+          ..createSync(recursive: true)
+          ..writeAsBytesSync(const <int>[9, 9, 9]);
+      }
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final h = _Harness(box, <String?>['1'])
+        ..registerConvert('${box.root}/$ios1024Path', ios1024)
+        ..registerOpen();
+      expect(await h.run(), wizardExitDone);
+      return h;
+    }
+
+    test('기존 콘솔 파일이 있으면 다시 올리라는 노트', () async {
+      final before = <String, List<int>>{};
+      final h = await runConsoleOnly(hasOldIcon: true);
+      before.addAll(box.readHomeIcons());
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+
+      expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+      expect(
+        h.runner.calls.where((FakeCall c) => c.key.startsWith('git ')),
+        isEmpty,
+      );
+      expect(
+        h.runner.countCalls(
+          RunMode.capture,
+          buildConvertKey(box.root, '${box.root}/$ios1024Path'),
+        ),
+        1,
+      );
+      expect(
+        box.repoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
+        encodeSquareIcon(buildExpectedFilled(ios1024), 128),
+      );
+      expect(h.lines, contains(reuploadNoteLine));
+      expect(
+        box.repoFile(homeIconMarkerPath).readAsStringSync().trim(),
+        digestOf(ios1024),
+      );
+      expect(ios1024, buildOpaqueRgbIconPng());
+      expect(before[homeIconFiles[1].relativePath], isNot(isEmpty));
+      expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+      expect(h.lines, contains(mineKakaoDoneLine));
+      expect(h.countOpenCalls(), 1);
+    });
+
+    test('기존 콘솔 파일이 없으면 노트 없음 · 홈 화면 바이트 그대로', () async {
+      final other = _Sandbox();
+      addTearDown(other.dispose);
+      writeMyHomeIcons(other.root);
+      final Map<String, List<int>> expected = other.readHomeIcons();
+      final h = await runConsoleOnly(hasOldIcon: false);
+
+      expect(h.lines, isNot(contains(reuploadNoteLine)));
+      expect(box.readHomeIcons(), expected);
+      expect(h.lines, contains(mineKakaoDoneLine));
+    });
+  });
+
+  group('T-28-ICON-11: 콘솔 칸 수단 0', () {
+    test('킷 기본이면 홈 화면만 만들고 아이콘 폴더 · Finder 0', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
+      final String source = box.writeHomeFile('icon.png', sourceBytes);
+      final h = _Harness(
+        box,
+        <String?>['1', source],
+        enabled: const <String>{'apple'},
+        kitDigests: kit,
+      )..registerDirty();
+      h
+        ..registerProbe(source)
+        ..registerConvert(source, sourceBytes);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+        encodeSquareIcon(buildExpectedFilled(sourceBytes), 1024),
+      );
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+      expect(h.countOpenCalls(), 0);
+      expect(
+        h.lines,
+        contains('  ✓ 앱 아이콘 — 내 아이콘 · 바꾸려면: ./setup.sh --app-icon'),
+      );
+    });
+
+    test('내 아이콘이면 표식 없이도 ✓', () async {
+      writeMyHomeIcons(box.root);
+      final h = _Harness(box, const <String?>[], enabled: const <String>{});
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains('  ✓ 앱 아이콘 — 내 아이콘 · 바꾸려면: ./setup.sh --app-icon'),
+      );
+      expect(h.runner.calls, isEmpty);
+      expect(Directory(box.iconsPath).existsSync(), isFalse);
+    });
+  });
+
+  test('T-28-ICON-12: 킷 기본 + 기존 콘솔 파일 + 지금 안 함 → 바이트 그대로', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final File kakaoFile = box.repoFile(findIconSpec('kakao')!.relativePath)
+      ..createSync(recursive: true)
+      ..writeAsBytesSync(const <int>[7, 7, 7]);
+    final Map<String, List<int>> before = box.readHomeIcons();
+    final h = _Harness(box, <String?>['2'], kitDigests: kit);
+
+    expect(await h.run(), wizardExitDone);
+    expect(kakaoFile.readAsBytesSync(), const <int>[7, 7, 7]);
+    expect(box.readHomeIcons(), before);
+    expect(h.lines, contains('  ✗ 앱 아이콘 — 지금 안 함'));
+    expect(h.runner.calls, isEmpty);
+  });
+
+  group('T-28-ICON-13: 다시 만들기 요청(세션 플래그)', () {
+    test('내 아이콘이어도 새 원본을 묻고 성공하면 끈다', () async {
+      writeFinishedMine(box.root);
+      final Uint8List sourceBytes = buildOpaqueRgbaIconPng(side: 1200);
+      final String source = box.writeHomeFile('new.png', sourceBytes);
+      final session = WizardSession()..isAppIconRebuildRequested = true;
+      final h = _Harness(box, <String?>['1', source], session: session)
+        ..registerDirty();
+      h
+        ..registerProbe(source, side: 1200)
+        ..registerConvert(source, sourceBytes)
+        ..registerOpen();
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains('  ✗ 앱 아이콘 — 새 원본 이미지로 홈 화면 아이콘과 콘솔 아이콘을 다시 만듭니다'),
+      );
+      expect(session.isAppIconRebuildRequested, isFalse);
+      expect(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+        encodeSquareIcon(buildExpectedFilled(sourceBytes), 1024),
+      );
+      expect(h.lines, contains(reuploadNoteLine));
+      expect(h.lines, contains(mineKakaoDoneLine));
+    });
+
+    test('섞인 상태여도 할 일', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      box.repoFile(ios1024Path).writeAsStringSync('changed');
+      expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.mixed);
+      final session = WizardSession()..isAppIconRebuildRequested = true;
+      final h = _Harness(
+        box,
+        <String?>['2'],
+        enabled: const <String>{},
+        kitDigests: kit,
+        session: session,
+      );
+
+      expect(await h.run(), wizardExitDone);
+      expect(h.lines, contains('  ✗ 앱 아이콘 — 새 원본 이미지로 홈 화면 아이콘을 다시 만듭니다'));
+      expect(session.isAppIconRebuildRequested, isTrue);
+    });
+  });
+
+  test('T-28-ICON-14: 기다리는 단계 — 기본 providers · 빈 목록도 받는다', () {
+    expect(
+      AppIconStep(enabledProviders: const <String>{'kakao'}).dependsOn,
+      <String>['providers'],
+    );
+    expect(
+      AppIconStep(
+        enabledProviders: const <String>{'kakao'},
+        dependsOn: const <String>[],
+      ).dependsOn,
+      isEmpty,
+    );
   });
 
   group('명령 · 파서 · 원본 규격', () {

@@ -165,6 +165,8 @@ void main() {
       final SummaryRow missingRow = buildIconRow(context, spec);
       expect(missingRow.label, spec.rowLabel);
       expect(missingRow.value, missingIconValue);
+      // 홈 화면이 「내 아이콘」 이면 원본을 묻지 않고 iOS 1024 에서 만든다.
+      expect(missingIconValue, isNot(contains('원본 이미지를 묻습니다')));
 
       File('${root.path}/${spec.relativePath}')
         ..createSync(recursive: true)
