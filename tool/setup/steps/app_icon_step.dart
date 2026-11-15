@@ -204,8 +204,17 @@ final class AppIconStep implements DeferrableStep {
   static const String backgroundFormatReason =
       '배경색은 #RRGGBB 꼴의 16진 6자리입니다 (예: #1A2B3C)';
 
-  /// 이미 있던 콘솔 아이콘을 바꿨을 때의 결과 표 노트.
+  /// 이미 있던 콘솔 아이콘의 바이트가 바뀌었을 때의 결과 표 노트(앞에 바뀐 수단
+  /// 이름).
   static const String reuploadNote = '콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
+
+  /// 표식이 지금 지문과 다른 기존 콘솔 파일이 있을 때 할 일 줄의 꼬리.
+  static const String reuploadTail = ' — 만든 뒤 콘솔에 다시 올리세요';
+
+  /// 표식에 그 수단 줄이 없는 기존 콘솔 파일만 있을 때 할 일 줄의 꼬리 — 만든
+  /// 바이트가 같을 수 있어 다시 올리라고 약속하지 않는다.
+  static const String conditionalReuploadTail =
+      ' — 바뀐 아이콘이 있으면 만든 뒤 다시 올리라고 알립니다';
 
   /// 같은 이름의 Android 아이콘 리소스가 이미 있을 때의 까닭(뒤에 경로 줄).
   static const String conflictReason =
@@ -575,7 +584,8 @@ final class AppIconStep implements DeferrableStep {
   /// iOS 1024 를 읽지 못하거나 알파가 있으면 덮어쓰지 않는 남은 일이다. 켠 대상이
   /// 없으면 표식을 보지 않고 끝난 것이다. 켠 대상마다 파일이 있고 표식의 그 수단
   /// 줄이 지금 iOS 1024 지문이면 끝났고, 하나라도 아니면 콘솔 아이콘만 다시
-  /// 만든다.
+  /// 만든다. 그때 할 일 줄의 꼬리는 [_buildReuploadTail] 이 정한다 — sips 를
+  /// 부르지 않으므로 만들 바이트는 모른다.
   CheckResult _checkMine(WizardContext context) {
     final Uint8List ios1024 = File(
       context.resolve(ios1024Path),
@@ -610,11 +620,38 @@ final class AppIconStep implements DeferrableStep {
       );
     }
     _mode = _IconMode.consoleOnly;
-    final bool hasExistingIcon = missing.length < targets.length;
     return Todo(
       '${_joinNames(targets)} 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 만듭니다'
-      '${hasExistingIcon ? ' — 만든 뒤 콘솔에 다시 올리세요' : ''}',
+      '${_buildReuploadTail(context, made, digest)}',
     );
+  }
+
+  /// 콘솔만 다시 만드는 할 일 줄의 꼬리를 정한다 — [made] 는 표식의 수단 token →
+  /// 지문 표, [digest] 는 지금 iOS 1024 지문이다.
+  ///
+  /// 기존 파일 가운데 표식 줄이 다른 지문인 것이 있으면 [reuploadTail], 표식 줄이
+  /// 없는 것만 있으면 [conditionalReuploadTail], 기존 파일이 없거나 모두 지금
+  /// 지문이면 빈 꼬리다. 실제로 다시 올리라는 노트는 만든 뒤 바이트를 비교해
+  /// 바뀐 수단에만 보인다.
+  String _buildReuploadTail(
+    WizardContext context,
+    Map<String, String> made,
+    String digest,
+  ) {
+    final existing = <IconSpec>[
+      for (final IconSpec spec in targets)
+        if (File(context.resolve(spec.relativePath)).existsSync()) spec,
+    ];
+    if (existing.any(
+      (IconSpec spec) =>
+          made.containsKey(spec.token) && made[spec.token] != digest,
+    )) {
+      return reuploadTail;
+    }
+    if (existing.any((IconSpec spec) => !made.containsKey(spec.token))) {
+      return conditionalReuploadTail;
+    }
+    return '';
   }
 
   /// 홈 화면 아이콘 가운데 없거나 읽을 수 없는 파일 수.
@@ -971,7 +1008,8 @@ final class AppIconStep implements DeferrableStep {
 
   /// [files] 를 메모리에서 확인한 뒤 쓰고 표식 · 결과 표 · Finder 를 잇는다.
   ///
-  /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 홈 화면 · adaptive 파일을 먼저
+  /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 쓰기 전에 기존 콘솔 파일
+  /// 바이트를 만든 바이트와 비교해 바뀐 수단에만 다시 올리라는 노트를 보인다. 홈 화면 · adaptive 파일을 먼저
   /// 쓰고 iOS 1024 를 다시 읽는다 — 그 사이 실패하면 쓰기 전으로 되돌리고 멈춘다.
   /// 그 뒤 콘솔 아이콘을 모두 쓰고 마지막에 표식의 켠 대상 줄만 지금 iOS 1024
   /// 지문으로 바꾼다 — 끈 수단 줄은 그 파일처럼 그대로 둔다. 콘솔 쪽에서
@@ -986,9 +1024,7 @@ final class AppIconStep implements DeferrableStep {
       final String? problem = _findOutputProblem(file);
       if (problem != null) return Failed(problem);
     }
-    final bool hasReplacedConsoleIcon = targets.any(
-      (IconSpec spec) => File(context.resolve(spec.relativePath)).existsSync(),
-    );
+    final List<IconSpec> replaced = _findReplacedConsoleIcons(context, files);
     final Set<String> homePaths = listWritePaths().toSet();
     if (includesHomeIcons) {
       final StepOutcome? failure = await _placeHomeIcons(
@@ -1046,7 +1082,7 @@ final class AppIconStep implements DeferrableStep {
       notes: <String>[
         for (final IconSpec spec in targets)
           if (buildIconNote(spec) case final String note) note,
-        if (hasReplacedConsoleIcon) reuploadNote,
+        if (replaced.isNotEmpty) '${_joinNames(replaced)} $reuploadNote',
         if (targets.isNotEmpty)
           buildUploadGuide(context.resolve(iconsDirectory)),
       ],
@@ -1059,6 +1095,45 @@ final class AppIconStep implements DeferrableStep {
     }
     context.session.isAppIconRebuildRequested = false;
     return const Applied();
+  }
+
+  /// 켠 대상 가운데 기존 콘솔 파일 바이트가 [files] 의 만든 바이트와 다른 것 —
+  /// 없던 파일 · 읽지 못하는 파일은 넣지 않는다.
+  List<IconSpec> _findReplacedConsoleIcons(
+    WizardContext context,
+    List<_PlannedFile> files,
+  ) {
+    final planned = <String, Uint8List>{
+      for (final file in files) file.relativePath: file.bytes,
+    };
+    return <IconSpec>[
+      for (final IconSpec spec in targets)
+        if (_readBytesOrNull(context, spec.relativePath)
+            case final Uint8List old
+            when !_isSameBytes(old, planned[spec.relativePath]))
+          spec,
+    ];
+  }
+
+  /// 저장소 상대 경로 [relativePath] 의 바이트 — 없거나 읽지 못하면 null.
+  static Uint8List? _readBytesOrNull(
+    WizardContext context,
+    String relativePath,
+  ) {
+    try {
+      return File(context.resolve(relativePath)).readAsBytesSync();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// [a] 와 [b] 의 바이트가 같은지 — [b] 가 null 이면 다르다.
+  static bool _isSameBytes(List<int> a, List<int>? b) {
+    if (b == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// 홈 화면 · adaptive 파일 [files] 를 순서대로 제자리에 쓰고 iOS 1024 를 다시

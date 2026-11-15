@@ -86,8 +86,16 @@ const String backgroundQuestionText = '배경색 (#RRGGBB)';
 /// 배경색 형식이 틀렸을 때의 한 줄.
 const String backgroundFormatLine = '  배경색은 #RRGGBB 꼴의 16진 6자리입니다 (예: #1A2B3C)';
 
-/// 콘솔 아이콘을 바꿨을 때의 결과 표 노트 줄.
-const String reuploadNoteLine = '  · 콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
+/// Kakao 콘솔 아이콘을 바꿨을 때의 결과 표 노트 줄.
+const String reuploadNoteLine = '  · Kakao 콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
+
+/// 표식에 수단 줄이 없는 기존 콘솔 파일이 있을 때 할 일 줄의 꼬리 — 바뀔지
+/// 모르므로 약속하지 않는다.
+const String conditionalReuploadTail = ' — 바뀐 아이콘이 있으면 만든 뒤 다시 올리라고 알립니다';
+
+/// 화면 줄 [lines] 가운데 다시 올리라는 결과 표 노트가 든 줄.
+Iterable<String> findReuploadNotes(List<String> lines) =>
+    lines.where((String line) => line.contains(AppIconStep.reuploadNote));
 
 /// 「내 아이콘」 · Kakao 콘솔 아이콘이 있는 ✓ 줄.
 const String mineKakaoDoneLine =
@@ -614,7 +622,7 @@ void main() {
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
-      expect(h.lines, contains('$todoHead$reuploadTail'));
+      expect(h.lines, contains('$todoHead$conditionalReuploadTail'));
     });
 
     test('켠 대상 파일 하나 없음', () async {
@@ -685,7 +693,7 @@ void main() {
       final Map<String, List<int>> expected = other.readHomeIcons();
       final h = await runConsoleOnly(hasOldIcon: false);
 
-      expect(h.lines, isNot(contains(reuploadNoteLine)));
+      expect(findReuploadNotes(h.lines), isEmpty);
       expect(box.readHomeIcons(), expected);
       expect(h.lines, contains(mineKakaoDoneLine));
     });
@@ -792,6 +800,90 @@ void main() {
         AppIconStep.formatMarker(<String, String>{'naver': b, 'kakao': a}),
         '$a kakao\n$b naver\n',
       );
+    });
+  });
+
+  group('T-28-ICON-16: 다시 올리라는 안내는 바이트가 바뀐 콘솔 아이콘에만', () {
+    /// 지금 iOS 1024 에서 만들 [token] 콘솔 아이콘 바이트.
+    Uint8List buildCurrentConsoleIcon(String token) => encodeSquareIcon(
+      buildExpectedFilled(box.repoFile(ios1024Path).readAsBytesSync()),
+      findIconSpec(token)!.side,
+    );
+
+    /// 「내 아이콘」 20장과 지금 바이트 그대로의 Kakao 콘솔 아이콘을 둔다.
+    void writeMineWithCurrentKakao() {
+      writeMyHomeIcons(box.root);
+      box.repoFile(findIconSpec('kakao')!.relativePath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(buildCurrentConsoleIcon('kakao'));
+    }
+
+    /// 콘솔만 다시 만드는 실행(「진행」)을 [enabled] 로 돌린다.
+    Future<_Harness> runConsoleOnly(Set<String> enabled) async {
+      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final h = _Harness(box, <String?>['1'], enabled: enabled)
+        ..registerConvert('${box.root}/$ios1024Path', ios1024)
+        ..registerOpen();
+      expect(await h.run(), wizardExitDone);
+      return h;
+    }
+
+    test('표식이 없고 기존 파일 바이트 = 새 바이트면 약속 없는 꼬리 · 노트 없음', () async {
+      writeMineWithCurrentKakao();
+      final List<int> before = box
+          .repoFile(findIconSpec('kakao')!.relativePath)
+          .readAsBytesSync();
+
+      final h = await runConsoleOnly(const <String>{'kakao'});
+
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — Kakao 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 만듭니다'
+          '$conditionalReuploadTail',
+        ),
+      );
+      expect(h.countSipsCalls(), 1);
+      expect(findReuploadNotes(h.lines), isEmpty);
+      expect(
+        box.repoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
+        before,
+      );
+      expect(h.lines, contains(mineKakaoDoneLine));
+    });
+
+    test('수단 하나를 더 켜면 꼬리 · 노트 없음 — 바뀌지 않은 Kakao 는 다시 올리지 '
+        '않는다', () async {
+      writeMineWithCurrentKakao();
+      writeHomeIconMarker(box.root, tokens: const <String>['kakao']);
+
+      final h = await runConsoleOnly(const <String>{'kakao', 'naver'});
+
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — Kakao · Naver 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 '
+          '만듭니다',
+        ),
+      );
+      expect(findReuploadNotes(h.lines), isEmpty);
+      expect(
+        box.repoFile(findIconSpec('naver')!.relativePath).readAsBytesSync(),
+        buildCurrentConsoleIcon('naver'),
+      );
+    });
+
+    test('바뀐 수단만 노트에 이름이 든다', () async {
+      writeMineWithCurrentKakao();
+      box.repoFile(findIconSpec('naver')!.relativePath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(const <int>[4, 5, 6]);
+
+      final h = await runConsoleOnly(const <String>{'kakao', 'naver'});
+
+      expect(findReuploadNotes(h.lines), <String>[
+        '  · Naver 콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요',
+      ]);
     });
   });
 
