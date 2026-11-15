@@ -1199,8 +1199,9 @@ int _countAsks(_Run run, String question) =>
 ///
 /// 체크 목록은 Kakao 만 고르고, App Check 까지 첫 실행과 같이 간 뒤 Kakao
 /// 단계에서 콘솔 작업을 미룬다. 실행 전에 dev 가 만든 Kakao 콘솔 아이콘 · 표식을
-/// 둔다 — 「내 아이콘」 저장소에서 표식이 지금 iOS 1024 지문과 같고 콘솔 파일이
-/// 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(`.setup/` 은 gitignored).
+/// 둔다 — 「내 아이콘」 저장소에서 표식의 Kakao 줄이 지금 iOS 1024 지문과 같고
+/// Kakao 콘솔 파일이 있으면 앱 아이콘 단계는 질문 없이 ✓ 다(`.setup/` 은
+/// gitignored).
 _Run _prepareKakaoStgRun(_Fixture fixture) {
   final int checklist = firstRunInputs.indexOf(emailOnlyAnswer);
   final int kakaoNumber =

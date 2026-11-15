@@ -449,7 +449,7 @@ void main() {
     expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
   }, testOn: 'mac-os || linux');
 
-  test('T-28-SAFE-06: 쓰다 실패한 경로 — 있던 경로는 checkout · 없던 파일만 지움 · '
+  test('T-28-SAFE-06: 쓰다 실패한 경로 — 있던 경로는 되돌림 · 없던 파일만 지움 · '
       '없던 폴더 · 링크 · 없음은 그대로', () {
     FailedWriteUndo decide(bool existedBefore, FileSystemEntityType type) =>
         AppIconStep.decideFailedWriteUndo(

@@ -208,7 +208,8 @@ final class AppIconStep implements DeferrableStep {
   /// 이름).
   static const String reuploadNote = '콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
 
-  /// 표식이 지금 지문과 다른 기존 콘솔 파일이 있을 때 할 일 줄의 꼬리.
+  /// 표식에 있는 그 수단 줄이 지금 지문과 다른 기존 콘솔 파일이 있을 때 할 일
+  /// 줄의 꼬리.
   static const String reuploadTail = ' — 만든 뒤 콘솔에 다시 올리세요';
 
   /// 표식에 그 수단 줄이 없는 기존 콘솔 파일만 있을 때 할 일 줄의 꼬리 — 만든

@@ -397,8 +397,8 @@ void main() {
     ]);
   });
 
-  test('T-28-DONE-02 앱 아이콘 끝 요약은 빈 줄 · 앱 아이콘 줄 · 커밋 안내뿐 — 로그인 '
-      '수단 줄 · golden 안내 없음', () async {
+  test('T-28-DONE-02 앱 아이콘 끝 요약은 빈 줄 · 앱 아이콘 줄 · 아이콘 커밋 안내 · '
+      '아이콘 밖 파일 수 줄 — 로그인 수단 줄 · golden 안내 없음', () async {
     writeCompletionFixture(root);
     final FakeCommandRunner runner = buildStatusRunner(
       ' M lib/l10n/app_ko.arb\n M $ios1024Path\n',
