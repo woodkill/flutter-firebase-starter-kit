@@ -1743,62 +1743,29 @@ LayoutBuilder(
 
 ## 앱 아이콘 바꾸기
 
-홈 화면 · 앱 목록에 보이는 앱 아이콘을 내 아이콘으로 바꾸는 절차다. 로그인 수단 콘솔(Google 동의 화면 · Facebook 앱 등)에 올리는 아이콘은 위저드의 앱 아이콘 단계가 `.setup/icons/` 에 따로 만든다 — 이 절의 앱 아이콘 파일과 다른 파일이고, 위저드는 이 절의 파일을 건드리지 않는다.
+홈 화면 · 앱 목록의 앱 아이콘과 로그인 수단 콘솔에 올리는 아이콘은 설정 위저드의 「앱 아이콘」 단계가 원본 이미지 하나로 함께 만든다.
+- 바꾸려면 `./setup.sh --app-icon` 을 실행한다([위저드 실행](setup.md#위저드-실행) 의 「앱 아이콘 단계」).
+- 이 절은 위저드 밖에서 하는 일이다.
 
 **전제:**
 
-- 정사각 PNG 원본이 있다 — 1024x1024 픽셀 이상.
-- iOS 앱 아이콘에는 투명 배경 · 알파 채널을 쓰지 않는다 — App Store 업로드 검사가 투명하거나 알파 채널이 있는 큰 앱 아이콘을 거절한다.
-  - 원본은 배경을 채운 PNG 로 만든다.
-- 크기별 PNG 를 만드는 도구가 있다 — macOS 의 `sips`(아래 명령) 또는 Android Studio 의 Image Asset 도구 같은 아이콘 도구.
-
-바꿀 파일은 둘이다.
-
-| 플랫폼 | 파일 | 크기 |
-|---|---|---|
-| iOS | `ios/Runner/Assets.xcassets/AppIcon.appiconset/` 의 `Icon-App-<크기>@<배율>x.png` 15장 · `Contents.json` | `Contents.json` 의 크기 × 배율 픽셀 — 20 · 29 · 40 · 58 · 60 · 76 · 80 · 87 · 120 · 152 · 167 · 180 · 1024 |
-| Android | `android/app/src/main/res/mipmap-<밀도>/ic_launcher.png` 5장 | `mdpi` 48 · `hdpi` 72 · `xhdpi` 96 · `xxhdpi` 144 · `xxxhdpi` 192 픽셀 |
+- 정사각 · 1024x1024 이상 원본 이미지가 있다 — 투명 로고면 위저드가 배경색을 묻는다.
+- 홈 화면 아이콘 파일에 커밋하지 않은 변경이 없다.
 
 ### 단계
 
-예시의 `icon-1024.png` 는 내 원본 파일 경로다.
-- 명령은 저장소 루트에서 실행한다.
+1. 원본 이미지를 준비한다.
+2. `./setup.sh --app-icon` 을 실행한다.
+   - 위저드가 묻는 것은 [위저드 실행](setup.md#위저드-실행) 의 「앱 아이콘 단계」 에 있다.
+3. 끝 요약의 커밋 명령으로 바뀐 아이콘 파일과 새 adaptive 파일을 커밋한다.
+4. 앱을 다시 빌드해 기기에 설치한다.
 
-**① iOS 아이콘을 만든다.**
-- 파일 이름과 `Contents.json` 은 그대로 두고, 같은 이름의 PNG 를 크기에 맞게 덮어쓴다.
-- `sips -z <높이> <너비> <원본> --out <파일>` 꼴이다(`-z` 는 높이가 먼저다).
+   ```bash
+   fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
+   ```
 
-```bash
-SRC=icon-1024.png
-DIR=ios/Runner/Assets.xcassets/AppIcon.appiconset
-for spec in 20x20@1x:20 20x20@2x:40 20x20@3x:60 29x29@1x:29 29x29@2x:58 29x29@3x:87 40x40@1x:40 40x40@2x:80 40x40@3x:120 60x60@2x:120 60x60@3x:180 76x76@1x:76 76x76@2x:152 83.5x83.5@2x:167 1024x1024@1x:1024; do
-  px=${spec##*:}
-  sips -z "$px" "$px" "$SRC" --out "$DIR/Icon-App-${spec%%:*}.png"
-done
-```
-
-**② Android 아이콘을 만든다.**
-- `AndroidManifest.xml` 의 `android:icon="@mipmap/ic_launcher"` 가 이 파일을 쓴다.
-
-```bash
-SRC=icon-1024.png
-RES=android/app/src/main/res
-for spec in mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192; do
-  px=${spec##*:}
-  sips -z "$px" "$px" "$SRC" --out "$RES/mipmap-${spec%%:*}/ic_launcher.png"
-done
-```
-
-**③ (선택) Android adaptive 아이콘을 만든다.**
-- 킷의 Android 아이콘은 위 PNG 5장뿐이고 `mipmap-anydpi-v26` 이 없어 adaptive 아이콘이 아니다.
-- 기기마다 다른 모양(원 · 둥근 사각형 등)으로 잘리는 adaptive 아이콘을 쓰려면 Android Studio 에서 `android/` 를 열고 `res` 폴더의 New → Image Asset 으로 만든다.
-- 결과는 `res/mipmap-anydpi-v26/ic_launcher.xml` 의 `<adaptive-icon>`(`<foreground>` · `<background>` · `<monochrome>`)과 그 레이어 그림이다.
-- 레이어 크기와 안전 영역은 아래와 같다.
-
-- 레이어는 108x108 dp 다.
-- 안쪽 66x66 dp 가 안전 영역이다 — 기기의 마스크가 이 안은 자르지 않는다.
-- 로고는 48x48 dp 이상 66x66 dp 이하로 안전 영역 안에 둔다.
-- 바깥 18 dp 는 마스크 · 움직임 효과에 쓰인다 — 잘려도 되는 배경만 둔다.
+5. 끝 요약에 콘솔 아이콘을 다시 올리라는 줄이 나왔으면 켠 수단의 콘솔에 올린다.
+   - 올리는 곳은 [로그인 수단 켜기](setup.md#로그인-수단-켜기) 의 수단별 절에 있다.
 
 **Apple 로그인 화면의 아이콘.**
 - Apple 로 로그인 동의 화면은 Services ID 의 primary App ID 로 정한 앱의 App Icon 을 보인다([Apple 로그인 켜기](setup.md#apple-로그인-켜기)).
@@ -1806,31 +1773,39 @@ done
 ### 확인 방법
 
 - 파일 크기 · 알파 채널을 본다.
-  - iOS 1024 아이콘은 `hasAlpha: no` 여야 한다.
+  - iOS 1024 아이콘은 `1024` · `hasAlpha: no` 여야 한다.
 
   ```bash
   sips -g pixelWidth -g pixelHeight -g hasAlpha ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png
   ```
 
-- 앱을 다시 빌드해 기기에 설치하고 홈 화면 · 앱 목록의 아이콘을 본다.
-
-  ```bash
-  fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
-  ```
+- 기기의 홈 화면 · 앱 목록에서 아이콘을 본다.
+  - Android 8 이상은 런처가 아이콘을 원 · 둥근 사각형 등으로 잘라 보인다.
 
 ### 문제 해결
 
 - **홈 화면에 예전 아이콘이 남아 있다.**
   - 기기가 아이콘을 캐시한다.
   - 앱을 지우고 다시 설치한다.
+- **위저드가 「커밋하지 않은 변경」 으로 멈춘다.**
+  - 홈 화면 아이콘 파일을 커밋하거나 아래 「되돌리기」 로 되돌린 뒤 다시 실행한다.
+- **위저드가 「같은 이름의 아이콘 리소스」 로 멈춘다.**
+  - Android Studio Image Asset 같은 도구가 만든 다른 확장자의 `ic_launcher_foreground` 나 `values` 의 `ic_launcher_background` 정의를 옮기거나 지운다.
 - **App Store 업로드가 큰 앱 아이콘 오류로 거절된다.**
-  - 1024 아이콘에 투명 영역이나 알파 채널이 있다.
-  - 배경을 채우고 알파 채널이 없는 원본으로 ① 을 다시 한다.
+  - iOS 1024 아이콘에 알파 채널이 있다.
+  - `./setup.sh --app-icon` 으로 아이콘을 다시 만든다.
 
 ### 되돌리기
 
-- 커밋하기 전이면 `git checkout -- ios/Runner/Assets.xcassets/AppIcon.appiconset/ android/app/src/main/res/mipmap-*/ic_launcher.png` 로 킷 아이콘으로 되돌린다.
-  - ③ 에서 새로 생긴 파일(`mipmap-anydpi-v26/` 과 레이어 그림)은 지운다.
+- 커밋하기 전이면 아래 명령으로 킷 아이콘으로 되돌리고 위저드가 새로 만든 파일 7개를 지운다.
+
+  ```bash
+  git checkout -- ios/Runner/Assets.xcassets/AppIcon.appiconset/ android/app/src/main/res/mipmap-*/ic_launcher.png
+  rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-*/ic_launcher_foreground.png android/app/src/main/res/values/ic_launcher_background.xml
+  ```
+
+  - 폴더째 지우지 않는다 — `mipmap-anydpi-v26` 에 둔 다른 파일을 남기고, 빈 폴더는 git 이 보지 않는다.
+  - adaptive 파일을 이미 커밋했다면 지우지 말고 그 파일도 `git checkout --` 로 되돌린다.
 - 킷 새 판을 받을 때 앱 아이콘 파일은 내 파일이다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 16행대로 충돌이 나면 `git checkout --ours -- <파일>` 로 내 파일을 남긴다.
 
 ## 스플래시 바꾸기
@@ -3836,7 +3811,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 13 | `pubspec.lock` | `fvm flutter pub upgrade` 결과 | 높음 | 충돌하면 킷 판(`git checkout --theirs -- pubspec.lock` · `git add pubspec.lock`)을 받고 `fvm flutter pub get` |
 | 14 | `flutter_native_splash.yaml` · `assets/images/splash/logo.png` · `logo_dark.png` | 스플래시 색 · 로고 | 낮음 | 내 값 · `fvm dart run flutter_native_splash:create` 로 다시 만든다 |
 | 15 | 스플래시 생성물(`android/app/src/main/res/drawable*/launch_background.xml` · `values*/styles.xml` · `ios/Runner/Assets.xcassets/LaunchImage.imageset/` · `ios/Runner/Base.lproj/LaunchScreen.storyboard`) | 14 를 다시 만든 결과 | 낮음 | 다시 만들어 덮어쓴다 |
-| 16 | 앱 아이콘(`android/app/src/main/res/mipmap-*/ic_launcher.png` · `ios/Runner/Assets.xcassets/AppIcon.appiconset/`) | 내 아이콘 | 낮음 | 내 파일(`git checkout --ours -- <파일>`) |
+| 16 | 앱 아이콘(`android/app/src/main/res/mipmap-*/ic_launcher.png` · `ios/Runner/Assets.xcassets/AppIcon.appiconset/` · 위저드가 만든 adaptive `android/app/src/main/res/mipmap-*/ic_launcher_foreground.png` · `android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` · `android/app/src/main/res/values/ic_launcher_background.xml`) | 내 아이콘 — 위저드가 원본 이미지로 다시 만든다(`./setup.sh --app-icon`) | 낮음 | 내 파일(`git checkout --ours -- <파일>`) |
 | 17 | `lib/l10n/app_en.arb` · `app_ko.arb` · `app_ja.arb` (+ `lib/l10n/generated/`) | 앱 제목 · 문구 · 언어별 앱 이름(`appTitle` — 영어 값은 앱 정체성이 · 다른 언어 값은 언어별 앱 이름 단계가 쓴다) | 높음 (기능마다 키 추가) | 다른 줄은 자동 병합 · 같은 키는 내 값 · merge 뒤 `fvm flutter gen-l10n` 으로 다시 만들어 커밋 |
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |

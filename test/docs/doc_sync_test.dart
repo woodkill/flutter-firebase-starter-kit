@@ -102,6 +102,10 @@ const Set<String> _namedAbsentPaths = <String>{
   'ios/Podfile',
   // SPM 을 쓰는 킷에 없어야 하는 CocoaPods 잠금 파일이다.
   'ios/Podfile.lock',
+  // 위저드가 adopter 저장소에 만드는 adaptive 아이콘 파일 — 킷 저장소에는 없다.
+  'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml',
+  // 위저드가 adopter 저장소에 만드는 adaptive 아이콘 배경색 파일 — 킷 저장소에는 없다.
+  'android/app/src/main/res/values/ic_launcher_background.xml',
 };
 
 /// 인라인 백틱 span 이다.
