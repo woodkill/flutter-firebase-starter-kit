@@ -34,6 +34,18 @@ enum HomeIconState {
   missing,
 }
 
+/// 쓰다 실패한 경로 하나를 되돌리는 방법.
+enum FailedWriteUndo {
+  /// 쓰기 전에 있던 추적 파일 — git 으로 커밋 내용에 되돌린다.
+  checkout,
+
+  /// 이번에 새로 생긴 파일 — 지운다.
+  delete,
+
+  /// 폴더 · 링크 · 없음 — 건드리지 않는다.
+  keep,
+}
+
 /// 직전 검사가 정한 실행 갈래.
 enum _IconMode {
   /// 원본을 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
@@ -340,6 +352,22 @@ final class AppIconStep implements DeferrableStep {
     '--',
     ...relativePaths,
   ], workingDirectory: workingDirectory);
+
+  /// 쓰다 실패한 경로를 되돌리는 방법을 정한다.
+  ///
+  /// 쓰기 전에 있던 경로([existedBefore])는 열린 뒤 잘렸을 수 있어 git 으로
+  /// 커밋 내용에 되돌린다 — 바뀌지 않은 파일을 되돌려도 해가 없다. 없던 경로는
+  /// 지금 종류([currentType] · 링크를 따라가지 않은 종류)가 파일일 때만 지우고,
+  /// 폴더 · 링크 · 없음은 이 단계가 만든 것이 아니므로 그대로 둔다.
+  static FailedWriteUndo decideFailedWriteUndo({
+    required bool existedBefore,
+    required FileSystemEntityType currentType,
+  }) {
+    if (existedBefore) return FailedWriteUndo.checkout;
+    return currentType == FileSystemEntityType.file
+        ? FailedWriteUndo.delete
+        : FailedWriteUndo.keep;
+  }
 
   /// 제자리에 쓴 iOS 1024 바이트 [bytes] 가 맞지 않는 까닭을 찾는다 — 맞으면 null.
   ///
@@ -1007,7 +1035,8 @@ final class AppIconStep implements DeferrableStep {
   /// 읽는다 — 끝나면 null, 실패하면 쓰기 전으로 되돌린 뒤의 결과다.
   ///
   /// 쓰기 전에 디스크에 있던 경로를 먼저 적어 둔다. 미커밋 검사를 지났으므로 그
-  /// 경로는 모두 깨끗한 추적 파일이다.
+  /// 경로는 모두 깨끗한 추적 파일이다. 쓰다 실패한 경로는
+  /// [decideFailedWriteUndo] 가 정한 대로 되돌림에 넣는다.
   Future<StepOutcome?> _placeHomeIcons(
     WizardContext context,
     List<_PlannedFile> files,
@@ -1024,9 +1053,19 @@ final class AppIconStep implements DeferrableStep {
           ..parent.createSync(recursive: true)
           ..writeAsBytesSync(file.bytes, flush: true);
       } on FileSystemException catch (e) {
+        final FailedWriteUndo undo = decideFailedWriteUndo(
+          existedBefore: existedBefore.contains(file.relativePath),
+          currentType: FileSystemEntity.typeSync(
+            context.resolve(file.relativePath),
+            followLinks: false,
+          ),
+        );
         return await _restoreHomeIcons(
           context,
-          written,
+          <String>[
+            ...written,
+            if (undo != FailedWriteUndo.keep) file.relativePath,
+          ],
           existedBefore,
           '${file.relativePath} (${_describeFileError(e)})',
         );

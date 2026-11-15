@@ -389,6 +389,13 @@ void main() {
     expect(box.readWriteTargets(), before);
     expect(box.readStatus(), isEmpty);
     expect(run.countCheckouts(), 1);
+    expect(
+      run.runner.gitKeys.singleWhere(
+        (String key) => key.startsWith('git checkout'),
+      ),
+      contains(blocked),
+      reason: '쓰다 실패한 있던 경로도 checkout 해야 한다',
+    );
     expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(session.isAppIconRebuildRequested, isTrue);
   });
@@ -446,4 +453,23 @@ void main() {
     );
     expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
   }, testOn: 'mac-os || linux');
+
+  test('T-28-SAFE-06: 쓰다 실패한 경로 — 있던 경로는 checkout · 없던 파일만 지움 · '
+      '없던 폴더 · 링크 · 없음은 그대로', () {
+    FailedWriteUndo decide(bool existedBefore, FileSystemEntityType type) =>
+        AppIconStep.decideFailedWriteUndo(
+          existedBefore: existedBefore,
+          currentType: type,
+        );
+
+    expect(decide(true, FileSystemEntityType.file), FailedWriteUndo.checkout);
+    expect(
+      decide(true, FileSystemEntityType.notFound),
+      FailedWriteUndo.checkout,
+    );
+    expect(decide(false, FileSystemEntityType.file), FailedWriteUndo.delete);
+    expect(decide(false, FileSystemEntityType.directory), FailedWriteUndo.keep);
+    expect(decide(false, FileSystemEntityType.link), FailedWriteUndo.keep);
+    expect(decide(false, FileSystemEntityType.notFound), FailedWriteUndo.keep);
+  });
 }
