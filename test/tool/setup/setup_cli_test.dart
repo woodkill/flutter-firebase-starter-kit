@@ -6,8 +6,12 @@
 //   사용법이 나오고 표준 출력에는 위저드 출력(점검표)이 없다.
 // T-20-CLI-03: 모르는 옵션 `--nope` 는 종료 코드 1, 표준 오류에 `인자 오류: ` 줄과
 //   사용법이 나온다.
+// T-28-CLI-01: `--help` 는 종료 코드 0 이고, 사용법에 `--app-icon` · `--providers` ·
+//   `--flavor` 가 나온다.
+// T-28-CLI-02: `--app-icon --providers` 는 종료 코드 1, 표준 오류에 `인자 오류: ` 줄
+//   한 번과 사용법이 나오고 표준 출력은 비어 있다(점검표 없음).
 //
-// 세 경로 모두 프로젝트 루트 · HOME · 터미널에 닿기 전에 끝난다 — 대화형 경로 ·
+// 다섯 경로 모두 프로젝트 루트 · HOME · 터미널에 닿기 전에 끝난다 — 대화형 경로 ·
 // 네트워크 없음.
 
 import 'dart:async';
@@ -80,6 +84,33 @@ void main() {
       expect(r.stdout, contains(flavor.name));
     }
     expect(r.stdout, isNot(contains(_checklistWord)));
+  }, timeout: cliTimeout);
+
+  test('T-28-CLI-01: --help 는 0 으로 끝나고 사용법에 --app-icon · --providers · '
+      '--flavor 가 보인다', () async {
+    final _CliResult r = await _runSetupCli(<String>['--help']);
+
+    expect(r.exitCode, 0, reason: r.stderr);
+    expect(r.stdout, contains('사용법: ./setup.sh [옵션]'));
+    expect(r.stdout, contains('--app-icon'));
+    expect(r.stdout, contains('--providers'));
+    expect(r.stdout, contains('--flavor'));
+    expect(r.stdout, isNot(contains(_checklistWord)));
+  }, timeout: cliTimeout);
+
+  test('T-28-CLI-02: --app-icon 과 --providers 를 함께 주면 인자 오류와 사용법을 내고 '
+      '1 로 끝난다', () async {
+    final _CliResult r = await _runSetupCli(<String>[
+      '--app-icon',
+      '--providers',
+    ]);
+
+    expect(r.exitCode, 1, reason: r.stderr);
+    _expectArgumentError(r.stderr);
+    expect(r.stderr, contains('--app-icon 은 --providers 와 함께 쓸 수 없습니다'));
+    expect(r.stderr, contains('--app-icon'));
+    expect(r.stdout, isNot(contains(_checklistWord)));
+    expect(r.stdout.trim(), isEmpty);
   }, timeout: cliTimeout);
 
   test('T-20-CLI-02: 허용 밖 flavor 값은 인자 오류와 사용법을 내고 1 로 끝난다', () async {

@@ -4,6 +4,8 @@ import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/completion.dart';
+import '../../../tool/setup/git_tree.dart';
+import '../../../tool/setup/icons/home_icon_specs.dart';
 import '../../../tool/setup/steps/app_names_step.dart';
 import 'fakes.dart';
 
@@ -119,6 +121,25 @@ List<String> buildCommitHintLines(String path) => <String>[
   '  \$ git add $path && git commit -m "$commitHintMessage"',
 ];
 
+/// 바뀐 파일이 [paths] 일 때의 커밋 안내 줄들(앞 빈 줄 포함 · 경로 정렬)을 만든다.
+List<String> buildCommitHintLinesFor(List<String> paths) {
+  final sorted = List<String>.of(paths)..sort();
+  final command =
+      '  \$ git add ${sorted.map(quoteForShellDisplay).join(' ')} '
+      '&& git commit -m "$commitHintMessage"';
+  return <String>[
+    '',
+    commitHintHeading,
+    for (final String path in sorted) '  $path',
+    command,
+  ];
+}
+
+/// res 폴더의 추적 안 된 파일을 보는 git 명령 키.
+final String resUntrackedKey = FakeCommandRunner.buildKey(
+  buildUntrackedFilesCommand(androidResDirectory),
+);
+
 /// 끝 요약 출력 전체를 줄 목록 [lines] 로 이어 만든다.
 String joinOutputLines(List<String> lines) =>
     lines.map((String line) => '$line\n').join();
@@ -154,6 +175,7 @@ void main() {
         joinOutputLines(<String>[
           '',
           providersHintLine,
+          appIconHintLine,
           ...buildCommitHintLines('lib/l10n/app_ko.arb'),
           '',
           goldenSummaryLine,
@@ -187,6 +209,7 @@ void main() {
       joinOutputLines(<String>[
         '',
         providersHintLine,
+        appIconHintLine,
         ...buildCommitHintLines('lib/l10n/app_ko.arb'),
       ]),
     );
@@ -209,6 +232,7 @@ void main() {
       joinOutputLines(<String>[
         '',
         providersHintLine,
+        appIconHintLine,
         ...buildCommitHintLines('lib/l10n/app_ja.arb'),
       ]),
     );
@@ -226,7 +250,7 @@ void main() {
 
     expect(
       terminal.output.toString(),
-      joinOutputLines(<String>['', providersHintLine]),
+      joinOutputLines(<String>['', providersHintLine, appIconHintLine]),
     );
     expect(runner.countCalls(RunMode.capture, _gitStatusKey), 1);
   });
@@ -267,6 +291,7 @@ void main() {
         joinOutputLines(<String>[
           '',
           providersHintLine,
+          appIconHintLine,
           ...buildCommitHintLines(summaryEnglishArbPath),
           '',
           goldenSummaryLine,
@@ -291,6 +316,7 @@ void main() {
       joinOutputLines(<String>[
         '',
         providersHintLine,
+        appIconHintLine,
         ...buildCommitHintLines(summaryEnglishArbPath),
       ]),
     );
@@ -313,6 +339,7 @@ void main() {
       joinOutputLines(<String>[
         '',
         providersHintLine,
+        appIconHintLine,
         ...buildCommitHintLines(summaryKoArbPath),
       ]),
     );
@@ -335,6 +362,7 @@ void main() {
         joinOutputLines(<String>[
           '',
           providersHintLine,
+          appIconHintLine,
           ...buildCommitHintLines(summaryKoArbPath),
           '',
           goldenSummaryLine,
@@ -342,4 +370,140 @@ void main() {
       );
     },
   );
+
+  test('T-28-DONE-01 보통 끝 요약은 빈 줄 · 로그인 수단 줄 · 앱 아이콘 줄 · 커밋 안내 '
+      '순서다', () async {
+    final runner = FakeCommandRunner()
+      ..on(_gitStatusKey, const CommandResult(0, ' M $ios1024Path\n', ''));
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    expect(
+      terminal.output.toString(),
+      joinOutputLines(<String>[
+        '',
+        providersHintLine,
+        appIconHintLine,
+        ...buildCommitHintLines(ios1024Path),
+      ]),
+    );
+    expect(appIconHintLine, '앱 아이콘을 바꾸려면: ./setup.sh --app-icon');
+    // adaptive XML 이 없으니 res 폴더의 새 파일 목록은 읽지 않는다.
+    expect(runner.calls.map((FakeCall call) => call.key), <String>[
+      _gitStatusKey,
+    ]);
+  });
+
+  test('T-28-DONE-02 앱 아이콘 끝 요약은 빈 줄 · 앱 아이콘 줄 · 커밋 안내뿐 — 로그인 '
+      '수단 줄 · golden 안내 없음', () async {
+    writeCompletionFixture(root);
+    final FakeCommandRunner runner = buildStatusRunner(
+      ' M lib/l10n/app_ko.arb\n',
+    );
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showAppIconCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    expect(
+      terminal.output.toString(),
+      joinOutputLines(<String>[
+        '',
+        appIconHintLine,
+        ...buildCommitHintLines(summaryKoArbPath),
+      ]),
+    );
+    expect(terminal.output.toString(), isNot(contains(providersHintLine)));
+    expect(terminal.output.toString(), isNot(contains(goldenSummaryLine)));
+    expect(runner.calls.map((FakeCall call) => call.key), <String>[
+      _gitStatusKey,
+    ]);
+  });
+
+  group('T-28-DONE-03 새 adaptive 파일을 커밋 안내에 더함', () {
+    /// res 폴더의 추적 안 된 파일 — adaptive 7개와 목록 밖 새 파일 하나.
+    final String resUntrackedOutput = <String>[
+      for (final String path in listAdaptiveFilePaths()) '?? $path',
+      '?? $androidResDirectory/drawable/extra_launch.png',
+    ].map((String line) => '$line\n').join();
+
+    FakeCommandRunner buildIconRunner() => FakeCommandRunner()
+      ..on(_gitStatusKey, const CommandResult(0, ' M $ios1024Path\n', ''))
+      ..on(resUntrackedKey, CommandResult(0, resUntrackedOutput, ''));
+
+    test('adaptive XML 이 있으면 res 새 파일 가운데 adaptive 7개만 더한다', () async {
+      writeSummaryFixtureFile(
+        root,
+        adaptiveIconXmlPath,
+        buildAdaptiveIconXml(),
+      );
+      final FakeCommandRunner runner = buildIconRunner();
+      final terminal = ScriptedTerminal(const <String?>[]);
+
+      await showAppIconCompletionSummary(
+        buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+      );
+
+      expect(
+        terminal.output.toString(),
+        joinOutputLines(<String>[
+          '',
+          appIconHintLine,
+          ...buildCommitHintLinesFor(<String>[
+            ios1024Path,
+            ...listAdaptiveFilePaths(),
+          ]),
+        ]),
+      );
+      expect(terminal.output.toString(), isNot(contains('extra_launch.png')));
+      expect(runner.countCalls(RunMode.capture, resUntrackedKey), 1);
+    });
+
+    test('adaptive XML 이 없으면 res 새 파일 목록을 읽지 않는다', () async {
+      final FakeCommandRunner runner = buildIconRunner();
+      final terminal = ScriptedTerminal(const <String?>[]);
+
+      await showAppIconCompletionSummary(
+        buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+      );
+
+      expect(
+        terminal.output.toString(),
+        joinOutputLines(<String>[
+          '',
+          appIconHintLine,
+          ...buildCommitHintLines(ios1024Path),
+        ]),
+      );
+      expect(runner.countCalls(RunMode.capture, resUntrackedKey), 0);
+    });
+
+    test('res 새 파일 목록을 읽지 못하면 GitTreeException 이다', () async {
+      writeSummaryFixtureFile(
+        root,
+        adaptiveIconXmlPath,
+        buildAdaptiveIconXml(),
+      );
+      final runner = FakeCommandRunner()
+        ..on(_gitStatusKey, const CommandResult(0, ' M $ios1024Path\n', ''))
+        ..on(resUntrackedKey, const CommandResult(128, '', 'fatal: bad'));
+
+      await expectLater(
+        showAppIconCompletionSummary(
+          buildTestContext(projectRoot: root, runner: runner),
+        ),
+        throwsA(
+          isA<GitTreeException>().having(
+            (GitTreeException e) => e.message,
+            'message',
+            '$androidResDirectory 의 새 파일 목록을 읽지 못했습니다 (종료 코드 128)',
+          ),
+        ),
+      );
+    });
+  });
 }
