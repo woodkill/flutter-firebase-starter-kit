@@ -4,7 +4,8 @@
 /// 시험 실행기는 실행 파일이 `/usr/bin/sips` 인 명령만 실제 프로세스로 넘기고,
 /// `/usr/bin/open` 은 실행하지 않고 호출만 센다. 쓰기 전 미커밋 검사 git 명령은
 /// 실행하지 않고 빈 성공 결과로 답한다. 그 밖의 실행 파일은 [StateError] 다.
-/// 원본 PNG 는 시험이 `package:image` 로 만든다.
+/// 원본 PNG 는 시험이 `package:image` 로 만들고, JPEG · HEIC · Display P3
+/// 원본은 그 PNG 를 시험이 실제 sips 로 바꿔 만든다.
 ///
 /// 환경 변수 `SETUP_ICON_SIPS_KEEP` 이 `1` 이면 작업 루트를
 /// `<시스템 임시 디렉터리>/setup_icon_sips_keep` 로 두고 끝나도 지우지 않는다 —
@@ -15,6 +16,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
+import 'package:image/image.dart' as img;
 import 'package:test/test.dart';
 
 import '../../../tool/setup/command_runner.dart';
@@ -204,6 +206,51 @@ Future<_RunResult> _runIconStep(
   return (code: code, output: output, runner: runner);
 }
 
+/// 원본을 Display P3 로 맞출 때 쓰는 macOS 기본 프로파일.
+const String displayP3ProfilePath =
+    '/System/Library/ColorSync/Profiles/Display P3.icc';
+
+/// Display P3 시험 원본 가운데 색(sRGB) — `#F2B134`.
+const List<int> p3SourceCenterRgb = <int>[242, 177, 52];
+
+/// 실제 sips 로 [input] 을 [format] 형식의 [output] 으로 바꾼다(시험 원본 만들기).
+void convertWithSips(String input, String output, String format) {
+  final ProcessResult result = Process.runSync(sipsPath, <String>[
+    '-s',
+    'format',
+    format,
+    input,
+    '--out',
+    output,
+  ]);
+  expect(result.exitCode, 0, reason: '$output\n${result.stderr}');
+}
+
+/// [path] PNG 의 ([x], [y]) 픽셀 RGB.
+List<int> readPixelRgb(String path, int x, int y) {
+  final img.Image image = img.decodePng(File(path).readAsBytesSync())!;
+  final img.Pixel pixel = image.getPixel(x, y);
+  return <int>[pixel.r.toInt(), pixel.g.toInt(), pixel.b.toInt()];
+}
+
+/// 한 변 [side] 의 불투명 RGB PNG — 가장자리 띠는 파랑, 가운데는 [centerRgb].
+List<int> buildCenterColorPng(int side, List<int> centerRgb) {
+  final image = img.Image(width: side, height: side);
+  final int band = side ~/ 8;
+  for (var y = 0; y < side; y++) {
+    for (var x = 0; x < side; x++) {
+      final bool isEdge =
+          x < band || y < band || x >= side - band || y >= side - band;
+      if (isEdge) {
+        image.setPixelRgb(x, y, 30, 90, 160);
+      } else {
+        image.setPixelRgb(x, y, centerRgb[0], centerRgb[1], centerRgb[2]);
+      }
+    }
+  }
+  return img.encodePng(image);
+}
+
 /// 터미널에 끌어다 놓은 모양의 답 — 공백 앞 백슬래시 · 끝 공백 하나.
 String buildDroppedAnswer(String path) => '${path.replaceAll(' ', r'\ ')} ';
 
@@ -361,6 +408,221 @@ void main() {
           ),
           hasLength(1),
         );
+      });
+
+      /// [dir] 의 iOS 1024 를 실제 sips 로 다시 읽어 알파가 없음을 확인한다.
+      void expectIos1024WithoutAlpha(_CaseDir dir) {
+        final MeasuredImage ios1024 = measureImage('${dir.repo}/$ios1024Path');
+        expect(ios1024.width, 1024);
+        expect(ios1024.height, 1024);
+        expect(ios1024.alpha, 'no');
+      }
+
+      test('T-28-SIPS-02: 투명 원본 → 배경색 Enter = 흰색 · iOS 1024 알파 없음 · '
+          'adaptive 배경 흰색 · 투명하던 모서리는 흰색', () async {
+        final dir = _CaseDir(workRoot, 'transparent');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final source = '${dir.sourceDir}/$sourceBaseName.png';
+        File(source).writeAsBytesSync(buildTransparentLogoPng());
+        expect(measureImage(source).alpha, 'yes');
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>['1', buildDroppedAnswer(source), ''],
+          enabledProviders: const <String>{},
+          kitDigests: kitDigests,
+        );
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        expect(run.output, contains(AppIconStep.backgroundQuestion));
+        expectIos1024WithoutAlpha(dir);
+        expect(
+          File('${dir.repo}/$adaptiveBackgroundPath').readAsStringSync(),
+          buildAdaptiveBackgroundXml(0xFFFFFF),
+        );
+        expect(readPixelRgb('${dir.repo}/$ios1024Path', 0, 0), <int>[
+          255,
+          255,
+          255,
+        ]);
+        appendSummary('OUT transparent corner=white');
+      });
+
+      test('T-28-SIPS-03: Display P3 로 맞춘 원본 → iOS 1024 가운데가 원래 sRGB '
+          '값과 채널 차 2 이하', () async {
+        final dir = _CaseDir(workRoot, 'display-p3');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final srgb = '${dir.sourceDir}/srgb.png';
+        File(
+          srgb,
+        ).writeAsBytesSync(buildCenterColorPng(1024, p3SourceCenterRgb));
+        final source = '${dir.sourceDir}/$sourceBaseName p3.png';
+        final ProcessResult matched = Process.runSync(sipsPath, <String>[
+          '-m',
+          displayP3ProfilePath,
+          srgb,
+          '--out',
+          source,
+        ]);
+        expect(matched.exitCode, 0, reason: '${matched.stderr}');
+        final List<int> p3Center = readPixelRgb(source, 512, 512);
+        expect(p3Center, isNot(p3SourceCenterRgb));
+        expect(readPixelRgb(srgb, 512, 512), p3SourceCenterRgb);
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>['1', buildDroppedAnswer(source)],
+          enabledProviders: const <String>{},
+          kitDigests: kitDigests,
+        );
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        expectIos1024WithoutAlpha(dir);
+        final List<int> center = readPixelRgb(
+          '${dir.repo}/$ios1024Path',
+          512,
+          512,
+        );
+        appendSummary('OUT display-p3 p3=$p3Center center=$center');
+        for (var channel = 0; channel < 3; channel++) {
+          expect(
+            (center[channel] - p3SourceCenterRgb[channel]).abs(),
+            lessThanOrEqualTo(2),
+            reason: 'channel $channel: $center',
+          );
+        }
+      });
+
+      test('T-28-SIPS-04: 실제 sips 로 만든 JPEG 원본 → 배경색 질문 없이 홈 화면 '
+          '20장 · adaptive 전경 5 · iOS 1024 알파 없음', () async {
+        final dir = _CaseDir(workRoot, 'jpeg');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final png = '${dir.sourceDir}/opaque.png';
+        File(png).writeAsBytesSync(buildOpaqueRgbIconPng());
+        final source = '${dir.sourceDir}/$sourceBaseName.jpg';
+        convertWithSips(png, source, 'jpeg');
+        expect(measureImage(source).format, 'jpeg');
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>['1', buildDroppedAnswer(source)],
+          enabledProviders: const <String>{},
+          kitDigests: kitDigests,
+        );
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        expect(run.output, isNot(contains(AppIconStep.backgroundQuestion)));
+        for (final HomeIconFile file in homeIconFiles) {
+          expectPng(dir, file.relativePath, side: file.side, alpha: 'no');
+        }
+        for (final AdaptiveDensity density in adaptiveDensities) {
+          expectPng(
+            dir,
+            density.foregroundPath,
+            side: density.canvasSide,
+            alpha: 'yes',
+          );
+        }
+        expectIos1024WithoutAlpha(dir);
+      });
+
+      test('T-28-SIPS-05: 투명 로고를 실제 sips 로 바꾼 HEIC 원본(알파 유지) → '
+          '배경색 Enter = 흰색 · iOS 1024 알파 없음', () async {
+        final dir = _CaseDir(workRoot, 'heic');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final png = '${dir.sourceDir}/logo.png';
+        File(png).writeAsBytesSync(buildTransparentLogoPng());
+        final source = '${dir.sourceDir}/$sourceBaseName.heic';
+        convertWithSips(png, source, 'heic');
+        final MeasuredImage heic = measureImage(source);
+        expect(heic.format, 'heic');
+        expect(heic.alpha, 'yes');
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>['1', buildDroppedAnswer(source), ''],
+          enabledProviders: const <String>{},
+          kitDigests: kitDigests,
+        );
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        expect(run.output, contains(AppIconStep.backgroundQuestion));
+        expectIos1024WithoutAlpha(dir);
+        expect(
+          File('${dir.repo}/$adaptiveBackgroundPath').readAsStringSync(),
+          buildAdaptiveBackgroundXml(0xFFFFFF),
+        );
+      });
+
+      test('T-28-SIPS-06: 비정사각 · 1024 미만 원본 → 실제 sips 가 읽은 크기와 '
+          '함께 거절 · 변환 0 · 홈 화면 그대로', () async {
+        final dir = _CaseDir(workRoot, 'reject');
+        final Map<String, String> kitDigests = writeKitDefaultHomeIcons(
+          dir.repo,
+        );
+        final wide = '${dir.sourceDir}/wide 1920.png';
+        File(wide).writeAsBytesSync(
+          img.encodePng(img.Image(width: 1920, height: 1080, numChannels: 4)),
+        );
+        final small = '${dir.sourceDir}/small 512.png';
+        File(small).writeAsBytesSync(
+          img.encodePng(img.Image(width: 512, height: 512, numChannels: 4)),
+        );
+
+        final _RunResult run = await _runIconStep(
+          dir,
+          <String?>[
+            '1',
+            buildDroppedAnswer(wide),
+            buildDroppedAnswer(small),
+            '',
+          ],
+          enabledProviders: const <String>{'kakao'},
+          kitDigests: kitDigests,
+        );
+
+        expect(run.code, wizardExitDone, reason: run.output);
+        final List<String> lines = run.output.split('\n');
+        final int wideAt = lines.indexOf(
+          '  ${AppIconStep.notSquareReason}1920x1080',
+        );
+        final int smallAt = lines.indexOf(
+          '  ${AppIconStep.tooSmallReason}512x512',
+        );
+        expect(wideAt, greaterThan(0), reason: run.output);
+        expect(smallAt, greaterThan(wideAt), reason: run.output);
+        expect(lines, contains('  ✗ ${AppIconStep.stepTitle} — 지금 안 함'));
+        final List<Command> sipsCalls = run.runner.calls
+            .where((Command c) => c.executable == sipsPath)
+            .toList();
+        expect(sipsCalls, hasLength(2));
+        expect(
+          sipsCalls.where((Command c) => c.arguments.contains('--out')),
+          isEmpty,
+        );
+        expect(run.runner.openCount, 0);
+        for (final HomeIconFile file in homeIconFiles) {
+          expect(
+            sha256
+                .convert(
+                  File('${dir.repo}/${file.relativePath}').readAsBytesSync(),
+                )
+                .toString(),
+            kitDigests[file.relativePath],
+            reason: file.relativePath,
+          );
+        }
+        for (final String path in listAdaptiveFilePaths()) {
+          expect(File('${dir.repo}/$path').existsSync(), isFalse, reason: path);
+        }
       });
     },
   );
