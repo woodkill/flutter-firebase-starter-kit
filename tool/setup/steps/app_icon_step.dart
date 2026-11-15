@@ -433,11 +433,14 @@ final class AppIconStep implements DeferrableStep {
   /// [projectRoot] 의 Android 리소스에서 이 단계가 쓸 리소스와 이름이 겹치는
   /// 파일을 찾아 저장소 상대 경로를 정렬해 돌려준다.
   ///
-  /// `mipmap-*` 폴더의 `ic_launcher.*` · `ic_launcher_foreground.*` 가운데 이
-  /// 단계가 쓰는 경로가 아닌 것과, adaptive 배경색 파일 밖의 `values*` XML 가운데
-  /// 같은 배경색 이름을 정의하는 것이다. 같은 이름을 둘 받으면 빌드가 실패한다.
-  /// `drawable*` 은 리소스 종류가 달라 보지 않는다. 리소스 폴더가 없으면 빈
-  /// 목록이다.
+  /// [androidResDirectory] 바로 아래 폴더의 바로 아래 파일만 보고, 이 단계가
+  /// 쓰는 경로([listWritePaths])는 뺀다. 이름이 `mipmap-` 으로 시작하는 폴더는
+  /// 파일 이름의 첫 `.` 앞이 `ic_launcher` 또는 `ic_launcher_foreground` 인
+  /// 파일(확장자 무관)을 잡는다. 이름이 `values` 이거나 `values-` 로 시작하는
+  /// 폴더는 `.xml` 파일 가운데 `name="ic_launcher_background"`(작은따옴표 ·
+  /// `=` 앞뒤 공백도 받음)를 담은 것을 잡는다. 같은 이름을 둘 받으면 빌드가
+  /// 실패한다. 그 밖의 폴더(`drawable*` 등)는 리소스 종류가 달라 보지 않는다.
+  /// 리소스 폴더가 없으면 빈 목록이다.
   static List<String> findConflictingIconResources(String projectRoot) {
     final res = Directory('$projectRoot/$androidResDirectory');
     if (!res.existsSync()) return const <String>[];
