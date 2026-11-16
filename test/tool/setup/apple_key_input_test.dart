@@ -53,6 +53,9 @@ void main() {
   /// 두 번째 가짜 키 파일 경로(저장소 밖).
   String otherKeyPath() => '${keyDir.path}/AuthKey_$otherKeyId.p8';
 
+  /// 이름에 공백이 든 폴더 아래의 가짜 키 파일 경로(저장소 밖).
+  String spacedKeyPath() => '${keyDir.path}/Apple Keys/AuthKey_$keyId.p8';
+
   /// dev xcconfig 절대 경로.
   String xcconfigPath() => '$root/${const FlavorPaths(Flavor.dev).xcconfig}';
 
@@ -452,5 +455,52 @@ void main() {
       expectNoPem(second.screen.output.toString(), second.log.text, 'Cd');
       expectNoPem(first.screen.output.toString(), first.log.text, 'Ab');
     });
+  });
+
+  group('T-28-KEYPATH-01: 끌어다 놓기 · 붙여 넣기 꼴 .p8 경로 → 키를 읽는다', () {
+    setUp(() {
+      File(spacedKeyPath())
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(buildPemContent('Ab'));
+    });
+
+    final readableAnswers = <({String name, String Function(String) build})>[
+      (name: '큰따옴표', build: (String path) => '"$path"'),
+      (name: '작은따옴표', build: (String path) => "'$path'"),
+      (
+        name: 'file:// 주소',
+        build: (String path) => 'file://${path.replaceAll(' ', '%20')}',
+      ),
+      (name: '큰따옴표로 감싼 file:// 주소', build: (String path) => '"file://$path"'),
+      (
+        name: '끌어다 놓기 escape',
+        build: (String path) => '${path.replaceAll(' ', r'\ ')} ',
+      ),
+    ];
+    for (final item in readableAnswers) {
+      test('${item.name} → 키를 읽고 Key ID 는 파일 이름에서 · 까닭 줄 0', () async {
+        final h = buildHarness(<String?>[
+          item.build(spacedKeyPath()),
+          '',
+        ], homeDirectory: keyDir.path);
+
+        final AppleKey? key = await askAppleKey(
+          h.context,
+          use: AppleKeyUse.signInWithApple,
+        );
+
+        expect(key?.keyId, keyId);
+        expect(key?.privateKey, buildPemContent('Ab'));
+        expect(h.screen.asks, hasLength(2));
+        final output = h.screen.output.toString();
+        for (final reason in <String>[
+          '파일이 없습니다',
+          '경로가 비었습니다',
+          '파일 경로로 바꿀 수 없는 주소입니다',
+        ]) {
+          expect(output, isNot(contains(reason)));
+        }
+      });
+    }
   });
 }

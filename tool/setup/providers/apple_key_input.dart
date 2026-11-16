@@ -64,11 +64,11 @@ final RegExp _authKeyFileName = RegExp(r'^AuthKey_([A-Z0-9]{10})\.p8$');
 ///
 /// 세션의 이 자리에 이미 키가 있으면 묻지 않고 그 키를 돌려준다. 다른 자리에
 /// 키가 있으면 `같은 키 (Key ID <X>)` / `다른 키 입력` 을 고르게 한다(기본은
-/// 같은 키). 새로 받을 때는 `.p8` 파일 경로를 묻고(`~` 는 홈 디렉터리), 파일이
-/// 있고 읽히며 PEM 개인 키 머리로 시작하면 그 내용을 바로 가림 함수에 등록한 뒤
-/// Key ID 를 묻는다(파일 이름이 `AuthKey_<10자>.p8` 이면 그 10자가 기본값). 경로 ·
-/// Key ID 는 [maxKeyAttempts] 회까지 그 값만 다시 묻고, 넘거나 입력 끝이면 null
-/// 이다.
+/// 같은 키). 새로 받을 때는 `.p8` 파일 경로를 묻고(끌어다 놓기 · 따옴표 ·
+/// `file://` · `~` 는 [resolvePathAnswer] 규칙), 파일이 있고 읽히며 PEM 개인 키
+/// 머리로 시작하면 그 내용을 바로 가림 함수에 등록한 뒤 Key ID 를 묻는다(파일
+/// 이름이 `AuthKey_<10자>.p8` 이면 그 10자가 기본값). 경로 · Key ID 는
+/// [maxKeyAttempts] 회까지 그 값만 다시 묻고, 넘거나 입력 끝이면 null 이다.
 ///
 /// 내용은 메모리(세션)에만 두고 경로는 config · 세션에 저장하지 않는다. 경로를
 /// 다시 묻는 까닭 줄에는 홈 디렉터리를 `~` 로 줄인 경로를 보인다(입력한 답은
@@ -161,6 +161,8 @@ AppleKey? _findOtherKey(Map<AppleKeyUse, AppleKey> keys, AppleKeyUse use) {
 
 /// `.p8` 파일 경로를 묻고 내용을 읽는다 — 맞지 않으면 까닭 한 줄 뒤 경로만 다시.
 ///
+/// 경로 답은 [resolvePathAnswer] 로 푼다. 빈 경로 · 바꿀 수 없는 주소의 까닭
+/// 줄은 답을 되풀이하지 않는다.
 /// 까닭 줄에는 홈 디렉터리를 `~` 로 줄인 경로만 보이고 내용은 보이지 않는다.
 /// 내용은 PEM 개인 키 머리로 시작할 때만 가림 함수에 등록하고 돌려준다.
 _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
@@ -169,10 +171,19 @@ _KeyFile? _askKeyFile(WizardContext context, AppleKeyUse use) {
       '${use.displayName} 용 .p8 파일 경로',
     );
     if (answer == null) return null;
-    final String path = expandInputPath(context, answer.trim());
-    if (path.isEmpty) {
-      context.terminal.writeLine('  .p8 파일 경로를 입력하세요');
-      continue;
+    final String path;
+    switch (resolvePathAnswer(context, answer)) {
+      case BlankPathAnswer():
+        context.terminal.writeLine('  .p8 파일 경로를 입력하세요');
+        continue;
+      case EmptyPathAnswer():
+        context.terminal.writeLine('  $emptyPathAnswerReason');
+        continue;
+      case UnconvertibleAddressAnswer():
+        context.terminal.writeLine('  $unconvertibleAddressAnswerReason');
+        continue;
+      case ResolvedPathAnswer(path: final String resolved):
+        path = resolved;
     }
     final file = File(path);
     final String shownPath = describePath(context, path);

@@ -156,12 +156,13 @@ final class AppIconStep implements DeferrableStep {
   static const String notImageReason = '이미지 파일이 아닙니다 — ';
 
   /// 답을 풀어낸 경로가 빌 때(`""` · `''`)의 까닭 — 경로는 보이지 않는다.
-  static const String emptyPathReason = '경로가 비었습니다';
+  static const String emptyPathReason = emptyPathAnswerReason;
 
   /// `file://` 주소를 파일 경로로 바꾸지 못할 때의 까닭 — 경로는 보이지 않는다.
   ///
   /// 따옴표로 감싼 주소는 따옴표를 벗긴 뒤 한 번 더 바꾸고 나서 가른다.
-  static const String unconvertibleAddressReason = '파일 경로로 바꿀 수 없는 주소입니다';
+  static const String unconvertibleAddressReason =
+      unconvertibleAddressAnswerReason;
 
   /// 정사각이 아닐 때의 까닭 머리(뒤에 지금 크기).
   static const String notSquareReason = '정사각 이미지가 필요합니다 — 지금 ';
@@ -1012,28 +1013,21 @@ final class AppIconStep implements DeferrableStep {
     for (var attempt = 0; attempt < maxSourceAttempts; attempt++) {
       final String? answer = context.terminal.ask(sourceQuestion);
       if (answer == null) return (path: null, outcome: const Declined());
-      final String trimmed = answer.trim();
-      if (trimmed.isEmpty) {
-        return (path: null, outcome: DeferredByUser(deferLabel));
+      final String path;
+      // 빈 경로 · 바꿀 수 없는 주소는 존재 검사 전에 까닭 한 줄로 다시 묻는다 —
+      // 주소 안에 홈 경로가 있을 수 있어 답은 되풀이하지 않는다.
+      switch (resolvePathAnswer(context, answer)) {
+        case BlankPathAnswer():
+          return (path: null, outcome: DeferredByUser(deferLabel));
+        case EmptyPathAnswer():
+          context.terminal.writeLine('  $emptyPathReason');
+          continue;
+        case UnconvertibleAddressAnswer():
+          context.terminal.writeLine('  $unconvertibleAddressReason');
+          continue;
+        case ResolvedPathAnswer(path: final String resolved):
+          path = resolved;
       }
-      final String unquoted = parseDroppedPath(trimmed);
-      // 따옴표로 감싼 `file://` 답은 따옴표만 벗겨진 주소로 돌아오므로 그 값으로
-      // 한 번 더 바꾼다. 바꿀 수 없는 주소는 손대지 않은 값이 돌아와 그대로다.
-      final String parsed = unquoted.startsWith('file://')
-          ? parseDroppedPath(unquoted)
-          : unquoted;
-      // 풀어낸 값이 비거나 한 번 더 바꾸고도 `file://` 주소로 남으면 확장 · 존재
-      // 검사 전에 까닭 한 줄로 다시 묻는다 — 확장하면 저장소 루트가 붙어 넣은 주소와
-      // 다른 경로가 보인다. 주소 안에 홈 경로가 있을 수 있어 답은 되풀이하지 않는다.
-      if (parsed.isEmpty) {
-        context.terminal.writeLine('  $emptyPathReason');
-        continue;
-      }
-      if (parsed.startsWith('file://')) {
-        context.terminal.writeLine('  $unconvertibleAddressReason');
-        continue;
-      }
-      final String path = expandInputPath(context, parsed);
       final String shown = describePath(context, path);
       // File.existsSync 는 폴더에 false 라 폴더를 먼저 가려 까닭을 맞춘다.
       if (FileSystemEntity.isDirectorySync(path)) {
