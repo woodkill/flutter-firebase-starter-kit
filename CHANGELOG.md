@@ -31,6 +31,10 @@
 - Flutter 스플래시의 배경 · 로고가 앱 테마가 아니라 기기의 라이트 · 다크 설정을 따라 네이티브 스플래시와 같은 값이다 — 킷 기본 화면 배경이 테마 표면색에서 `#FFFFFF` · `#000000` 으로 바뀌고, 다크면 `logo_dark.png` 를 그린다. 로고는 화면 정가운데에 원본 ÷ 4 크기로 놓여 네이티브 스플래시에서 넘어갈 때 움직이지 않고, 글자 · 진행 표시 색과 상태 표시줄 아이콘은 배경 밝기를 따른다. 실패 대화상자는 앱 테마 그대로다. `docs/guide.md` 「스플래시 바꾸기」 의 권장 로고 원본이 1152x1152(가운데 지름 약 750픽셀 원 안 · 원 밖 투명) 규격으로 바뀐다 — 이 규격이어야 Android 12 이상에서도 두 화면의 로고 크기가 같다. 라우터로 앱 전체를 여는 킷 시험(`test/core/router/app_router_nesting_test.dart` · `test/widget_test.dart` 등)은 내 `buildSplashBody` 를 그린다. 바뀐 킷 파일은 `lib/features/splash/presentation/splash_screen.dart` · `splash_frame.dart`(새) · `lib/features/demo/presentation/demo_screen.dart`(주석) · `scripts/release_user_action.sh`(40행 판정) · `docs/guide.md` · `assets/images/splash/README.md` · 시험이고, 위 「사용자 조치」 의 세 경우가 아니면 merge 로 끝난다.
 - 앱 아이콘 단계가 콘솔에 앱 아이콘 칸이 있는 수단을 켜지 않아도 늘 돌고, 콘솔 아이콘은 홈 화면 iOS 1024 아이콘에서 만들어진다 — 위저드를 끝낸 저장소를 다시 실행했을 때 켠 수단의 콘솔 아이콘 가운데 지금 홈 화면 아이콘에서 만든 것이 아닌 것(다시 켠 수단 포함)이 있으면 콘솔 아이콘을 다시 만들고, 기존 파일과 바이트가 달라진 수단에만 「콘솔에 다시 올리세요」 를 알린다. 아이콘 생성은 sips 크기 줄이기에서 Dart `image` 패키지(개발 의존성)로 바뀌고, sips 는 원본 크기 읽기와 sRGB PNG 변환만 한다. 콘솔 아이콘을 바꾸는 길은 「아이콘 폴더를 지우고 다시 실행」 에서 `./setup.sh --app-icon` 으로 바뀐다.
 
+### Fixed
+
+- 설정 위저드가 끌어다 놓거나 붙여 넣은 글을 bracketed paste 표시(`ESC[200~` · `ESC[201~`)로 감싸 보내는 터미널에서도 표시를 지운 값을 받는다. 이런 터미널에서 「앱 아이콘」 단계의 원본 이미지 경로를 Finder 에서 끌어다 놓으면 `파일이 없습니다` 가 세 번 나온 뒤 위저드가 멈추던 문제를 고친다 — 표시가 붙은 앱 이름 · 지원 이메일 같은 답을 그대로 받던 일도 함께 없어진다. Apple `.p8` 파일 경로 질문도 원본 이미지 경로 질문과 같은 규칙으로 Finder 에서 끌어다 놓은 경로(공백 앞 `\` · 따옴표 · `file://` 주소)를 받는다. 바뀐 파일은 `tool/setup/terminal.dart` · `tool/setup/providers/path_input.dart` · `tool/setup/providers/apple_key_input.dart` · `tool/setup/steps/app_icon_step.dart` · `test/tool/setup/` 의 위저드 시험 파일이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
+
 ## [1.0.0-rc.14] - 2026-11-13
 
 ### 사용자 조치
