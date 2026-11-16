@@ -1807,6 +1807,7 @@ LayoutBuilder(
   rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml android/app/src/main/res/mipmap-*/ic_launcher_foreground.png android/app/src/main/res/values/ic_launcher_background.xml
   ```
 
+  - 아이콘 자리가 저장소 안을 가리키는 링크면 그 링크가 가리키는 파일도 `git checkout -- <그 파일>` 로 되돌린다.
   - 아이콘을 아직 커밋한 적이 없으면 마지막 커밋 상태가 킷 기본 아이콘이다.
   - 폴더째 지우지 않는다 — `mipmap-anydpi-v26` 에 둔 다른 파일을 남기고, 빈 폴더는 git 이 보지 않는다.
   - adaptive 파일을 이미 커밋했다면 지우지 말고 그 파일도 `git checkout --` 로 되돌린다.
