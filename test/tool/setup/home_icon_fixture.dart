@@ -338,6 +338,10 @@ enum FileFault {
 
   /// `deleteSync` 가 늘 실패한다.
   failDelete,
+
+  /// 고른 차례의 `writeAsBytesSync` 가 빈 바이트를 쓰고 실패 없이 돌아온다 —
+  /// 쓰기는 성공하고 다시 읽으면 빈 바이트인 자리를 흉내 낸다.
+  emptyWrite,
 }
 
 /// 고른 절대 경로의 [File] 에만 실패를 주입하는 [IOOverrides].
@@ -419,6 +423,10 @@ final class _FaultyFile implements File {
             flush: true,
           );
           throw _buildFault('쓰기');
+        case FileFault.emptyWrite:
+          _owner.firedPaths.add(_real.path);
+          _real.writeAsBytesSync(const <int>[], mode: mode, flush: true);
+          return;
         case FileFault.failDelete:
           break;
       }

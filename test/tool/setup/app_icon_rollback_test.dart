@@ -489,26 +489,26 @@ void main() {
     expect(session.isAppIconRebuildRequested, isTrue);
   });
 
-  // iOS 1024 자리를 '/dev/null' 링크로 두면 쓰기는 성공하고 다시 읽기만 빈 바이트가
-  // 되는 자리가 생긴다 — 링크 꼴이라 macOS · Linux 에서만 돈다.
-  test('T-28-SAFE-05: 킷 기본 저장소 · iOS 1024 자리 = /dev/null 링크 → 쓰기 성공 · '
-      '다시 읽기 실패 → 20장 = HEAD · 새 adaptive 파일 0 · 링크 그대로 · 표식 · 콘솔 0', () async {
+  // iOS 1024 자리의 첫 쓰기만 빈 바이트를 쓰고 성공한 것처럼 돌아오게 하면 쓰기는
+  // 성공하고 다시 읽기만 빈 바이트가 되는 자리가 생긴다.
+  test('T-28-SAFE-05: 킷 기본 저장소 · iOS 1024 첫 쓰기가 빈 바이트로 성공 → '
+      '다시 읽기 실패 → 20장 = HEAD · 새 adaptive 파일 0 · 표식 · 콘솔 0', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    final linkPath = '${box.root}/$ios1024Path';
-    box.openRepoFile(ios1024Path).deleteSync();
-    Link(linkPath).createSync('/dev/null');
-    // 빈 바이트의 sha256 — 링크가 가리키는 /dev/null 을 킷 기본으로 본다.
-    kit[ios1024Path] =
-        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-    commitGitFixture(box.root, 'kit default icons with null link');
+    commitGitFixture(box.root, 'kit default icons');
     final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
     final String source = box.writeSource('logo.png', sourceBytes);
+    final overrides = FileFaultOverrides(
+      <String, ({FileFault fault, int call})>{
+        '${box.root}/$ios1024Path': (fault: FileFault.emptyWrite, call: 1),
+      },
+    );
     final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
       ..registerSource(source, sourceBytes);
 
-    final int code = await run.run();
+    final int code = await run.run(overrides: overrides);
 
     expect(code, wizardExitStopped);
+    expect(overrides.firedPaths, <String>['${box.root}/$ios1024Path']);
     final Iterable<String> rolledBack = run.lines.where(
       (String line) => line.startsWith(rolledBackLineHead),
     );
@@ -523,6 +523,10 @@ void main() {
       for (final HomeIconFile file in homeIconFiles) file.relativePath,
     ]);
     expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
+    expect(
+      box.openRepoFile(ios1024Path).readAsStringSync(),
+      'kit:$ios1024Path',
+    );
     for (final String path in listAdaptiveFilePaths()) {
       expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
     }
@@ -540,8 +544,7 @@ void main() {
       ),
       isEmpty,
     );
-    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
-  }, testOn: 'mac-os || linux');
+  });
 
   test('T-28-SAFE-06: 쓰다 실패한 경로 — 있던 경로는 되돌림 · 없던 파일만 지움 · '
       '없던 폴더 · 링크 · 없음은 그대로', () {
