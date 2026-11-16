@@ -227,7 +227,7 @@ final class AppIconStep implements DeferrableStep {
   /// 같은 이름의 Android 아이콘 리소스가 이미 있을 때의 까닭(뒤에 경로 줄).
   static const String conflictReason =
       '같은 이름의 아이콘 리소스가 이미 있습니다 — 옮기거나 지운 뒤 다시 실행하세요 '
-      '(빌드가 같은 이름 리소스를 함께 받지 못합니다)';
+      '(같은 이름 리소스는 빌드를 깨뜨리거나 기기 조건에 따라 새 아이콘을 가립니다)';
 
   /// 홈 화면 아이콘을 쓰다 실패해 되돌렸을 때의 까닭 머리(뒤에 실패 까닭).
   static const String rolledBackReason = '홈 화면 아이콘을 쓰지 못해 쓰기 전으로 되돌렸습니다 — ';
@@ -249,8 +249,9 @@ final class AppIconStep implements DeferrableStep {
   /// 되돌릴 때 새로 만든 파일을 지우지 못했을 때 경로 줄 앞에 보이는 안내.
   static const String deleteGuide = '새로 만든 아래 파일을 지우지 못했습니다 — 지운 뒤 다시 실행하세요';
 
-  /// adaptive 배경색 리소스 이름 — 다른 values 파일이 같은 이름을 정의하면
-  /// 빌드가 실패한다.
+  /// adaptive 배경색 리소스 이름 — 다른 values 파일이 같은 이름을 정의하면 같은
+  /// qualifier 폴더에서는 빌드가 실패하고, 다른 qualifier 폴더에서는 그 기기
+  /// 조건에서 이 단계의 색을 가린다.
   static const String _backgroundResourceName = 'ic_launcher_background';
 
   /// values XML 안의 배경색 리소스 정의(`name="…"` · 작은따옴표도 받음).
@@ -454,8 +455,10 @@ final class AppIconStep implements DeferrableStep {
   /// 파일 이름의 첫 `.` 앞이 `ic_launcher` 또는 `ic_launcher_foreground` 인
   /// 파일(확장자 무관)을 잡는다. 이름이 `values` 이거나 `values-` 로 시작하는
   /// 폴더는 `.xml` 파일 가운데 `name="ic_launcher_background"`(작은따옴표 ·
-  /// `=` 앞뒤 공백도 받음)를 담은 것을 잡는다. 같은 이름을 둘 받으면 빌드가
-  /// 실패한다. 그 밖의 폴더(`drawable*` 등)는 리소스 종류가 달라 보지 않는다.
+  /// `=` 앞뒤 공백도 받음)를 담은 것을 잡는다. 같은 이름이 같은 qualifier 폴더에
+  /// 둘이면 빌드가 실패하고, 다른 qualifier 폴더에 있으면 그 기기 조건에서 이
+  /// 단계의 리소스를 가린다. 그 밖의 폴더(`drawable*` 등)는 리소스 종류가 달라
+  /// 보지 않는다.
   /// 리소스 폴더가 없으면 빈 목록이다.
   static List<String> findConflictingIconResources(String projectRoot) {
     final res = Directory('$projectRoot/$androidResDirectory');
