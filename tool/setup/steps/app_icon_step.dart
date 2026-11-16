@@ -589,10 +589,10 @@ final class AppIconStep implements DeferrableStep {
   String get deferLabel => '지금 안 함';
 
   // 홈 화면 파일은 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다 실패하면 쓰기
-  // 직전에 떠 둔 바이트로 되돌린다. 두 검사가 보는 파일은
-  // [_findOverwrittenRepoPath] 가 정하고 그 파일은 모두 git 이 추적하는 것이므로
-  // 끝까지 쓴 결과는 git 으로 되돌릴 수 있다 — 커밋한 링크가 저장소 밖을
-  // 가리키면 그 바깥 파일은 예외다.
+  // 직전에 떠 둔 바이트로 되돌린다. 쓰기가 덮어쓰는 파일은
+  // [_findOverwrittenRepoPath] 가 정하고 그 대조로 디스크에 있던 것은 모두 git 이
+  // 추적하는 것이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다 — 커밋한 링크가
+  // 저장소 밖을 가리키면 그 바깥 파일은 예외다.
   @override
   bool get isCostlyOrIrreversible => false;
 
