@@ -209,7 +209,7 @@
 - 바꾼 아이콘이면 「내 아이콘」 으로 보고 묻지도 덮어쓰지도 않는다.
 - 홈 화면 아이콘을 킷 기본 · 내 아이콘 어느 쪽으로도 가를 수 없거나 iOS 1024 아이콘을 그대로 쓸 수 없으면 덮어쓰지 않고 콘솔 아이콘도 만들지 않으며, 까닭과 `./setup.sh --app-icon` 안내만 보인다 — 판정은 `AppIconStep.check`(`tool/setup/steps/app_icon_step.dart`).
 - 콘솔 아이콘은 늘 홈 화면 iOS 1024 아이콘에서 만든다 — 켠 수단의 콘솔 아이콘 가운데 지금 홈 화면 아이콘에서 만든 것이 아닌 것(다시 켠 수단 포함)이 있으면 원본을 묻지 않고 다시 만들고, 기존 파일과 바이트가 달라진 수단에만 그 이름 뒤에 `콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요` 를 보인다.
-- 홈 화면 아이콘 파일에 커밋하지 않은 변경 · 새 파일이 있거나 git 이 추적하지 않는 파일(gitignored 포함)이 있으면 쓰기 전에 멈추고 그 경로를 보인다.
+- 홈 화면 아이콘 파일에 커밋하지 않은 변경 · 새 파일이 있거나 git 이 추적하지 않는 파일(gitignored 포함)이 있으면 쓰기 전에 멈추고 그 경로를 보인다 — 아이콘 자리가 저장소 안을 가리키는 링크면 그 링크가 가리키는 파일도 함께 보며, 보는 파일은 `AppIconStep._findOverwrittenRepoPath`(`tool/setup/steps/app_icon_step.dart`)가 정한다.
 - 이 단계가 쓰는 Android 아이콘 리소스와 같은 이름을 다른 리소스 파일이 정의하면 쓰기 전에 멈추고 그 경로를 보인다 — 판정은 `AppIconStep.findConflictingIconResources`(`tool/setup/steps/app_icon_step.dart`).
 
 아이콘을 바꾸려면 `./setup.sh --app-icon` 을 실행한다.
