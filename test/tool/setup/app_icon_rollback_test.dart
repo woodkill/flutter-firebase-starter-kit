@@ -5,6 +5,7 @@
 //
 // git 은 실제로 돌리고 sips · open 은 가짜 실행기에 등록한 대로다. 변환 효과는
 // 작업 폴더의 `source.png` 에 진짜 PNG 를 쓴다.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
@@ -152,10 +153,24 @@ final class _GitRun {
       .length;
 
   /// 위저드를 돌린다.
-  Future<int> run() => runWizard(
+  ///
+  /// [overrides] 를 주면 그 [IOOverrides] 안에서 돌린다. [failedLsFilesCall] 을
+  /// 주면 그 차례(1부터)의 `git ls-files` 만 종료 코드 128 로 답한다.
+  Future<int> run({IOOverrides? overrides, int? failedLsFilesCall}) {
+    final CommandRunner used = failedLsFilesCall == null
+        ? runner
+        : _LsFilesFaultRunner(runner, failedLsFilesCall);
+    Future<int> start() => _runWith(used);
+    return overrides == null
+        ? start()
+        : IOOverrides.runWithIOOverrides(start, overrides);
+  }
+
+  /// 실행기 [used] 로 위저드를 돌린다.
+  Future<int> _runWith(CommandRunner used) => runWizard(
     WizardContext(
       projectRoot: box.root,
-      runner: runner,
+      runner: used,
       terminal: RedactingTerminal(screen, log.redactor, log),
       redactor: log.redactor,
       log: log,
@@ -173,6 +188,41 @@ final class _GitRun {
       ),
     ],
   );
+}
+
+/// 고른 차례의 `git ls-files` 만 실패로 답하고 나머지는 [inner] 에 넘기는 실행기.
+final class _LsFilesFaultRunner implements CommandRunner {
+  _LsFilesFaultRunner(this.inner, this.failedCall);
+
+  /// 실제로 돌릴 실행기.
+  final CommandRunner inner;
+
+  /// 실패로 답할 `git ls-files` 차례(1부터).
+  final int failedCall;
+
+  int _lsFilesCalls = 0;
+
+  /// [command] 가 실패시킬 차례의 `git ls-files` 인지 센다.
+  bool _isFailedCall(Command command) {
+    if (command.executable != 'git' ||
+        command.arguments.isEmpty ||
+        command.arguments.first != 'ls-files') {
+      return false;
+    }
+    _lsFilesCalls++;
+    return _lsFilesCalls == failedCall;
+  }
+
+  @override
+  Future<CommandResult> capture(Command command) async => _isFailedCall(command)
+      ? const CommandResult(128, '', 'fatal: 주입한 실패')
+      : await inner.capture(command);
+
+  @override
+  Future<int> interactive(Command command) => inner.interactive(command);
+
+  @override
+  Future<CommandResult> stream(Command command) => inner.stream(command);
 }
 
 void main() {
@@ -510,5 +560,161 @@ void main() {
     expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(box.readStatus(), isEmpty);
     expect(run.countCheckouts(), 0);
+  });
+
+  group('되돌림 자체가 실패하는 갈래', () {
+    late Map<String, String> kit;
+    late Uint8List sourceBytes;
+    late String source;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      commitGitFixture(box.root, 'kit default icons');
+      sourceBytes = buildOpaqueRgbaIconPng();
+      source = box.writeSource('logo.png', sourceBytes);
+    });
+
+    /// 마지막 전경 자리에 빈 폴더를 두어 쓰기를 실패시키고 그 경로를 돌려준다.
+    String blockLastForeground() {
+      final String blocked = adaptiveDensities.last.foregroundPath;
+      Directory('${box.root}/$blocked').createSync(recursive: true);
+      return blocked;
+    }
+
+    /// 실패 줄부터 다시 시도 질문 전까지의 줄.
+    List<String> readFailureBlock(List<String> lines) {
+      final int start = lines.indexWhere(
+        (String line) => line.startsWith('  실패 — '),
+      );
+      expect(start, greaterThanOrEqualTo(0));
+      final int end = lines.indexOf(failureChoiceQuestion, start + 1);
+      expect(end, greaterThan(start));
+      return lines.sublist(start, end);
+    }
+
+    test('T-28-SAFE-08: 추적 iOS 1024 를 떠 둔 바이트로 다시 쓰지 못함 → '
+        '되돌리지도 못함 머리 · git checkout 안내 아래 그 경로', () async {
+      blockLastForeground();
+      final overrides = FileFaultOverrides(
+        <String, ({FileFault fault, int call})>{
+          '${box.root}/$ios1024Path': (fault: FileFault.failWrite, call: 2),
+        },
+      );
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      expect(await run.run(overrides: overrides), wizardExitStopped);
+
+      expect(overrides.firedPaths, <String>['${box.root}/$ios1024Path']);
+      final List<String> block = readFailureBlock(run.lines);
+      expect(
+        block.first,
+        startsWith('  실패 — ${AppIconStep.restoreFailedReason}'),
+      );
+      expect(block.sublist(1), <String>[
+        AppIconStep.restoreGuide,
+        '    $ios1024Path',
+      ]);
+      for (final HomeIconFile file in homeIconFiles) {
+        if (file.relativePath == ios1024Path) continue;
+        expect(
+          box.repoFile(file.relativePath).readAsStringSync(),
+          'kit:${file.relativePath}',
+          reason: file.relativePath,
+        );
+      }
+      expect(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+        isNot(utf8.encode('kit:$ios1024Path')),
+      );
+      for (final String path in listAdaptiveFilePaths()) {
+        expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+      }
+    });
+
+    test('T-28-SAFE-09: 다시 쓰지 못한 뒤 추적 여부 읽기(git ls-files)도 실패 → '
+        '모든 경로가 되살리지 못함 안내 아래 · git checkout 안내 0', () async {
+      blockLastForeground();
+      final overrides = FileFaultOverrides(
+        <String, ({FileFault fault, int call})>{
+          '${box.root}/$ios1024Path': (fault: FileFault.failWrite, call: 2),
+        },
+      );
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      // 첫 git ls-files 는 쓰기 전 추적 여부 대조, 둘째가 되돌림 안내 쪽이다.
+      final int code = await run.run(
+        overrides: overrides,
+        failedLsFilesCall: 2,
+      );
+
+      expect(code, wizardExitStopped);
+      final List<String> block = readFailureBlock(run.lines);
+      expect(
+        block.first,
+        startsWith('  실패 — ${AppIconStep.restoreFailedReason}'),
+      );
+      expect(block.sublist(1), <String>[
+        AppIconStep.unrestorableGuide,
+        '    $ios1024Path',
+      ]);
+      expect(run.lines, isNot(contains(AppIconStep.restoreGuide)));
+    });
+
+    test('T-28-SAFE-10: 새 adaptive XML 을 지우지 못함 → 쓰기 전으로 되돌림 머리 · '
+        '지우기 안내 아래 그 경로와 OS 까닭', () async {
+      blockLastForeground();
+      final overrides = FileFaultOverrides(
+        <String, ({FileFault fault, int call})>{
+          '${box.root}/$adaptiveIconXmlPath': (
+            fault: FileFault.failDelete,
+            call: 0,
+          ),
+        },
+      );
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      expect(await run.run(overrides: overrides), wizardExitStopped);
+
+      final List<String> block = readFailureBlock(run.lines);
+      expect(block.first, startsWith(rolledBackLineHead));
+      expect(block.sublist(1), <String>[
+        AppIconStep.deleteGuide,
+        '    $adaptiveIconXmlPath (주입한 실패)',
+      ]);
+      expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isTrue);
+      for (final HomeIconFile file in homeIconFiles) {
+        expect(
+          box.repoFile(file.relativePath).readAsStringSync(),
+          'kit:${file.relativePath}',
+          reason: file.relativePath,
+        );
+      }
+    });
+
+    test('T-28-SAFE-11: 있던 홈 화면 파일을 앞 절반만 쓰고 실패 → 그 파일도 '
+        '떠 둔 바이트로 되돌림 · 27경로 = 실행 전', () async {
+      final String broken = homeIconFiles[3].relativePath;
+      final Map<String, List<int>?> before = box.readWriteTargets();
+      final overrides = FileFaultOverrides(
+        <String, ({FileFault fault, int call})>{
+          '${box.root}/$broken': (fault: FileFault.partialWrite, call: 1),
+        },
+      );
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      expect(await run.run(overrides: overrides), wizardExitStopped);
+
+      expect(overrides.firedPaths, <String>['${box.root}/$broken']);
+      final List<String> block = readFailureBlock(run.lines);
+      expect(block, hasLength(1));
+      expect(block.single, startsWith(rolledBackLineHead));
+      expect(block.single, contains('$broken (주입한 실패)'));
+      expect(box.readWriteTargets(), before);
+      expect(box.readStatus(), isEmpty);
+    });
   });
 }

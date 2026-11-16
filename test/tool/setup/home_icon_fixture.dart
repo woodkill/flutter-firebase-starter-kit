@@ -303,3 +303,112 @@ final class IconFlowRunner implements CommandRunner {
   Future<CommandResult> stream(Command command) =>
       _execute(RunMode.stream, command);
 }
+
+/// 파일 하나에 주입할 실패 종류.
+enum FileFault {
+  /// 고른 차례의 `writeAsBytesSync` 가 아무것도 쓰지 않고 실패한다.
+  failWrite,
+
+  /// 고른 차례의 `writeAsBytesSync` 가 앞 절반만 쓰고 실패한다.
+  partialWrite,
+
+  /// `deleteSync` 가 늘 실패한다.
+  failDelete,
+}
+
+/// 고른 절대 경로의 [File] 에만 실패를 주입하는 [IOOverrides].
+///
+/// `File(path)` 생성자가 [IOOverrides.current] 를 따르므로
+/// [IOOverrides.runWithIOOverrides] 안의 실행이 그 경로로 만든 파일만 감싼다 —
+/// 그 밖 경로는 실제 파일 그대로다. 쓰기 차례는 경로마다 1부터 세고, 같은 경로의
+/// 파일 객체를 새로 만들어도 이어서 센다.
+final class FileFaultOverrides extends IOOverrides {
+  /// 절대 경로 → (실패 종류 · 실패시킬 쓰기 차례) 표 [faults] 로 만든다.
+  FileFaultOverrides(this.faults);
+
+  /// 절대 경로 → (실패 종류 · 실패시킬 쓰기 차례). 지우기 실패는 차례를 보지 않는다.
+  final Map<String, ({FileFault fault, int call})> faults;
+
+  final Map<String, int> _writeCalls = <String, int>{};
+
+  /// 주입한 실패가 실제로 일어난 경로(순서대로).
+  final List<String> firedPaths = <String>[];
+
+  @override
+  File createFile(String path) {
+    final File real = super.createFile(path);
+    final ({FileFault fault, int call})? fault = faults[path];
+    return fault == null ? real : _FaultyFile(real, this, fault);
+  }
+
+  /// [path] 의 쓰기 차례를 하나 올려 돌려준다.
+  int _countWrite(String path) =>
+      _writeCalls[path] = (_writeCalls[path] ?? 0) + 1;
+}
+
+/// [FileFaultOverrides] 가 고른 경로에 돌려주는 파일 — 단계가 쓰는 멤버만 실제
+/// 파일에 넘기고 나머지는 [UnsupportedError] 다.
+final class _FaultyFile implements File {
+  _FaultyFile(this._real, this._owner, this._fault);
+
+  final File _real;
+  final FileFaultOverrides _owner;
+  final ({FileFault fault, int call}) _fault;
+
+  /// 주입한 실패 예외를 만든다.
+  FileSystemException _buildFault(String operation) {
+    _owner.firedPaths.add(_real.path);
+    return FileSystemException(
+      '$operation 실패(주입)',
+      _real.path,
+      const OSError('주입한 실패', 5),
+    );
+  }
+
+  @override
+  String get path => _real.path;
+
+  @override
+  Directory get parent => _real.parent;
+
+  @override
+  bool existsSync() => _real.existsSync();
+
+  @override
+  Uint8List readAsBytesSync() => _real.readAsBytesSync();
+
+  @override
+  void writeAsBytesSync(
+    List<int> bytes, {
+    FileMode mode = FileMode.write,
+    bool flush = false,
+  }) {
+    final int call = _owner._countWrite(_real.path);
+    if (call == _fault.call) {
+      switch (_fault.fault) {
+        case FileFault.failWrite:
+          throw _buildFault('쓰기');
+        case FileFault.partialWrite:
+          _real.writeAsBytesSync(
+            bytes.sublist(0, bytes.length ~/ 2),
+            mode: mode,
+            flush: true,
+          );
+          throw _buildFault('쓰기');
+        case FileFault.failDelete:
+          break;
+      }
+    }
+    _real.writeAsBytesSync(bytes, mode: mode, flush: flush);
+  }
+
+  @override
+  void deleteSync({bool recursive = false}) {
+    if (_fault.fault == FileFault.failDelete) throw _buildFault('지우기');
+    _real.deleteSync(recursive: recursive);
+  }
+
+  @override
+  Object? noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('주입 파일이 넘기지 않는 멤버: ${invocation.memberName}');
+}
