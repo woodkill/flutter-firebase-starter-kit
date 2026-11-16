@@ -218,12 +218,9 @@ final class AppIconStep implements DeferrableStep {
   /// 이름).
   static const String reuploadNote = '콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요';
 
-  /// 표식에 있는 그 수단 줄이 지금 지문과 다른 기존 콘솔 파일이 있을 때 할 일
-  /// 줄의 꼬리.
-  static const String reuploadTail = ' — 만든 뒤 콘솔에 다시 올리세요';
-
-  /// 표식에 그 수단 줄이 없는 기존 콘솔 파일만 있을 때 할 일 줄의 꼬리 — 만든
-  /// 바이트가 같을 수 있어 다시 올리라고 약속하지 않는다.
+  /// 표식의 그 수단 줄이 없거나 지금 지문과 다른 기존 콘솔 파일이 있을 때 할 일
+  /// 줄의 꼬리 — 만든 바이트가 같을 수 있어 다시 올리라고 약속하지 않는다. 다시
+  /// 올릴 수단은 만든 뒤 결과 노트([reuploadNote])가 정한다.
   static const String conditionalReuploadTail =
       ' — 바뀐 아이콘이 있으면 만든 뒤 다시 올리라고 알립니다';
 
@@ -669,10 +666,10 @@ final class AppIconStep implements DeferrableStep {
   /// 콘솔만 다시 만드는 할 일 줄의 꼬리를 정한다 — [made] 는 표식의 수단 token →
   /// 지문 표, [digest] 는 지금 iOS 1024 지문이다.
   ///
-  /// 기존 파일 가운데 표식 줄이 다른 지문인 것이 있으면 [reuploadTail], 표식 줄이
-  /// 없는 것만 있으면 [conditionalReuploadTail], 기존 파일이 없거나 모두 지금
-  /// 지문이면 빈 꼬리다. 실제로 다시 올리라는 노트는 만든 뒤 바이트를 비교해
-  /// 바뀐 수단에만 보인다.
+  /// 기존 파일 가운데 표식 줄이 없거나 지금 지문과 다른 것이 하나라도 있으면
+  /// [conditionalReuploadTail], 기존 파일이 없거나 모두 지금 지문이면 빈 꼬리다
+  /// — 어느 수단에도 다시 올리라고 약속하지 않는다. 실제로 다시 올리라는 노트는
+  /// 만든 뒤 바이트를 비교해 바뀐 수단에만 보인다.
   String _buildReuploadTail(
     WizardContext context,
     Map<String, String> made,
@@ -682,16 +679,10 @@ final class AppIconStep implements DeferrableStep {
       for (final IconSpec spec in targets)
         if (File(context.resolve(spec.relativePath)).existsSync()) spec,
     ];
-    if (existing.any(
-      (IconSpec spec) =>
-          made.containsKey(spec.token) && made[spec.token] != digest,
-    )) {
-      return reuploadTail;
-    }
-    if (existing.any((IconSpec spec) => !made.containsKey(spec.token))) {
-      return conditionalReuploadTail;
-    }
-    return '';
+    final bool hasStale = existing.any(
+      (IconSpec spec) => made[spec.token] != digest,
+    );
+    return hasStale ? conditionalReuploadTail : '';
   }
 
   /// 홈 화면 아이콘 가운데 없거나 읽을 수 없는 파일 수.

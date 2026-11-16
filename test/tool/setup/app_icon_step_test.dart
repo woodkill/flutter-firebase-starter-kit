@@ -708,7 +708,6 @@ void main() {
 
   group('T-28-ICON-09: 표식이 다르거나 없거나 콘솔 파일이 없으면 콘솔만 다시', () {
     const todoHead = '  ✗ 앱 아이콘 — Kakao 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 만듭니다';
-    const reuploadTail = ' — 만든 뒤 콘솔에 다시 올리세요';
 
     test('표식 한 글자 다름', () async {
       writeFinishedMine(box.root);
@@ -720,7 +719,7 @@ void main() {
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
-      expect(h.lines, contains('$todoHead$reuploadTail'));
+      expect(h.lines, contains('$todoHead$conditionalReuploadTail'));
       expect(h.runner.calls, isEmpty);
     });
 
@@ -979,6 +978,32 @@ void main() {
         box.repoFile(findIconSpec('naver')!.relativePath).readAsBytesSync(),
         buildCurrentConsoleIcon('naver'),
       );
+    });
+
+    test('Kakao 는 표식 줄 · 파일이 지금 것 · Naver 는 옛 지문 줄 → 약속 없는 꼬리 · '
+        '노트는 Naver 하나', () async {
+      writeMineWithCurrentKakao();
+      box.repoFile(findIconSpec('naver')!.relativePath)
+        ..createSync(recursive: true)
+        ..writeAsBytesSync(const <int>[4, 5, 6]);
+      box.repoFile(homeIconMarkerPath)
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          '${readHomeIconDigest(box.root)} kakao\n${'a' * 64} naver\n',
+        );
+
+      final h = await runConsoleOnly(const <String>{'kakao', 'naver'});
+
+      expect(
+        h.lines,
+        contains(
+          '  ✗ 앱 아이콘 — Kakao · Naver 콘솔 아이콘을 홈 화면 아이콘(iOS 1024)에서 '
+          '만듭니다$conditionalReuploadTail',
+        ),
+      );
+      expect(findReuploadNotes(h.lines), <String>[
+        '  · Naver 콘솔 아이콘이 바뀌었습니다 — 각 콘솔에 다시 올리세요',
+      ]);
     });
 
     test('바뀐 수단만 노트에 이름이 든다', () async {
