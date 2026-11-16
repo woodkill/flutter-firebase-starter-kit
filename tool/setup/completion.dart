@@ -56,9 +56,10 @@ String buildOtherChangesLine(int count) =>
 ///
 /// 빈 줄 · [appIconHintLine] 뒤에 커밋 안내를 보인다. 이 실행은 개발 도중에도
 /// 돌리므로 작업 트리의 다른 미커밋 변경이 위저드 결과가 아니다 — 그래서 커밋
-/// 목록은 바뀐 추적 파일 가운데 앱 아이콘 단계의 쓰기 경로
-/// ([AppIconStep.listWritePaths])와 새 adaptive 아이콘 파일뿐이다. 그 밖의 바뀐
-/// 추적 파일이 있으면 빈 줄 뒤 [buildOtherChangesLine] 한 줄로 수만 알린다.
+/// 목록은 바뀐 추적 파일 가운데 앱 아이콘 단계가 쓰는 파일(쓰기 경로
+/// [AppIconStep.listWritePaths] 와 [AppIconStep.collectOverwrittenRepoPaths] 가
+/// 더한 파일)과 새 adaptive 아이콘 파일뿐이다. 그 밖의 바뀐 추적 파일이 있으면
+/// 빈 줄 뒤 [buildOtherChangesLine] 한 줄로 수만 알린다.
 /// 로그인 수단 단계를 돌지 않으므로 [providersHintLine] 은 없고, ARB 를 바꾸지
 /// 않으므로 golden 갱신 안내도 없다. git 이 실패하면 [GitTreeException] 을
 /// 던진다.
@@ -66,7 +67,10 @@ Future<void> showAppIconCompletionSummary(WizardContext context) async {
   context.terminal
     ..writeLine('')
     ..writeLine(appIconHintLine);
-  final Set<String> iconPaths = AppIconStep.listWritePaths().toSet();
+  final Set<String> iconPaths = AppIconStep.collectOverwrittenRepoPaths(
+    context,
+    AppIconStep.listWritePaths(),
+  ).toSet();
   final List<String> changed = await listChangedTrackedFiles(context);
   final iconChanged = <String>[
     for (final String path in changed)

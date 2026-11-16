@@ -461,6 +461,48 @@ void main() {
     );
   });
 
+  // 배경색 자리에 저장소 안 파일을 가리키는 상대 링크를 두므로 macOS · Linux
+  // 에서만 돈다. 링크 없는 구성의 출력은 T-28-DONE-02 · 04 가 그대로 고정한다.
+  test('T-28-DONE-06 앱 아이콘 끝 요약 — 아이콘 자리의 링크가 가리키는 바뀐 '
+      '추적 파일은 커밋 안내에 넣고 「그 밖의」 수에서 뺀다', () async {
+    const linkedPath = 'local/bg.xml';
+    File('$root/$linkedPath')
+      ..parent.createSync(recursive: true)
+      ..writeAsStringSync('<resources/>\n');
+    final linkPath = '$root/$adaptiveBackgroundPath';
+    Directory(linkPath).parent.createSync(recursive: true);
+    final String up = List<String>.filled(
+      adaptiveBackgroundPath.split('/').length - 1,
+      '..',
+    ).join('/');
+    Link(linkPath).createSync('$up/$linkedPath');
+    final runner = FakeCommandRunner()
+      ..on(
+        _gitStatusKey,
+        const CommandResult(
+          0,
+          ' M lib/l10n/app_ko.arb\n M $linkedPath\n M $ios1024Path\n',
+          '',
+        ),
+      );
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showAppIconCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    expect(
+      terminal.output.toString(),
+      joinOutputLines(<String>[
+        '',
+        appIconHintLine,
+        ...buildCommitHintLinesFor(<String>[ios1024Path, linkedPath]),
+        '',
+        buildOtherChangesLine(1),
+      ]),
+    );
+  }, testOn: 'mac-os || linux');
+
   test('T-28-DONE-05 보통 끝 요약은 아이콘 파일이 아닌 변경도 커밋 안내에 넣는다', () async {
     final runner = FakeCommandRunner()
       ..on(
