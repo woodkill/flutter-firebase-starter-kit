@@ -775,7 +775,11 @@ void main() {
   });
 
   group('T-28-ICON-10: 콘솔만 다시 — 원본 질문 0 · git 0 · iOS 1024 에서 만든다', () {
-    Future<_Harness> runConsoleOnly({required bool hasOldIcon}) async {
+    /// 「내 아이콘」 을 두고 콘솔만 다시 만드는 실행을 돌린다 — 실행과 실행 전
+    /// 홈 화면 20장 바이트를 돌려준다.
+    Future<({_Harness harness, Map<String, List<int>> before})> runConsoleOnly({
+      required bool hasOldIcon,
+    }) async {
       writeMyHomeIcons(box.root);
       final File kakaoFile = box.repoFile(findIconSpec('kakao')!.relativePath);
       if (hasOldIcon) {
@@ -787,14 +791,13 @@ void main() {
       final h = _Harness(box, <String?>['1'])
         ..registerConvert('${box.root}/$ios1024Path', ios1024)
         ..registerOpen();
+      final Map<String, List<int>> before = box.readHomeIcons();
       expect(await h.run(), wizardExitDone);
-      return h;
+      return (harness: h, before: before);
     }
 
     test('기존 콘솔 파일이 있으면 다시 올리라는 노트', () async {
-      final before = <String, List<int>>{};
-      final h = await runConsoleOnly(hasOldIcon: true);
-      before.addAll(box.readHomeIcons());
+      final (harness: h, :before) = await runConsoleOnly(hasOldIcon: true);
       final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
 
       expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
@@ -819,7 +822,7 @@ void main() {
         buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(ios1024, buildOpaqueRgbIconPng());
-      expect(before[homeIconFiles[1].relativePath], isNot(isEmpty));
+      expect(box.readHomeIcons(), before);
       expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
       expect(h.lines, contains(mineKakaoDoneLine));
       expect(h.countOpenCalls(), 1);
@@ -830,7 +833,7 @@ void main() {
       addTearDown(other.dispose);
       writeMyHomeIcons(other.root);
       final Map<String, List<int>> expected = other.readHomeIcons();
-      final h = await runConsoleOnly(hasOldIcon: false);
+      final h = (await runConsoleOnly(hasOldIcon: false)).harness;
 
       expect(findReuploadNotes(h.lines), isEmpty);
       expect(box.readHomeIcons(), expected);
