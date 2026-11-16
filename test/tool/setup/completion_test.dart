@@ -679,7 +679,7 @@ void main() {
     expect(checked, 127 - allowed.length - 1);
   });
 
-  test('T-28-DONE-10 셸 없이 실행한 명령의 표시 줄은 argv 맨 앞 ~/ 도 작은따옴표로 '
+  test('T-28-DONE-10 셸 없이 실행한 명령의 표시 줄은 인자 맨 앞 ~/ 도 작은따옴표로 '
       '감싼다', () {
     // argv 의 ~ 는 홈이 아니라 그 이름의 폴더다 — 셸이 홈으로 풀면 다른 경로가 된다.
     expect(
