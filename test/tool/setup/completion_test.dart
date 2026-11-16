@@ -541,6 +541,29 @@ void main() {
     ]) {
       expect(quoteForShellDisplay(word), word);
     }
+
+    // 허용 목록 밖 셸 특수 글자 하나씩은 감싼다.
+    for (final (String word, String quoted) in <(String, String)>[
+      ('a*b', "'a*b'"),
+      ('a?b', "'a?b'"),
+      (r'a$b', r"'a$b'"),
+      ('a`b', "'a`b'"),
+      ('a;b', "'a;b'"),
+      ('a&b', "'a&b'"),
+      ('a|b', "'a|b'"),
+      ('a<b', "'a<b'"),
+      ('a>b', "'a>b'"),
+      ('a(b', "'a(b'"),
+      ('a)b', "'a)b'"),
+      ('a{b', "'a{b'"),
+      ('a}b', "'a}b'"),
+      ('a#b', "'a#b'"),
+      ('a^b', "'a^b'"),
+      ('a b', "'a b'"),
+    ]) {
+      expect(quoteForShellDisplay(word), quoted, reason: word);
+      expect(quoteShellWord(word), quoted, reason: word);
+    }
   });
 
   test('T-28-DONE-08 표시용 인용은 맨 앞 ~/ 만 감싸지 않고 나머지를 같은 '
