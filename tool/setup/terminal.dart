@@ -57,6 +57,21 @@ int? parseChoiceAnswer(
   return number - 1;
 }
 
+/// 터미널이 붙여 넣거나 끌어다 놓은 글 앞에 붙이는 표시(`ESC[200~`).
+const String bracketedPasteStart = '\x1B[200~';
+
+/// 터미널이 붙여 넣거나 끌어다 놓은 글 뒤에 붙이는 표시(`ESC[201~`).
+const String bracketedPasteEnd = '\x1B[201~';
+
+/// 읽은 줄 [line] 에서 [bracketedPasteStart] · [bracketedPasteEnd] 를 지운다.
+///
+/// 두 표시는 자리(앞 · 뒤 · 중간)와 횟수에 상관없이 모두 지우고, 그 밖 글자(다른
+/// 제어 문자 · 앞뒤 공백)는 그대로 둔다 — 공백은 부르는 쪽이 뗀다. 붙여 넣기
+/// 모드를 켜지 않아도 표시를 붙이는 터미널이 있어, 모드를 다루는 대신 읽은 값에서
+/// 지운다.
+String stripBracketedPasteMarkers(String line) =>
+    line.replaceAll(bracketedPasteStart, '').replaceAll(bracketedPasteEnd, '');
+
 /// 터미널 에코가 켜져 있는지 읽는 함수.
 ///
 /// 표준 입력이 터미널이 아니면 [StdinException] 을 던질 수 있다.
@@ -73,6 +88,8 @@ bool readStdinEchoMode() => stdin.echoMode;
 void writeStdinEchoMode(bool isEnabled) => stdin.echoMode = isEnabled;
 
 /// 표준 입출력을 쓰는 터미널.
+///
+/// 읽은 줄은 [stripBracketedPasteMarkers] 로 표시를 지운 뒤 다룬다.
 final class StdioTerminal implements Terminal {
   /// [readLine] · [output] 을 주지 않으면 표준 입력 · 표준 출력을 쓴다.
   ///
@@ -99,6 +116,12 @@ final class StdioTerminal implements Terminal {
   /// 표준 입력에서 한 줄을 읽는다 — 입력 끝이면 null.
   static String? _readStdinLine() => stdin.readLineSync(encoding: utf8);
 
+  /// 한 줄을 읽어 붙여 넣기 표시를 지운 답을 돌려준다 — 입력 끝이면 null.
+  String? _readAnswer() {
+    final String? line = _readLine();
+    return line == null ? null : stripBracketedPasteMarkers(line);
+  }
+
   @override
   void writeLine(String line) => _output.writeln(line);
 
@@ -111,7 +134,7 @@ final class StdioTerminal implements Terminal {
   @override
   bool confirm(String question) {
     _output.write('$question [y/N] ');
-    final String? answer = _readLine();
+    final String? answer = _readAnswer();
     if (answer == null) _output.writeln();
     return parseYesAnswer(answer);
   }
@@ -120,7 +143,7 @@ final class StdioTerminal implements Terminal {
   String? ask(String question, {String? defaultValue}) {
     final hint = defaultValue == null ? '' : ' [$defaultValue]';
     _output.write('$question$hint: ');
-    final String? answer = _readLine();
+    final String? answer = _readAnswer();
     if (answer == null) {
       _output.writeln();
       return null;
@@ -136,7 +159,7 @@ final class StdioTerminal implements Terminal {
     _output.write('$question: ');
     final bool? before = _turnEchoOff();
     try {
-      return _readLine()?.trim();
+      return _readAnswer()?.trim();
     } finally {
       if (before != null) _writeEchoMode(before);
       // 에코가 꺼져 Enter 의 줄바꿈이 보이지 않으므로 직접 한 줄 내린다.
@@ -168,7 +191,7 @@ final class StdioTerminal implements Terminal {
       // 기본값이 없으면 대괄호 안내를 빼서 Enter 로 고를 수 없음을 보인다.
       final hint = defaultIndex == null ? '' : ' [${defaultIndex + 1}]';
       _output.write('번호를 고르세요$hint: ');
-      final String? answer = _readLine();
+      final String? answer = _readAnswer();
       if (answer == null) {
         _output.writeln();
         return null;
@@ -187,7 +210,7 @@ final class StdioTerminal implements Terminal {
   @override
   bool waitForEnter(String message) {
     _output.write('$message ');
-    final String? answer = _readLine();
+    final String? answer = _readAnswer();
     if (answer == null) {
       _output.writeln();
       return false;
