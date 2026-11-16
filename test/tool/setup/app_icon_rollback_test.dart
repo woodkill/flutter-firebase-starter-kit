@@ -587,6 +587,48 @@ void main() {
     expect(run.countCheckouts(), 0);
   });
 
+  // 쓰기 대상 자리에 심볼릭 링크를 두므로 macOS · Linux 에서만 돈다.
+  test('T-28-SAFE-14: gitignored 링크가 쓰기 대상 자리에서 저장소 밖 파일을 '
+      '가리킴 → 원본 질문 · sips · 쓰기 없이 멈춤 · 링크 대상 바이트 그대로 · '
+      '상태 빈 출력', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    box
+        .openRepoFile('.gitignore')
+        .writeAsStringSync('/$adaptiveBackgroundPath\n');
+    const outsideText = '<resources><!-- 저장소 밖 배경색 --></resources>\n';
+    final String outside = box.writeSource(
+      'outside.xml',
+      utf8.encode(outsideText),
+    );
+    final linkPath = '${box.root}/$adaptiveBackgroundPath';
+    Directory(linkPath).parent.createSync(recursive: true);
+    Link(linkPath).createSync(outside);
+    commitGitFixture(box.root, 'kit default icons · ignored background link');
+    final ProcessResult ignored = box.runGit(<String>[
+      'check-ignore',
+      '-q',
+      adaptiveBackgroundPath,
+    ]);
+    expect(ignored.exitCode, 0, reason: '배경 링크가 gitignored 가 아니다');
+    final run = _GitRun(box, <String?>['1', '2'], kitDigests: kit);
+
+    final int code = await run.run();
+
+    expect(code, wizardExitStopped);
+    final int failAt = run.lines.indexOf(untrackedLineHead);
+    expect(failAt, greaterThanOrEqualTo(0));
+    expect(run.lines[failAt + 1], '    $adaptiveBackgroundPath');
+    expect(run.lines[failAt + 2], isNot(startsWith('    ')));
+    expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+    expect(run.countSipsCalls(), 0);
+    expect(File(outside).readAsStringSync(), outsideText);
+    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
+    expect(Link(linkPath).targetSync(), outside);
+    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.readStatus(), isEmpty);
+    expect(run.countCheckouts(), 0);
+  }, testOn: 'mac-os || linux');
+
   group('되돌림 자체가 실패하는 갈래', () {
     late Map<String, String> kit;
     late Uint8List sourceBytes;

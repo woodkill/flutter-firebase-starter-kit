@@ -589,8 +589,9 @@ final class AppIconStep implements DeferrableStep {
   String get deferLabel => '지금 안 함';
 
   // 홈 화면 파일은 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다 실패하면 쓰기
-  // 직전에 떠 둔 바이트로 되돌린다. 디스크에 있던 대상은 모두 커밋한 추적
-  // 파일이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다.
+  // 직전에 떠 둔 바이트로 되돌린다. 디스크에 있던 대상은 그 대조로 모두 git 이
+  // 추적하는 것이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다 — 커밋한 링크가
+  // 저장소 밖을 가리키면 그 바깥 파일은 예외다.
   @override
   bool get isCostlyOrIrreversible => false;
 
@@ -869,22 +870,20 @@ final class AppIconStep implements DeferrableStep {
     return await _writeAll(context, rendered.files, includesHomeIcons: true);
   }
 
-  /// 쓰기 대상 가운데 디스크에 파일로 있으나 git 이 추적하지 않는 것을
+  /// 쓰기 대상 가운데 디스크에 파일 · 링크로 있으나 git 이 추적하지 않는 것을
   /// [listWritePaths] 순서로 찾는다.
   ///
-  /// 링크를 따라가지 않은 종류가 파일인 경로만 [buildTrackedFilesCommand] 의
-  /// 목록과 대조한다 — 폴더 · 링크 · 없는 경로는 보지 않는다. 미커밋 검사가
-  /// 추적 안 된 새 파일을 이미 잡으므로 여기 남는 것은 gitignored 파일이다.
-  /// 파일로 있는 경로가 없으면 git 을 부르지 않는다. git 이 실패하면
-  /// [GitTreeException] 을 던진다.
+  /// 링크를 따라가지 않은 종류가 파일이거나 링크인 경로를
+  /// [buildTrackedFilesCommand] 의 목록과 대조한다 — 폴더 · 없는 경로는 보지
+  /// 않는다. 링크는 링크 자체의 추적 여부를 본다 — 커밋한 링크는 통과하고, 그
+  /// 링크가 가리키는 파일은 쓰기가 덮어쓴다. 미커밋 검사가 추적 안 된 새 파일 ·
+  /// 링크를 이미 잡으므로 여기 남는 것은 gitignored 파일 · 링크다. 대조할 경로가
+  /// 없으면 git 을 부르지 않는다. git 이 실패하면 [GitTreeException] 을 던진다.
   Future<List<String>> _findUntrackedTargets(WizardContext context) async {
     final existing = <String>[
       for (final String path in listWritePaths())
-        if (FileSystemEntity.typeSync(
-              context.resolve(path),
-              followLinks: false,
-            ) ==
-            FileSystemEntityType.file)
+        if (FileSystemEntity.typeSync(context.resolve(path), followLinks: false)
+            case FileSystemEntityType.file || FileSystemEntityType.link)
           path,
     ];
     if (existing.isEmpty) return const <String>[];
