@@ -408,4 +408,46 @@ void main() {
       expect(findEscapeLines(log.lines), isEmpty);
     });
   });
+
+  group('T-28-PASTE-06: 비밀 값은 표시를 지운 뒤 공백을 뗀다', () {
+    test('표시 안 앞뒤 공백이 든 비밀 값 → 공백 없는 32자', () {
+      final String secret = 'k' * 32;
+      final StdioTerminal terminal = buildSecretTerminal(
+        EchoRecorder(),
+        buildReadLine(<String>[wrapPaste('  $secret  ')]),
+        StringBuffer(),
+      );
+
+      final String? answer = terminal.askSecret(secretQuestion);
+
+      expect(answer, secret);
+      expect(answer?.length, 32);
+    });
+
+    test('가림 감싸개 → 32자만 가리고 기록은 공백 뺀 글자 수만', () {
+      final String secret = 'k' * 32;
+      final redactor = Redactor();
+      final log = MemoryLogSink(redactor);
+      final terminal = RedactingTerminal(
+        buildSecretTerminal(
+          EchoRecorder(),
+          buildReadLine(<String>[wrapPaste('  $secret  ')]),
+          StringBuffer(),
+        ),
+        redactor,
+        log,
+      );
+
+      final String? answer = terminal.askSecret(secretQuestion);
+
+      expect(answer?.length, 32);
+      expect(redactor.apply(secret), Redactor.mask);
+      expect(
+        log.lines.where((String line) => line == '[in] (비밀 값 32자)').length,
+        1,
+      );
+      expect(countText(log.text, '(비밀 값 36자)'), 0);
+      expect(findEscapeLines(log.lines), isEmpty);
+    });
+  });
 }

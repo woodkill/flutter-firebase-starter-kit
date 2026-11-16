@@ -237,4 +237,32 @@ void main() {
       });
     }
   });
+
+  group('T-28-PATH-02: file:// 가 아닌 답은 한 번만 풀어 남은 글자를 둔다', () {
+    final keepCases = <({String name, String answer, String expected})>[
+      (
+        name: '끌어다 놓기 꼴 이스케이프된 큰따옴표',
+        answer: r'/abs/My\ \"Logo\".png',
+        expected: '/abs/My "Logo".png',
+      ),
+      (
+        name: '작은따옴표로 감싼 백슬래시',
+        answer: r"'/abs/a\b.png'",
+        expected: r'/abs/a\b.png',
+      ),
+    ];
+    for (final item in keepCases) {
+      test('${item.name} → 첫 풀이 값 그대로', () {
+        expect(
+          resolvePathAnswer(context, item.answer),
+          isA<ResolvedPathAnswer>().having(
+            (ResolvedPathAnswer answer) => answer.path,
+            'path',
+            item.expected,
+          ),
+          reason: item.answer,
+        );
+      });
+    }
+  });
 }

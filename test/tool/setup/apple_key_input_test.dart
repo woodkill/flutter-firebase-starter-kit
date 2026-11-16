@@ -670,4 +670,21 @@ void main() {
       });
     }
   });
+
+  group('T-28-KEYPATH-04: 빈 답도 다시 묻는 상한에 센다', () {
+    test('빈 답만 세 번 → null · Key ID 질문 0 · 안내 세 줄', () async {
+      final h = buildHarness(<String?>['', '   ', '']);
+
+      final AppleKey? key = await askAppleKey(
+        h.context,
+        use: AppleKeyUse.signInWithApple,
+      );
+
+      expect(key, isNull);
+      expect(h.screen.asks, hasLength(3));
+      expect(h.screen.asks, isNot(contains(appleKeyIdQuestion)));
+      expect(countLines(h.screen.output.toString(), '  .p8 파일 경로를 입력하세요'), 3);
+      expect(h.context.session.appleKeys[AppleKeyUse.signInWithApple], isNull);
+    });
+  });
 }
