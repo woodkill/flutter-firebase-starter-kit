@@ -127,7 +127,7 @@ dev_dependencies:
     sdk: flutter
   freezed: ^3.2.5
 
-  # 설정 위저드의 앱 아이콘 생성 — `tool/setup/icons/` 만 import 한다.
+  # 설정 위저드의 앱 아이콘 생성 — 앱(`lib/`)은 import 하지 않는다(위저드 `tool/setup/icons/` 와 그 시험만).
   image: ^4.8.0
   json_serializable: ^6.13.0
   mocktail: ^1.0.4
