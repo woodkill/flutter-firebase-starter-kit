@@ -173,6 +173,9 @@ final class AppIconStep implements DeferrableStep {
   /// 상한보다 클 때의 까닭 머리(뒤에 지금 크기).
   static const String tooLargeReason = '너무 큰 이미지입니다 — 지금 ';
 
+  /// 벡터 이미지일 때의 까닭 머리(뒤에 sips 가 보인 형식).
+  static const String vectorReason = '벡터 이미지는 받지 않습니다 — 지금 ';
+
   /// 홈 화면 아이콘이 킷 기본 그대로일 때의 까닭.
   static const String kitDefaultReason = '킷 기본 아이콘입니다 — 원본 이미지를 묻습니다';
 
@@ -353,12 +356,12 @@ final class AppIconStep implements DeferrableStep {
   );
 
   static final RegExp _widthPattern = RegExp(
-    r'^\s*pixelWidth:\s*(\d+)\s*$',
+    r'^\s*pixelWidth:\s*(\d+)(?:\.\d+)?\s*$',
     multiLine: true,
   );
 
   static final RegExp _heightPattern = RegExp(
-    r'^\s*pixelHeight:\s*(\d+)\s*$',
+    r'^\s*pixelHeight:\s*(\d+)(?:\.\d+)?\s*$',
     multiLine: true,
   );
 
@@ -371,7 +374,9 @@ final class AppIconStep implements DeferrableStep {
   ///
   /// `sips -g` 는 없는 파일 · 폴더 · 이미지가 아닌 파일에도 종료 코드 0 이라
   /// 종료 코드로 판정하지 않는다. 표준 오류에 `not a valid file` 이 있거나 세 값
-  /// 가운데 하나라도 없거나 `<nil>` 이면 이미지가 아니다.
+  /// 가운데 하나라도 없거나 `<nil>` 이면 이미지가 아니다. 크기는 소수점 아래를
+  /// 버리고 읽는다 — 벡터(PDF 등)는 `1024.000` 꼴로 보이고, 거절은
+  /// [findSourceProblem] 이 형식으로 한다.
   static ImageProbe? parseProbe(CommandResult result) {
     if (result.stderr.contains('not a valid file')) return null;
     final int? width = int.tryParse(
@@ -508,14 +513,22 @@ final class AppIconStep implements DeferrableStep {
     display: 'open $iconsDirectory',
   );
 
+  /// 받지 않는 벡터 형식 — 규칙은 [findSourceProblem] 문서 주석에 있다.
+  static const Set<String> _vectorFormats = <String>{'pdf', 'svg'};
+
   /// [probe] 의 크기를 `<너비>x<높이>` 로 쓴다.
   static String formatSize(ImageProbe probe) =>
       '${probe.width}x${probe.height}';
 
   /// 원본 [probe] 가 맞지 않는 까닭을 찾는다 — 맞으면 null.
   ///
-  /// 판정 순서는 상한 초과 · 정사각 아님 · 하한 미만이다.
+  /// 판정 순서는 벡터 형식 · 상한 초과 · 정사각 아님 · 하한 미만이다. 벡터
+  /// 형식은 `sips -g format` 이 보인 값(대소문자 무시)이 `pdf` · `svg` 인 것이다
+  /// — sips 는 벡터도 크기를 읽고 PNG 로 바꾸므로 형식으로만 거른다.
   static String? findSourceProblem(ImageProbe probe) {
+    if (_vectorFormats.contains(probe.format.toLowerCase())) {
+      return '$vectorReason${probe.format}';
+    }
     final String size = formatSize(probe);
     if (probe.width > maxSourceSide || probe.height > maxSourceSide) {
       return '$tooLargeReason$size';

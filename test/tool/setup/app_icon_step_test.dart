@@ -1235,6 +1235,30 @@ void main() {
       );
     });
 
+    test('벡터(sips 가 1024.000 · pdf 로 보임)는 크기를 읽고 형식으로 거른다', () {
+      final ImageProbe? probe = AppIconStep.parseProbe(
+        const CommandResult(
+          0,
+          '/x/logo.pdf\n  pixelWidth: 1024.000\n  pixelHeight: 1024.000\n'
+              '  format: pdf\n',
+          '',
+        ),
+      );
+      expect(probe, (width: 1024, height: 1024, format: 'pdf'));
+      expect(
+        AppIconStep.findSourceProblem(probe!),
+        '${AppIconStep.vectorReason}pdf',
+      );
+      expect(
+        AppIconStep.findSourceProblem((
+          width: 1024,
+          height: 1024,
+          format: 'SVG',
+        )),
+        '${AppIconStep.vectorReason}SVG',
+      );
+    });
+
     test('한 변만 상한을 넘어도 「너무 큰」 이 먼저', () {
       expect(
         AppIconStep.findSourceProblem((
@@ -1449,6 +1473,29 @@ void main() {
       )),
       isNull,
     );
+  });
+
+  test('T-28-SRC-08: PDF 원본 → 벡터 까닭 한 줄 뒤 다시 물음 · 변환 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final Map<String, List<int>> before = box.readHomeIcons();
+    final String pdf = box.writeHomeFile('logo.pdf', <int>[1]);
+    final _Harness h = buildSourceRun(kit, <String?>[pdf, '']);
+    h.runner.on(
+      buildProbeKey(pdf),
+      CommandResult(
+        0,
+        '$pdf\n  pixelWidth: 1024.000\n  pixelHeight: 1024.000\n'
+            '  format: pdf\n',
+        '',
+      ),
+    );
+
+    expect(await h.run(), wizardExitDone);
+    expect(h.lines, contains('  ${AppIconStep.vectorReason}pdf'));
+    expect(h.output, isNot(contains(AppIconStep.notImageReason)));
+    expect(countSourceAsks(h), 2);
+    expect(countConvertCalls(h), 0);
+    expectNothingWritten(before);
   });
 
   group('T-28-SRC-03: 경로 질문 빈 값 · 입력 끝', () {
