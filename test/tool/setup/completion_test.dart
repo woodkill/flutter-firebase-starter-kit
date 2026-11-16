@@ -517,6 +517,30 @@ void main() {
       quoteForShellDisplay('A-Z_a@b%c+d=e:f,g.h/i-j0'),
       'A-Z_a@b%c+d=e:f,g.h/i-j0',
     );
+
+    // 셸이 단어 맨 앞에서 달리 읽는 허용 목록 글자로 시작하면 감싸고, 그 밖의
+    // 허용 목록 글자로 시작하거나 그 글자가 맨 앞이 아니면 그대로 둔다.
+    expect(quoteForShellDisplay('=a'), "'=a'");
+    expect(quoteShellWord('=a'), "'=a'");
+    expect(quoteForShellDisplay('~/=a'), "~/'=a'");
+    expect(quoteForShellDisplay('d=e'), 'd=e');
+    expect(quoteShellWord('d=e'), 'd=e');
+    for (final word in <String>[
+      '%a',
+      '+a',
+      '@a',
+      ':a',
+      ',a',
+      '.a',
+      '/a',
+      '-a',
+      '_a',
+      '0a',
+      'Za',
+      'za',
+    ]) {
+      expect(quoteForShellDisplay(word), word);
+    }
   });
 
   test('T-28-DONE-08 표시용 인용은 맨 앞 ~/ 만 감싸지 않고 나머지를 같은 '

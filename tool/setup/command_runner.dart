@@ -64,6 +64,10 @@ final class Command {
 /// 감싸지 않아도 되는 글자만으로 된 인자.
 final RegExp _shellSafeArgumentPattern = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
 
+/// 허용 목록 글자 가운데 셸이 단어 맨 앞에서 달리 읽는 것 — zsh 는 맨 앞 `=` 를
+/// 명령 경로로 푼다(`=command` 확장).
+const String _wordStartExpansionCharacter = '=';
+
 /// 홈 디렉터리를 가리키는 인자 머리 — 감싸면 셸이 홈으로 풀지 않는다.
 ///
 /// 맨 앞 `~/` 를 감싸지 않는 것은 홈을 줄인 표시 경로에만 한다.
@@ -72,7 +76,8 @@ const String _homePrefix = '~/';
 /// 표시용으로 셸 인자 하나를 감싼다.
 ///
 /// 허용 목록(`A-Z a-z 0-9 _ @ % + = : , . / -`) 밖 글자가 있거나 비었으면
-/// 작은따옴표로 감싸고, 안의 작은따옴표는 `'\''` 로 바꾼다. 인자가 `~/` 로
+/// 작은따옴표로 감싸고, 안의 작은따옴표는 `'\''` 로 바꾼다. 허용 목록 글자라도
+/// 셸이 단어 맨 앞에서 달리 읽는 글자로 시작하면 감싼다. 인자가 `~/` 로
 /// 시작하면 그 두 글자는 감싸지 않고 나머지를 같은 규칙으로 감싼다. 화면에 보일
 /// 명령 줄을 만들 때만 쓴다 — 실제 실행은 셸 없이 인자 배열로 한다.
 String quoteForShellDisplay(String argument) {
@@ -87,7 +92,10 @@ String quoteForShellDisplay(String argument) {
 /// 그 규칙을 따른다. 저장소 상대 경로처럼 홈을 줄인 표시 경로가 아닌 인자에
 /// 쓴다.
 String quoteShellWord(String argument) {
-  if (_shellSafeArgumentPattern.hasMatch(argument)) return argument;
+  if (!argument.startsWith(_wordStartExpansionCharacter) &&
+      _shellSafeArgumentPattern.hasMatch(argument)) {
+    return argument;
+  }
   return "'${argument.replaceAll("'", r"'\''")}'";
 }
 
