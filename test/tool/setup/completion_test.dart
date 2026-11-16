@@ -658,4 +658,24 @@ void main() {
       );
     });
   });
+
+  test('T-28-DONE-09 인용은 허용 목록 밖 ASCII 글자(작은따옴표 제외)가 단어 가운데 '
+      '있으면 모두 작은따옴표로 감싼다', () {
+    // 허용 목록은 구현 정규식에서 끌어오지 않고 리터럴로 적는다.
+    const allowed =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+        '0123456789_@%+=:,./-';
+    var checked = 0;
+    for (var code = 1; code <= 0x7F; code++) {
+      final char = String.fromCharCode(code);
+      if (allowed.contains(char) || char == "'") continue;
+      final word = 'a${char}b';
+      final reason = 'U+${code.toRadixString(16)}';
+      expect(quoteShellWord(word), "'$word'", reason: reason);
+      expect(quoteForShellDisplay(word), "'$word'", reason: reason);
+      checked++;
+    }
+    // 0x01~0x7F 127자 가운데 허용 목록 글자 · 작은따옴표를 뺀 수.
+    expect(checked, 127 - allowed.length - 1);
+  });
 }

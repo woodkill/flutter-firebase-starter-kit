@@ -1870,4 +1870,32 @@ void main() {
       });
     }
   });
+
+  group('T-28-ICON-19: 투명 픽셀이 딱 하나인 원본 → 배경색을 한 번 묻고 끝낸다', () {
+    for (final alpha in <int>[0, 254]) {
+      test('알파 $alpha 픽셀 하나', () async {
+        final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+        // 나머지는 모두 불투명한 RGBA 그림에서 한 픽셀만 알파를 낮춘다.
+        final img.Image painted = decodeIconPng(buildOpaqueRgbaIconPng())!
+          ..setPixelRgba(512, 512, 30, 90, 160, alpha);
+        expect(countTransparentPixels(painted), 1);
+        final Uint8List almostOpaque = img.encodePng(painted);
+        final String source = box.writeHomeFile('logo.png', almostOpaque);
+        final h = _Harness(box, <String?>['1', source, ''], kitDigests: kit)
+          ..registerDirty()
+          ..registerProbe(source)
+          ..registerConvert(source, almostOpaque)
+          ..registerOpen();
+
+        final int code = await h.run();
+
+        expect(code, wizardExitDone);
+        expect(
+          h.screen.asks.where((String q) => q == backgroundQuestionText),
+          hasLength(1),
+        );
+        expect(h.output, contains(mineKakaoDoneLine));
+      });
+    }
+  });
 }

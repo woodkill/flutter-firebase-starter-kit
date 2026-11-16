@@ -845,6 +845,38 @@ void main() {
       );
       expect(box.readStatus(), isEmpty);
     });
+
+    test('T-28-SAFE-27: 홈 화면 아이콘 폴더(mipmap-hdpi)와 adaptive 폴더 '
+        '(mipmap-anydpi-v26)가 함께 커밋한 링크 → 링크 멈춤 · 줄은 쓰기 경로 '
+        '순서(사전 순서 아님)', () async {
+      Directory('${box.root}/local').createSync(recursive: true);
+      Directory(
+        '${box.root}/android/app/src/main/res/mipmap-hdpi',
+      ).renameSync('${box.root}/local/mip-hdpi');
+      _linkInsideRepo(
+        box,
+        'android/app/src/main/res/mipmap-hdpi',
+        'local/mip-hdpi',
+      );
+      const keep = 'local/anydpi/keep.txt';
+      box.openRepoFile(keep)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('keep\n');
+      _linkInsideRepo(
+        box,
+        'android/app/src/main/res/mipmap-anydpi-v26',
+        'local/anydpi',
+      );
+      commitGitFixture(box.root, 'kit default icons · two folder links');
+
+      await expectLinkStop(
+        <String>[
+          'android/app/src/main/res/mipmap-hdpi',
+          'android/app/src/main/res/mipmap-anydpi-v26',
+        ],
+        <String>[keep],
+      );
+    });
   }, testOn: 'mac-os || linux');
 
   group('되돌림 자체가 실패하는 갈래', () {
@@ -1025,6 +1057,34 @@ void main() {
       expect(block.single, contains('$broken (주입한 실패)'));
       expect(box.readWriteTargets(), before);
       expect(box.readStatus(), isEmpty);
+    });
+
+    test('T-28-SAFE-26: 추적 홈 화면 아이콘 둘을 다시 쓰지 못하고 추적 여부 읽기 '
+        '(git ls-files)도 실패 → 두 경로 모두 쓰기 순서대로 추적 여부 모름 안내 '
+        '아래', () async {
+      blockLastForeground();
+      const legacy = 'android/app/src/main/res/mipmap-hdpi/ic_launcher.png';
+      final overrides =
+          FileFaultOverrides(<String, ({FileFault fault, int call})>{
+            '${box.root}/$ios1024Path': (fault: FileFault.failWrite, call: 2),
+            '${box.root}/$legacy': (fault: FileFault.failWrite, call: 2),
+          });
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      final int code = await run.run(
+        overrides: overrides,
+        lsFilesAnswer: (call: 2, result: lsFilesFailure),
+      );
+
+      expect(code, wizardExitStopped);
+      expect(overrides.firedPaths, hasLength(2));
+      final List<String> lines = readFailureBlock(run.lines).sublist(1);
+      expect(lines, <String>[
+        AppIconStep.trackingUnknownGuide,
+        '    ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png',
+        '    $legacy',
+      ]);
     });
   });
 
