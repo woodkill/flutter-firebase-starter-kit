@@ -678,4 +678,17 @@ void main() {
     // 0x01~0x7F 127자 가운데 허용 목록 글자 · 작은따옴표를 뺀 수.
     expect(checked, 127 - allowed.length - 1);
   });
+
+  test('T-28-DONE-10 셸 없이 실행한 명령의 표시 줄은 argv 맨 앞 ~/ 도 작은따옴표로 '
+      '감싼다', () {
+    // argv 의 ~ 는 홈이 아니라 그 이름의 폴더다 — 셸이 홈으로 풀면 다른 경로가 된다.
+    expect(
+      const Command('git', <String>['add', '~/x.txt']).render(),
+      "git add '~/x.txt'",
+    );
+    expect(
+      const Command('git', <String>['add', '~/']).render(),
+      "git add '~/'",
+    );
+  });
 }

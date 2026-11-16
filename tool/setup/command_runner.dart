@@ -50,14 +50,11 @@ final class Command {
   /// 화면에 보일 명령 줄을 만든다.
   ///
   /// [display] 가 있으면 그 값을, 없으면 실행 파일과 인자를 공백으로 잇는다.
-  /// 인자마다 [quoteForShellDisplay] 를 거친다.
+  /// 인자마다 [quoteShellWord] 를 거친다.
   String render() {
     final String? shown = display;
     if (shown != null) return shown;
-    return <String>[
-      executable,
-      ...arguments,
-    ].map(quoteForShellDisplay).join(' ');
+    return <String>[executable, ...arguments].map(quoteShellWord).join(' ');
   }
 }
 
