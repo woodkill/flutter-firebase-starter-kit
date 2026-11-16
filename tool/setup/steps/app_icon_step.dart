@@ -618,9 +618,9 @@ final class AppIconStep implements DeferrableStep {
   @override
   String get deferLabel => '지금 안 함';
 
-  // 홈 화면 파일은 링크 검사 · 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다
-  // 실패하면 쓰기 직전에 떠 둔 바이트로 되돌린다. 디스크에 있던 대상은 그 대조로
-  // 모두 git 이 추적하는 것이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다.
+  // 홈 화면 파일을 쓰기 전에 링크 검사 · 미커밋 검사 · 같은 이름 리소스 검사 ·
+  // 추적 여부 대조를 이 순서로 하고, 쓰다 실패하면 쓰기 직전에 떠 둔 바이트로
+  // 되돌린다.
   @override
   bool get isCostlyOrIrreversible => false;
 

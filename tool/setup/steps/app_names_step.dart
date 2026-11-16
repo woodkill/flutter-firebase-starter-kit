@@ -142,7 +142,7 @@ final class AppNamesStep implements Step {
   @override
   List<String> get dependsOn => const <String>['identity'];
 
-  // ARB 는 git 으로 되돌릴 수 있고 비용도 들지 않는다.
+  // ARB 는 미커밋 검사 뒤에만 쓰고 비용도 들지 않는다.
   @override
   bool get isCostlyOrIrreversible => false;
 
