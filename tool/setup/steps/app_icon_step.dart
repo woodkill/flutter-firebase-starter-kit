@@ -250,10 +250,16 @@ final class AppIconStep implements DeferrableStep {
   /// 보이는 안내.
   static const String restoreGuide = '아래 파일을 git checkout -- <경로> 로 되돌리세요';
 
-  /// 떠 둔 바이트로 되돌리지 못한 파일 가운데 git 이 추적하지 않는 것(또는 추적
-  /// 여부를 읽지 못한 것)의 경로 줄 앞에 보이는 안내.
+  /// 떠 둔 바이트로 되돌리지 못한 파일 가운데 git 이 추적하지 않는다고 답한 것의
+  /// 경로 줄 앞에 보이는 안내.
   static const String unrestorableGuide =
       '아래 파일은 git 으로 되돌릴 수 없어 쓰기 전 내용으로 되살리지 못했습니다';
+
+  /// 떠 둔 바이트로 되돌리지 못한 파일의 추적 여부를 git 에서 읽지 못했을 때 경로
+  /// 줄 앞에 보이는 안내.
+  static const String trackingUnknownGuide =
+      '아래 파일은 git 이 추적하는지 읽지 못했습니다 — git status 로 확인하고 '
+      '추적 파일이면 git checkout -- <경로> 로 되돌리세요';
 
   /// 되돌릴 때 새로 만든 파일을 지우지 못했을 때 경로 줄 앞에 보이는 안내.
   static const String deleteGuide = '새로 만든 아래 파일을 지우지 못했습니다 — 지운 뒤 다시 실행하세요';
@@ -1376,8 +1382,12 @@ final class AppIconStep implements DeferrableStep {
   ///
   /// 쓰기 전에 있던 파일([snapshot] 의 경로)은 지금 바이트가 떠 둔 바이트와 다를
   /// 때만 그 바이트로 다시 쓰고, 새로 만든 파일은 지운다. 다시 쓰지 못한 파일이
-  /// 있으면 git 이 추적하는 것에만 [restoreGuide] 를 붙이고 나머지는
-  /// [unrestorableGuide] 아래에 보인다.
+  /// 있으면 git 에 추적 여부를 묻는다. git 이 답하면 추적하는 것은
+  /// [restoreGuide], 추적하지 않는 것은 [unrestorableGuide] 아래에 보이고, 답하지
+  /// 못하면 모두 [trackingUnknownGuide] 아래에 보인다.
+  ///
+  /// 되돌림 실패 안내는 git 이 답한 사실만 말한다 — 추적 여부를 읽지 못한 파일은
+  /// git 으로 되돌릴 수 있는지 말하지 않는다.
   Future<StepOutcome> _restoreHomeIcons(
     WizardContext context,
     List<String> written,
@@ -1407,18 +1417,17 @@ final class AppIconStep implements DeferrableStep {
         ? ''
         : '\n$deleteGuide\n${undeleted.join('\n')}';
     if (unrestored.isNotEmpty) {
-      final Set<String> tracked = await _listTrackedPaths(context, unrestored);
-      final String trackedLines = _formatPathBlock(
-        restoreGuide,
-        unrestored.where(tracked.contains),
-      );
-      final String otherLines = _formatPathBlock(
-        unrestorableGuide,
-        unrestored.where((String path) => !tracked.contains(path)),
-      );
-      return Failed(
-        '$restoreFailedReason$reason$trackedLines$otherLines$deleteLines',
-      );
+      final Set<String>? listed = await _listTrackedPaths(context, unrestored);
+      final String guideLines = switch (listed) {
+        null => _formatPathBlock(trackingUnknownGuide, unrestored),
+        final Set<String> tracked =>
+          _formatPathBlock(restoreGuide, unrestored.where(tracked.contains)) +
+              _formatPathBlock(
+                unrestorableGuide,
+                unrestored.where((String path) => !tracked.contains(path)),
+              ),
+      };
+      return Failed('$restoreFailedReason$reason$guideLines$deleteLines');
     }
     return Failed('$rolledBackReason$reason$deleteLines');
   }
@@ -1430,8 +1439,8 @@ final class AppIconStep implements DeferrableStep {
     return '\n$guide\n${paths.map((String path) => '    $path').join('\n')}';
   }
 
-  /// [relativePaths] 가운데 git 이 추적하는 경로 — git 이 실패하면 빈 집합이다.
-  Future<Set<String>> _listTrackedPaths(
+  /// [relativePaths] 가운데 git 이 추적하는 경로 — git 이 실패하면 null 이다.
+  Future<Set<String>?> _listTrackedPaths(
     WizardContext context,
     List<String> relativePaths,
   ) async {
@@ -1441,7 +1450,7 @@ final class AppIconStep implements DeferrableStep {
         workingDirectory: context.projectRoot,
       ),
     );
-    if (!result.isSuccess) return const <String>{};
+    if (!result.isSuccess) return null;
     return const LineSplitter().convert(result.stdout).toSet();
   }
 

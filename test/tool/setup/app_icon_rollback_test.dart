@@ -200,12 +200,19 @@ final class _GitRun {
 
   /// 위저드를 돌린다.
   ///
-  /// [overrides] 를 주면 그 [IOOverrides] 안에서 돌린다. [failedLsFilesCall] 을
-  /// 주면 그 차례(1부터)의 `git ls-files` 만 종료 코드 128 로 답한다.
-  Future<int> run({IOOverrides? overrides, int? failedLsFilesCall}) {
-    final CommandRunner used = failedLsFilesCall == null
+  /// [overrides] 를 주면 그 [IOOverrides] 안에서 돌린다. [lsFilesAnswer] 를 주면
+  /// 그 차례(1부터)의 `git ls-files` 만 실제 git 대신 그 결과로 답한다.
+  Future<int> run({
+    IOOverrides? overrides,
+    ({int call, CommandResult result})? lsFilesAnswer,
+  }) {
+    final CommandRunner used = lsFilesAnswer == null
         ? runner
-        : _LsFilesFaultRunner(runner, failedLsFilesCall);
+        : _LsFilesAnswerRunner(
+            runner,
+            lsFilesAnswer.call,
+            lsFilesAnswer.result,
+          );
     Future<int> start() => _runWith(used);
     return overrides == null
         ? start()
@@ -236,33 +243,42 @@ final class _GitRun {
   );
 }
 
-/// 고른 차례의 `git ls-files` 만 실패로 답하고 나머지는 [inner] 에 넘기는 실행기.
-final class _LsFilesFaultRunner implements CommandRunner {
-  _LsFilesFaultRunner(this.inner, this.failedCall);
+/// git 이 추적 여부를 읽지 못한 `git ls-files` 결과.
+const CommandResult lsFilesFailure = CommandResult(128, '', 'fatal: 주입한 실패');
+
+/// git 이 물은 경로를 하나도 추적하지 않는다고 답한 `git ls-files` 결과.
+const CommandResult lsFilesNoneTracked = CommandResult(0, '', '');
+
+/// 고른 차례의 `git ls-files` 만 주어진 결과로 답하고 나머지는 [inner] 에 넘기는
+/// 실행기.
+final class _LsFilesAnswerRunner implements CommandRunner {
+  _LsFilesAnswerRunner(this.inner, this.answeredCall, this.answer);
 
   /// 실제로 돌릴 실행기.
   final CommandRunner inner;
 
-  /// 실패로 답할 `git ls-files` 차례(1부터).
-  final int failedCall;
+  /// [answer] 로 답할 `git ls-files` 차례(1부터).
+  final int answeredCall;
+
+  /// 그 차례에 돌려줄 결과.
+  final CommandResult answer;
 
   int _lsFilesCalls = 0;
 
-  /// [command] 가 실패시킬 차례의 `git ls-files` 인지 센다.
-  bool _isFailedCall(Command command) {
+  /// [command] 가 [answer] 로 답할 차례의 `git ls-files` 인지 센다.
+  bool _isAnsweredCall(Command command) {
     if (command.executable != 'git' ||
         command.arguments.isEmpty ||
         command.arguments.first != 'ls-files') {
       return false;
     }
     _lsFilesCalls++;
-    return _lsFilesCalls == failedCall;
+    return _lsFilesCalls == answeredCall;
   }
 
   @override
-  Future<CommandResult> capture(Command command) async => _isFailedCall(command)
-      ? const CommandResult(128, '', 'fatal: 주입한 실패')
-      : await inner.capture(command);
+  Future<CommandResult> capture(Command command) async =>
+      _isAnsweredCall(command) ? answer : await inner.capture(command);
 
   @override
   Future<int> interactive(Command command) => inner.interactive(command);
@@ -848,8 +864,10 @@ void main() {
       }
     });
 
-    test('T-28-SAFE-09: 다시 쓰지 못한 뒤 추적 여부 읽기(git ls-files)도 실패 → '
-        '모든 경로가 되살리지 못함 안내 아래 · git checkout 안내 0', () async {
+    /// 추적 · 깨끗한 iOS 1024 의 되돌림 쓰기를 실패시키고, 되돌림 안내 쪽(둘째)
+    /// `git ls-files` 를 [answer] 로 답하게 해 위저드를 돌린 뒤 실패 줄 다음
+    /// 줄들을 돌려준다 — 첫 `git ls-files` 는 쓰기 전 추적 여부 대조다.
+    Future<List<String>> runWithRestoreLsFiles(CommandResult answer) async {
       blockLastForeground();
       final overrides = FileFaultOverrides(
         <String, ({FileFault fault, int call})>{
@@ -859,10 +877,9 @@ void main() {
       final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
         ..registerSource(source, sourceBytes);
 
-      // 첫 git ls-files 는 쓰기 전 추적 여부 대조, 둘째가 되돌림 안내 쪽이다.
       final int code = await run.run(
         overrides: overrides,
-        failedLsFilesCall: 2,
+        lsFilesAnswer: (call: 2, result: answer),
       );
 
       expect(code, wizardExitStopped);
@@ -871,11 +888,35 @@ void main() {
         block.first,
         startsWith('  실패 — ${AppIconStep.restoreFailedReason}'),
       );
-      expect(block.sublist(1), <String>[
+      return block.sublist(1);
+    }
+
+    test('T-28-SAFE-09: 다시 쓰지 못한 뒤 추적 여부 읽기(git ls-files)도 실패 → '
+        '모든 경로가 추적 여부 모름 안내 아래 · git checkout 안내 0 · 되살리지 '
+        '못함 안내 0', () async {
+      final List<String> lines = await runWithRestoreLsFiles(lsFilesFailure);
+
+      expect(lines, <String>[
+        AppIconStep.trackingUnknownGuide,
+        '    $ios1024Path',
+      ]);
+      expect(lines, isNot(contains(AppIconStep.restoreGuide)));
+      expect(lines, isNot(contains(AppIconStep.unrestorableGuide)));
+    });
+
+    test('T-28-SAFE-23: 다시 쓰지 못한 뒤 git 이 추적하지 않는다고 답함 → 그 '
+        '경로가 되살리지 못함 안내 아래 · git checkout 안내 0 · 추적 여부 모름 '
+        '안내 0', () async {
+      final List<String> lines = await runWithRestoreLsFiles(
+        lsFilesNoneTracked,
+      );
+
+      expect(lines, <String>[
         AppIconStep.unrestorableGuide,
         '    $ios1024Path',
       ]);
-      expect(run.lines, isNot(contains(AppIconStep.restoreGuide)));
+      expect(lines, isNot(contains(AppIconStep.restoreGuide)));
+      expect(lines, isNot(contains(AppIconStep.trackingUnknownGuide)));
     });
 
     test('T-28-SAFE-10: 새 adaptive XML 을 지우지 못함 → 쓰기 전으로 되돌림 머리 · '
