@@ -1234,7 +1234,7 @@ void main() {
         '/repo/$iconWorkDirectory/source.png',
       ]);
       expect(convert.arguments, isNot(contains('-z')));
-      expect(convert.render(), contains("'~/a b.png'"));
+      expect(convert.render(), contains("~/'a b.png'"));
       expect(convert.render(), contains('$iconWorkDirectory/source.png'));
       final Command open = AppIconStep.buildOpenCommand(root);
       expect(open.executable, '/usr/bin/open');

@@ -518,6 +518,16 @@ void main() {
     );
   });
 
+  test('T-28-DONE-08 표시용 인용은 맨 앞 ~/ 만 감싸지 않고 나머지를 같은 '
+      '규칙으로 감싼다', () {
+    expect(quoteForShellDisplay('~/logo.png'), '~/logo.png');
+    expect(quoteForShellDisplay('~/My Logo.png'), "~/'My Logo.png'");
+    expect(quoteForShellDisplay('~/'), '~/');
+    expect(quoteForShellDisplay('~'), "'~'");
+    expect(quoteForShellDisplay('~user/x'), "'~user/x'");
+    expect(quoteForShellDisplay('a~/b'), "'a~/b'");
+  });
+
   group('T-28-DONE-03 새 adaptive 파일을 커밋 안내에 더함', () {
     /// res 폴더의 추적 안 된 파일 — adaptive 7개와 목록 밖 새 파일 하나.
     final String resUntrackedOutput = <String>[

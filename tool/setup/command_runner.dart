@@ -64,12 +64,24 @@ final class Command {
 /// 감싸지 않아도 되는 글자만으로 된 인자.
 final RegExp _shellSafeArgumentPattern = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
 
+/// 홈 디렉터리를 가리키는 인자 머리 — 감싸면 셸이 홈으로 풀지 않는다.
+const String _homePrefix = '~/';
+
 /// 표시용으로 셸 인자 하나를 감싼다.
 ///
 /// 허용 목록(`A-Z a-z 0-9 _ @ % + = : , . / -`) 밖 글자가 있거나 비었으면
-/// 작은따옴표로 감싸고, 안의 작은따옴표는 `'\''` 로 바꾼다. 화면에 보일 명령
-/// 줄을 만들 때만 쓴다 — 실제 실행은 셸 없이 인자 배열로 한다.
+/// 작은따옴표로 감싸고, 안의 작은따옴표는 `'\''` 로 바꾼다. 인자가 `~/` 로
+/// 시작하면 그 두 글자는 감싸지 않고 나머지를 같은 규칙으로 감싼다. 화면에 보일
+/// 명령 줄을 만들 때만 쓴다 — 실제 실행은 셸 없이 인자 배열로 한다.
 String quoteForShellDisplay(String argument) {
+  if (!argument.startsWith(_homePrefix)) return _quoteShellWord(argument);
+  final String rest = argument.substring(_homePrefix.length);
+  return rest.isEmpty ? _homePrefix : '$_homePrefix${_quoteShellWord(rest)}';
+}
+
+/// [argument] 가 허용 목록 글자만으로 되어 있으면 그대로, 아니면 작은따옴표로
+/// 감싼다.
+String _quoteShellWord(String argument) {
   if (_shellSafeArgumentPattern.hasMatch(argument)) return argument;
   return "'${argument.replaceAll("'", r"'\''")}'";
 }
