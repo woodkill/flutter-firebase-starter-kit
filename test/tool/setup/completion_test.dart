@@ -484,6 +484,40 @@ void main() {
     );
   });
 
+  test('T-28-DONE-07 커밋 명령은 허용 목록 밖 글자가 든 경로를 작은따옴표로 '
+      '감싼다 — glob · 히스토리 · 홈 확장 글자와 한글 포함', () async {
+    final runner = FakeCommandRunner()
+      ..on(
+        _gitStatusKey,
+        const CommandResult(
+          0,
+          ' M local/bg[1].xml\n M local/~name.xml\n M local/a!b.xml\n'
+              ' M local/배경.xml\n M pubspec.yaml\n',
+          '',
+        ),
+      );
+    final terminal = ScriptedTerminal(const <String?>[]);
+
+    await showCompletionSummary(
+      buildTestContext(projectRoot: root, runner: runner, terminal: terminal),
+    );
+
+    expect(
+      terminal.output.toString(),
+      contains(
+        r"  $ git add 'local/a!b.xml' 'local/bg[1].xml' 'local/~name.xml' "
+        "'local/배경.xml' pubspec.yaml && git commit -m "
+        '"$commitHintMessage"',
+      ),
+    );
+    expect(quoteForShellDisplay(''), "''");
+    expect(quoteForShellDisplay("it's"), r"'it'\''s'");
+    expect(
+      quoteForShellDisplay('A-Z_a@b%c+d=e:f,g.h/i-j0'),
+      'A-Z_a@b%c+d=e:f,g.h/i-j0',
+    );
+  });
+
   group('T-28-DONE-03 새 adaptive 파일을 커밋 안내에 더함', () {
     /// res 폴더의 추적 안 된 파일 — adaptive 7개와 목록 밖 새 파일 하나.
     final String resUntrackedOutput = <String>[

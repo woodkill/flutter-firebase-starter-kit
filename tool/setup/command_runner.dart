@@ -50,7 +50,7 @@ final class Command {
   /// 화면에 보일 명령 줄을 만든다.
   ///
   /// [display] 가 있으면 그 값을, 없으면 실행 파일과 인자를 공백으로 잇는다.
-  /// 공백 · 따옴표 · 셸 특수 문자가 있는 인자는 작은따옴표로 감싼다.
+  /// 인자마다 [quoteForShellDisplay] 를 거친다.
   String render() {
     final String? shown = display;
     if (shown != null) return shown;
@@ -61,16 +61,16 @@ final class Command {
   }
 }
 
+/// 감싸지 않아도 되는 글자만으로 된 인자.
+final RegExp _shellSafeArgumentPattern = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
+
 /// 표시용으로 셸 인자 하나를 감싼다.
 ///
-/// 공백 · 따옴표 · 셸 특수 문자가 있거나 비었으면 작은따옴표로 감싸고, 안의
-/// 작은따옴표는 `'\''` 로 바꾼다. 화면에 보일 명령 줄을 만들 때만 쓴다 — 실제
-/// 실행은 셸 없이 인자 배열로 한다.
+/// 허용 목록(`A-Z a-z 0-9 _ @ % + = : , . / -`) 밖 글자가 있거나 비었으면
+/// 작은따옴표로 감싸고, 안의 작은따옴표는 `'\''` 로 바꾼다. 화면에 보일 명령
+/// 줄을 만들 때만 쓴다 — 실제 실행은 셸 없이 인자 배열로 한다.
 String quoteForShellDisplay(String argument) {
-  if (argument.isNotEmpty &&
-      !RegExp(r'''[\s'"\\$`*?;&|<>(){}]''').hasMatch(argument)) {
-    return argument;
-  }
+  if (_shellSafeArgumentPattern.hasMatch(argument)) return argument;
   return "'${argument.replaceAll("'", r"'\''")}'";
 }
 
