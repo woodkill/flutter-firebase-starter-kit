@@ -182,9 +182,17 @@ final class _Harness {
   /// 화면 줄들.
   List<String> get lines => output.split('\n');
 
+  /// 미커밋 검사를 등록했으면 true — 실행 직전에 추적 파일 대조도 등록한다.
+  bool _isDirtyRegistered = false;
+
   /// 미커밋 검사 결과를 [stdout] 으로 등록한다.
-  void registerDirty([String stdout = '']) =>
-      runner.on(buildDirtyKey(), buildOkResult(stdout));
+  ///
+  /// 쓰기 대상의 추적 파일 대조(`git ls-files`)는 키가 디스크 상태로 정해지므로
+  /// [run] 직전에 지금 파일을 모두 추적 파일로 답하게 등록한다.
+  void registerDirty([String stdout = '']) {
+    _isDirtyRegistered = true;
+    runner.on(buildDirtyKey(), buildOkResult(stdout));
+  }
 
   /// 원본 [source] 의 크기 읽기 결과를 등록한다.
   void registerProbe(String source, {int side = 1024}) =>
@@ -221,24 +229,27 @@ final class _Harness {
       runner.countCalls(RunMode.stream, buildOpenKey(box.root));
 
   /// 위저드를 돌린다.
-  Future<int> run() => runWizard(
-    WizardContext(
-      projectRoot: box.root,
-      runner: runner,
-      terminal: RedactingTerminal(screen, log.redactor, log),
-      redactor: log.redactor,
-      log: log,
-      rest: FakeRestClient(),
-      session: session,
-      homeDirectory: box.home,
-      random: Random(fixedTestRandomSeed),
-      now: () => fixedTestNow,
-    ),
-    <Step>[
-      providersStandIn,
-      AppIconStep(enabledProviders: enabled, kitDefaultDigests: kitDigests),
-    ],
-  );
+  Future<int> run() {
+    if (_isDirtyRegistered) registerTrackedFiles(runner, box.root);
+    return runWizard(
+      WizardContext(
+        projectRoot: box.root,
+        runner: runner,
+        terminal: RedactingTerminal(screen, log.redactor, log),
+        redactor: log.redactor,
+        log: log,
+        rest: FakeRestClient(),
+        session: session,
+        homeDirectory: box.home,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      ),
+      <Step>[
+        providersStandIn,
+        AppIconStep(enabledProviders: enabled, kitDefaultDigests: kitDigests),
+      ],
+    );
+  }
 }
 
 void main() {

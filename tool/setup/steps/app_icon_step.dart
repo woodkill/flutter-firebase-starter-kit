@@ -99,8 +99,9 @@ typedef _Rendered = ({List<_PlannedFile> files, StepOutcome? outcome});
 /// 판정은 「킷 기본 그대로인가」 하나다 — 홈 화면 20장의 tracked 바이트를 킷
 /// 기본 지문과 비교하고, 상태 파일로 위저드가 만든 아이콘인지 가르지 않는다.
 /// 킷 기본이면 원본을 묻고, sips 로 sRGB PNG 로 바꾼 뒤 채운 그림 하나에서 모든
-/// 크기를 만든다. 쓰기 전에 대상 경로의 미커밋 변경을 찾아 있으면 멈추고, 만든
-/// 바이트는 메모리에서 크기 · 형식 · 용량을 확인한 뒤에만 쓴다.
+/// 크기를 만든다. 쓰기 전에 대상 경로의 미커밋 변경과 git 이 추적하지 않는
+/// 파일을 찾아 있으면 멈추고, 만든 바이트는 메모리에서 크기 · 형식 · 용량을
+/// 확인한 뒤에만 쓴다.
 final class AppIconStep implements DeferrableStep {
   /// 켠 로그인 수단 [enabledProviders] 에서 콘솔 아이콘 대상을 골라 단계를
   /// 만든다.
@@ -179,6 +180,11 @@ final class AppIconStep implements DeferrableStep {
   static const String dirtyReason =
       '홈 화면 아이콘 파일에 커밋하지 않은 변경이 있습니다 — 커밋하거나 되돌린 뒤 '
       '다시 실행하세요';
+
+  /// 쓰기 대상 가운데 git 이 추적하지 않는 파일이 있을 때의 까닭(뒤에 경로 줄).
+  static const String untrackedTargetReason =
+      'git 이 추적하지 않는 아이콘 파일이 있습니다 — 덮어쓰면 되살릴 수 없어 '
+      '옮기거나 지운 뒤 다시 실행하세요';
 
   /// 원본을 PNG 로 바꾸지 못했을 때의 까닭 머리(뒤에 종료 코드).
   ///
@@ -379,8 +385,9 @@ final class AppIconStep implements DeferrableStep {
 
   /// [relativePaths] 가운데 git 이 추적하는 경로를 보이는 명령을 만든다.
   ///
-  /// 떠 둔 바이트로 되돌리지 못한 파일에 `git checkout --` 안내를 붙일지 가를
-  /// 때만 쓴다 — 되돌림 자체는 git 에 기대지 않는다.
+  /// 쓰기 전에 디스크에 있는 대상이 모두 추적 파일인지 볼 때와, 떠 둔 바이트로
+  /// 되돌리지 못한 파일에 `git checkout --` 안내를 붙일지 가를 때 쓴다 — 되돌림
+  /// 자체는 git 에 기대지 않는다.
   static Command buildTrackedFilesCommand(
     List<String> relativePaths, {
     String? workingDirectory,
@@ -564,8 +571,9 @@ final class AppIconStep implements DeferrableStep {
   @override
   String get deferLabel => '지금 안 함';
 
-  // 홈 화면 파일은 미커밋 검사 뒤에만 쓰고, 쓰다 실패하면 쓰기 직전에 떠 둔
-  // 바이트로 되돌린다. 끝까지 쓴 결과는 추적 파일이면 git 으로 되돌릴 수 있다.
+  // 홈 화면 파일은 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다 실패하면 쓰기
+  // 직전에 떠 둔 바이트로 되돌린다. 디스크에 있던 대상은 모두 커밋한 추적
+  // 파일이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다.
   @override
   bool get isCostlyOrIrreversible => false;
 
@@ -768,7 +776,8 @@ final class AppIconStep implements DeferrableStep {
     }
   }
 
-  /// 미커밋 검사 뒤 원본을 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
+  /// 미커밋 검사 · 같은 이름 리소스 검사 · 추적 여부 대조 뒤 원본을 물어 홈 화면 ·
+  /// adaptive · 콘솔 아이콘을 모두 만든다.
   Future<StepOutcome> _applyFull(WizardContext context) async {
     final List<String> dirty = await findUncommittedFiles(
       context,
@@ -788,6 +797,13 @@ final class AppIconStep implements DeferrableStep {
         '${conflicts.map((String path) => '    $path').join('\n')}',
       );
     }
+    final List<String> untracked = await _findUntrackedTargets(context);
+    if (untracked.isNotEmpty) {
+      return Failed(
+        '$untrackedTargetReason\n'
+        '${untracked.map((String path) => '    $path').join('\n')}',
+      );
+    }
     final _SourceAnswer answer = await _askSource(context);
     final String? source = answer.path;
     if (source == null) return answer.outcome ?? const Declined();
@@ -800,6 +816,43 @@ final class AppIconStep implements DeferrableStep {
     final _Rendered rendered = _renderAll(context, bytes);
     if (rendered.outcome case final StepOutcome stop) return stop;
     return await _writeAll(context, rendered.files, includesHomeIcons: true);
+  }
+
+  /// 쓰기 대상 가운데 디스크에 파일로 있으나 git 이 추적하지 않는 것을
+  /// [listWritePaths] 순서로 찾는다.
+  ///
+  /// 링크를 따라가지 않은 종류가 파일인 경로만 [buildTrackedFilesCommand] 의
+  /// 목록과 대조한다 — 폴더 · 링크 · 없는 경로는 보지 않는다. 미커밋 검사가
+  /// 추적 안 된 새 파일을 이미 잡으므로 여기 남는 것은 gitignored 파일이다.
+  /// 파일로 있는 경로가 없으면 git 을 부르지 않는다. git 이 실패하면
+  /// [GitTreeException] 을 던진다.
+  Future<List<String>> _findUntrackedTargets(WizardContext context) async {
+    final existing = <String>[
+      for (final String path in listWritePaths())
+        if (FileSystemEntity.typeSync(
+              context.resolve(path),
+              followLinks: false,
+            ) ==
+            FileSystemEntityType.file)
+          path,
+    ];
+    if (existing.isEmpty) return const <String>[];
+    final CommandResult listed = await context.runner.capture(
+      buildTrackedFilesCommand(existing, workingDirectory: context.projectRoot),
+    );
+    if (!listed.isSuccess) {
+      throw GitTreeException(
+        '추적 파일 목록을 읽지 못했습니다 (종료 코드 ${listed.exitCode})',
+        result: listed,
+      );
+    }
+    final Set<String> tracked = const LineSplitter()
+        .convert(listed.stdout)
+        .toSet();
+    return <String>[
+      for (final String path in existing)
+        if (!tracked.contains(path)) path,
+    ];
   }
 
   /// 원본을 묻지 않고 저장소의 iOS 1024 에서 켠 대상의 콘솔 아이콘만 다시
@@ -1169,9 +1222,8 @@ final class AppIconStep implements DeferrableStep {
   /// 읽는다 — 끝나면 null, 실패하면 쓰기 전으로 되돌린 뒤의 결과다.
   ///
   /// 쓰기 직전에 디스크에 있던 파일의 바이트를 메모리에 떠 둔다 — 되돌림은 git
-  /// 에 기대지 않으므로 gitignored 파일 · 링크가 가리키는 파일도 쓰기 전 내용으로
-  /// 돌아간다. 쓰다 실패한 경로는 [decideFailedWriteUndo] 가 정한 대로 되돌림에
-  /// 넣는다.
+  /// 에 기대지 않으므로 링크가 가리키는 파일도 쓰기 전 내용으로 돌아간다. 쓰다
+  /// 실패한 경로는 [decideFailedWriteUndo] 가 정한 대로 되돌림에 넣는다.
   Future<StepOutcome?> _placeHomeIcons(
     WizardContext context,
     List<_PlannedFile> files,

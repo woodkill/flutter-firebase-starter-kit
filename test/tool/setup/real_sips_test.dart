@@ -80,10 +80,14 @@ MeasuredImage measureImage(String path) {
   );
 }
 
-/// 실제 sips 만 실행하고 Finder 열기 · 미커밋 검사는 세기만 하는 실행기.
+/// 실제 sips 만 실행하고 Finder 열기 · 미커밋 검사 · 추적 파일 대조는 세기만
+/// 하는 실행기.
 final class _RealSipsRunner implements CommandRunner {
-  _RealSipsRunner(Terminal terminal, LogSink log)
+  _RealSipsRunner(this._root, Terminal terminal, LogSink log)
     : _real = ProcessCommandRunner(terminal, log: log);
+
+  /// 저장소 root — 추적 파일 대조의 키를 그 순간의 디스크 상태로 만든다.
+  final String _root;
 
   final ProcessCommandRunner _real;
 
@@ -104,6 +108,9 @@ final class _RealSipsRunner implements CommandRunner {
   /// 실행하지 않고 빈 결과로 답한 미커밋 검사 수.
   int uncommittedCount = 0;
 
+  /// 실행하지 않고 지금 파일을 모두 추적 파일로 답한 대조 수.
+  int trackedCount = 0;
+
   /// [command] 가 sips 가 아니면 [StateError] 를 던지고, 맞으면 기록한다.
   Command _requireSips(Command command) {
     if (command.executable != sipsPath) {
@@ -119,6 +126,12 @@ final class _RealSipsRunner implements CommandRunner {
     if (FakeCommandRunner.buildKey(command) == _uncommittedKey) {
       uncommittedCount++;
       return const CommandResult(0, '', '');
+    }
+    final ({String key, CommandResult result})? tracked =
+        buildTrackedTargetsAnswer(_root);
+    if (tracked != null && FakeCommandRunner.buildKey(command) == tracked.key) {
+      trackedCount++;
+      return tracked.result;
     }
     return await _real.capture(_requireSips(command));
   }
@@ -180,7 +193,7 @@ Future<_RunResult> _runIconStep(
   final screen = ScriptedTerminal(inputs);
   final log = MemoryLogSink(Redactor());
   final terminal = RedactingTerminal(screen, log.redactor, log);
-  final runner = _RealSipsRunner(terminal, log);
+  final runner = _RealSipsRunner(dir.repo, terminal, log);
   final int code = await runWizard(
     WizardContext(
       projectRoot: dir.repo,

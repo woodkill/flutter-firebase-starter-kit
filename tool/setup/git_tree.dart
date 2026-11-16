@@ -81,7 +81,8 @@ Future<List<String>> findDirtyTrackedFiles(
 /// [relativePaths] 의 미커밋 변경과 추적 안 된 파일을 보는 git 명령을 만든다.
 ///
 /// 경로는 [normalizeRepoPath] 로 맞춰 `--` 뒤에 넘긴다 — git 은 그 경로만 본다.
-/// gitignored 파일은 git 이 보이지 않는다.
+/// gitignored 파일은 git 이 보이지 않는다 — 그런 파일이 있는지는 부르는 쪽이
+/// 추적 파일 목록과 따로 대조한다.
 Command buildUncommittedFilesCommand(
   List<String> relativePaths, {
   String? workingDirectory,
@@ -99,7 +100,8 @@ Command buildUncommittedFilesCommand(
 ///
 /// 추적 파일의 수정 · 삭제와 아직 추적하지 않는 새 파일을 함께 본다 — 쓰기 전
 /// 대상에 커밋하지 않은 사용자 작업이 있으면 덮어쓰기 전에 멈추기 위해서다.
-/// gitignored 파일은 git 이 보이지 않아 보지 않는다. 넘긴 경로가 없으면 git 을 부르지 않고 빈
+/// gitignored 파일은 git 이 보이지 않아 보지 않는다 — 그런 파일도 막으려면
+/// 부르는 쪽이 추적 파일 목록과 따로 대조한다. 넘긴 경로가 없으면 git 을 부르지 않고 빈
 /// 목록이다(경로 없는 `--` 는 저장소 전체를 본다). git 이 실패하면
 /// [GitTreeException] 을 던진다.
 Future<List<String>> findUncommittedFiles(

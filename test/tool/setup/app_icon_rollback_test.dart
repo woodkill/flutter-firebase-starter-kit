@@ -1,6 +1,7 @@
 // 앱 아이콘 단계의 쓰기 실패 갈래 시험 — 실제 git 임시 저장소에서 쓰다 만
-// 홈 화면 아이콘을 되돌리는지, 같은 이름 리소스가 있으면 묻기 전에 멈추는지,
-// 제자리에 쓴 iOS 1024 를 다시 읽어 판정하는지 본다.
+// 홈 화면 아이콘을 되돌리는지, 같은 이름 리소스나 git 이 추적하지 않는 쓰기
+// 대상이 있으면 묻기 전에 멈추는지, 제자리에 쓴 iOS 1024 를 다시 읽어 판정하는지
+// 본다.
 //
 // git 은 실제로 돌리고 sips · open 은 가짜 실행기에 등록한 대로다. 변환 효과는
 // 작업 폴더의 `source.png` 에 진짜 PNG 를 쓴다.
@@ -27,6 +28,9 @@ const String rolledBackLineHead = '  실패 — 홈 화면 아이콘을 쓰지 �
 
 /// 같은 이름 리소스가 있을 때의 실패 줄 머리.
 const String conflictLineHead = '  실패 — 같은 이름의 아이콘 리소스가 이미 있습니다';
+
+/// 쓰기 대상에 git 이 추적하지 않는 파일이 있을 때의 실패 줄.
+const String untrackedLineHead = '  실패 — ${AppIconStep.untrackedTargetReason}';
 
 /// 실제 git 저장소 · 임시 홈 한 쌍.
 final class _GitSandbox {
@@ -468,8 +472,8 @@ void main() {
     expect(decide(false, FileSystemEntityType.notFound), FailedWriteUndo.keep);
   });
 
-  test('T-28-SAFE-07: gitignored adaptive 배경 파일 + 마지막 전경 자리 빈 폴더 → '
-      '쓰기 실패 → 20장 = HEAD · ignored 파일 = 원래 바이트 · git 되돌림 0', () async {
+  test('T-28-SAFE-07: gitignored adaptive 배경 파일 → 원본 질문 · sips · 쓰기 '
+      '없이 멈춤 · ignored 파일 = 원래 바이트 · 상태 빈 출력', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
     box.repoFile('.gitignore').writeAsStringSync('/$adaptiveBackgroundPath\n');
     const localOnly = '<resources><!-- 로컬에만 둔 배경색 --></resources>\n';
@@ -483,41 +487,20 @@ void main() {
       adaptiveBackgroundPath,
     ]);
     expect(ignored.exitCode, 0, reason: '배경 파일이 gitignored 가 아니다');
-    final String blocked = adaptiveDensities.last.foregroundPath;
-    Directory('${box.root}/$blocked').createSync(recursive: true);
-    final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
-    final String source = box.writeSource('logo.png', sourceBytes);
-    final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
-      ..registerSource(source, sourceBytes);
+    final Map<String, List<int>?> before = box.readWriteTargets();
+    final run = _GitRun(box, <String?>['1', '2'], kitDigests: kit);
 
     final int code = await run.run();
 
     expect(code, wizardExitStopped);
-    expect(
-      run.lines.where((String line) => line.startsWith(rolledBackLineHead)),
-      hasLength(1),
-    );
-    final ProcessResult diff = box.git(<String>[
-      'diff',
-      '--quiet',
-      'HEAD',
-      '--',
-      for (final HomeIconFile file in homeIconFiles) file.relativePath,
-    ]);
-    expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
-    for (final HomeIconFile file in homeIconFiles) {
-      expect(
-        box.repoFile(file.relativePath).readAsStringSync(),
-        'kit:${file.relativePath}',
-        reason: file.relativePath,
-      );
-    }
+    final int failAt = run.lines.indexOf(untrackedLineHead);
+    expect(failAt, greaterThanOrEqualTo(0));
+    expect(run.lines[failAt + 1], '    $adaptiveBackgroundPath');
+    expect(run.lines[failAt + 2], isNot(startsWith('    ')));
+    expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+    expect(run.countSipsCalls(), 0);
     expect(box.repoFile(adaptiveBackgroundPath).readAsStringSync(), localOnly);
-    for (final String path in listAdaptiveFilePaths()) {
-      if (path == adaptiveBackgroundPath) continue;
-      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
-    }
-    expect(Directory('${box.root}/$blocked').listSync(), isEmpty);
+    expect(box.readWriteTargets(), before);
     expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(box.readStatus(), isEmpty);
     expect(run.countCheckouts(), 0);

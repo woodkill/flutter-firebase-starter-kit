@@ -13,6 +13,7 @@ import 'package:image/image.dart' as img;
 import '../../../tool/setup/command_runner.dart';
 import '../../../tool/setup/icons/home_icon_specs.dart';
 import '../../../tool/setup/providers/icon_specs.dart';
+import '../../../tool/setup/steps/app_icon_step.dart';
 import 'fakes.dart';
 
 final Map<int, Uint8List> _opaqueRgbCache = <int, Uint8List>{};
@@ -133,6 +134,42 @@ void writeHomeIconMarker(String root, {Iterable<String>? tokens}) {
         tokens ?? iconSpecs.map((IconSpec spec) => spec.token),
       ),
     );
+}
+
+/// [root] 저장소의 앱 아이콘 쓰기 대상 가운데 지금 파일로 있는 것 — 링크를
+/// 따라가지 않은 종류가 파일인 경로만 [AppIconStep.listWritePaths] 순서로 고른다.
+List<String> listExistingWriteTargets(String root) => <String>[
+  for (final String path in AppIconStep.listWritePaths())
+    if (FileSystemEntity.typeSync('$root/$path', followLinks: false) ==
+        FileSystemEntityType.file)
+      path,
+];
+
+/// [root] 의 지금 파일로 있는 쓰기 대상을 모두 추적 파일로 답하는 `git ls-files`
+/// 명령 키와 결과 — 파일로 있는 대상이 없으면 null(단계가 git 을 부르지 않는다).
+///
+/// 키는 등록하는 순간의 디스크 상태로 정해지므로 대상 파일을 다 둔 뒤에 부른다.
+({String key, CommandResult result})? buildTrackedTargetsAnswer(String root) {
+  final List<String> existing = listExistingWriteTargets(root);
+  if (existing.isEmpty) return null;
+  return (
+    key: FakeCommandRunner.buildKey(
+      AppIconStep.buildTrackedFilesCommand(existing),
+    ),
+    result: CommandResult(
+      0,
+      existing.map((String path) => '$path\n').join(),
+      '',
+    ),
+  );
+}
+
+/// 가짜 실행기 [runner] 에 [root] 의 [buildTrackedTargetsAnswer] 를 등록한다 —
+/// 파일로 있는 대상이 없으면 아무것도 등록하지 않는다.
+void registerTrackedFiles(FakeCommandRunner runner, String root) {
+  final ({String key, CommandResult result})? answer =
+      buildTrackedTargetsAnswer(root);
+  if (answer != null) runner.on(answer.key, answer.result);
 }
 
 /// [root] 저장소용 git 실행 환경 — 부모의 `GIT_*` 를 빼고 사용자 · 시스템 설정을
