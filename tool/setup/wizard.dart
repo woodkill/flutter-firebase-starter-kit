@@ -86,7 +86,7 @@ final class WizardSession {
   /// 앱 아이콘을 새 원본으로 다시 만들어 달라는 요청(`--app-icon`)이 남아 있으면
   /// true.
   ///
-  /// 앱 아이콘 단계가 다시 만든 뒤 끈다.
+  /// 앱 아이콘 단계가 홈 화면 아이콘을 다 쓴 뒤 끈다(콘솔 아이콘 쓰기 전).
   bool isAppIconRebuildRequested = false;
 
   /// 이번 실행에서 계산한 Android 디버그 서명 키 지문 — 아직 계산 전이면 null.

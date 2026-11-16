@@ -195,6 +195,10 @@ final class AppIconStep implements DeferrableStep {
   /// 바꾼 원본을 PNG 로 읽지 못했을 때의 까닭.
   static const String unreadableConvertedReason = '바꾼 원본을 읽지 못했습니다';
 
+  /// 아이콘 파일을 다 쓴 뒤 표식을 쓰지 못했을 때의 까닭 머리(뒤에 OS 까닭).
+  static const String markerFailedReason =
+      '아이콘 파일은 썼지만 표식($homeIconMarkerPath)을 쓰지 못했습니다 — ';
+
   /// 결과 표 제목.
   static const String summaryTitle = '만든 앱 아이콘';
 
@@ -1131,10 +1135,12 @@ final class AppIconStep implements DeferrableStep {
   /// 하나라도 확인에 걸리면 아무것도 쓰지 않는다. 쓰기 전에 기존 콘솔 파일
   /// 바이트를 만든 바이트와 비교해 바뀐 수단에만 다시 올리라는 노트를 보인다. 홈 화면 · adaptive 파일을 먼저
   /// 쓰고 iOS 1024 를 다시 읽는다 — 그 사이 실패하면 쓰기 전으로 되돌리고 멈춘다.
+  /// 홈 화면을 다 쓰면 다시 만들기 요청을 끈다 — 홈 화면은 이미 새 원본이다.
   /// 그 뒤 콘솔 아이콘을 모두 쓰고 마지막에 표식의 켠 대상 줄만 지금 iOS 1024
-  /// 지문으로 바꾼다 — 끈 수단 줄은 그 파일처럼 그대로 둔다. 콘솔 쪽에서
-  /// 실패하면 홈 화면은 그대로 두고 다음 실행이 콘솔 아이콘을 다시 만든다. 켠
-  /// 대상이 없으면 [iconsDirectory] 를 만들지 않는다.
+  /// 지문으로 바꾼다 — 끈 수단 줄은 그 파일처럼 그대로 둔다. 콘솔 쪽이나 표식에서
+  /// 실패하면 홈 화면은 그대로 두고 실패로 끝난다 — 같은 실행의 다시 시도나 다음
+  /// 실행이 「내 아이콘」 판정으로 콘솔 아이콘만 다시 만든다. 켠 대상이 없으면
+  /// [iconsDirectory] 를 만들지 않는다.
   Future<StepOutcome> _writeAll(
     WizardContext context,
     List<_PlannedFile> files, {
@@ -1155,6 +1161,7 @@ final class AppIconStep implements DeferrableStep {
         ],
       );
       if (failure != null) return failure;
+      context.session.isAppIconRebuildRequested = false;
     }
     for (final file in files) {
       if (homePaths.contains(file.relativePath)) continue;
@@ -1167,10 +1174,13 @@ final class AppIconStep implements DeferrableStep {
         context.resolve(ios1024Path),
       ).readAsBytesSync();
       final digest = sha256.convert(ios1024).toString();
-      _writeMarker(context, <String, String>{
+      final String? markerProblem = _writeMarker(context, <String, String>{
         ..._readMarker(context),
         for (final IconSpec spec in targets) spec.token: digest,
       });
+      if (markerProblem != null) {
+        return Failed('$markerFailedReason$markerProblem');
+      }
     }
     writeSummary(
       context.terminal,
@@ -1213,7 +1223,6 @@ final class AppIconStep implements DeferrableStep {
       );
       if (!opened.isSuccess) context.terminal.writeLine('  $openFailedNote');
     }
-    context.session.isAppIconRebuildRequested = false;
     return const Applied();
   }
 
@@ -1417,19 +1426,21 @@ final class AppIconStep implements DeferrableStep {
 
   /// 표식 파일에 수단 token → iOS 1024 지문 표 [entries] 를 쓴다 — 파일 0600.
   ///
-  /// 내용을 쓰기 전에 빈 파일로 만들어 권한부터 좁힌다. 실패하면 조용히 그친다
-  /// — 표식이 없거나 옛 값이면 다음 실행이 콘솔 아이콘을 다시 만들 뿐이다.
-  void _writeMarker(WizardContext context, Map<String, String> entries) {
+  /// 내용을 쓰기 전에 빈 파일로 만들어 권한부터 좁힌다. 쓰면 null, 실패하면
+  /// 경로 없는 OS 까닭 한 줄이다 — 부른 쪽이 실패로 보인다. 표식이 없거나 옛
+  /// 값이면 같은 실행의 다시 시도나 다음 실행이 콘솔 아이콘을 다시 만든다.
+  String? _writeMarker(WizardContext context, Map<String, String> entries) {
     final file = File(context.resolve(homeIconMarkerPath));
     try {
       file.parent.createSync(recursive: true);
       file.writeAsStringSync('');
       restrictFileMode(file.path, ownerOnlyFileMode);
       file.writeAsStringSync(formatMarker(entries), flush: true);
-    } on FileSystemException {
-      return;
-    } on ProcessException {
-      return;
+      return null;
+    } on FileSystemException catch (e) {
+      return _describeFileError(e);
+    } on ProcessException catch (e) {
+      return e.message;
     }
   }
 

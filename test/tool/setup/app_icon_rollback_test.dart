@@ -142,6 +142,25 @@ final class _GitRun {
       );
   }
 
+  /// 콘솔만 다시 만드는 갈래의 iOS 1024 변환을 등록한다 — 변환은 그 순간의
+  /// 제자리 iOS 1024 바이트를 작업 폴더의 `source.png` 에 쓴다.
+  void registerIos1024Convert() {
+    final String convertKey = FakeCommandRunner.buildKey(
+      AppIconStep.buildConvertCommand(
+        '${box.root}/$ios1024Path',
+        '${box.root}/$iconWorkDirectory/source.png',
+        display: '',
+      ),
+    );
+    fake
+      ..on(convertKey, const CommandResult(0, '', ''))
+      ..onEffect(convertKey, () {
+        File(
+          '${box.root}/$iconWorkDirectory/source.png',
+        ).writeAsBytesSync(box.repoFile(ios1024Path).readAsBytesSync());
+      });
+  }
+
   /// sips 호출 수.
   int countSipsCalls() => fake.calls
       .where((FakeCall call) => call.key.startsWith('/usr/bin/sips '))
@@ -715,6 +734,103 @@ void main() {
       expect(block.single, contains('$broken (주입한 실패)'));
       expect(box.readWriteTargets(), before);
       expect(box.readStatus(), isEmpty);
+    });
+  });
+
+  group('홈 화면을 쓴 뒤의 실패 — 같은 실행의 다시 시도', () {
+    late Map<String, String> kit;
+    late Uint8List sourceBytes;
+    late String source;
+
+    setUp(() {
+      kit = writeKitDefaultHomeIcons(box.root);
+      commitGitFixture(box.root, 'kit default icons');
+      sourceBytes = buildOpaqueRgbaIconPng();
+      source = box.writeSource('logo.png', sourceBytes);
+    });
+
+    test('T-28-SAFE-12: --app-icon · 콘솔 파일 자리가 폴더 → 콘솔 쓰기 실패 → '
+        '다시 시도는 미커밋 실패가 아니라 콘솔만 다시 만듦 · 요청 꺼짐', () async {
+      final String kakaoPath = findIconSpec('kakao')!.relativePath;
+      Directory('${box.root}/$kakaoPath').createSync(recursive: true);
+      final session = WizardSession()..isAppIconRebuildRequested = true;
+      final run =
+          _GitRun(
+              box,
+              <String?>['1', source, '1', '2'],
+              kitDigests: kit,
+              session: session,
+            )
+            ..registerSource(source, sourceBytes)
+            ..registerIos1024Convert();
+
+      expect(await run.run(), wizardExitStopped);
+
+      expect(session.isAppIconRebuildRequested, isFalse);
+      expect(
+        run.lines,
+        isNot(contains(startsWith('  실패 — ${AppIconStep.dirtyReason}'))),
+      );
+      expect(
+        run.lines.where(
+          (String line) => line.startsWith('  실패 — 아이콘 파일을 쓰지 못했습니다 — '),
+        ),
+        hasLength(2),
+      );
+      expect(
+        run.screen.asks.where(
+          (String ask) => ask == AppIconStep.sourceQuestion,
+        ),
+        hasLength(1),
+      );
+      expect(
+        run.fake.countCalls(
+          RunMode.capture,
+          FakeCommandRunner.buildKey(
+            AppIconStep.buildConvertCommand(
+              '${box.root}/$ios1024Path',
+              '${box.root}/$iconWorkDirectory/source.png',
+              display: '',
+            ),
+          ),
+        ),
+        1,
+      );
+      expect(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+        isNot(utf8.encode('kit:$ios1024Path')),
+      );
+    });
+
+    test('T-28-SAFE-13: 표식 자리가 폴더 → 표식 쓰기 실패를 까닭과 함께 실패로 '
+        '보임 · 홈 화면 · 콘솔은 이미 씀', () async {
+      Directory('${box.root}/$homeIconMarkerPath').createSync(recursive: true);
+      final run = _GitRun(box, <String?>['1', source, '2'], kitDigests: kit)
+        ..registerSource(source, sourceBytes);
+
+      expect(await run.run(), wizardExitStopped);
+
+      final Iterable<String> failures = run.lines.where(
+        (String line) => line.startsWith('  실패 — '),
+      );
+      expect(failures, hasLength(1));
+      expect(
+        failures.single,
+        startsWith('  실패 — ${AppIconStep.markerFailedReason}'),
+      );
+      expect(
+        failures.single.length,
+        greaterThan('  실패 — ${AppIconStep.markerFailedReason}'.length),
+      );
+      expect(
+        box.repoFile(ios1024Path).readAsBytesSync(),
+        isNot(utf8.encode('kit:$ios1024Path')),
+      );
+      expect(
+        box.repoFile(findIconSpec('kakao')!.relativePath).existsSync(),
+        isTrue,
+      );
+      expect(Directory('${box.root}/$homeIconMarkerPath').existsSync(), isTrue);
     });
   });
 }
