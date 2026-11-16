@@ -171,4 +171,70 @@ void main() {
       '~/Desktop/$nfd'.codeUnits,
     );
   });
+
+  group('T-28-PATH-01: 경로 답 하나를 네 갈래 중 하나로 가른다', () {
+    final branchCases = <({String name, String answer, String branch})>[
+      (name: '빈 답', answer: '', branch: '빈 답'),
+      (name: '공백만', answer: '   ', branch: '빈 답'),
+      (name: '빈 큰따옴표', answer: '""', branch: '빈 경로'),
+      (name: '빈 작은따옴표', answer: "''", branch: '빈 경로'),
+      (name: '조각 안 %2F 주소', answer: 'file:///a%2Fb.png', branch: '바꿀 수 없는 주소'),
+      (
+        name: '작은따옴표로 감싼 %2F 주소',
+        answer: "'file:///a%2Fb.png'",
+        branch: '바꿀 수 없는 주소',
+      ),
+      (name: '깨진 UTF-8 주소', answer: 'file:///a%FF.png', branch: '바꿀 수 없는 주소'),
+      (name: '호스트 있는 주소', answer: 'file://host/a.png', branch: '바꿀 수 없는 주소'),
+    ];
+
+    /// 갈래 이름에 맞는 결과 타입 matcher.
+    Matcher matchBranch(String branch) => switch (branch) {
+      '빈 답' => isA<BlankPathAnswer>(),
+      '빈 경로' => isA<EmptyPathAnswer>(),
+      _ => isA<UnconvertibleAddressAnswer>(),
+    };
+
+    for (final item in branchCases) {
+      test('${item.name} → ${item.branch}', () {
+        expect(
+          resolvePathAnswer(context, item.answer),
+          matchBranch(item.branch),
+          reason: item.answer,
+        );
+      });
+    }
+
+    final resolvedCases = <({String name, String answer, String expected})>[
+      (
+        name: '큰따옴표로 감싼 file:// 주소',
+        answer: '"file:///Users/me/My%20Logos/a.png"',
+        expected: '/Users/me/My Logos/a.png',
+      ),
+      (
+        name: '끌어다 놓기 escape 와 홈',
+        answer: r'~/My\ Keys/AuthKey_ABCDE12345.p8 ',
+        expected: '$homeMark/My Keys/AuthKey_ABCDE12345.p8',
+      ),
+      (
+        name: '상대 경로',
+        answer: 'assets/logo.png',
+        expected: '$rootMark/assets/logo.png',
+      ),
+      (name: '절대 경로', answer: '/abs/x.png', expected: '/abs/x.png'),
+    ];
+    for (final item in resolvedCases) {
+      test('${item.name} → 확장한 경로', () {
+        expect(
+          resolvePathAnswer(context, item.answer),
+          isA<ResolvedPathAnswer>().having(
+            (ResolvedPathAnswer answer) => answer.path,
+            'path',
+            fillMarks(item.expected),
+          ),
+          reason: item.answer,
+        );
+      });
+    }
+  });
 }

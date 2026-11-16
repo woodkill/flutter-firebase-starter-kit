@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 
@@ -6,7 +7,9 @@ import '../../../tool/setup/config_files.dart';
 import '../../../tool/setup/flavor.dart';
 import '../../../tool/setup/providers/apple_key_input.dart';
 import '../../../tool/setup/redactor.dart';
+import '../../../tool/setup/terminal.dart';
 import '../../../tool/setup/wizard.dart';
+import 'fake_rest_client.dart';
 import 'fakes.dart';
 
 /// 가짜 Key ID(대문자 영숫자 10자).
@@ -17,6 +20,22 @@ const String otherKeyId = 'FGHIJ67890';
 
 /// 가짜 Team ID(대문자 영숫자 10자).
 const String teamId = 'TEAMID1234';
+
+/// 터미널이 붙여 넣거나 끌어다 놓은 글 앞에 붙이는 표시(시험 자신의 리터럴).
+const String pasteStart = '\x1B[200~';
+
+/// 터미널이 붙여 넣거나 끌어다 놓은 글 뒤에 붙이는 표시(시험 자신의 리터럴).
+const String pasteEnd = '\x1B[201~';
+
+/// 빈 경로 까닭 줄(시험 자신의 글자).
+const String emptyPathLine = '  경로가 비었습니다';
+
+/// 바꿀 수 없는 주소 까닭 줄(시험 자신의 글자).
+const String unconvertibleAddressLine = '  파일 경로로 바꿀 수 없는 주소입니다';
+
+/// [text] 에서 [line] 과 같은 줄의 수를 센다.
+int countLines(String text, String line) =>
+    text.split('\n').where((String l) => l == line).length;
 
 /// 실행 시점에 조립하는 PEM 개인 키 머리 줄.
 String buildPemHeader() =>
@@ -500,6 +519,154 @@ void main() {
         ]) {
           expect(output, isNot(contains(reason)));
         }
+      });
+    }
+  });
+
+  group('T-28-KEYPATH-02: 빈 따옴표 · 바꿀 수 없는 주소 · 빈 답은 까닭 한 줄 뒤 '
+      '경로만 다시', () {
+    setUp(() {
+      File(spacedKeyPath())
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(buildPemContent('Ab'));
+    });
+
+    final retryAnswers =
+        <({String name, String Function(String) build, String line})>[
+          (name: '빈 큰따옴표', build: (String _) => '""', line: emptyPathLine),
+          (name: '빈 작은따옴표', build: (String _) => "''", line: emptyPathLine),
+          (
+            name: '조각 안 %2F 주소',
+            build: (String dir) => 'file://$dir/a%2Fb.p8',
+            line: unconvertibleAddressLine,
+          ),
+          (
+            name: '작은따옴표로 감싼 %2F 주소',
+            build: (String dir) => "'file://$dir/a%2Fb.p8'",
+            line: unconvertibleAddressLine,
+          ),
+        ];
+    for (final item in retryAnswers) {
+      test('${item.name} → 까닭 한 줄 · 답 되풀이 0 · 다음 경로로 키를 읽는다', () async {
+        final h = buildHarness(<String?>[
+          item.build(keyDir.path),
+          spacedKeyPath(),
+          '',
+        ], homeDirectory: keyDir.path);
+
+        final AppleKey? key = await askAppleKey(
+          h.context,
+          use: AppleKeyUse.signInWithApple,
+        );
+
+        expect(key?.keyId, keyId);
+        expect(key?.privateKey, buildPemContent('Ab'));
+        expect(h.screen.asks, hasLength(3));
+        final output = h.screen.output.toString();
+        expect(countLines(output, item.line), 1);
+        expect(output, isNot(contains('파일이 없습니다')));
+        expect(output, isNot(contains(keyDir.path)));
+      });
+    }
+
+    test('상한 → 경로 없는 까닭 세 번이면 null · Key ID 질문 0', () async {
+      final h = buildHarness(<String?>[
+        '""',
+        'file://${keyDir.path}/a%2Fb.p8',
+        "''",
+      ], homeDirectory: keyDir.path);
+
+      final AppleKey? key = await askAppleKey(
+        h.context,
+        use: AppleKeyUse.signInWithApple,
+      );
+
+      expect(key, isNull);
+      expect(h.screen.asks, hasLength(3));
+      expect(h.screen.asks, isNot(contains(appleKeyIdQuestion)));
+      final output = h.screen.output.toString();
+      expect(countLines(output, emptyPathLine), 2);
+      expect(countLines(output, unconvertibleAddressLine), 1);
+      expect(h.context.session.appleKeys[AppleKeyUse.signInWithApple], isNull);
+    });
+
+    test('빈 답 → 경로를 입력하라는 한 줄 뒤 다음 경로로 키를 읽는다', () async {
+      final h = buildHarness(<String?>[
+        '',
+        spacedKeyPath(),
+        '',
+      ], homeDirectory: keyDir.path);
+
+      final AppleKey? key = await askAppleKey(
+        h.context,
+        use: AppleKeyUse.signInWithApple,
+      );
+
+      expect(key?.keyId, keyId);
+      final output = h.screen.output.toString();
+      expect(countLines(output, '  .p8 파일 경로를 입력하세요'), 1);
+      expect(output, isNot(contains(emptyPathLine)));
+    });
+  });
+
+  group('T-28-KEYPATH-03: 실제 터미널 입력 경계를 지난 .p8 경로 답', () {
+    setUp(() {
+      File(spacedKeyPath())
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(buildPemContent('Ab'));
+    });
+
+    /// 실제 [StdioTerminal] 에 [answer] 와 Key ID Enter 를 넣어 키를 받는다.
+    Future<({AppleKey? key, String screen, String log})> askThroughStdio(
+      String answer,
+    ) async {
+      final queue = <String>[answer, ''];
+      final screen = StringBuffer();
+      final stdio = StdioTerminal(
+        readLine: () => queue.isEmpty ? null : queue.removeAt(0),
+        output: screen,
+      );
+      final redactor = Redactor();
+      final log = MemoryLogSink(redactor);
+      final context = WizardContext(
+        projectRoot: root,
+        runner: FakeCommandRunner(),
+        terminal: RedactingTerminal(stdio, redactor, log),
+        redactor: redactor,
+        log: log,
+        rest: FakeRestClient(),
+        homeDirectory: keyDir.path,
+        random: Random(fixedTestRandomSeed),
+        now: () => fixedTestNow,
+      );
+      final AppleKey? key = await askAppleKey(
+        context,
+        use: AppleKeyUse.signInWithApple,
+      );
+      return (key: key, screen: screen.toString(), log: log.text);
+    }
+
+    /// 공백 앞에 `\` 를 붙인 끌어다 놓기 꼴 키 경로.
+    String buildDroppedKeyPath() =>
+        '${spacedKeyPath().replaceAll(' ', r'\ ')} ';
+
+    final stdioAnswers = <({String name, String Function(String) wrap})>[
+      (
+        name: '표시로 감싼 .p8 경로',
+        wrap: (String dropped) => '$pasteStart$dropped$pasteEnd',
+      ),
+      (name: '표시 없는 .p8 경로', wrap: (String dropped) => dropped),
+    ];
+    for (final item in stdioAnswers) {
+      test('${item.name} → 키를 읽고 화면 · 기록에 ESC · PEM 0', () async {
+        final run = await askThroughStdio(item.wrap(buildDroppedKeyPath()));
+
+        expect(run.key?.keyId, keyId);
+        expect(run.key?.privateKey, buildPemContent('Ab'));
+        expect(run.screen, isNot(contains('파일이 없습니다')));
+        expect(run.screen, isNot(contains('\x1B')));
+        expect(run.log, isNot(contains('\x1B')));
+        expectNoPem(run.screen, run.log, 'Ab');
       });
     }
   });
