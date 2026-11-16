@@ -605,8 +605,8 @@ void main() {
     expect(
       h.lines,
       contains(
-        '  ✗ 앱 아이콘 — 홈 화면 아이콘 파일이 없습니다(1개) — 다시 만들려면: '
-        './setup.sh --app-icon',
+        '  ✗ 앱 아이콘 — 홈 화면 아이콘 파일이 없거나 읽을 수 없습니다(1개) — '
+        '다시 만들려면: ./setup.sh --app-icon',
       ),
     );
     expect(h.runner.calls, isEmpty);
@@ -616,6 +616,38 @@ void main() {
     expect(box.repoFile(homeIconFiles.last.relativePath).existsSync(), isFalse);
     expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
   });
+
+  // 권한 0000 파일은 소유자도 읽지 못한다 — root 로 돌면 읽히므로 macOS · Linux
+  // 의 보통 사용자에서만 뜻이 있다.
+  test('T-28-ICON-18: 한 장 권한 0000 · 다른 한 장 없음 → 없거나 읽을 수 없음 '
+      '(2개) · 쓰기 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final String unreadable = homeIconFiles.first.relativePath;
+    box.repoFile(homeIconFiles.last.relativePath).deleteSync();
+    final ProcessResult chmod = Process.runSync('chmod', <String>[
+      '0000',
+      '${box.root}/$unreadable',
+    ]);
+    expect(chmod.exitCode, 0);
+    addTearDown(
+      () =>
+          Process.runSync('chmod', <String>['0644', '${box.root}/$unreadable']),
+    );
+    expect(box.repoFile(unreadable).existsSync(), isTrue);
+    expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.missing);
+    final h = _Harness(box, const <String?>[], kitDigests: kit);
+
+    expect(await h.run(), wizardExitDone);
+    expect(
+      h.lines,
+      contains(
+        '  ✗ 앱 아이콘 — 홈 화면 아이콘 파일이 없거나 읽을 수 없습니다(2개) — '
+        '다시 만들려면: ./setup.sh --app-icon',
+      ),
+    );
+    expect(h.runner.calls, isEmpty);
+    expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+  }, testOn: 'mac-os || linux');
 
   group('T-28-ICON-07: 내 아이콘의 iOS 1024 알파 · 읽을 수 없음 → 남은 일', () {
     test('color type 6 이면 알파 까닭과 다시 만드는 명령', () async {

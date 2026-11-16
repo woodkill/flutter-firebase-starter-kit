@@ -616,8 +616,9 @@ final class AppIconStep implements DeferrableStep {
           '다시 만들려면: $rebuildCommand',
         );
       case HomeIconState.missing:
+        final int unreadable = _countUnreadableHomeIcons(context);
         return Deferred(
-          '홈 화면 아이콘 파일이 없습니다(${_countUnreadableHomeIcons(context)}개) '
+          '홈 화면 아이콘 파일이 없거나 읽을 수 없습니다($unreadable개) '
           '— 다시 만들려면: $rebuildCommand',
         );
     }
@@ -685,11 +686,12 @@ final class AppIconStep implements DeferrableStep {
     return hasStale ? conditionalReuploadTail : '';
   }
 
-  /// 홈 화면 아이콘 가운데 없거나 읽을 수 없는 파일 수.
+  /// 홈 화면 아이콘 가운데 없거나 읽을 수 없는 파일 수 — [classifyHomeIcons] 와
+  /// 같은 읽기 시도에서 [FileSystemException] 이 난 파일을 센다.
   int _countUnreadableHomeIcons(WizardContext context) => homeIconFiles
       .where(
         (HomeIconFile file) =>
-            !File(context.resolve(file.relativePath)).existsSync(),
+            _readBytesOrNull(context, file.relativePath) == null,
       )
       .length;
 
