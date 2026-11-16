@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:crypto/crypto.dart';
 import 'package:image/image.dart' as img;
 import 'package:test/test.dart';
 
@@ -61,9 +60,6 @@ CommandResult buildProbeResult(
 /// 성공한 빈 출력 결과.
 CommandResult buildOkResult([String stdout = '']) =>
     CommandResult(0, stdout, '');
-
-/// [bytes] 의 sha256 소문자 16진.
-String digestOf(List<int> bytes) => sha256.convert(bytes).toString();
 
 /// 변환 결과 [converted] 에서 단계가 만들 채운 그림을 같은 함수로 만든다.
 img.Image buildExpectedFilled(
@@ -137,13 +133,13 @@ final class _Sandbox {
     return file.path;
   }
 
-  /// 저장소 상대 경로 [relativePath] 의 파일.
-  File repoFile(String relativePath) => File('$root/$relativePath');
+  /// 저장소 상대 경로 [relativePath] 의 파일 객체를 연다(디스크는 건드리지 않는다).
+  File openRepoFile(String relativePath) => File('$root/$relativePath');
 
   /// 홈 화면 아이콘 20장의 경로 → 바이트.
   Map<String, List<int>> readHomeIcons() => <String, List<int>>{
     for (final HomeIconFile file in homeIconFiles)
-      file.relativePath: repoFile(file.relativePath).readAsBytesSync(),
+      file.relativePath: openRepoFile(file.relativePath).readAsBytesSync(),
   };
 
   /// 정리한다.
@@ -290,29 +286,31 @@ void main() {
     expect(h.runner.countCalls(RunMode.capture, buildDirtyKey()), 1);
 
     final img.Image filled = buildExpectedFilled(sourceBytes);
-    final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+    final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
     expect(ios1024, encodeSquareIcon(filled, 1024));
     final PngHeader? header = readPngHeader(ios1024);
     expect(header?.width, 1024);
     expect(header?.colorType, 2);
     for (final HomeIconFile file in homeIconFiles) {
-      final Uint8List bytes = box.repoFile(file.relativePath).readAsBytesSync();
+      final Uint8List bytes = box
+          .openRepoFile(file.relativePath)
+          .readAsBytesSync();
       expect(
         bytes,
         encodeSquareIcon(filled, file.side),
         reason: file.side.toString(),
       );
-      expect(digestOf(bytes), isNot(kit[file.relativePath]));
+      expect(computeDigest(bytes), isNot(kit[file.relativePath]));
     }
     for (final AdaptiveDensity density in adaptiveDensities) {
       final Uint8List bytes = box
-          .repoFile(density.foregroundPath)
+          .openRepoFile(density.foregroundPath)
           .readAsBytesSync();
       expect(readPngHeader(bytes)?.width, density.canvasSide);
       expect(readPngHeader(bytes)?.colorType, 6);
     }
     expect(
-      box.repoFile(adaptiveDensities.last.foregroundPath).readAsBytesSync(),
+      box.openRepoFile(adaptiveDensities.last.foregroundPath).readAsBytesSync(),
       encodeAdaptiveForeground(
         filled,
         canvasSide: 432,
@@ -320,20 +318,20 @@ void main() {
       ),
     );
     expect(
-      box.repoFile(adaptiveIconXmlPath).readAsStringSync(),
+      box.openRepoFile(adaptiveIconXmlPath).readAsStringSync(),
       buildAdaptiveIconXml(),
     );
     expect(
-      box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+      box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
       buildAdaptiveBackgroundXml(findPaintedBackgroundRgb(filled)),
     );
     final IconSpec kakao = findIconSpec('kakao')!;
     expect(
-      box.repoFile(kakao.relativePath).readAsBytesSync(),
+      box.openRepoFile(kakao.relativePath).readAsBytesSync(),
       encodeSquareIcon(filled, 128),
     );
     expect(
-      box.repoFile(homeIconMarkerPath).readAsStringSync(),
+      box.openRepoFile(homeIconMarkerPath).readAsStringSync(),
       buildHomeIconMarkerText(box.root, const <String>['kakao']),
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
@@ -367,7 +365,7 @@ void main() {
     expect(h.lines, contains('    $foreground'));
     expect(box.readHomeIcons(), before);
     for (final String path in listAdaptiveFilePaths()) {
-      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+      expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
     }
     expect(Directory(box.iconsPath).existsSync(), isFalse);
   });
@@ -410,11 +408,13 @@ void main() {
         normalized,
         backgroundRgb: 0xFFFFFF,
       );
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       expect(ios1024, encodeSquareIcon(filled, 1024));
       expect(readPngHeader(ios1024)?.colorType, 2);
       expect(
-        box.repoFile(adaptiveDensities.last.foregroundPath).readAsBytesSync(),
+        box
+            .openRepoFile(adaptiveDensities.last.foregroundPath)
+            .readAsBytesSync(),
         encodeAdaptiveForeground(
           buildLogoLayer(normalized),
           canvasSide: 432,
@@ -422,7 +422,7 @@ void main() {
         ),
       );
       expect(
-        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
         buildAdaptiveBackgroundXml(0xFFFFFF),
       );
       expect(h.output, contains(mineKakaoDoneLine));
@@ -446,12 +446,12 @@ void main() {
         normalizeIcon(decodeIconPng(logo)!),
         backgroundRgb: 0x1A2B3C,
       );
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       expect(ios1024, encodeSquareIcon(filled, 1024));
       final img.Pixel corner = decodeIconPng(ios1024)!.getPixel(0, 0);
       expect(<num>[corner.r, corner.g, corner.b], <num>[0x1A, 0x2B, 0x3C]);
       expect(
-        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
         contains('<color name="ic_launcher_background">#1A2B3C</color>'),
       );
     });
@@ -464,7 +464,7 @@ void main() {
 
       expect(code, wizardExitStopped);
       expect(box.readHomeIcons(), before);
-      expect(box.repoFile(adaptiveBackgroundPath).existsSync(), isFalse);
+      expect(box.openRepoFile(adaptiveBackgroundPath).existsSync(), isFalse);
       expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
     });
   });
@@ -493,7 +493,7 @@ void main() {
     test('adaptive 를 이미 둔 저장소의 다시 만들기 → 새 파일 조각 없음', () async {
       writeMyHomeIcons(box.root);
       for (final String path in listAdaptiveFilePaths()) {
-        box.repoFile(path)
+        box.openRepoFile(path)
           ..parent.createSync(recursive: true)
           ..writeAsStringSync('committed:$path');
       }
@@ -512,7 +512,7 @@ void main() {
 
     test('전경 일부만 있으면 같은 묶음을 양쪽에 나눠 센다', () async {
       final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-      box.repoFile(adaptiveDensities.first.foregroundPath)
+      box.openRepoFile(adaptiveDensities.first.foregroundPath)
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('local');
       final h = _Harness(box, <String?>['2'], kitDigests: kit);
@@ -555,8 +555,8 @@ void main() {
     test('한 장만 1바이트 바뀌면 덮어쓰지 않는 남은 일', () async {
       final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
       final String changed = homeIconFiles[3].relativePath;
-      box.repoFile(changed).writeAsBytesSync(<int>[
-        ...box.repoFile(changed).readAsBytesSync(),
+      box.openRepoFile(changed).writeAsBytesSync(<int>[
+        ...box.openRepoFile(changed).readAsBytesSync(),
         0,
       ]);
       final Map<String, List<int>> before = box.readHomeIcons();
@@ -589,11 +589,11 @@ void main() {
 
   test('T-28-ICON-06: 한 장 없음 → 없음 상태 · 쓰기 0', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    box.repoFile(homeIconFiles.last.relativePath).deleteSync();
+    box.openRepoFile(homeIconFiles.last.relativePath).deleteSync();
     final left = <String, String>{
       for (final HomeIconFile file in homeIconFiles.take(19))
-        file.relativePath: digestOf(
-          box.repoFile(file.relativePath).readAsBytesSync(),
+        file.relativePath: computeDigest(
+          box.openRepoFile(file.relativePath).readAsBytesSync(),
         ),
     };
     expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.missing);
@@ -611,10 +611,16 @@ void main() {
     );
     expect(h.runner.calls, isEmpty);
     for (final MapEntry<String, String> entry in left.entries) {
-      expect(digestOf(box.repoFile(entry.key).readAsBytesSync()), entry.value);
+      expect(
+        computeDigest(box.openRepoFile(entry.key).readAsBytesSync()),
+        entry.value,
+      );
     }
-    expect(box.repoFile(homeIconFiles.last.relativePath).existsSync(), isFalse);
-    expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+    expect(
+      box.openRepoFile(homeIconFiles.last.relativePath).existsSync(),
+      isFalse,
+    );
+    expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isFalse);
   });
 
   // 권한 0000 파일은 소유자도 읽지 못한다 — root 로 돌면 읽히므로 macOS · Linux
@@ -623,7 +629,7 @@ void main() {
       '(2개) · 쓰기 0', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
     final String unreadable = homeIconFiles.first.relativePath;
-    box.repoFile(homeIconFiles.last.relativePath).deleteSync();
+    box.openRepoFile(homeIconFiles.last.relativePath).deleteSync();
     final ProcessResult chmod = Process.runSync('chmod', <String>[
       '0000',
       '${box.root}/$unreadable',
@@ -633,7 +639,7 @@ void main() {
       () =>
           Process.runSync('chmod', <String>['0644', '${box.root}/$unreadable']),
     );
-    expect(box.repoFile(unreadable).existsSync(), isTrue);
+    expect(box.openRepoFile(unreadable).existsSync(), isTrue);
     expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.missing);
     final h = _Harness(box, const <String?>[], kitDigests: kit);
 
@@ -646,13 +652,13 @@ void main() {
       ),
     );
     expect(h.runner.calls, isEmpty);
-    expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+    expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isFalse);
   }, testOn: 'mac-os || linux');
 
   group('T-28-ICON-07: 내 아이콘의 iOS 1024 알파 · 읽을 수 없음 → 남은 일', () {
     test('color type 6 이면 알파 까닭과 다시 만드는 명령', () async {
       writeMyHomeIcons(box.root);
-      box.repoFile(ios1024Path).writeAsBytesSync(buildOpaqueRgbaIconPng());
+      box.openRepoFile(ios1024Path).writeAsBytesSync(buildOpaqueRgbaIconPng());
       writeHomeIconMarker(box.root);
       final h = _Harness(box, const <String?>[]);
 
@@ -672,7 +678,7 @@ void main() {
 
     test('PNG 로 읽히지 않으면 읽을 수 없음', () async {
       writeMyHomeIcons(box.root);
-      box.repoFile(ios1024Path).writeAsStringSync('not a png');
+      box.openRepoFile(ios1024Path).writeAsStringSync('not a png');
       final h = _Harness(box, const <String?>[]);
 
       final int code = await h.run();
@@ -691,7 +697,7 @@ void main() {
     test('512 RGB 면 크기 까닭의 남은 일 · 진행 질문 0 · sips 0', () async {
       writeFinishedMine(box.root);
       box
-          .repoFile(ios1024Path)
+          .openRepoFile(ios1024Path)
           .writeAsBytesSync(buildOpaqueRgbIconPng(side: 512));
       final h = _Harness(box, const <String?>[]);
 
@@ -713,9 +719,11 @@ void main() {
     test('알파 없는 1024 회색 PNG 는 남은 일이 아니다', () async {
       writeFinishedMine(box.root);
       final gray = img.Image(width: 1024, height: 1024, numChannels: 1);
-      box.repoFile(ios1024Path).writeAsBytesSync(img.encodePng(gray));
+      box.openRepoFile(ios1024Path).writeAsBytesSync(img.encodePng(gray));
       expect(
-        readPngHeader(box.repoFile(ios1024Path).readAsBytesSync())?.colorType,
+        readPngHeader(
+          box.openRepoFile(ios1024Path).readAsBytesSync(),
+        )?.colorType,
         0,
       );
       writeHomeIconMarker(box.root);
@@ -747,7 +755,9 @@ void main() {
       final flipped = digest.startsWith('0')
           ? '1${digest.substring(1)}'
           : '0${digest.substring(1)}';
-      box.repoFile(homeIconMarkerPath).writeAsStringSync('$flipped kakao\n');
+      box
+          .openRepoFile(homeIconMarkerPath)
+          .writeAsStringSync('$flipped kakao\n');
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
@@ -757,7 +767,7 @@ void main() {
 
     test('표식 없음', () async {
       writeFinishedMine(box.root);
-      box.repoFile(homeIconMarkerPath).deleteSync();
+      box.openRepoFile(homeIconMarkerPath).deleteSync();
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
@@ -766,7 +776,7 @@ void main() {
 
     test('켠 대상 파일 하나 없음', () async {
       writeFinishedMine(box.root);
-      box.repoFile(findIconSpec('kakao')!.relativePath).deleteSync();
+      box.openRepoFile(findIconSpec('kakao')!.relativePath).deleteSync();
       final h = _Harness(box, <String?>['2']);
 
       expect(await h.run(), wizardExitDone);
@@ -781,13 +791,15 @@ void main() {
       required bool hasOldIcon,
     }) async {
       writeMyHomeIcons(box.root);
-      final File kakaoFile = box.repoFile(findIconSpec('kakao')!.relativePath);
+      final File kakaoFile = box.openRepoFile(
+        findIconSpec('kakao')!.relativePath,
+      );
       if (hasOldIcon) {
         kakaoFile
           ..createSync(recursive: true)
           ..writeAsBytesSync(const <int>[9, 9, 9]);
       }
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       final h = _Harness(box, <String?>['1'])
         ..registerConvert('${box.root}/$ios1024Path', ios1024)
         ..registerOpen();
@@ -798,7 +810,7 @@ void main() {
 
     test('기존 콘솔 파일이 있으면 다시 올리라는 노트', () async {
       final (harness: h, :before) = await runConsoleOnly(hasOldIcon: true);
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
 
       expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
       expect(
@@ -813,17 +825,17 @@ void main() {
         1,
       );
       expect(
-        box.repoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
+        box.openRepoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
         encodeSquareIcon(buildExpectedFilled(ios1024), 128),
       );
       expect(h.lines, contains(reuploadNoteLine));
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        box.openRepoFile(homeIconMarkerPath).readAsStringSync(),
         buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(ios1024, buildOpaqueRgbIconPng());
       expect(box.readHomeIcons(), before);
-      expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+      expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isFalse);
       expect(h.lines, contains(mineKakaoDoneLine));
       expect(h.countOpenCalls(), 1);
     });
@@ -851,7 +863,7 @@ void main() {
     void writeMineWithKakaoNaver() {
       writeMyHomeIcons(box.root);
       for (final token in kakaoNaver) {
-        box.repoFile(findIconSpec(token)!.relativePath)
+        box.openRepoFile(findIconSpec(token)!.relativePath)
           ..createSync(recursive: true)
           ..writeAsBytesSync(const <int>[1, 2, 3]);
       }
@@ -870,7 +882,7 @@ void main() {
 
     test('다시 켠 수단 줄이 옛 지문이어도 콘솔만 다시', () async {
       writeMineWithKakaoNaver();
-      box.repoFile(homeIconMarkerPath)
+      box.openRepoFile(homeIconMarkerPath)
         ..createSync(recursive: true)
         ..writeAsStringSync(
           '${readHomeIconDigest(box.root)} kakao\n${'a' * 64} naver\n',
@@ -900,7 +912,7 @@ void main() {
     test('꼴이 다른 한 줄 표식은 빈 표 — 콘솔만 다시', () async {
       writeFinishedMine(box.root);
       box
-          .repoFile(homeIconMarkerPath)
+          .openRepoFile(homeIconMarkerPath)
           .writeAsStringSync('${readHomeIconDigest(box.root)}\n');
       final h = _Harness(box, <String?>['2']);
 
@@ -914,18 +926,18 @@ void main() {
     test('쓸 때 켠 수단 줄만 새 지문 · 끈 수단 줄은 그대로', () async {
       writeMyHomeIcons(box.root);
       final oldNaverLine = '${'b' * 64} naver';
-      box.repoFile(homeIconMarkerPath)
+      box.openRepoFile(homeIconMarkerPath)
         ..createSync(recursive: true)
         ..writeAsStringSync('${'c' * 64} kakao\n$oldNaverLine\n');
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       final h = _Harness(box, <String?>['1'])
         ..registerConvert('${box.root}/$ios1024Path', ios1024)
         ..registerOpen();
 
       expect(await h.run(), wizardExitDone);
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync(),
-        '${digestOf(ios1024)} kakao\n$oldNaverLine\n',
+        box.openRepoFile(homeIconMarkerPath).readAsStringSync(),
+        '${computeDigest(ios1024)} kakao\n$oldNaverLine\n',
       );
       expect(h.lines, contains(mineKakaoDoneLine));
     });
@@ -948,21 +960,21 @@ void main() {
   group('T-28-ICON-16: 다시 올리라는 안내는 바이트가 바뀐 콘솔 아이콘에만', () {
     /// 지금 iOS 1024 에서 만들 [token] 콘솔 아이콘 바이트.
     Uint8List buildCurrentConsoleIcon(String token) => encodeSquareIcon(
-      buildExpectedFilled(box.repoFile(ios1024Path).readAsBytesSync()),
+      buildExpectedFilled(box.openRepoFile(ios1024Path).readAsBytesSync()),
       findIconSpec(token)!.side,
     );
 
     /// 「내 아이콘」 20장과 지금 바이트 그대로의 Kakao 콘솔 아이콘을 둔다.
     void writeMineWithCurrentKakao() {
       writeMyHomeIcons(box.root);
-      box.repoFile(findIconSpec('kakao')!.relativePath)
+      box.openRepoFile(findIconSpec('kakao')!.relativePath)
         ..createSync(recursive: true)
         ..writeAsBytesSync(buildCurrentConsoleIcon('kakao'));
     }
 
     /// 콘솔만 다시 만드는 실행(「진행」)을 [enabled] 로 돌린다.
     Future<_Harness> runConsoleOnly(Set<String> enabled) async {
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       final h = _Harness(box, <String?>['1'], enabled: enabled)
         ..registerConvert('${box.root}/$ios1024Path', ios1024)
         ..registerOpen();
@@ -973,7 +985,7 @@ void main() {
     test('표식이 없고 기존 파일 바이트 = 새 바이트면 약속 없는 꼬리 · 노트 없음', () async {
       writeMineWithCurrentKakao();
       final List<int> before = box
-          .repoFile(findIconSpec('kakao')!.relativePath)
+          .openRepoFile(findIconSpec('kakao')!.relativePath)
           .readAsBytesSync();
 
       final h = await runConsoleOnly(const <String>{'kakao'});
@@ -988,7 +1000,7 @@ void main() {
       expect(h.countSipsCalls(), 1);
       expect(findReuploadNotes(h.lines), isEmpty);
       expect(
-        box.repoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
+        box.openRepoFile(findIconSpec('kakao')!.relativePath).readAsBytesSync(),
         before,
       );
       expect(h.lines, contains(mineKakaoDoneLine));
@@ -1010,7 +1022,7 @@ void main() {
       );
       expect(findReuploadNotes(h.lines), isEmpty);
       expect(
-        box.repoFile(findIconSpec('naver')!.relativePath).readAsBytesSync(),
+        box.openRepoFile(findIconSpec('naver')!.relativePath).readAsBytesSync(),
         buildCurrentConsoleIcon('naver'),
       );
     });
@@ -1018,10 +1030,10 @@ void main() {
     test('Kakao 는 표식 줄 · 파일이 지금 것 · Naver 는 옛 지문 줄 → 약속 없는 꼬리 · '
         '노트는 Naver 하나', () async {
       writeMineWithCurrentKakao();
-      box.repoFile(findIconSpec('naver')!.relativePath)
+      box.openRepoFile(findIconSpec('naver')!.relativePath)
         ..createSync(recursive: true)
         ..writeAsBytesSync(const <int>[4, 5, 6]);
-      box.repoFile(homeIconMarkerPath)
+      box.openRepoFile(homeIconMarkerPath)
         ..createSync(recursive: true)
         ..writeAsStringSync(
           '${readHomeIconDigest(box.root)} kakao\n${'a' * 64} naver\n',
@@ -1043,7 +1055,7 @@ void main() {
 
     test('바뀐 수단만 노트에 이름이 든다', () async {
       writeMineWithCurrentKakao();
-      box.repoFile(findIconSpec('naver')!.relativePath)
+      box.openRepoFile(findIconSpec('naver')!.relativePath)
         ..createSync(recursive: true)
         ..writeAsBytesSync(const <int>[4, 5, 6]);
 
@@ -1072,7 +1084,7 @@ void main() {
 
       expect(await h.run(), wizardExitDone);
       expect(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
         encodeSquareIcon(buildExpectedFilled(sourceBytes), 1024),
       );
       expect(Directory(box.iconsPath).existsSync(), isFalse);
@@ -1099,7 +1111,7 @@ void main() {
 
   test('T-28-ICON-12: 킷 기본 + 기존 콘솔 파일 + 지금 안 함 → 바이트 그대로', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    final File kakaoFile = box.repoFile(findIconSpec('kakao')!.relativePath)
+    final File kakaoFile = box.openRepoFile(findIconSpec('kakao')!.relativePath)
       ..createSync(recursive: true)
       ..writeAsBytesSync(const <int>[7, 7, 7]);
     final Map<String, List<int>> before = box.readHomeIcons();
@@ -1132,7 +1144,7 @@ void main() {
       );
       expect(session.isAppIconRebuildRequested, isFalse);
       expect(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
         encodeSquareIcon(buildExpectedFilled(sourceBytes), 1024),
       );
       expect(h.lines, contains(reuploadNoteLine));
@@ -1141,7 +1153,7 @@ void main() {
 
     test('섞인 상태여도 할 일', () async {
       final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-      box.repoFile(ios1024Path).writeAsStringSync('changed');
+      box.openRepoFile(ios1024Path).writeAsStringSync('changed');
       expect(AppIconStep.classifyHomeIcons(box.root, kit), HomeIconState.mixed);
       final session = WizardSession()..isAppIconRebuildRequested = true;
       final h = _Harness(
@@ -1342,7 +1354,7 @@ void main() {
   void expectNothingWritten(Map<String, List<int>> before) {
     expect(box.readHomeIcons(), before);
     for (final String path in listAdaptiveFilePaths()) {
-      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+      expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
     }
     expect(Directory(box.iconsPath).existsSync(), isFalse);
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
@@ -1731,11 +1743,11 @@ void main() {
         hasLength(1),
       );
       expect(
-        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
         buildAdaptiveBackgroundXml(0x1A2B3C),
       );
       final img.Pixel corner = decodeIconPng(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
       )!.getPixel(0, 0);
       expect(<num>[corner.r, corner.g, corner.b], <num>[0x1A, 0x2B, 0x3C]);
     });

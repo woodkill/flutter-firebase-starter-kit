@@ -51,8 +51,8 @@ final class _GitSandbox {
   /// 사용자 홈.
   String get home => '${base.path}/home';
 
-  /// 저장소 상대 경로 [relativePath] 의 파일.
-  File repoFile(String relativePath) => File('$root/$relativePath');
+  /// 저장소 상대 경로 [relativePath] 의 파일 객체를 연다(디스크는 건드리지 않는다).
+  File openRepoFile(String relativePath) => File('$root/$relativePath');
 
   /// 홈 아래 [name] 에 [bytes] 를 쓴 원본을 만들고 절대 경로를 돌려준다.
   String writeSource(String name, List<int> bytes) {
@@ -65,17 +65,18 @@ final class _GitSandbox {
   /// 쓰기 대상 27경로의 지금 바이트 — 없는 경로는 null.
   Map<String, List<int>?> readWriteTargets() => <String, List<int>?>{
     for (final String path in AppIconStep.listWritePaths())
-      path: repoFile(path).existsSync()
-          ? repoFile(path).readAsBytesSync()
+      path: openRepoFile(path).existsSync()
+          ? openRepoFile(path).readAsBytesSync()
           : null,
   };
 
-  /// 실제 git 을 [arguments] 로 돌린 결과.
-  ProcessResult git(List<String> arguments) => runFixtureGit(root, arguments);
+  /// 실제 git 을 [arguments] 로 돌리고 결과를 돌려준다.
+  ProcessResult runGit(List<String> arguments) =>
+      runFixtureGit(root, arguments);
 
   /// 추적 안 된 파일까지 보인 `git status --porcelain` 출력.
   String readStatus() =>
-      git(const <String>[
+      runGit(const <String>[
             'status',
             '--porcelain',
             '--untracked-files=all',
@@ -157,7 +158,7 @@ final class _GitRun {
       ..onEffect(convertKey, () {
         File(
           '${box.root}/$iconWorkDirectory/source.png',
-        ).writeAsBytesSync(box.repoFile(ios1024Path).readAsBytesSync());
+        ).writeAsBytesSync(box.openRepoFile(ios1024Path).readAsBytesSync());
       });
   }
 
@@ -274,7 +275,7 @@ void main() {
       ),
       contains(blocked),
     );
-    final ProcessResult diff = box.git(<String>[
+    final ProcessResult diff = box.runGit(<String>[
       'diff',
       '--quiet',
       'HEAD',
@@ -284,19 +285,19 @@ void main() {
     expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
     for (final HomeIconFile file in homeIconFiles) {
       expect(
-        box.repoFile(file.relativePath).readAsStringSync(),
+        box.openRepoFile(file.relativePath).readAsStringSync(),
         'kit:${file.relativePath}',
         reason: file.relativePath,
       );
     }
     for (final String path in listAdaptiveFilePaths()) {
-      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+      expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
     }
     expect(Directory('${box.root}/$blocked').existsSync(), isTrue);
     expect(Directory('${box.root}/$blocked').listSync(), isEmpty);
-    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(
-      box.repoFile(findIconSpec('kakao')!.relativePath).existsSync(),
+      box.openRepoFile(findIconSpec('kakao')!.relativePath).existsSync(),
       isFalse,
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
@@ -317,7 +318,7 @@ void main() {
 
     /// [relativePath] 에 [contents] 를 쓰고 커밋한 뒤 위저드를 돌려 멈춤을 본다.
     Future<void> expectStopsBefore(String relativePath, String contents) async {
-      box.repoFile(relativePath)
+      box.openRepoFile(relativePath)
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(contents);
       commitGitFixture(box.root, 'existing adaptive resource');
@@ -357,7 +358,7 @@ void main() {
         'mipmap-xxhdpi/ic_launcher.webp',
         'mipmap-anydpi-v26/ic_launcher_foreground.xml',
       ]) {
-        box.repoFile('$androidResDirectory/$path')
+        box.openRepoFile('$androidResDirectory/$path')
           ..parent.createSync(recursive: true)
           ..writeAsStringSync(
             path.endsWith('colors.xml')
@@ -382,7 +383,7 @@ void main() {
             write.substring('$androidResDirectory/'.length),
         ],
       ]) {
-        box.repoFile('$androidResDirectory/$path')
+        box.openRepoFile('$androidResDirectory/$path')
           ..parent.createSync(recursive: true)
           ..writeAsStringSync(
             path == 'values/colors.xml'
@@ -399,7 +400,7 @@ void main() {
 
       expect(await run.run(), wizardExitDone);
       expect(
-        box.repoFile(adaptiveIconXmlPath).readAsStringSync(),
+        box.openRepoFile(adaptiveIconXmlPath).readAsStringSync(),
         buildAdaptiveIconXml(),
       );
     });
@@ -431,7 +432,7 @@ void main() {
       '마지막 전경 읽기 전용 → 쓰기 실패 → 27개 모두 커밋 바이트 · 지운 파일 0', () async {
     writeMyHomeIcons(box.root);
     for (final String path in listAdaptiveFilePaths()) {
-      box.repoFile(path)
+      box.openRepoFile(path)
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('committed:$path');
     }
@@ -464,7 +465,7 @@ void main() {
     // 되돌림은 떠 둔 바이트로 한다 — 쓰기에 실패해 바뀌지 않은 읽기 전용 파일은
     // 다시 쓰지 않는다.
     expect(run.countCheckouts(), 0);
-    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(session.isAppIconRebuildRequested, isTrue);
   });
 
@@ -474,7 +475,7 @@ void main() {
       '다시 읽기 실패 → 20장 = HEAD · 새 adaptive 파일 0 · 링크 그대로 · 표식 · 콘솔 0', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
     final linkPath = '${box.root}/$ios1024Path';
-    box.repoFile(ios1024Path).deleteSync();
+    box.openRepoFile(ios1024Path).deleteSync();
     Link(linkPath).createSync('/dev/null');
     // 빈 바이트의 sha256 — 링크가 가리키는 /dev/null 을 킷 기본으로 본다.
     kit[ios1024Path] =
@@ -494,7 +495,7 @@ void main() {
     expect(rolledBack, hasLength(1));
     expect(rolledBack.single, contains('다시 읽은'));
     expect(rolledBack.single, contains(ios1024Path));
-    final ProcessResult diff = box.git(<String>[
+    final ProcessResult diff = box.runGit(<String>[
       'diff',
       '--quiet',
       'HEAD',
@@ -503,11 +504,11 @@ void main() {
     ]);
     expect(diff.exitCode, 0, reason: '홈 화면 20장이 HEAD 와 다르다');
     for (final String path in listAdaptiveFilePaths()) {
-      expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+      expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
     }
-    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(
-      box.repoFile(findIconSpec('kakao')!.relativePath).existsSync(),
+      box.openRepoFile(findIconSpec('kakao')!.relativePath).existsSync(),
       isFalse,
     );
     expect(Directory('${box.root}/$iconWorkDirectory').existsSync(), isFalse);
@@ -544,13 +545,15 @@ void main() {
   test('T-28-SAFE-07: gitignored adaptive 배경 파일 → 원본 질문 · sips · 쓰기 '
       '없이 멈춤 · ignored 파일 = 원래 바이트 · 상태 빈 출력', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    box.repoFile('.gitignore').writeAsStringSync('/$adaptiveBackgroundPath\n');
+    box
+        .openRepoFile('.gitignore')
+        .writeAsStringSync('/$adaptiveBackgroundPath\n');
     const localOnly = '<resources><!-- 로컬에만 둔 배경색 --></resources>\n';
-    box.repoFile(adaptiveBackgroundPath)
+    box.openRepoFile(adaptiveBackgroundPath)
       ..parent.createSync(recursive: true)
       ..writeAsStringSync(localOnly);
     commitGitFixture(box.root, 'kit default icons · ignored background');
-    final ProcessResult ignored = box.git(<String>[
+    final ProcessResult ignored = box.runGit(<String>[
       'check-ignore',
       '-q',
       adaptiveBackgroundPath,
@@ -574,9 +577,12 @@ void main() {
     expect(run.lines[failAt + 2], isNot(startsWith('    ')));
     expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
     expect(run.countSipsCalls(), 0);
-    expect(box.repoFile(adaptiveBackgroundPath).readAsStringSync(), localOnly);
+    expect(
+      box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
+      localOnly,
+    );
     expect(box.readWriteTargets(), before);
-    expect(box.repoFile(homeIconMarkerPath).existsSync(), isFalse);
+    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
     expect(box.readStatus(), isEmpty);
     expect(run.countCheckouts(), 0);
   });
@@ -637,17 +643,17 @@ void main() {
       for (final HomeIconFile file in homeIconFiles) {
         if (file.relativePath == ios1024Path) continue;
         expect(
-          box.repoFile(file.relativePath).readAsStringSync(),
+          box.openRepoFile(file.relativePath).readAsStringSync(),
           'kit:${file.relativePath}',
           reason: file.relativePath,
         );
       }
       expect(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
         isNot(utf8.encode('kit:$ios1024Path')),
       );
       for (final String path in listAdaptiveFilePaths()) {
-        expect(box.repoFile(path).existsSync(), isFalse, reason: path);
+        expect(box.openRepoFile(path).existsSync(), isFalse, reason: path);
       }
     });
 
@@ -703,10 +709,10 @@ void main() {
         AppIconStep.deleteGuide,
         '    $adaptiveIconXmlPath (주입한 실패)',
       ]);
-      expect(box.repoFile(adaptiveIconXmlPath).existsSync(), isTrue);
+      expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isTrue);
       for (final HomeIconFile file in homeIconFiles) {
         expect(
-          box.repoFile(file.relativePath).readAsStringSync(),
+          box.openRepoFile(file.relativePath).readAsStringSync(),
           'kit:${file.relativePath}',
           reason: file.relativePath,
         );
@@ -797,7 +803,7 @@ void main() {
         1,
       );
       expect(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
         isNot(utf8.encode('kit:$ios1024Path')),
       );
     });
@@ -823,11 +829,11 @@ void main() {
         greaterThan('  실패 — ${AppIconStep.markerFailedReason}'.length),
       );
       expect(
-        box.repoFile(ios1024Path).readAsBytesSync(),
+        box.openRepoFile(ios1024Path).readAsBytesSync(),
         isNot(utf8.encode('kit:$ios1024Path')),
       );
       expect(
-        box.repoFile(findIconSpec('kakao')!.relativePath).existsSync(),
+        box.openRepoFile(findIconSpec('kakao')!.relativePath).existsSync(),
         isTrue,
       );
       expect(Directory('${box.root}/$homeIconMarkerPath').existsSync(), isTrue);

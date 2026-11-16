@@ -233,12 +233,12 @@ Uint8List encodeSquareIcon(img.Image filled, int side) =>
 /// adaptive 전경 캔버스 한 변 [canvasSide](px)에서 로고 한 변(px)을 구한다.
 ///
 /// 캔버스는 108dp 이고 로고는 [logoDp] 다 — `canvasSide × logoDp ÷ 108` 반올림.
-int adaptiveLogoSide(int canvasSide, num logoDp) =>
+int computeAdaptiveLogoSide(int canvasSide, num logoDp) =>
     (canvasSide * logoDp / 108).round();
 
 /// [layer] 를 adaptive 전경 PNG(투명 4채널 · 한 변 [canvasSide])로 만든다.
 ///
-/// [layer] 를 [adaptiveLogoSide] 크기로 줄여(알파 채널이 있으면 알파를 남기며)
+/// [layer] 를 [computeAdaptiveLogoSide] 크기로 줄여(알파 채널이 있으면 알파를 남기며)
 /// 캔버스 가운데에 그대로 놓는다 — 여백은 PNG 에 구워 넣는다. 결과 PNG 의
 /// color type 은 6 이다.
 Uint8List encodeAdaptiveForeground(
@@ -246,7 +246,7 @@ Uint8List encodeAdaptiveForeground(
   required int canvasSide,
   required num logoDp,
 }) {
-  final int logoSide = adaptiveLogoSide(canvasSide, logoDp);
+  final int logoSide = computeAdaptiveLogoSide(canvasSide, logoDp);
   final img.Image logo = layer.hasAlpha
       ? resizeKeepingAlpha(layer, logoSide)
       : resizeOpaque(layer, logoSide);

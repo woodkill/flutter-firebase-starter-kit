@@ -73,8 +73,8 @@ img.Image _paintIcon(int side, {required int numChannels}) {
   return image;
 }
 
-/// [bytes] 의 sha256 소문자 16진.
-String _digest(List<int> bytes) => sha256.convert(bytes).toString();
+/// [bytes] 의 sha256 소문자 16진을 계산한다.
+String computeDigest(List<int> bytes) => sha256.convert(bytes).toString();
 
 /// [root] 저장소의 [relativePath] 에 [bytes] 를 쓴다(부모 폴더를 만든다).
 void _writeRepoFile(String root, String relativePath, List<int> bytes) {
@@ -106,14 +106,14 @@ Map<String, String> writeKitDefaultHomeIcons(String root) {
   for (final HomeIconFile file in homeIconFiles) {
     final List<int> bytes = utf8.encode('kit:${file.relativePath}');
     _writeRepoFile(root, file.relativePath, bytes);
-    digests[file.relativePath] = _digest(bytes);
+    digests[file.relativePath] = computeDigest(bytes);
   }
   return digests;
 }
 
 /// [root] 저장소의 지금 iOS 1024 바이트 sha256 을 읽는다.
 String readHomeIconDigest(String root) =>
-    _digest(File('$root/$ios1024Path').readAsBytesSync());
+    computeDigest(File('$root/$ios1024Path').readAsBytesSync());
 
 /// [root] 저장소의 지금 iOS 1024 지문으로 [tokens] 수단마다 한 줄씩 쓴 표식
 /// 본문 — 줄은 `<sha256> <token>` 이고 token 순이다.

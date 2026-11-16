@@ -342,7 +342,7 @@ void main() {
     for (final (:num dp, :List<int> sides) in expectedLogoSides) {
       for (var i = 0; i < canvasSides.length; i++) {
         final int canvasSide = canvasSides[i];
-        final int logoSide = adaptiveLogoSide(canvasSide, dp);
+        final int logoSide = computeAdaptiveLogoSide(canvasSide, dp);
         expect(logoSide, sides[i], reason: '$dp/$canvasSide');
 
         final Uint8List png = encodeAdaptiveForeground(

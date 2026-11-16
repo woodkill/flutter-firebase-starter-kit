@@ -51,8 +51,8 @@ final class _GitSandbox {
   /// 사용자 홈.
   String get home => '${base.path}/home';
 
-  /// 저장소 상대 경로 [relativePath] 의 파일.
-  File repoFile(String relativePath) => File('$root/$relativePath');
+  /// 저장소 상대 경로 [relativePath] 의 파일 객체를 연다(디스크는 건드리지 않는다).
+  File openRepoFile(String relativePath) => File('$root/$relativePath');
 
   /// 홈 아래 [name] 에 [bytes] 를 쓴 원본을 만들고 절대 경로를 돌려준다.
   String writeSource(String name, List<int> bytes) {
@@ -65,8 +65,8 @@ final class _GitSandbox {
   /// 쓰기 대상 27경로의 지금 바이트 — 없는 경로는 null.
   Map<String, List<int>?> readWriteTargets() => <String, List<int>?>{
     for (final String path in AppIconStep.listWritePaths())
-      path: repoFile(path).existsSync()
-          ? repoFile(path).readAsBytesSync()
+      path: openRepoFile(path).existsSync()
+          ? openRepoFile(path).readAsBytesSync()
           : null,
   };
 
@@ -262,9 +262,9 @@ void main() {
           ...listAdaptiveFilePaths(),
         ]),
       );
-      expect(box.repoFile(kakaoIconPath).existsSync(), isTrue);
+      expect(box.openRepoFile(kakaoIconPath).existsSync(), isTrue);
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        box.openRepoFile(homeIconMarkerPath).readAsStringSync(),
         buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(run.countOpenCalls(), 1);
@@ -314,10 +314,10 @@ void main() {
         '끝 요약에 안내 줄만 · 바뀐 adaptive 파일까지 커밋 안내', () async {
       commitGitFixture(box.root, 'my icons');
       final List<int> kakaoBefore = box
-          .repoFile(kakaoIconPath)
+          .openRepoFile(kakaoIconPath)
           .readAsBytesSync();
       final List<int> ios1024Before = box
-          .repoFile(ios1024Path)
+          .openRepoFile(ios1024Path)
           .readAsBytesSync();
       final Uint8List logo = buildTransparentLogoPng();
       final String source = box.writeSource('logo.png', logo);
@@ -327,16 +327,19 @@ void main() {
       final int code = await _runAppIconOnly(run);
 
       expect(code, wizardExitDone);
-      final Uint8List ios1024 = box.repoFile(ios1024Path).readAsBytesSync();
+      final Uint8List ios1024 = box.openRepoFile(ios1024Path).readAsBytesSync();
       expect(ios1024, isNot(ios1024Before));
       expect(readPngHeader(ios1024)?.colorType, 2);
       expect(
-        box.repoFile(adaptiveBackgroundPath).readAsStringSync(),
+        box.openRepoFile(adaptiveBackgroundPath).readAsStringSync(),
         contains('<color name="ic_launcher_background">#1A2B3C</color>'),
       );
-      expect(box.repoFile(kakaoIconPath).readAsBytesSync(), isNot(kakaoBefore));
       expect(
-        box.repoFile(homeIconMarkerPath).readAsStringSync(),
+        box.openRepoFile(kakaoIconPath).readAsBytesSync(),
+        isNot(kakaoBefore),
+      );
+      expect(
+        box.openRepoFile(homeIconMarkerPath).readAsStringSync(),
         buildHomeIconMarkerText(box.root, const <String>['kakao']),
       );
       expect(run.session.isAppIconRebuildRequested, isFalse);
