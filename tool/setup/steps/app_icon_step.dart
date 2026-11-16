@@ -338,7 +338,8 @@ final class AppIconStep implements DeferrableStep {
   /// [projectRoot] 아래에서 경로마다 구성 요소를 루트 쪽부터 하나씩 이어 가며
   /// 링크를 따라가지 않고 링크인지 보고, 처음 걸린 구성 요소의 저장소 상대
   /// 경로(폴더면 폴더 경로, 자리면 자리 경로)를 [listWritePaths] 순서로 중복 없이
-  /// 돌려준다 — 없는 경로는 링크가 아니다.
+  /// 돌려준다. 그 자리에 아무것도 없는 구성 요소는 링크가 아니다 — 끊어진 링크도
+  /// 링크다.
   static List<String> findLinkedWritePaths(String projectRoot) {
     final linked = <String>[];
     for (final String path in listWritePaths()) {

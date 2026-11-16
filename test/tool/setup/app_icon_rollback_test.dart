@@ -681,10 +681,10 @@ void main() {
 
     setUp(() => kit = writeKitDefaultHomeIcons(box.root));
 
-    /// 위저드를 돌려 [stopped] 경로 줄 하나로 링크 멈춤을 했는지 보고, 원본
-    /// 질문 · sips · git · 쓰기가 없었는지 본다 — [keep] 은 바이트가 그대로여야
-    /// 하는 저장소 상대 경로다.
-    Future<void> expectLinkStop(String stopped, List<String> keep) async {
+    /// 위저드를 돌려 [stopped] 경로 줄들이 그 순서로 이어지는 링크 멈춤을 했는지
+    /// 보고, 원본 질문 · sips · git · 쓰기가 없었는지 본다 — [keep] 은 바이트가
+    /// 그대로여야 하는 저장소 상대 경로다.
+    Future<void> expectLinkStop(List<String> stopped, List<String> keep) async {
       final kept = <String, List<int>>{
         for (final path in keep) path: box.openRepoFile(path).readAsBytesSync(),
       };
@@ -696,12 +696,21 @@ void main() {
       expect(code, wizardExitStopped);
       final int failAt = run.lines.indexOf(linkedLineHead);
       expect(failAt, greaterThanOrEqualTo(0));
-      expect(run.lines[failAt + 1], '    $stopped');
-      expect(run.lines[failAt + 2], isNot(startsWith('    ')));
+      expect(
+        run.lines.sublist(failAt + 1, failAt + 1 + stopped.length),
+        <String>[for (final path in stopped) '    $path'],
+      );
+      expect(run.lines[failAt + 1 + stopped.length], isNot(startsWith('    ')));
       expect(run.runner.gitKeys, isEmpty);
       expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
       expect(run.countSipsCalls(), 0);
-      expect(FileSystemEntity.isLinkSync('${box.root}/$stopped'), isTrue);
+      for (final path in stopped) {
+        expect(
+          FileSystemEntity.isLinkSync('${box.root}/$path'),
+          isTrue,
+          reason: path,
+        );
+      }
       for (final path in keep) {
         expect(
           box.openRepoFile(path).readAsBytesSync(),
@@ -728,7 +737,7 @@ void main() {
       final String linkText = Link(linkPath).targetSync();
       commitGitFixture(box.root, 'kit default icons · background link');
 
-      await expectLinkStop(adaptiveBackgroundPath, <String>[target]);
+      await expectLinkStop(<String>[adaptiveBackgroundPath], <String>[target]);
       expect(Link(linkPath).targetSync(), linkText);
     });
 
@@ -746,7 +755,7 @@ void main() {
       ];
       expect(inside, isNotEmpty);
 
-      await expectLinkStop(folder, inside);
+      await expectLinkStop(<String>[folder], inside);
       expect(
         Directory('${box.root}/$target').listSync(),
         hasLength(inside.length),
@@ -764,8 +773,52 @@ void main() {
       commitGitFixture(box.root, 'kit default icons · anydpi link');
       expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isFalse);
 
-      await expectLinkStop(folder, <String>[keep]);
+      await expectLinkStop(<String>[folder], <String>[keep]);
       expect(Directory('${box.root}/local/anydpi').listSync(), hasLength(1));
+    });
+
+    test('T-28-SAFE-24: 홈 화면 아이콘 폴더(mipmap-hdpi)와 배경색 자리가 함께 '
+        '커밋한 링크 → 링크 멈춤 · 줄은 폴더 경로 다음 자리 경로', () async {
+      const folder = '$androidResDirectory/mipmap-hdpi';
+      const folderTarget = 'local/mip-hdpi';
+      const slotTarget = 'local/bg.xml';
+      Directory('${box.root}/local').createSync(recursive: true);
+      Directory('${box.root}/$folder').renameSync('${box.root}/$folderTarget');
+      _linkInsideRepo(box, folder, folderTarget);
+      box
+          .openRepoFile(slotTarget)
+          .writeAsStringSync('<resources><!-- 커밋한 배경색 --></resources>\n');
+      _linkInsideRepo(box, adaptiveBackgroundPath, slotTarget);
+      commitGitFixture(box.root, 'kit default icons · folder and slot links');
+
+      await expectLinkStop(
+        <String>[
+          'android/app/src/main/res/mipmap-hdpi',
+          'android/app/src/main/res/values/ic_launcher_background.xml',
+        ],
+        <String>[slotTarget],
+      );
+    });
+
+    test('T-28-SAFE-25: 배경색 자리가 없는 파일을 가리키는 커밋한 끊어진 링크 → '
+        '링크 멈춤 · 줄은 자리 경로 · 가리키던 자리에 새 파일 0', () async {
+      const target = 'local/none.xml';
+      final String linkPath = _linkInsideRepo(
+        box,
+        adaptiveBackgroundPath,
+        target,
+      );
+      final String linkText = Link(linkPath).targetSync();
+      expect(box.openRepoFile(target).existsSync(), isFalse);
+      commitGitFixture(
+        box.root,
+        'kit default icons · dangling background link',
+      );
+
+      await expectLinkStop(<String>[adaptiveBackgroundPath], const <String>[]);
+      expect(Link(linkPath).targetSync(), linkText);
+      expect(box.openRepoFile(target).existsSync(), isFalse);
+      expect(Directory('${box.root}/local').existsSync(), isFalse);
     });
 
     test('T-28-SAFE-21: 저장소 루트를 링크 경로로 넘기고 그 아래 쓰기 경로에 링크 '
