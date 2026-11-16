@@ -411,6 +411,7 @@ void main() {
         );
         expect(File(source).readAsBytesSync(), sourceBytes);
         expect(run.runner.uncommittedCount, 1);
+        expect(run.runner.trackedCount, 1);
         expect(run.runner.openCount, 1);
         expect(run.runner.executedPaths, isNotEmpty);
         expect(run.runner.executedPaths, everyElement(sipsPath));
