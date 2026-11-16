@@ -125,7 +125,7 @@ List<String> buildCommitHintLines(String path) => <String>[
 List<String> buildCommitHintLinesFor(List<String> paths) {
   final sorted = List<String>.of(paths)..sort();
   final command =
-      '  \$ git add ${sorted.map(quoteForShellDisplay).join(' ')} '
+      '  \$ git add ${sorted.map(quoteShellWord).join(' ')} '
       '&& git commit -m "$commitHintMessage"';
   return <String>[
     '',
@@ -492,7 +492,7 @@ void main() {
         const CommandResult(
           0,
           ' M local/bg[1].xml\n M local/~name.xml\n M local/a!b.xml\n'
-              ' M local/배경.xml\n M pubspec.yaml\n',
+              ' M local/배경.xml\n M pubspec.yaml\n M ~/x.txt\n',
           '',
         ),
       );
@@ -506,10 +506,11 @@ void main() {
       terminal.output.toString(),
       contains(
         r"  $ git add 'local/a!b.xml' 'local/bg[1].xml' 'local/~name.xml' "
-        "'local/배경.xml' pubspec.yaml && git commit -m "
+        "'local/배경.xml' pubspec.yaml '~/x.txt' && git commit -m "
         '"$commitHintMessage"',
       ),
     );
+    expect(quoteShellWord('~/x.txt'), "'~/x.txt'");
     expect(quoteForShellDisplay(''), "''");
     expect(quoteForShellDisplay("it's"), r"'it'\''s'");
     expect(

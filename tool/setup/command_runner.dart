@@ -65,6 +65,8 @@ final class Command {
 final RegExp _shellSafeArgumentPattern = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
 
 /// 홈 디렉터리를 가리키는 인자 머리 — 감싸면 셸이 홈으로 풀지 않는다.
+///
+/// 맨 앞 `~/` 를 감싸지 않는 것은 홈을 줄인 표시 경로에만 한다.
 const String _homePrefix = '~/';
 
 /// 표시용으로 셸 인자 하나를 감싼다.
@@ -74,14 +76,17 @@ const String _homePrefix = '~/';
 /// 시작하면 그 두 글자는 감싸지 않고 나머지를 같은 규칙으로 감싼다. 화면에 보일
 /// 명령 줄을 만들 때만 쓴다 — 실제 실행은 셸 없이 인자 배열로 한다.
 String quoteForShellDisplay(String argument) {
-  if (!argument.startsWith(_homePrefix)) return _quoteShellWord(argument);
+  if (!argument.startsWith(_homePrefix)) return quoteShellWord(argument);
   final String rest = argument.substring(_homePrefix.length);
-  return rest.isEmpty ? _homePrefix : '$_homePrefix${_quoteShellWord(rest)}';
+  return rest.isEmpty ? _homePrefix : '$_homePrefix${quoteShellWord(rest)}';
 }
 
-/// [argument] 가 허용 목록 글자만으로 되어 있으면 그대로, 아니면 작은따옴표로
-/// 감싼다.
-String _quoteShellWord(String argument) {
+/// 표시용으로 셸 인자 하나를 맨 앞 `~/` 예외 없이 감싼다.
+///
+/// 감싸는 규칙은 [quoteForShellDisplay] 와 같고, 맨 앞 `~/` 도 다른 글자처럼
+/// 그 규칙을 따른다. 저장소 상대 경로처럼 홈을 줄인 표시 경로가 아닌 인자에
+/// 쓴다.
+String quoteShellWord(String argument) {
   if (_shellSafeArgumentPattern.hasMatch(argument)) return argument;
   return "'${argument.replaceAll("'", r"'\''")}'";
 }

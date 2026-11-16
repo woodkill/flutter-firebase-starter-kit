@@ -136,7 +136,7 @@ void _writeCommitLines(WizardContext context, Set<String> pathSet) {
     context.terminal.writeLine('  $path');
   }
   context.terminal.writeCommand(
-    'git add ${paths.map(quoteForShellDisplay).join(' ')} '
+    'git add ${paths.map(quoteShellWord).join(' ')} '
     '&& git commit -m "$commitHintMessage"',
   );
 }

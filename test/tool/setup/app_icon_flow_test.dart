@@ -191,7 +191,7 @@ Future<int> _runAppIconOnly(_GitRun run) {
 List<String> buildCommitHintBlock(List<String> paths) {
   final sorted = List<String>.of(paths)..sort();
   final command =
-      '  \$ git add ${sorted.map(quoteForShellDisplay).join(' ')} '
+      '  \$ git add ${sorted.map(quoteShellWord).join(' ')} '
       '&& git commit -m "$commitHintMessage"';
   return <String>[
     commitHintHeading,
