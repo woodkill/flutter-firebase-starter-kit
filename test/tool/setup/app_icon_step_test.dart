@@ -469,6 +469,66 @@ void main() {
     });
   });
 
+  group('T-28-ICON-17: 계획 줄 — 디스크에 있는 대상은 덮어쓰는 파일 · 없는 대상은 '
+      '새 파일', () {
+    const iosGroup = '$iosAppIconDirectory/Icon-App-*.png';
+    const legacyGroup = '$androidResDirectory/mipmap-*/ic_launcher.png';
+    const foregroundGroup =
+        '$androidResDirectory/mipmap-*/ic_launcher_foreground.png';
+
+    test('킷 기본 첫 실행 → adaptive 7개는 새 파일', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      final h = _Harness(box, <String?>['2'], kitDigests: kit);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '    (덮어쓰는 파일: $iosGroup 15 · $legacyGroup 5 — 새 파일: '
+          '$foregroundGroup 5 · $adaptiveIconXmlPath · $adaptiveBackgroundPath)',
+        ),
+      );
+    });
+
+    test('adaptive 를 이미 둔 저장소의 다시 만들기 → 새 파일 조각 없음', () async {
+      writeMyHomeIcons(box.root);
+      for (final String path in listAdaptiveFilePaths()) {
+        box.repoFile(path)
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync('committed:$path');
+      }
+      final session = WizardSession()..isAppIconRebuildRequested = true;
+      final h = _Harness(box, <String?>['2'], session: session);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '    (덮어쓰는 파일: $iosGroup 15 · $legacyGroup 5 · $foregroundGroup 5 · '
+          '$adaptiveIconXmlPath · $adaptiveBackgroundPath)',
+        ),
+      );
+    });
+
+    test('전경 일부만 있으면 같은 묶음을 양쪽에 나눠 센다', () async {
+      final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+      box.repoFile(adaptiveDensities.first.foregroundPath)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('local');
+      final h = _Harness(box, <String?>['2'], kitDigests: kit);
+
+      expect(await h.run(), wizardExitDone);
+      expect(
+        h.lines,
+        contains(
+          '    (덮어쓰는 파일: $iosGroup 15 · $legacyGroup 5 · $foregroundGroup 1 '
+          '— 새 파일: $foregroundGroup 4 · $adaptiveIconXmlPath · '
+          '$adaptiveBackgroundPath)',
+        ),
+      );
+    });
+  });
+
   test('T-28-ICON-04: 20장이 모두 킷 지문과 같으면 원본을 묻는 할 일', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
     expect(

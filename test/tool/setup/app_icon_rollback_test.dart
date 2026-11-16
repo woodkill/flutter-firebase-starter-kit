@@ -495,6 +495,12 @@ void main() {
     expect(code, wizardExitStopped);
     final int failAt = run.lines.indexOf(untrackedLineHead);
     expect(failAt, greaterThanOrEqualTo(0));
+    // 계획 줄은 멈춤보다 먼저 보이고, 추적 여부를 단정하지 않고 덮어쓰는 쪽에 센다.
+    final int planAt = run.lines.indexWhere(
+      (String line) => line.startsWith('    (덮어쓰는 파일: '),
+    );
+    expect(planAt, inInclusiveRange(0, failAt - 1));
+    expect(run.lines[planAt], contains(' · $adaptiveBackgroundPath — 새 파일: '));
     expect(run.lines[failAt + 1], '    $adaptiveBackgroundPath');
     expect(run.lines[failAt + 2], isNot(startsWith('    ')));
     expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));

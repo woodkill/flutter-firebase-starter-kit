@@ -722,7 +722,7 @@ final class AppIconStep implements DeferrableStep {
   List<String> plannedCommandLines(WizardContext context) => switch (_mode) {
     _IconMode.full => <String>[
       _buildFullNote(),
-      _buildTrackedNote(),
+      _buildWriteTargetNote(context),
       buildConvertCommand(
         '<원본 이미지>',
         context.resolve('$iconWorkDirectory/source.png'),
@@ -749,14 +749,52 @@ final class AppIconStep implements DeferrableStep {
         'adaptive ${listAdaptiveFilePaths().length}개 파일$consoles 만듭니다)';
   }
 
-  /// 원본을 묻는 갈래가 바꾸는 · 새로 쓰는 파일 안내 줄을 만든다.
-  String _buildTrackedNote() =>
-      '(바뀌는 추적 파일: $iosAppIconDirectory/Icon-App-*.png '
-      '${_countIosFiles()} · $androidResDirectory/mipmap-*/ic_launcher.png '
-      '${_countLegacyFiles()} — 새 파일: '
-      '$androidResDirectory/mipmap-*/ic_launcher_foreground.png '
-      '${adaptiveDensities.length} · $adaptiveIconXmlPath · '
-      '$adaptiveBackgroundPath)';
+  /// 원본을 묻는 갈래가 덮어쓰는 · 새로 쓰는 파일 안내 줄을 만든다.
+  ///
+  /// 쓰기 대상을 iOS · Android legacy · adaptive 전경 · adaptive XML · 배경색
+  /// 묶음으로 나눠, 지금 디스크에 있는 경로는 「덮어쓰는 파일」, 없는 경로는
+  /// 「새 파일」 쪽에 센다 — 비는 쪽은 보이지 않는다. 추적 여부는 가리지 않는다
+  /// (이 줄은 실행 전에 보이고, git 이 추적하지 않는 대상은 쓰기 전에 멈춘다).
+  String _buildWriteTargetNote(WizardContext context) {
+    final overwritten = <String>[];
+    final created = <String>[];
+    void addGroup(String label, List<String> paths) {
+      final int existing = paths
+          .where((String path) => File(context.resolve(path)).existsSync())
+          .length;
+      String describe(int count) => paths.length == 1 ? label : '$label $count';
+      if (existing > 0) overwritten.add(describe(existing));
+      if (existing < paths.length) {
+        created.add(describe(paths.length - existing));
+      }
+    }
+
+    final homePaths = <String>[
+      for (final HomeIconFile file in homeIconFiles) file.relativePath,
+    ];
+    addGroup('$iosAppIconDirectory/Icon-App-*.png', <String>[
+      for (final String path in homePaths)
+        if (path.startsWith(iosAppIconDirectory)) path,
+    ]);
+    addGroup('$androidResDirectory/mipmap-*/ic_launcher.png', <String>[
+      for (final String path in homePaths)
+        if (!path.startsWith(iosAppIconDirectory)) path,
+    ]);
+    addGroup(
+      '$androidResDirectory/mipmap-*/ic_launcher_foreground.png',
+      <String>[
+        for (final AdaptiveDensity density in adaptiveDensities)
+          density.foregroundPath,
+      ],
+    );
+    addGroup(adaptiveIconXmlPath, const <String>[adaptiveIconXmlPath]);
+    addGroup(adaptiveBackgroundPath, const <String>[adaptiveBackgroundPath]);
+    final parts = <String>[
+      if (overwritten.isNotEmpty) '덮어쓰는 파일: ${overwritten.join(' · ')}',
+      if (created.isNotEmpty) '새 파일: ${created.join(' · ')}',
+    ];
+    return '(${parts.join(' — ')})';
+  }
 
   @override
   Future<StepOutcome> apply(WizardContext context) async {
