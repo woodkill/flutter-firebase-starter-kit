@@ -179,6 +179,12 @@ final class AppIconStep implements DeferrableStep {
   /// 홈 화면 아이콘이 킷 기본 그대로일 때의 까닭.
   static const String kitDefaultReason = '킷 기본 아이콘입니다 — 원본 이미지를 묻습니다';
 
+  /// 쓰기 경로의 폴더나 자리 자신이 링크일 때의 까닭(뒤에 경로 줄) — 판정은
+  /// [findLinkedWritePaths].
+  static const String linkedTargetReason =
+      '아이콘 파일 자리나 그 폴더가 링크입니다 — 링크가 가리키는 파일이 대신 '
+      '바뀌므로 일반 파일 · 폴더로 바꾼 뒤 다시 실행하세요';
+
   /// 쓰기 대상에 커밋하지 않은 변경이 있을 때의 까닭(뒤에 경로 줄).
   static const String dirtyReason =
       '홈 화면 아이콘 파일에 커밋하지 않은 변경이 있습니다 — 커밋하거나 되돌린 뒤 '
@@ -318,52 +324,28 @@ final class AppIconStep implements DeferrableStep {
     ...listAdaptiveFilePaths(),
   ];
 
-  /// 쓰기 경로 [relativePath] 에 쓰면 실제로 바뀌는 저장소 안 파일의 저장소 상대
-  /// 경로를 찾는다 — 그런 파일이 없으면 null.
+  /// 쓰기 경로 가운데 링크인 폴더나 자리를 찾는다.
   ///
-  /// 쓰기 대상 자리의 파일 · 링크 자신과, 그 자리가 저장소 안을 가리키는 링크면
-  /// 그 링크가 가리키는 파일까지 「커밋하지 않은 변경 없음」 과 「git 이 추적함」 을
-  /// 모두 지나야 쓴다 — 하나라도 걸리면 쓰기 전에 멈추고 걸린 경로(자리 자신이거나
-  /// 이 함수가 더한 파일)를 보인다. 되돌림 실패의 [restoreGuide] 줄도 이 함수가
-  /// 돌려준 파일을 보인다. 링크가 아닌 자리는 [relativePath] 그대로다.
-  /// 링크는 끝까지 따라간 파일이 저장소 안이면 그 상대 경로이고, 저장소 밖이거나
-  /// 끊어졌거나 파일이 아니면 null 이다 — 그때는 링크 자신만 대조에 남는다. 저장소
-  /// 안 판정은 [WizardContext.projectRoot] 도 링크를 따라간 정규 경로로 맞춘 뒤
-  /// 경로 구분자 경계로 한다.
-  static String? findOverwrittenRepoPath(
-    WizardContext context,
-    String relativePath,
-  ) {
-    final String absolutePath = context.resolve(relativePath);
-    if (!FileSystemEntity.isLinkSync(absolutePath)) return relativePath;
-    try {
-      final String target = File(absolutePath).resolveSymbolicLinksSync();
-      if (!FileSystemEntity.isFileSync(target)) return null;
-      final String root = Directory(
-        context.projectRoot,
-      ).resolveSymbolicLinksSync();
-      return target.startsWith('$root/')
-          ? target.substring(root.length + 1)
-          : null;
-    } on FileSystemException {
-      return null;
-    }
-  }
-
-  /// 쓰기 자리 [paths] 뒤에 각 자리의 [findOverwrittenRepoPath] 를 [paths] 순서로
-  /// 덧붙인 목록을 모은다 — 이미 든 경로는 다시 넣지 않는다.
-  static List<String> collectOverwrittenRepoPaths(
-    WizardContext context,
-    List<String> paths,
-  ) {
-    final result = <String>[...paths];
-    for (final path in paths) {
-      final String? overwritten = findOverwrittenRepoPath(context, path);
-      if (overwritten != null && !result.contains(overwritten)) {
-        result.add(overwritten);
+  /// 저장소 루트 아래에서 홈 화면 아이콘 쓰기 경로([listWritePaths])의 폴더나
+  /// 자리 자신이 링크면 쓰기 전에 멈춘다 — 루트 자체와 그 위는 보지 않는다.
+  ///
+  /// [projectRoot] 아래에서 경로마다 구성 요소를 루트 쪽부터 하나씩 이어 가며
+  /// 링크를 따라가지 않고 링크인지 보고, 처음 걸린 구성 요소의 저장소 상대
+  /// 경로(폴더면 폴더 경로, 자리면 자리 경로)를 [listWritePaths] 순서로 중복 없이
+  /// 돌려준다 — 없는 경로는 링크가 아니다.
+  static List<String> findLinkedWritePaths(String projectRoot) {
+    final linked = <String>[];
+    for (final String path in listWritePaths()) {
+      var prefix = '';
+      for (final String segment in path.split('/')) {
+        prefix = prefix.isEmpty ? segment : '$prefix/$segment';
+        if (FileSystemEntity.isLinkSync('$projectRoot/$prefix')) {
+          if (!linked.contains(prefix)) linked.add(prefix);
+          break;
+        }
       }
     }
-    return result;
+    return linked;
   }
 
   /// [absolutePath] 이미지의 크기 · 형식을 읽는 명령을 만든다.
@@ -636,11 +618,9 @@ final class AppIconStep implements DeferrableStep {
   @override
   String get deferLabel => '지금 안 함';
 
-  // 홈 화면 파일은 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다 실패하면 쓰기
-  // 직전에 떠 둔 바이트로 되돌린다. 쓰기가 덮어쓰는 파일은
-  // [findOverwrittenRepoPath] 가 정하고 그 대조로 디스크에 있던 것은 모두 git 이
-  // 추적하는 것이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다 — 커밋한 링크가
-  // 저장소 밖을 가리키면 그 바깥 파일은 예외다.
+  // 홈 화면 파일은 링크 검사 · 미커밋 검사와 추적 여부 대조 뒤에만 쓰고, 쓰다
+  // 실패하면 쓰기 직전에 떠 둔 바이트로 되돌린다. 디스크에 있던 대상은 그 대조로
+  // 모두 git 이 추적하는 것이므로 끝까지 쓴 결과는 git 으로 되돌릴 수 있다.
   @override
   bool get isCostlyOrIrreversible => false;
 
@@ -877,12 +857,22 @@ final class AppIconStep implements DeferrableStep {
     }
   }
 
-  /// 미커밋 검사 · 같은 이름 리소스 검사 · 추적 여부 대조 뒤 원본을 물어 홈 화면 ·
-  /// adaptive · 콘솔 아이콘을 모두 만든다.
+  /// 링크 검사 · 미커밋 검사 · 같은 이름 리소스 검사 · 추적 여부 대조 뒤 원본을
+  /// 물어 홈 화면 · adaptive · 콘솔 아이콘을 모두 만든다.
+  ///
+  /// 링크 검사([findLinkedWritePaths])를 가장 먼저 해 링크 너머 경로가 어떤 git
+  /// 명령에도 들어가지 않는다.
   Future<StepOutcome> _applyFull(WizardContext context) async {
+    final List<String> linked = findLinkedWritePaths(context.projectRoot);
+    if (linked.isNotEmpty) {
+      return Failed(
+        '$linkedTargetReason\n'
+        '${linked.map((String path) => '    $path').join('\n')}',
+      );
+    }
     final List<String> dirty = await findUncommittedFiles(
       context,
-      collectOverwrittenRepoPaths(context, listWritePaths()),
+      listWritePaths(),
     );
     if (dirty.isNotEmpty) {
       return Failed(
@@ -919,23 +909,20 @@ final class AppIconStep implements DeferrableStep {
     return await _writeAll(context, rendered.files, includesHomeIcons: true);
   }
 
-  /// 쓰기 대상 가운데 디스크에 파일 · 링크로 있는 자리와 그 자리가 링크로
-  /// 가리키는 저장소 안 파일 가운데 git 이 추적하지 않는 것을 찾는다 — 자리는
-  /// [listWritePaths] 순서, 가리키는 파일은 그 뒤다.
+  /// 쓰기 대상 가운데 디스크에 파일로 있으나 git 이 추적하지 않는 것을
+  /// [listWritePaths] 순서로 찾는다.
   ///
-  /// 링크를 따라가지 않은 종류가 파일이거나 링크인 자리와
-  /// [findOverwrittenRepoPath] 가 더하는 파일을 [buildTrackedFilesCommand] 의
-  /// 목록과 대조한다 — 폴더 · 없는 경로는 보지 않는다. 미커밋 검사가 같은 파일의
-  /// 추적 안 된 새 파일 · 링크를 이미 잡으므로 여기 남는 것은 gitignored 파일 ·
-  /// 링크다. 대조할 경로가 없으면 git 을 부르지 않는다. git 이 실패하면
-  /// [GitTreeException] 을 던진다.
+  /// 링크를 따라가지 않은 종류가 파일인 경로를 [buildTrackedFilesCommand] 의
+  /// 목록과 대조한다 — 폴더 · 없는 경로는 보지 않는다. 미커밋 검사가 추적 안 된
+  /// 새 파일을 이미 잡으므로 여기 남는 것은 gitignored 파일이다. 대조할 경로가
+  /// 없으면 git 을 부르지 않는다. git 이 실패하면 [GitTreeException] 을 던진다.
   Future<List<String>> _findUntrackedTargets(WizardContext context) async {
-    final List<String> existing = collectOverwrittenRepoPaths(context, <String>[
+    final existing = <String>[
       for (final String path in listWritePaths())
         if (FileSystemEntity.typeSync(context.resolve(path), followLinks: false)
-            case FileSystemEntityType.file || FileSystemEntityType.link)
+            case FileSystemEntityType.file)
           path,
-    ]);
+    ];
     if (existing.isEmpty) return const <String>[];
     final CommandResult listed = await context.runner.capture(
       buildTrackedFilesCommand(existing, workingDirectory: context.projectRoot),
@@ -1388,10 +1375,9 @@ final class AppIconStep implements DeferrableStep {
   /// 쓰기를 멈춘 까닭이다.
   ///
   /// 쓰기 전에 있던 파일([snapshot] 의 경로)은 지금 바이트가 떠 둔 바이트와 다를
-  /// 때만 그 바이트로 다시 쓰고, 새로 만든 파일은 지운다. 다시 쓰지 못한 자리가
-  /// 있으면 그 자리의 [findOverwrittenRepoPath] 를 git 이 추적하는 것은 그 파일
-  /// 경로를 [restoreGuide] 아래에, 나머지는 자리 경로를 [unrestorableGuide]
-  /// 아래에 보인다.
+  /// 때만 그 바이트로 다시 쓰고, 새로 만든 파일은 지운다. 다시 쓰지 못한 파일이
+  /// 있으면 git 이 추적하는 것에만 [restoreGuide] 를 붙이고 나머지는
+  /// [unrestorableGuide] 아래에 보인다.
   Future<StepOutcome> _restoreHomeIcons(
     WizardContext context,
     List<String> written,
@@ -1421,25 +1407,14 @@ final class AppIconStep implements DeferrableStep {
         ? ''
         : '\n$deleteGuide\n${undeleted.join('\n')}';
     if (unrestored.isNotEmpty) {
-      final overwritten = <String, String?>{
-        for (final path in unrestored)
-          path: findOverwrittenRepoPath(context, path),
-      };
-      final List<String> checked = overwritten.values
-          .whereType<String>()
-          .toSet()
-          .toList();
-      final Set<String> tracked = checked.isEmpty
-          ? const <String>{}
-          : await _listTrackedPaths(context, checked);
-      bool isTracked(String path) => tracked.contains(overwritten[path]);
-      final String trackedLines = _formatPathBlock(restoreGuide, <String>{
-        for (final path in unrestored)
-          if (isTracked(path)) overwritten[path]!,
-      });
+      final Set<String> tracked = await _listTrackedPaths(context, unrestored);
+      final String trackedLines = _formatPathBlock(
+        restoreGuide,
+        unrestored.where(tracked.contains),
+      );
       final String otherLines = _formatPathBlock(
         unrestorableGuide,
-        unrestored.where((String path) => !isTracked(path)),
+        unrestored.where((String path) => !tracked.contains(path)),
       );
       return Failed(
         '$restoreFailedReason$reason$trackedLines$otherLines$deleteLines',

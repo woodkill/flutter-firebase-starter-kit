@@ -370,6 +370,36 @@ void main() {
     expect(Directory(box.iconsPath).existsSync(), isFalse);
   });
 
+  // 쓰기 대상 자리에 심볼릭 링크를 두므로 macOS · Linux 에서만 돈다.
+  test('T-28-SAFE-22: 쓰기 경로에 링크 → git 명령을 하나도 부르지 않고 링크 '
+      '멈춤 · 원본 질문 0 · sips 0', () async {
+    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
+    final String outside = box.writeHomeFile('outside.xml', const <int>[1]);
+    final linkPath = '${box.root}/$adaptiveBackgroundPath';
+    Directory(linkPath).parent.createSync(recursive: true);
+    Link(linkPath).createSync(outside);
+    // 미커밋 검사 · 추적 여부 대조를 등록하지 않는다 — 부르면 가짜 실행기가
+    // 모르는 키로 크게 실패한다.
+    final h = _Harness(box, <String?>['1', '2'], kitDigests: kit);
+
+    final int code = await h.run();
+
+    expect(code, wizardExitStopped);
+    final int failAt = h.lines.indexOf(
+      '  실패 — ${AppIconStep.linkedTargetReason}',
+    );
+    expect(failAt, greaterThanOrEqualTo(0));
+    expect(h.lines[failAt + 1], '    $adaptiveBackgroundPath');
+    expect(h.lines[failAt + 2], isNot(startsWith('    ')));
+    expect(
+      h.runner.calls.where((FakeCall call) => call.key.startsWith('git ')),
+      isEmpty,
+    );
+    expect(h.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+    expect(h.countSipsCalls(), 0);
+    expect(File(outside).readAsBytesSync(), const <int>[1]);
+  }, testOn: 'mac-os || linux');
+
   group('T-28-ICON-03: 투명 원본 → 배경색 한 번 · 로고 전경 · 같은 배경색', () {
     late Map<String, String> kit;
     late Uint8List logo;

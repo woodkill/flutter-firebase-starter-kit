@@ -136,39 +136,17 @@ void writeHomeIconMarker(String root, {Iterable<String>? tokens}) {
     );
 }
 
-/// [root] 저장소의 앱 아이콘 쓰기 대상 가운데 지금 파일 · 링크로 있는 자리와, 그
-/// 자리가 저장소 안 파일을 가리키는 링크면 그 파일을 고른다(단계의 추적 여부
-/// 대조와 같은 기준).
-///
-/// 자리는 링크를 따라가지 않은 종류가 파일이거나 링크인 경로를
-/// [AppIconStep.listWritePaths] 순서로, 가리키는 파일은 그 뒤에 중복 없이 넣는다
-/// — 저장소 밖 · 끊어진 링크 · 파일이 아닌 대상은 넣지 않는다.
-List<String> listExistingWriteTargets(String root) {
-  final paths = <String>[
-    for (final String path in AppIconStep.listWritePaths())
-      if (FileSystemEntity.typeSync('$root/$path', followLinks: false)
-          case FileSystemEntityType.file || FileSystemEntityType.link)
-        path,
-  ];
-  final String canonicalRoot = Directory(root).resolveSymbolicLinksSync();
-  for (final path in List<String>.of(paths)) {
-    if (!FileSystemEntity.isLinkSync('$root/$path')) continue;
-    try {
-      final String target = File('$root/$path').resolveSymbolicLinksSync();
-      if (!FileSystemEntity.isFileSync(target) ||
-          !target.startsWith('$canonicalRoot/')) {
-        continue;
-      }
-      final String relative = target.substring(canonicalRoot.length + 1);
-      if (!paths.contains(relative)) paths.add(relative);
-    } on FileSystemException {
-      continue;
-    }
-  }
-  return paths;
-}
+/// [root] 저장소의 앱 아이콘 쓰기 대상 가운데 지금 파일로 있는 것 — 링크를
+/// 따라가지 않은 종류가 파일인 경로를 [AppIconStep.listWritePaths] 순서로
+/// 고른다(단계의 추적 여부 대조와 같은 기준).
+List<String> listExistingWriteTargets(String root) => <String>[
+  for (final String path in AppIconStep.listWritePaths())
+    if (FileSystemEntity.typeSync('$root/$path', followLinks: false)
+        case FileSystemEntityType.file)
+      path,
+];
 
-/// [root] 의 지금 파일 · 링크로 있는 쓰기 대상을 모두 추적된 것으로 답하는
+/// [root] 의 지금 파일로 있는 쓰기 대상을 모두 추적된 것으로 답하는
 /// `git ls-files` 명령 키와 결과 — 그런 대상이 없으면 null(단계가 git 을 부르지
 /// 않는다).
 ///

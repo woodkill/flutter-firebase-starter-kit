@@ -33,23 +33,24 @@ const String conflictLineHead = '  실패 — 같은 이름의 아이콘 리소�
 /// 쓰기 대상에 git 이 추적하지 않는 파일이 있을 때의 실패 줄.
 const String untrackedLineHead = '  실패 — ${AppIconStep.untrackedTargetReason}';
 
-/// 배경색 자리의 링크가 가리키는 저장소 안 파일(저장소 상대 경로).
-const String _linkedPath = 'local/bg.xml';
+/// 쓰기 경로의 폴더나 자리 자신이 링크일 때의 실패 줄.
+const String linkedLineHead = '  실패 — ${AppIconStep.linkedTargetReason}';
 
-/// [box] 저장소의 [_linkedPath] 에 [text] 를 쓰고, 배경색 자리에 그 파일을
-/// 가리키는 상대 링크를 둔 뒤 링크의 절대 경로를 돌려준다 — 커밋은 부르는 쪽이
-/// 한다.
-String _linkBackgroundTo(_GitSandbox box, String text) {
-  box.openRepoFile(_linkedPath)
-    ..parent.createSync(recursive: true)
-    ..writeAsStringSync(text);
-  final linkPath = '${box.root}/$adaptiveBackgroundPath';
+/// [box] 저장소의 [linkRelative] 자리에 저장소 안 [targetRelative] 를 가리키는
+/// 상대 링크를 두고 링크의 절대 경로를 돌려준다 — 대상과 커밋은 부르는 쪽이
+/// 둔다.
+String _linkInsideRepo(
+  _GitSandbox box,
+  String linkRelative,
+  String targetRelative,
+) {
+  final linkPath = '${box.root}/$linkRelative';
   Directory(linkPath).parent.createSync(recursive: true);
   final String up = List<String>.filled(
-    adaptiveBackgroundPath.split('/').length - 1,
+    linkRelative.split('/').length - 1,
     '..',
   ).join('/');
-  Link(linkPath).createSync('$up/$_linkedPath');
+  Link(linkPath).createSync('$up/$targetRelative');
   return linkPath;
 }
 
@@ -114,12 +115,17 @@ final class _GitRun {
     List<String?> inputs, {
     this.kitDigests,
     WizardSession? session,
+    String? projectRoot,
   }) : screen = ScriptedTerminal(inputs),
-       session = session ?? WizardSession() {
-    runner = IconFlowRunner(box.root, fake);
+       session = session ?? WizardSession(),
+       projectRoot = projectRoot ?? box.root {
+    runner = IconFlowRunner(this.projectRoot, fake);
   }
 
   final _GitSandbox box;
+
+  /// 단계에 넘길 저장소 루트 — 없으면 [_GitSandbox.root].
+  final String projectRoot;
 
   /// 단계에 주입할 킷 기본 지문 — 없으면 킷이 담은 지문.
   final Map<String, String>? kitDigests;
@@ -209,7 +215,7 @@ final class _GitRun {
   /// 실행기 [used] 로 위저드를 돌린다.
   Future<int> _runWith(CommandRunner used) => runWizard(
     WizardContext(
-      projectRoot: box.root,
+      projectRoot: projectRoot,
       runner: used,
       terminal: RedactingTerminal(screen, log.redactor, log),
       redactor: log.redactor,
@@ -612,8 +618,8 @@ void main() {
 
   // 쓰기 대상 자리에 심볼릭 링크를 두므로 macOS · Linux 에서만 돈다.
   test('T-28-SAFE-14: gitignored 링크가 쓰기 대상 자리에서 저장소 밖 파일을 '
-      '가리킴 → 원본 질문 · sips · 쓰기 없이 멈춤 · 링크 대상 바이트 그대로 · '
-      '상태 빈 출력', () async {
+      '가리킴 → git 을 부르지 않고 링크 멈춤 · 원본 질문 · sips · 쓰기 0 · 링크 '
+      '대상 바이트 그대로 · 상태 빈 출력', () async {
     final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
     box
         .openRepoFile('.gitignore')
@@ -638,10 +644,12 @@ void main() {
     final int code = await run.run();
 
     expect(code, wizardExitStopped);
-    final int failAt = run.lines.indexOf(untrackedLineHead);
+    final int failAt = run.lines.indexOf(linkedLineHead);
     expect(failAt, greaterThanOrEqualTo(0));
     expect(run.lines[failAt + 1], '    $adaptiveBackgroundPath');
     expect(run.lines[failAt + 2], isNot(startsWith('    ')));
+    expect(run.lines, isNot(contains(untrackedLineHead)));
+    expect(run.runner.gitKeys, isEmpty);
     expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
     expect(run.countSipsCalls(), 0);
     expect(File(outside).readAsStringSync(), outsideText);
@@ -652,102 +660,122 @@ void main() {
     expect(run.countCheckouts(), 0);
   }, testOn: 'mac-os || linux');
 
-  // 아래 셋은 배경색 자리에 저장소 안 파일을 가리키는 상대 링크를 커밋한다 —
-  // 링크 꼴이라 macOS · Linux 에서만 돈다.
-  test('T-28-SAFE-15: 커밋한 링크가 저장소 안 gitignored 파일을 가리킴 → 원본 '
-      '질문 · sips · 쓰기 없이 멈춤 · 가리키는 파일 경로를 보임 · 바이트 그대로 · '
-      '상태 빈 출력', () async {
-    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    box.openRepoFile('.gitignore').writeAsStringSync('/local/\n');
-    const localText = '<resources><!-- 로컬에만 둔 배경색 --></resources>\n';
-    final String linkPath = _linkBackgroundTo(box, localText);
-    commitGitFixture(box.root, 'kit default icons · link to ignored file');
-    expect(
-      box.runGit(<String>['ls-files', '--', adaptiveBackgroundPath]).stdout,
-      '$adaptiveBackgroundPath\n',
-      reason: '배경 링크가 커밋되지 않았다',
-    );
-    expect(
-      box.runGit(<String>['check-ignore', '-q', _linkedPath]).exitCode,
-      0,
-      reason: '가리키는 파일이 gitignored 가 아니다',
-    );
-    final run = _GitRun(box, <String?>['1', '2'], kitDigests: kit);
+  group('쓰기 경로의 링크 — 쓰기 전에 멈춤', () {
+    late Map<String, String> kit;
 
-    final int code = await run.run();
+    setUp(() => kit = writeKitDefaultHomeIcons(box.root));
 
-    expect(code, wizardExitStopped);
-    final int failAt = run.lines.indexOf(untrackedLineHead);
-    expect(failAt, greaterThanOrEqualTo(0));
-    expect(run.lines[failAt + 1], '    $_linkedPath');
-    expect(run.lines[failAt + 2], isNot(startsWith('    ')));
-    expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
-    expect(run.countSipsCalls(), 0);
-    expect(box.openRepoFile(_linkedPath).readAsStringSync(), localText);
-    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
-    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
-    expect(box.readStatus(), isEmpty);
-    expect(run.countCheckouts(), 0);
-  }, testOn: 'mac-os || linux');
+    /// 위저드를 돌려 [stopped] 경로 줄 하나로 링크 멈춤을 했는지 보고, 원본
+    /// 질문 · sips · git · 쓰기가 없었는지 본다 — [keep] 은 바이트가 그대로여야
+    /// 하는 저장소 상대 경로다.
+    Future<void> expectLinkStop(String stopped, List<String> keep) async {
+      final kept = <String, List<int>>{
+        for (final path in keep) path: box.openRepoFile(path).readAsBytesSync(),
+      };
+      final Map<String, List<int>?> before = box.readWriteTargets();
+      final run = _GitRun(box, <String?>['1', '2'], kitDigests: kit);
 
-  test('T-28-SAFE-16: 커밋한 링크가 저장소 안 추적 파일 중 커밋 안 한 수정이 '
-      '있는 파일을 가리킴 → 원본 질문 · sips · 쓰기 없이 미커밋 멈춤 · 수정 '
-      '바이트 그대로', () async {
-    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    final String linkPath = _linkBackgroundTo(
-      box,
-      '<resources><!-- 커밋한 배경색 --></resources>\n',
-    );
-    commitGitFixture(box.root, 'kit default icons · link to tracked file');
-    const editedText = '<resources><!-- 커밋하지 않은 수정 --></resources>\n';
-    box.openRepoFile(_linkedPath).writeAsStringSync(editedText);
-    final run = _GitRun(box, <String?>['1', '2'], kitDigests: kit);
+      final int code = await run.run();
 
-    final int code = await run.run();
+      expect(code, wizardExitStopped);
+      final int failAt = run.lines.indexOf(linkedLineHead);
+      expect(failAt, greaterThanOrEqualTo(0));
+      expect(run.lines[failAt + 1], '    $stopped');
+      expect(run.lines[failAt + 2], isNot(startsWith('    ')));
+      expect(run.runner.gitKeys, isEmpty);
+      expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
+      expect(run.countSipsCalls(), 0);
+      expect(FileSystemEntity.isLinkSync('${box.root}/$stopped'), isTrue);
+      for (final path in keep) {
+        expect(
+          box.openRepoFile(path).readAsBytesSync(),
+          kept[path],
+          reason: path,
+        );
+      }
+      expect(box.readWriteTargets(), before);
+      expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
+      expect(box.readStatus(), isEmpty);
+    }
 
-    expect(code, wizardExitStopped);
-    final int failAt = run.lines.indexOf('  실패 — ${AppIconStep.dirtyReason}');
-    expect(failAt, greaterThanOrEqualTo(0));
-    expect(run.lines[failAt + 1], '    $_linkedPath');
-    expect(run.lines[failAt + 2], isNot(startsWith('    ')));
-    expect(run.screen.asks, isNot(contains(AppIconStep.sourceQuestion)));
-    expect(run.countSipsCalls(), 0);
-    expect(box.openRepoFile(_linkedPath).readAsStringSync(), editedText);
-    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
-    expect(box.openRepoFile(homeIconMarkerPath).existsSync(), isFalse);
-    expect(box.readStatus(), ' M $_linkedPath\n');
-    expect(run.countCheckouts(), 0);
-  }, testOn: 'mac-os || linux');
+    test('T-28-SAFE-18: 배경색 자리가 저장소 안 추적 · 깨끗한 파일을 가리키는 '
+        '커밋한 링크 → 링크 멈춤 · 줄은 자리 경로', () async {
+      const target = 'local/bg.xml';
+      box.openRepoFile(target)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('<resources><!-- 커밋한 배경색 --></resources>\n');
+      final String linkPath = _linkInsideRepo(
+        box,
+        adaptiveBackgroundPath,
+        target,
+      );
+      final String linkText = Link(linkPath).targetSync();
+      commitGitFixture(box.root, 'kit default icons · background link');
 
-  test('T-28-SAFE-17: 커밋한 링크가 저장소 안 추적 · 깨끗한 파일을 가리킴 → '
-      '멈추지 않고 원본을 물어 그 파일에 씀 · git 이 그 변경을 봄', () async {
-    final Map<String, String> kit = writeKitDefaultHomeIcons(box.root);
-    const committedText = '<resources><!-- 커밋한 배경색 --></resources>\n';
-    final String linkPath = _linkBackgroundTo(box, committedText);
-    commitGitFixture(box.root, 'kit default icons · link to tracked file');
-    final Uint8List sourceBytes = buildOpaqueRgbaIconPng();
-    final String source = box.writeSource('logo.png', sourceBytes);
-    final run = _GitRun(box, <String?>['1', source], kitDigests: kit)
-      ..registerSource(source, sourceBytes);
+      await expectLinkStop(adaptiveBackgroundPath, <String>[target]);
+      expect(Link(linkPath).targetSync(), linkText);
+    });
 
-    final int code = await run.run();
+    test('T-28-SAFE-19: 홈 화면 아이콘 폴더(mipmap-hdpi)가 저장소 안 추적 폴더를 '
+        '가리키는 커밋한 링크 → 링크 멈춤 · 줄은 폴더 경로 하나', () async {
+      const folder = '$androidResDirectory/mipmap-hdpi';
+      const target = 'local/mip-hdpi';
+      Directory('${box.root}/local').createSync(recursive: true);
+      Directory('${box.root}/$folder').renameSync('${box.root}/$target');
+      _linkInsideRepo(box, folder, target);
+      commitGitFixture(box.root, 'kit default icons · mipmap-hdpi link');
+      final inside = <String>[
+        for (final entity in Directory('${box.root}/$target').listSync())
+          '$target/${entity.uri.pathSegments.last}',
+      ];
+      expect(inside, isNotEmpty);
 
-    expect(code, wizardExitDone);
-    expect(run.lines, isNot(contains(untrackedLineHead)));
-    expect(
-      run.lines,
-      isNot(contains(startsWith('  실패 — ${AppIconStep.dirtyReason}'))),
-    );
-    expect(
-      run.screen.asks.where((String ask) => ask == AppIconStep.sourceQuestion),
-      hasLength(1),
-    );
-    expect(
-      box.openRepoFile(_linkedPath).readAsStringSync(),
-      isNot(committedText),
-    );
-    expect(FileSystemEntity.isLinkSync(linkPath), isTrue);
-    expect(box.readStatus().split('\n'), contains(' M $_linkedPath'));
+      await expectLinkStop(folder, inside);
+      expect(
+        Directory('${box.root}/$target').listSync(),
+        hasLength(inside.length),
+      );
+    });
+
+    test('T-28-SAFE-20: 아직 없는 adaptive 자리의 폴더(mipmap-anydpi-v26)가 저장소 '
+        '안 폴더를 가리키는 커밋한 링크 → 링크 멈춤 · 그 폴더에 새 파일 0', () async {
+      const folder = '$androidResDirectory/mipmap-anydpi-v26';
+      const keep = 'local/anydpi/keep.txt';
+      box.openRepoFile(keep)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('keep\n');
+      _linkInsideRepo(box, folder, 'local/anydpi');
+      commitGitFixture(box.root, 'kit default icons · anydpi link');
+      expect(box.openRepoFile(adaptiveIconXmlPath).existsSync(), isFalse);
+
+      await expectLinkStop(folder, <String>[keep]);
+      expect(Directory('${box.root}/local/anydpi').listSync(), hasLength(1));
+    });
+
+    test('T-28-SAFE-21: 저장소 루트를 링크 경로로 넘기고 그 아래 쓰기 경로에 링크 '
+        '없음 → 링크 멈춤 없이 원본 질문으로 감', () async {
+      commitGitFixture(box.root, 'kit default icons');
+      final rootLink = '${box.base.path}/root-link';
+      Link(rootLink).createSync(box.root);
+      expect(AppIconStep.findLinkedWritePaths(rootLink), isEmpty);
+      final run = _GitRun(
+        box,
+        <String?>['1', ''],
+        kitDigests: kit,
+        projectRoot: rootLink,
+      );
+
+      await run.run();
+
+      expect(run.lines, isNot(contains(linkedLineHead)));
+      expect(
+        run.screen.asks.where(
+          (String ask) => ask == AppIconStep.sourceQuestion,
+        ),
+        hasLength(1),
+      );
+      expect(box.readStatus(), isEmpty);
+    });
   }, testOn: 'mac-os || linux');
 
   group('되돌림 자체가 실패하는 갈래', () {
