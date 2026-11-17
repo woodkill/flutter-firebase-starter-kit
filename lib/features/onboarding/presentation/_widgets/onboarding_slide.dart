@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 온보딩 공통 슬라이드 레이아웃 (UI-SPEC § OnboardingSlide).
 ///
@@ -63,7 +64,7 @@ class OnboardingSlide extends StatelessWidget {
               ),
             ),
             Gap(spacing.xl),
-            Text(
+            KeepHangulWordsText(
               title,
               style: typography.headlineMedium.copyWith(
                 color: colorScheme.onSurface,
@@ -71,7 +72,7 @@ class OnboardingSlide extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             Gap(spacing.md),
-            Text(
+            KeepHangulWordsText(
               body,
               style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurfaceVariant,

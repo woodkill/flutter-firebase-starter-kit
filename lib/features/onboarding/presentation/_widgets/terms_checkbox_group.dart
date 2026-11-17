@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 약관 체크박스 그룹 (Phase 10 D-15, D-17, D-21).
 ///
@@ -72,7 +73,10 @@ class TermsCheckboxGroup extends StatelessWidget {
         CheckboxListTile(
           value: allChecked,
           onChanged: onAllChanged,
-          title: Text(l10n.termsAcceptAll, style: typography.labelLarge),
+          title: KeepHangulWordsText(
+            l10n.termsAcceptAll,
+            style: typography.labelLarge,
+          ),
           controlAffinity: ListTileControlAffinity.leading,
         ),
         Divider(indent: spacing.lg, endIndent: spacing.lg),
@@ -139,7 +143,7 @@ class _TermsRow extends StatelessWidget {
             : colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(context.appRadius.xs),
       ),
-      child: Text(
+      child: KeepHangulWordsText(
         isRequired ? l10n.termsRequired : l10n.termsOptional,
         style: typography.bodyMedium.copyWith(
           color: isRequired
@@ -155,7 +159,7 @@ class _TermsRow extends StatelessWidget {
       title: Row(
         children: [
           Expanded(
-            child: Text(
+            child: KeepHangulWordsText(
               label,
               style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurface,
@@ -169,7 +173,7 @@ class _TermsRow extends StatelessWidget {
       secondary: onViewDetail != null
           ? TextButton(
               onPressed: onViewDetail,
-              child: Text(l10n.termsViewDetail),
+              child: KeepHangulWordsText(l10n.termsViewDetail),
             )
           : null,
       controlAffinity: ListTileControlAffinity.leading,

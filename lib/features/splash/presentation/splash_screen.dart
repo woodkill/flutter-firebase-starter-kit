@@ -14,6 +14,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import 'splash_error_code.dart';
 import 'splash_frame.dart';
 import 'splash_initializer.dart';
@@ -319,7 +320,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     await Clipboard.setData(ClipboardData(text: 'splash_auto_signin: $code'));
     // mounted 가드 — async gap 동안 위젯이 해체됐을 수 있음.
     if (!mounted) return;
-    messenger.showSnackBar(SnackBar(content: Text(context.l10n.commonCopied)));
+    messenger.showSnackBar(
+      SnackBar(content: KeepHangulWordsText(context.l10n.commonCopied)),
+    );
   }
 
   Future<void> _showFailureDialog(String code) async {
@@ -341,12 +344,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           scrollable: true,
           icon: Icon(Icons.cloud_off, color: colorScheme.onErrorContainer),
           iconColor: colorScheme.errorContainer,
-          title: Text(l10n.splashFailureTitle),
+          title: KeepHangulWordsText(l10n.splashFailureTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(l10n.splashFailureMessage),
+              KeepHangulWordsText(l10n.splashFailureMessage),
               Gap(spacing.sm),
               // WR-19: InkWell 이 일반 Text 만 감싸면 스크린 리더 사용자는 이
               // 문구가 탭 가능한 복사 액션임을 알 수 없다. 오류 리포팅 경로라
@@ -365,7 +368,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 onTap: () => unawaited(_copyErrorCode(code, outerMessenger)),
                 child: InkWell(
                   onTap: () => _copyErrorCode(code, outerMessenger),
-                  child: Text(
+                  child: KeepHangulWordsText(
                     l10n.splashErrorCodeFingerprint(code),
                     style: typography.bodySmall.copyWith(
                       color: colorScheme.onSurfaceVariant,
@@ -379,12 +382,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
             TextButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(_SplashFailureAction.offline),
-              child: Text(l10n.splashContinueOffline),
+              child: KeepHangulWordsText(l10n.splashContinueOffline),
             ),
             FilledButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(_SplashFailureAction.retry),
-              child: Text(l10n.commonRetry),
+              child: KeepHangulWordsText(l10n.commonRetry),
             ),
           ],
         );

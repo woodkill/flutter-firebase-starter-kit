@@ -27,6 +27,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -1326,7 +1328,10 @@ void main() {
             find
                 .descendant(
                   of: dialog,
-                  matching: find.widgetWithText(FilledButton, l10n.commonRetry),
+                  matching: find.ancestor(
+                    of: findKeepHangulWordsText(l10n.commonRetry),
+                    matching: find.byType(FilledButton),
+                  ),
                 )
                 .hitTestable(),
             findsOneWidget,
@@ -1336,9 +1341,9 @@ void main() {
             find
                 .descendant(
                   of: dialog,
-                  matching: find.widgetWithText(
-                    TextButton,
-                    l10n.splashContinueOffline,
+                  matching: find.ancestor(
+                    of: findKeepHangulWordsText(l10n.splashContinueOffline),
+                    matching: find.byType(TextButton),
                   ),
                 )
                 .hitTestable(),
@@ -1347,7 +1352,7 @@ void main() {
           );
           final fingerprint = find.descendant(
             of: dialog,
-            matching: find.text(
+            matching: findKeepHangulWordsText(
               l10n.splashErrorCodeFingerprint(
                 extractSplashErrorCode(const NoInternetConnection()),
               ),
@@ -1399,11 +1404,15 @@ void main() {
           find.descendant(of: dialog, matching: matching);
       final actual = <Rect>[
         tester.getRect(inDialog(find.byType(Material)).first),
-        tester.getRect(inDialog(find.text(l10n.splashFailureTitle))),
-        tester.getRect(inDialog(find.text(l10n.splashFailureMessage))),
+        tester.getRect(
+          inDialog(findKeepHangulWordsText(l10n.splashFailureTitle)),
+        ),
+        tester.getRect(
+          inDialog(findKeepHangulWordsText(l10n.splashFailureMessage)),
+        ),
         tester.getRect(
           inDialog(
-            find.text(
+            findKeepHangulWordsText(
               l10n.splashErrorCodeFingerprint(
                 extractSplashErrorCode(const NoInternetConnection()),
               ),
@@ -1411,10 +1420,20 @@ void main() {
           ),
         ),
         tester.getRect(
-          inDialog(find.widgetWithText(TextButton, l10n.splashContinueOffline)),
+          inDialog(
+            find.ancestor(
+              of: findKeepHangulWordsText(l10n.splashContinueOffline),
+              matching: find.byType(TextButton),
+            ),
+          ),
         ),
         tester.getRect(
-          inDialog(find.widgetWithText(FilledButton, l10n.commonRetry)),
+          inDialog(
+            find.ancestor(
+              of: findKeepHangulWordsText(l10n.commonRetry),
+              matching: find.byType(FilledButton),
+            ),
+          ),
         ),
       ];
       const expected = _portraitFailureDialogRects;

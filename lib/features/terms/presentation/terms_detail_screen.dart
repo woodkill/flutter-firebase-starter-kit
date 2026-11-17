@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 약관 상세 화면이 표시할 약관 종류 (Phase 10 D-21).
 enum TermsType {
@@ -42,7 +43,7 @@ class TermsDetailScreen extends StatelessWidget {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(spacing.lg),
-          child: Text(
+          child: KeepHangulWordsText(
             l10n.termsDetailPlaceholder,
             style: typography.bodyMedium,
           ),

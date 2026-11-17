@@ -9,6 +9,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/primary_cta.dart';
 import '../../terms/presentation/terms_notifier.dart';
@@ -104,9 +105,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         // 눌렀는데 아무 일도 일어나지 않는" dead-end 였다. 실제 실패 원인은
         // SharedPreferences 쓰기 실패이므로 재시도 여지를 알려야 한다.
         // 기존 키를 재사용한다 (신규 ARB 키 0).
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.errorUnknown)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: KeepHangulWordsText(l10n.errorUnknown)),
+        );
         return;
       }
 
@@ -143,7 +144,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           // 1회보다 크다. 홈 진행은 그대로 유지한다 — termsNotifier 가
           // Crashlytics 에 이미 기록했고 재동의 자체는 로컬에 반영됐다.
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.settingsLinkFailedTransient)),
+            SnackBar(
+              content: KeepHangulWordsText(l10n.settingsLinkFailedTransient),
+            ),
           );
         }
       } else if (isFirebaseReady) {
@@ -232,7 +235,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           if (!_isLastPage)
             TextButton(
               onPressed: _handleSkip,
-              child: Text(
+              child: KeepHangulWordsText(
                 l10n.onboardingSkip,
                 style: typography.labelLarge.copyWith(
                   color: colorScheme.onSurfaceVariant,
@@ -285,7 +288,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ),
                         if (_showRequiredError) ...[
                           Gap(spacing.sm),
-                          Text(
+                          KeepHangulWordsText(
                             l10n.termsRequiredError,
                             style: typography.bodyMedium.copyWith(
                               color: colorScheme.error,
