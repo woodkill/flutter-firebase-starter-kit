@@ -26,6 +26,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../../helpers/keep_hangul_words_finder.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// 시작 route 경로 · 화면 문구.
@@ -122,7 +124,7 @@ void main() {
       await tester.pump();
       await tester.pump(AuthInProgressOverlay.indicatorDelay);
       expect(find.byType(AuthInProgressOverlay), findsOneWidget);
-      expect(find.text('로그아웃 처리 중…'), findsOneWidget);
+      expect(findKeepHangulWordsText('로그아웃 처리 중…'), findsOneWidget);
       expect(
         app.container.read(sessionEndingProvider).kind,
         SessionEndingKind.signOut,
@@ -185,7 +187,7 @@ void main() {
       await tester.pump();
       expect(find.byType(AuthInProgressOverlay), findsNothing);
       expect(find.text(_destinationText), findsOneWidget);
-      expect(find.text(_startText), findsNothing);
+      expect(findKeepHangulWordsText(_startText), findsNothing);
       expect(app.container.read(sessionEndingProvider), idleSessionEndingState);
     });
 
@@ -205,7 +207,11 @@ void main() {
       await tester.pump();
 
       expect(find.text(_destinationText), findsOneWidget);
-      expect(find.text(_startText), findsNothing, reason: '전환이 끝났다');
+      expect(
+        findKeepHangulWordsText(_startText),
+        findsNothing,
+        reason: '전환이 끝났다',
+      );
       expect(
         find.byType(AuthInProgressOverlay),
         findsOneWidget,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// "이메일로 계속" 공유 CTA 위젯 (Phase 16.1 Surface S).
 ///
@@ -33,7 +34,7 @@ class EmailAuthCta extends StatelessWidget {
     final l10n = context.l10n;
     return TextButton(
       onPressed: onPressed,
-      child: Text(
+      child: KeepHangulWordsText(
         l10n.authContinueWithEmail,
         style: context.appTypography.labelLarge.copyWith(
           color: context.colorScheme.primary,

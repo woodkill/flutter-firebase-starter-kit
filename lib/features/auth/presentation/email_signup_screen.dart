@@ -9,6 +9,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
@@ -202,7 +203,7 @@ class _EmailSignupScreenState extends ConsumerState<EmailSignupScreen> {
                     unawaited(context.push(AppRoutes.emailLogin));
                   }
                 },
-                child: Text(l10n.authSignupHasAccount),
+                child: KeepHangulWordsText(l10n.authSignupHasAccount),
               ),
             ],
           ),

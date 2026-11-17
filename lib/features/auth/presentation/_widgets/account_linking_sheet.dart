@@ -18,6 +18,7 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../data/auth_repository.dart';
 import 'auth_in_progress_overlay.dart';
 import 'branded_social_button.dart';
@@ -237,7 +238,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           // (PII 0: ARB + provider 라벨만).
           messenger.showSnackBar(
             SnackBar(
-              content: Text(
+              content: KeepHangulWordsText(
                 l10n.accountLinkingSignInThenLinkHint(providerLabel),
               ),
             ),
@@ -282,7 +283,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           // 그 문구가 탈퇴 맥락에 특화되면 본 시트에 엉뚱한 문구가 새어
           // 나간다 (문구 자체는 현재 동일).
           messenger.showSnackBar(
-            SnackBar(content: Text(l10n.authReauthRequired)),
+            SnackBar(content: KeepHangulWordsText(l10n.authReauthRequired)),
           );
           router.go(AppRoutes.login);
         } else {
@@ -309,7 +310,9 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
             AppCheckFailedException() => l10n.errorAppCheckFailed,
             _ => l10n.settingsLinkFailedUnknown,
           };
-          messenger.showSnackBar(SnackBar(content: Text(message)));
+          messenger.showSnackBar(
+            SnackBar(content: KeepHangulWordsText(message)),
+          );
         }
     }
   }
@@ -412,7 +415,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
           AppCheckFailedException() => l10n.errorAppCheckFailed,
           _ => l10n.authSignInFailedUnknown,
         };
-        messenger.showSnackBar(SnackBar(content: Text(message)));
+        messenger.showSnackBar(SnackBar(content: KeepHangulWordsText(message)));
         return _ExistingProviderSignInOutcome.cancelledOrFailed;
     }
   }
@@ -461,7 +464,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                     Gap(spacing.lg),
                     // 헤더 (클래스 doc 레이아웃 3번) — UI-SPEC Layout Contract
                     // Surface A 의 titleMedium / onSurface / Gap sm verbatim.
-                    Text(
+                    KeepHangulWordsText(
                       l10n.accountLinkingSheetTitle,
                       style: typography.titleMedium.copyWith(
                         color: colorScheme.onSurface,
@@ -470,7 +473,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                     Gap(spacing.sm),
                     // 본문 (클래스 doc 레이아웃 5번) — UI-SPEC Layout Contract
                     // Surface A 의 bodyLarge / onSurfaceVariant verbatim.
-                    Text(
+                    KeepHangulWordsText(
                       l10n.errorAccountExistsWithProvider(providerLabel),
                       style: typography.bodyLarge.copyWith(
                         color: colorScheme.onSurfaceVariant,
@@ -493,7 +496,7 @@ class _AccountLinkingSheetState extends ConsumerState<AccountLinkingSheet> {
                       onPressed: _isLinking
                           ? null
                           : () => Navigator.of(context).pop(false),
-                      child: Text(
+                      child: KeepHangulWordsText(
                         l10n.accountLinkingDismiss,
                         style: typography.labelLarge.copyWith(
                           color: colorScheme.primary,
@@ -609,7 +612,7 @@ class _BrandedLinkButton extends StatelessWidget {
       ),
       AccountProvider.email => FilledButton(
         onPressed: onPressed,
-        child: Text(label),
+        child: KeepHangulWordsText(label),
       ),
       AccountProvider.kakao => BrandedSocialButton.kakao(
         label: label,

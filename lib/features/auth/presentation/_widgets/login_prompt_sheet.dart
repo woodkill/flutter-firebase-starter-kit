@@ -12,6 +12,7 @@ import '../../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../_helpers/social_provider_resolver.dart';
 import 'account_linking_sheet.dart';
 import 'auth_in_progress_overlay.dart';
@@ -223,14 +224,14 @@ class _LoginPromptSheetState extends ConsumerState<LoginPromptSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Gap(spacing.lg),
-          Text(
+          KeepHangulWordsText(
             l10n.authPromptSheetTitle,
             style: typography.headlineMedium.copyWith(
               color: colorScheme.onSurface,
             ),
           ),
           Gap(spacing.sm),
-          Text(
+          KeepHangulWordsText(
             l10n.authPromptSheetBody,
             style: typography.bodyMedium.copyWith(
               color: colorScheme.onSurfaceVariant,

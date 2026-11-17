@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../../../shared/widgets/small_progress_indicator.dart';
 
 /// 큰 버튼의 높이 (dp) — [PrimaryCta] 와 그 옆에 서는 버튼이 함께 쓴다.
@@ -51,7 +52,7 @@ class PrimaryCta extends StatelessWidget {
                   color: colors.onPrimary,
                 ),
               )
-            : Text(label),
+            : KeepHangulWordsText(label),
       ),
     );
   }

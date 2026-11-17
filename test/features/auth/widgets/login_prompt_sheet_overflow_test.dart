@@ -43,6 +43,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/brand_button_text_scale.dart';
+import '../../../helpers/keep_hangul_words_finder.dart';
 
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -282,7 +283,7 @@ void main() {
           expect(tester.takeException(), isNull, reason: '$label 시트');
 
           final l10n = lookupAppLocalizations(locale);
-          final title = find.text(l10n.authPromptSheetTitle);
+          final title = findKeepHangulWordsText(l10n.authPromptSheetTitle);
           final cta = find.byType(EmailAuthCta);
           final scrollView = find.descendant(
             of: sheet,

@@ -14,6 +14,7 @@ import '../../../core/providers/firebase_providers.dart'
     hide googleSignInProvider;
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../data/auth_repository.dart'
     show authRepositoryProvider, currentUserProvider;
 import '_helpers/social_provider_resolver.dart';
@@ -225,7 +226,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     from: GoRouterState.of(context).uri,
                   ),
                 ),
-                child: Text(l10n.authLoginNoAccount),
+                child: KeepHangulWordsText(l10n.authLoginNoAccount),
               ),
             ],
           ),
@@ -297,9 +298,9 @@ class _ReauthChooserState extends ConsumerState<_ReauthChooser> {
 
   /// 재인증 완료 — SnackBar 후 재인증을 요청한 화면으로 돌아간다 (Q6).
   void _completeReauth() {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(context.l10n.authReauthSucceeded)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: KeepHangulWordsText(context.l10n.authReauthSucceeded)),
+    );
     final navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop(true);
@@ -358,7 +359,7 @@ class _ReauthChooserState extends ConsumerState<_ReauthChooser> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Gap(spacing.xxl),
-              Text(
+              KeepHangulWordsText(
                 l10n.authReauthGuide,
                 style: context.appTypography.bodyMedium.copyWith(
                   color: context.colorScheme.onSurfaceVariant,

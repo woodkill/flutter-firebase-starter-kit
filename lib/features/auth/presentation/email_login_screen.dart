@@ -8,6 +8,7 @@ import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/providers/firebase_providers.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../data/auth_repository.dart' show currentUserProvider;
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
@@ -192,7 +193,7 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
                     from: GoRouterState.of(context).uri,
                   ),
                 ),
-                child: Text(l10n.authLoginForgotPassword),
+                child: KeepHangulWordsText(l10n.authLoginForgotPassword),
               ),
               Gap(spacing.sm),
               TextButton(
@@ -202,7 +203,7 @@ class _EmailLoginScreenState extends ConsumerState<EmailLoginScreen> {
                     from: GoRouterState.of(context).uri,
                   ),
                 ),
-                child: Text(l10n.authLoginNoAccount),
+                child: KeepHangulWordsText(l10n.authLoginNoAccount),
               ),
             ],
           ),
@@ -283,7 +284,7 @@ class _ReauthPasswordFormState extends ConsumerState<_ReauthPasswordForm> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Gap(spacing.xxl),
-            Text(
+            KeepHangulWordsText(
               l10n.authReauthEmailGuide,
               style: context.appTypography.bodyMedium.copyWith(
                 color: context.colorScheme.onSurfaceVariant,
@@ -317,7 +318,7 @@ class _ReauthPasswordFormState extends ConsumerState<_ReauthPasswordForm> {
               onPressed: () => context.push(
                 AppRoutes.buildReauthLocation(AppRoutes.forgotPassword),
               ),
-              child: Text(l10n.authLoginForgotPassword),
+              child: KeepHangulWordsText(l10n.authLoginForgotPassword),
             ),
           ],
         ),

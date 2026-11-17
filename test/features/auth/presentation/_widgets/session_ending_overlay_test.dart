@@ -28,6 +28,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../../helpers/keep_hangul_words_finder.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 const List<LocalizationsDelegate<dynamic>> _delegates =
@@ -181,7 +183,7 @@ void main() {
           );
           await tester.pump();
           expect(
-            find.text(byLocale.value),
+            findKeepHangulWordsText(byLocale.value),
             findsNothing,
             reason: '${byKind.key} · ${byLocale.key} — 표시 지연 전',
           );
@@ -190,7 +192,7 @@ void main() {
           expect(
             find.descendant(
               of: _findTopOverlay(),
-              matching: find.text(byLocale.value),
+              matching: findKeepHangulWordsText(byLocale.value),
             ),
             findsOneWidget,
             reason: '${byKind.key} · ${byLocale.key}',
@@ -338,7 +340,7 @@ void main() {
 
       await tester.pump(const Duration(seconds: 29));
       expect(_findTopOverlay(), findsOneWidget);
-      expect(find.text('로그아웃 처리 중…'), findsOneWidget);
+      expect(findKeepHangulWordsText('로그아웃 처리 중…'), findsOneWidget);
       await tester.tap(find.text(_underlyingLabel), warnIfMissed: false);
       await tester.pump();
       expect(counts.underlying, 0);

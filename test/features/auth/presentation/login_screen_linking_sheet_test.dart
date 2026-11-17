@@ -36,6 +36,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// client-side `account-exists-with-different-credential` 이 보존하는 native
@@ -420,7 +422,7 @@ void main() {
       // 순환 안내 문구 미노출 — 사용자는 방금 그 "처음 가입한 방식" 으로
       // 재인증까지 마친 상태다 (경로 A 는 _reauthNativeCredential 선행).
       expect(
-        find.text(
+        findKeepHangulWordsText(
           'This email is already registered with another sign-in method. '
           'Please sign in with the method you originally used.',
         ),
@@ -550,9 +552,9 @@ void main() {
         pendingCredential: _kPendingCredential,
       );
 
-      expect(find.text(appCheckCopy), findsOneWidget);
-      expect(find.text(reauthCopy), findsNothing);
-      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(appCheckCopy), findsOneWidget);
+      expect(findKeepHangulWordsText(reauthCopy), findsNothing);
+      expect(findKeepHangulWordsText('HOME'), findsNothing);
       expect(
         router.routerDelegate.currentConfiguration.uri.path,
         AppRoutes.login,
@@ -577,11 +579,11 @@ void main() {
           provider: AccountProvider.google,
         ),
       ).called(1);
-      expect(find.text(appCheckCopy), findsOneWidget);
-      expect(find.text(reauthCopy), findsNothing);
+      expect(findKeepHangulWordsText(appCheckCopy), findsOneWidget);
+      expect(findKeepHangulWordsText(reauthCopy), findsNothing);
       // 실패는 시트 유지(재시도 가능) · 화면 이동 0.
       expect(find.byType(AccountLinkingSheet), findsOneWidget);
-      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText('HOME'), findsNothing);
       expect(
         router.routerDelegate.currentConfiguration.uri.path,
         AppRoutes.login,

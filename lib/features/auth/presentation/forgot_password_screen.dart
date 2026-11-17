@@ -9,6 +9,7 @@ import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/email_field.dart';
 import '_widgets/form_error_banner.dart';
@@ -184,7 +185,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Gap(spacing.xxl),
-            Text(
+            KeepHangulWordsText(
               l10n.authForgotDescription,
               style: context.appTypography.bodyMedium.copyWith(
                 color: colors.onSurfaceVariant,
@@ -219,7 +220,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                     ),
                     SizedBox(width: spacing.sm),
                     Expanded(
-                      child: Text(
+                      child: KeepHangulWordsText(
                         l10n.authForgotSent,
                         style: context.appTypography.bodyMedium.copyWith(
                           color: colors.onPrimaryContainer,

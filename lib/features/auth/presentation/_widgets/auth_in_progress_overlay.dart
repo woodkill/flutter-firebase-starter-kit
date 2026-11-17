@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 인증 흐름(로그인 · 로그아웃 · 탈퇴 마무리) 진행 중 화면 전체를 덮는 오버레이
 /// (Phase 11-04 hotfix).
@@ -160,7 +161,7 @@ class _ProgressIndicatorLabel extends StatelessWidget {
           children: <Widget>[
             const CircularProgressIndicator(),
             Gap(spacing.md),
-            Text(
+            KeepHangulWordsText(
               text,
               style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurface,

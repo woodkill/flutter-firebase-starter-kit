@@ -6,6 +6,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/auth_in_
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../helpers/keep_hangul_words_finder.dart';
+
 const List<LocalizationsDelegate<dynamic>> _delegates =
     <LocalizationsDelegate<dynamic>>[
       AppLocalizations.delegate,
@@ -48,7 +50,7 @@ Widget _host({required Locale locale, VoidCallback? underlyingTap}) {
 /// 오버레이 안의 스피너 · ko 라벨이 [matcher] 대로 보이는지 단언한다.
 void _expectIndicator(Matcher matcher) {
   expect(find.byType(CircularProgressIndicator), matcher);
-  expect(find.text('로그인 처리 중…'), matcher);
+  expect(findKeepHangulWordsText('로그인 처리 중…'), matcher);
 }
 
 /// scrim(32%) 과 입력 차단이 화면 전체를 덮고 있는지 단언한다.
@@ -153,7 +155,7 @@ void main() {
       await tester.pumpWidget(_host(locale: const Locale('ko')));
       await tester.pump(_indicatorDelay);
 
-      expect(find.text('로그인 처리 중…'), findsOneWidget);
+      expect(findKeepHangulWordsText('로그인 처리 중…'), findsOneWidget);
     });
 
     testWidgets('Test 4: ja 라벨', (tester) async {
@@ -346,8 +348,8 @@ void main() {
       await tester.pump(_indicatorDelay);
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text(label), findsOneWidget);
-      expect(find.text('로그인 처리 중…'), findsNothing);
+      expect(findKeepHangulWordsText(label), findsOneWidget);
+      expect(findKeepHangulWordsText('로그인 처리 중…'), findsNothing);
 
       final liveRegions = tester
           .widgetList<Semantics>(

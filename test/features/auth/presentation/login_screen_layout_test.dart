@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/brand_button_text_scale.dart';
+import '../../../helpers/keep_hangul_words_finder.dart';
 
 class _FakeFirebaseAuth extends Mock implements fb.FirebaseAuth {}
 
@@ -265,7 +266,7 @@ void main() {
         final l10n = lookupAppLocalizations(locale);
         final cta = tester.renderObject<RenderParagraph>(
           find.descendant(
-            of: find.text(l10n.authContinueWithEmail),
+            of: findKeepHangulWordsText(l10n.authContinueWithEmail),
             matching: find.byType(RichText),
           ),
         );

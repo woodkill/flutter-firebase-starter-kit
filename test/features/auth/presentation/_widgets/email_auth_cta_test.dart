@@ -4,6 +4,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/email_au
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../helpers/keep_hangul_words_finder.dart';
+
 /// [EmailAuthCta] 를 단독으로 pump 하는 harness.
 ///
 /// 위젯이 provider 를 읽지 않으므로 `ProviderScope` override 는 불필요하다.
@@ -95,7 +97,7 @@ void main() {
     ) async {
       await pumpEmailAuthCta(tester, locale: const Locale('ko'));
       expect(l10nOf(tester).authContinueWithEmail, '이메일로 계속');
-      expect(find.text('이메일로 계속'), findsOneWidget);
+      expect(findKeepHangulWordsText('이메일로 계속'), findsOneWidget);
 
       await pumpEmailAuthCta(tester, locale: const Locale('ja'));
       expect(l10nOf(tester).authContinueWithEmail, 'メールアドレスで続行');
