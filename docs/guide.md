@@ -1786,9 +1786,9 @@ LayoutBuilder(
    - 문구 원문(ARB)은 바꾸지 않는다.
    - `SelectionArea` 로 감싸 복사하면 보이지 않는 이음 문자가 함께 복사된다 — 복사할 문구는 감싸개 대신 `Text` 로 그린다.
 4. 시험에서 감싸개로 그린 한국어 문구는 `test/helpers/keep_hangul_words_finder.dart` 의 `findKeepHangulWordsText('원문')` 으로 찾는다.
-   - `find.text` 는 감싸개로 그린 한국어 문구를 찾지 못한다.
+   - `find.text` 가 감싸개 문구를 찾는지는 문구마다 다르다 — 까닭은 그 파일의 머리 주석에 있다.
    - 한글이 든 어절 안의 부분 문자열을 찾던 `find.textContaining('…')` 은 `findKeepHangulWordsTextContaining('…')` 으로 바꾼다.
-   - 부재 단언(`findsNothing`)도 두 helper 로 바꾼다 — 그대로 두면 감싸개 문구에서 늘 통과한다.
+   - 부재 단언(`findsNothing`)도 두 helper 로 바꾼다.
    - 한글이 없는 문구에서 두 helper 는 `find.text` · `find.textContaining` 과 같은 개수를 찾는다 — 다만 감싸개 안 문구는 안쪽 `Text` 대신 감싸개 위젯을 돌려주므로 `tester.widget<KeepHangulWordsText>` 로 읽는다.
    - `tester.widget<Text>` 로 읽던 곳은 `tester.widget<KeepHangulWordsText>` 로 읽는다.
 
