@@ -1754,6 +1754,7 @@ LayoutBuilder(
 1. 화면 파일에 감싸개 import 한 줄을 더하고 `Text(` 를 `KeepHangulWordsText(` 로 바꾼다.
    - import 경로는 `lib/features/<기능>/presentation/` 아래 파일 기준이다.
    - 인자는 그대로 둔다 — 감싸개는 `Text` 와 같은 이름의 `style` · `textAlign` · `softWrap` · `overflow` · `maxLines` · `semanticsLabel` · `textScaler` 를 받는다.
+   - 그 밖의 인자(`strutStyle` · `textDirection` · `locale` 등)를 쓰거나 `Text.rich` 인 자리는 감싸개로 바꾸지 않는다.
 
    ```dart
    import '../../../shared/widgets/keep_hangul_words_text.dart';
