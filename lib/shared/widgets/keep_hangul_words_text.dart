@@ -16,7 +16,11 @@ bool _isSpace(String grapheme) =>
     grapheme == '\r' ||
     grapheme == '\t';
 
-/// [codePoint] 가 CJK 문장부호 · 가나 · 한자 · 전각 기호 · 반각 가나인지 본다.
+/// [codePoint] 가 아래 코드 포인트 범위 가운데 하나에 드는지 본다.
+///
+/// 감싸개가 묶지 않는 예외 경계의 범위는 이 목록 한 곳에서 정한다 — CJK
+/// 문장부호 · 가나 · 한자 · 전각 기호의 범위를 담지만, 같은 범주라도 이 목록 밖
+/// 코드 포인트는 예외가 아니다.
 bool _isCjkNonHangul(int codePoint) =>
     (codePoint >= 0x3000 && codePoint <= 0x303F) ||
     (codePoint >= 0x3040 && codePoint <= 0x30FF) ||
@@ -28,7 +32,7 @@ bool _isCjkNonHangul(int codePoint) =>
 
 /// 맞닿은 두 글자 [before] · [after] 사이를 원래 줄바꿈 규칙에 맡길지 본다.
 ///
-/// 둘 가운데 하나라도 가나 · 한자 · CJK 문장부호 · 전각 기호를 담으면 참이다.
+/// 둘 가운데 하나라도 [_isCjkNonHangul] 의 범위 안 코드 포인트를 담으면 참이다.
 bool _isExceptionBoundary(String before, String after) {
   return before.runes.any(_isCjkNonHangul) || after.runes.any(_isCjkNonHangul);
 }
@@ -99,8 +103,10 @@ TextSpan _buildJoinedSpan(String text) {
 /// 덩어리에 한글 음절이 있으면 그 덩어리를 한 단위로 묶어, 줄이 모자랄 때
 /// 덩어리째 다음 줄로 넘긴다. 덩어리가 한 줄보다 넓으면 그 안에서 줄을 바꾼다.
 ///
-/// 가나 · 한자 · CJK 문장부호 · 전각 기호와 맞닿은 경계는 묶지 않고 원래 줄바꿈
-/// 규칙을 그대로 따른다 — 일본어 문장 안의 한글 이름도 일본어 쪽 경계는 그대로다.
+/// 이 파일의 `_isCjkNonHangul` 범위 목록에 든 글자(CJK 문장부호 · 가나 · 한자 ·
+/// 전각 기호 가운데 일부)와 맞닿은 경계는 묶지 않고 원래 줄바꿈 규칙을 그대로
+/// 따른다 — 일본어 문장 안의 한글 이름도 일본어 쪽 경계는 그대로다. 같은 범주라도
+/// 목록 밖 글자는 다른 글자처럼 덩어리 안에서 묶인다.
 ///
 /// 원문 [data] 는 바꾸지 않는다. 묶는 표시는 그릴 때만 더하므로 저장 · 비교 ·
 /// 낭독에는 원문을 쓴다. 낭독 문구는 [semanticsLabel] 을 주지 않으면 원문이다.
