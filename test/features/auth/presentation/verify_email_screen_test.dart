@@ -9,7 +9,10 @@ import 'package:flutter_starter_kit/features/auth/presentation/verify_email_noti
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_screen.dart';
 import 'package:flutter_starter_kit/features/auth/presentation/verify_email_state.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../helpers/keep_hangul_words_finder.dart';
 
 /// 테스트용 기본 사용자.
 final _testUser = User(
@@ -143,7 +146,10 @@ void main() {
       );
 
       // raw 에러 코드가 노출되지 않는다
-      expect(find.textContaining('operation-not-allowed'), findsNothing);
+      expect(
+        findKeepHangulWordsTextContaining('operation-not-allowed'),
+        findsNothing,
+      );
     });
 
     testWidgets('5c. ServiceUnavailable 에러 상태에서도 재전송 버튼이 '
@@ -195,14 +201,14 @@ void main() {
 
       // ko ARB verbatim — graceful fallback 메시지.
       expect(
-        find.text(
+        findKeepHangulWordsText(
           '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
           '메일의 링크를 클릭하여 인증을 완료해 주세요.',
         ),
         findsOneWidget,
       );
       // 기존 authVerifyEmailDescription 본문 일부 (placeholder 포함) 미발현.
-      expect(find.textContaining('(으)로 보냈습니다'), findsNothing);
+      expect(findKeepHangulWordsTextContaining('(으)로 보냈습니다'), findsNothing);
     });
 
     testWidgets(
@@ -223,10 +229,13 @@ void main() {
         );
 
         // 기존 authVerifyEmailDescription 본문 — email 포함 표시 sentinel.
-        expect(find.textContaining('user@example.com'), findsOneWidget);
+        expect(
+          findKeepHangulWordsTextContaining('user@example.com'),
+          findsOneWidget,
+        );
         // fallback 메시지 미발현 — Gap B 분기 false-positive 차단.
         expect(
-          find.text(
+          findKeepHangulWordsText(
             '가입하신 이메일 주소로 인증 메일을 보냈습니다. '
             '메일의 링크를 클릭하여 인증을 완료해 주세요.',
           ),
@@ -255,7 +264,7 @@ void main() {
         button.style!.foregroundColor!.resolve(<WidgetState>{}),
         Theme.of(screenContext).colorScheme.onSurfaceVariant,
       );
-      expect((button.child! as Text).style, isNull);
+      expect((button.child! as KeepHangulWordsText).style, isNull);
     });
 
     testWidgets('재전송 버튼은 위 확인 버튼과 같은 큰 버튼 높이다', (tester) async {

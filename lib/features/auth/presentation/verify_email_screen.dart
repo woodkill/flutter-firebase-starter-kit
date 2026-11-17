@@ -5,6 +5,7 @@ import 'package:gap/gap.dart';
 import '../../../core/error/app_exception.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../data/auth_repository.dart';
 import '_widgets/auth_scaffold.dart';
 import '_widgets/form_error_banner.dart';
@@ -80,7 +81,7 @@ class VerifyEmailScreen extends ConsumerWidget {
             ),
             Gap(spacing.xl),
             // 설명문 (이메일 주소 포함 — Gap B fallback 시 일반화 메시지)
-            Text(
+            KeepHangulWordsText(
               description,
               style: typography.bodyMedium.copyWith(
                 color: colors.onSurfaceVariant,
@@ -108,7 +109,7 @@ class VerifyEmailScreen extends ConsumerWidget {
                   ),
                   Gap(spacing.xs),
                   Flexible(
-                    child: Text(
+                    child: KeepHangulWordsText(
                       l10n.authVerifyEmailSpamHint,
                       style: typography.bodySmall.copyWith(
                         color: colors.onSurfaceVariant,
@@ -154,7 +155,7 @@ class VerifyEmailScreen extends ConsumerWidget {
                     : () => ref
                           .read(verifyEmailProvider.notifier)
                           .resendVerification(),
-                child: Text(
+                child: KeepHangulWordsText(
                   state.cooldownRemaining > 0
                       ? l10n.authVerifyEmailResendCooldown(
                           state.cooldownRemaining,
@@ -186,7 +187,7 @@ class _VerifyEmailLogoutLink extends ConsumerWidget {
     return TextButton(
       onPressed: () => ref.read(verifyEmailProvider.notifier).logout(),
       style: TextButton.styleFrom(foregroundColor: colors.onSurfaceVariant),
-      child: Text(context.l10n.authVerifyEmailLogout),
+      child: KeepHangulWordsText(context.l10n.authVerifyEmailLogout),
     );
   }
 }
