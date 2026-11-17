@@ -920,7 +920,7 @@ cd functions && pnpm test:rules
 저장소 시험 `test/features/memos/data/memo_repository_test.dart` 를 만든다.
 - Firestore 는 mocktail 로 대신하고(킷의 `fcm_token_repository_test.dart` 와 같은 꼴), 추가 성공 · 저장 키 · 오류 처리를 본다.
 - 저장 키 시험은 모델의 키가 ⑧ 의 `hasOnly` 목록과 어긋나면 실패한다.
-- 감싸개로 그린 문구는 `test/helpers/keep_hangul_words_finder.dart` 의 `findKeepHangulWordsText` 로 찾는다 — [한국어 문구 줄바꿈](#한국어-문구-줄바꿈).
+- 시험에서 감싸개 문구를 찾는 법은 [한국어 문구 줄바꿈](#한국어-문구-줄바꿈) 단계 4 를 따른다.
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
