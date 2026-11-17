@@ -194,11 +194,11 @@ void main() {
       );
       expect(row, findsOneWidget);
       expect(
-        find.descendant(of: row, matching: find.text('프로필 사진')),
+        find.descendant(of: row, matching: findKeepHangulWordsText('프로필 사진')),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: row, matching: find.text('없음')),
+        find.descendant(of: row, matching: findKeepHangulWordsText('없음')),
         findsOneWidget,
       );
       final emailRow = find.ancestor(
@@ -243,7 +243,7 @@ void main() {
 
       expect(find.byType(ProfilePhotoSheet), findsNothing);
       expect(repository.uploadUids, <String>['u1']);
-      expect(find.text('프로필 사진을 변경했습니다.'), findsOneWidget);
+      expect(findKeepHangulWordsText('프로필 사진을 변경했습니다.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -303,7 +303,7 @@ void main() {
 
       final row = _photoRow();
       expect(
-        find.descendant(of: row, matching: find.text('직접 올린 사진')),
+        find.descendant(of: row, matching: findKeepHangulWordsText('직접 올린 사진')),
         findsOneWidget,
       );
       await tester.tap(row);
@@ -332,7 +332,7 @@ void main() {
       expect(find.byType(ProfilePhotoSheet), findsNothing);
       expect(repository.removeUids, <String>['u1']);
       expect(repository.uploadUids, isEmpty);
-      expect(find.text('올린 사진을 삭제했습니다.'), findsOneWidget);
+      expect(findKeepHangulWordsText('올린 사진을 삭제했습니다.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -372,7 +372,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: _photoRow(), matching: find.text('직접 올린 사진')),
+        find.descendant(
+          of: _photoRow(),
+          matching: findKeepHangulWordsText('직접 올린 사진'),
+        ),
         findsOneWidget,
       );
     });
@@ -390,7 +393,7 @@ void main() {
 
       final row = _photoRow();
       expect(
-        find.descendant(of: row, matching: find.text('불러오는 중')),
+        find.descendant(of: row, matching: findKeepHangulWordsText('불러오는 중')),
         findsOneWidget,
       );
       expect(tester.widget<ListTile>(row).onTap, isNull);
@@ -410,7 +413,7 @@ void main() {
 
       final row = _photoRow();
       expect(
-        find.descendant(of: row, matching: find.text('없음')),
+        find.descendant(of: row, matching: findKeepHangulWordsText('없음')),
         findsOneWidget,
       );
       expect(find.byType(ErrorBanner), findsNothing);
@@ -447,7 +450,10 @@ void main() {
 
       final row = _photoRow();
       expect(
-        find.descendant(of: row, matching: find.text('사진을 올리는 중…')),
+        find.descendant(
+          of: row,
+          matching: findKeepHangulWordsText('사진을 올리는 중…'),
+        ),
         findsOneWidget,
       );
       expect(tester.widget<ListTile>(row).onTap, isNull);
@@ -468,7 +474,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.descendant(of: _photoRow(), matching: find.text('없음')),
+        find.descendant(
+          of: _photoRow(),
+          matching: findKeepHangulWordsText('없음'),
+        ),
         findsOneWidget,
       );
       expect(find.byType(CircularProgressIndicator), findsNothing);

@@ -13,6 +13,7 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../shared/widgets/async_value_view.dart';
 import '../../../../shared/widgets/error_snack_bar.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/domain/user.dart';
 import '../../application/profile_photo_notifier.dart';
@@ -146,7 +147,7 @@ void _showSuccessSnackBar(
   };
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+    ..showSnackBar(SnackBar(content: KeepHangulWordsText(message)));
 }
 
 /// 업로드 사진을 뺀 소셜 사진 URL — 사진 출처 읽기 실패 때 쓴다.
@@ -198,11 +199,15 @@ class _PhotoRow extends StatelessWidget {
               )
             : avatar,
       ),
-      title: Text(
+      title: KeepHangulWordsText(
         l10n.authAccountPhotoUrl,
         style: typography.bodySmall.copyWith(color: scheme.onSurfaceVariant),
       ),
-      subtitle: Text(value, softWrap: true, style: typography.titleMedium),
+      subtitle: KeepHangulWordsText(
+        value,
+        softWrap: true,
+        style: typography.titleMedium,
+      ),
       trailing: Icon(Icons.chevron_right, color: scheme.primary),
       onTap: onTap,
     );
