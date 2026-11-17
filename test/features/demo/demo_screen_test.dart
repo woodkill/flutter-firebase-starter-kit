@@ -261,7 +261,10 @@ void main() {
       final l10n = lookupAppLocalizations(const Locale('en'));
 
       expect(
-        find.text(l10n.demoAccountDebugSection, skipOffstage: false),
+        findKeepHangulWordsText(
+          l10n.demoAccountDebugSection,
+          skipOffstage: false,
+        ),
         findsNothing,
       );
       expect(find.byIcon(Icons.fingerprint, skipOffstage: false), findsNothing);
@@ -288,8 +291,14 @@ void main() {
       );
       // uid truncated to first 8 chars + '...'
       expect(find.text('abcdefgh...', skipOffstage: false), findsOneWidget);
-      expect(find.text('Test User', skipOffstage: false), findsNothing);
-      expect(find.text('user@example.com', skipOffstage: false), findsNothing);
+      expect(
+        findKeepHangulWordsText('Test User', skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        findKeepHangulWordsText('user@example.com', skipOffstage: false),
+        findsNothing,
+      );
       expect(
         find.byIcon(Icons.calendar_today, skipOffstage: false),
         findsNothing,
@@ -340,7 +349,7 @@ void main() {
 
       expect(copied, ['id-token-171']);
       expect(find.text(l10n.debugAuthTokenCopiedWarning), findsOneWidget);
-      expect(find.text(l10n.authAccountCopied), findsNothing);
+      expect(findKeepHangulWordsText(l10n.authAccountCopied), findsNothing);
     });
 
     testWidgets('ID 토큰 복사 — 토큰 없음이면 복사 0 · 「unavailable」 SnackBar '
@@ -460,7 +469,10 @@ void main() {
       await _pumpDemo(tester, user: user);
 
       // raw slug 'twitter.com' 미노출 — Localizable Unknown 으로 교체.
-      expect(find.text('twitter.com', skipOffstage: false), findsNothing);
+      expect(
+        findKeepHangulWordsText('twitter.com', skipOffstage: false),
+        findsNothing,
+      );
       expect(
         find.text('Unknown sign-in method', skipOffstage: false),
         findsOneWidget,
@@ -735,7 +747,10 @@ void main() {
         find.bySemanticsLabel('Linked accounts: Email / Password'),
         findsOneWidget,
       );
-      expect(find.textContaining('twitter', skipOffstage: false), findsNothing);
+      expect(
+        findKeepHangulWordsTextContaining('twitter', skipOffstage: false),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
 
       handle.dispose();

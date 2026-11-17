@@ -90,7 +90,7 @@ class DemoScreen extends ConsumerWidget {
             spacing.lg + MediaQuery.paddingOf(context).bottom,
           ),
           children: [
-            Text(
+            KeepHangulWordsText(
               l10n.homeBuildEnvironment,
               style: context.appTypography.titleLarge,
             ),
@@ -193,65 +193,71 @@ class _LanguageFormatSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.homeLanguage, style: context.appTypography.titleLarge),
+        KeepHangulWordsText(
+          l10n.homeLanguage,
+          style: context.appTypography.titleLarge,
+        ),
         Gap(spacing.md),
         // 날짜 포맷 라이브 예제
-        Text(l10n.showcaseDateFormat, style: context.appTypography.titleSmall),
+        KeepHangulWordsText(
+          l10n.showcaseDateFormat,
+          style: context.appTypography.titleSmall,
+        ),
         Gap(spacing.sm),
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseDateShort}: '
           '${now.formatYMD(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseDateLong}: '
           '${now.formatYMMMMd(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseDateTime}: '
           '${now.formatJm(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.lg),
         // 숫자 포맷 라이브 예제
-        Text(
+        KeepHangulWordsText(
           l10n.showcaseNumberFormat,
           style: context.appTypography.titleSmall,
         ),
         Gap(spacing.sm),
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseNumberCompact}: '
           '${1234567.formatCompact(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseNumberDecimal}: '
           '${1234567.formatDecimal(currentLocale.languageCode)}',
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.lg),
         // Plural 예제
-        Text(
+        KeepHangulWordsText(
           l10n.showcaseItemCount(0),
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
-        Text(
+        KeepHangulWordsText(
           l10n.showcaseItemCount(1),
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.xs),
-        Text(
+        KeepHangulWordsText(
           l10n.showcaseItemCount(42),
           style: context.appTypography.bodyMedium,
         ),
         Gap(spacing.lg),
         // 현재 로케일 표시
-        Text(
+        KeepHangulWordsText(
           '${l10n.showcaseCurrentLocale}: ${currentLocale.languageCode}',
           style: context.appTypography.labelMedium,
         ),
@@ -272,7 +278,7 @@ class _ColorPaletteSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: context.appTypography.titleSmall),
+        KeepHangulWordsText(title, style: context.appTypography.titleSmall),
         Gap(context.appSpacing.sm),
         ...swatches,
       ],
@@ -288,7 +294,7 @@ class _ColorPaletteSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        KeepHangulWordsText(
           context.l10n.homeColorPalette,
           style: context.appTypography.titleLarge,
         ),
@@ -504,7 +510,12 @@ class _ColorSwatch extends StatelessWidget {
             ),
           ),
           Gap(spacing.md),
-          Expanded(child: Text(label, style: context.appTypography.bodyMedium)),
+          Expanded(
+            child: KeepHangulWordsText(
+              label,
+              style: context.appTypography.bodyMedium,
+            ),
+          ),
         ],
       ),
     );
@@ -523,7 +534,10 @@ class _TypographySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(context.l10n.homeTypography, style: typography.titleLarge),
+        KeepHangulWordsText(
+          context.l10n.homeTypography,
+          style: typography.titleLarge,
+        ),
         Gap(spacing.md),
         _TypographySample(
           label: 'displayLarge',
@@ -606,16 +620,16 @@ class _TypographySample extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        KeepHangulWordsText(
           label,
           style: context.appTypography.labelSmall.copyWith(
             color: context.colorScheme.onSurfaceVariant,
           ),
         ),
         Gap(spacing.xs),
-        Text(_latinPangram, style: style),
+        KeepHangulWordsText(_latinPangram, style: style),
         Gap(spacing.xs),
-        Text(_koreanPangram, style: style),
+        KeepHangulWordsText(_koreanPangram, style: style),
       ],
     );
   }
@@ -632,7 +646,10 @@ class _SpacingSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(context.l10n.homeSpacing, style: context.appTypography.titleLarge),
+        KeepHangulWordsText(
+          context.l10n.homeSpacing,
+          style: context.appTypography.titleLarge,
+        ),
         Gap(spacing.md),
         _SpacingBar(label: 'xs', width: spacing.xs, value: 4),
         Gap(spacing.sm),
@@ -679,7 +696,10 @@ class _SpacingBar extends StatelessWidget {
           ),
         ),
         Gap(spacing.sm),
-        Text('$label (${value}px)', style: context.appTypography.labelMedium),
+        KeepHangulWordsText(
+          '$label (${value}px)',
+          style: context.appTypography.labelMedium,
+        ),
       ],
     );
   }
@@ -715,7 +735,7 @@ class _AccountDebugSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        KeepHangulWordsText(
           l10n.demoAccountDebugSection,
           style: context.appTypography.titleLarge,
         ),
@@ -780,7 +800,7 @@ class _AccountDebugSection extends ConsumerWidget {
           OutlinedButton.icon(
             onPressed: () => _copyIdToken(context, ref, l10n),
             icon: const Icon(Icons.key),
-            label: Text(l10n.authAccountCopyToken),
+            label: KeepHangulWordsText(l10n.authAccountCopyToken),
           ),
         ],
       ],
@@ -797,7 +817,7 @@ class _AccountDebugSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(l10n.authAccountCopied),
+        content: KeepHangulWordsText(l10n.authAccountCopied),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -829,7 +849,7 @@ class _AccountDebugSection extends ConsumerWidget {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(l10n.debugAuthTokenUnavailable),
+          content: KeepHangulWordsText(l10n.debugAuthTokenUnavailable),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -844,7 +864,7 @@ class _AccountDebugSection extends ConsumerWidget {
     // uid 를 넣지 않는다.
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(l10n.debugAuthTokenCopiedWarning),
+        content: KeepHangulWordsText(l10n.debugAuthTokenCopiedWarning),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -888,9 +908,12 @@ class _ProtectedExampleSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(l10n.homeProtectedExampleTitle, style: typography.titleLarge),
+        KeepHangulWordsText(
+          l10n.homeProtectedExampleTitle,
+          style: typography.titleLarge,
+        ),
         Gap(spacing.sm),
-        Text(
+        KeepHangulWordsText(
           l10n.homeProtectedExampleBody,
           style: typography.bodyMedium.copyWith(
             color: colorScheme.onSurfaceVariant,
@@ -901,7 +924,7 @@ class _ProtectedExampleSection extends ConsumerWidget {
           onAuthenticated: () {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(l10n.homeProtectedExampleCta),
+                content: KeepHangulWordsText(l10n.homeProtectedExampleCta),
                 behavior: SnackBarBehavior.floating,
               ),
             );
@@ -910,7 +933,7 @@ class _ProtectedExampleSection extends ConsumerWidget {
             // AuthRequired 가 GestureDetector + AbsorbPointer 로 가로챔.
             onPressed: null,
             icon: const Icon(Icons.lock_outline),
-            label: Text(l10n.homeProtectedExampleCta),
+            label: KeepHangulWordsText(l10n.homeProtectedExampleCta),
           ),
         ),
       ],

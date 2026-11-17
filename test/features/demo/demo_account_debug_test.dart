@@ -169,14 +169,17 @@ Future<void> _pumpDemo(
   );
   await tester.pump();
   final l10n = lookupAppLocalizations(locale);
-  await _scrollIntoView(tester, find.text(l10n.demoAccountDebugSection));
+  await _scrollIntoView(
+    tester,
+    findKeepHangulWordsText(l10n.demoAccountDebugSection),
+  );
   await settleGoldenAssets(tester);
 }
 
 /// 계정 디버그 카드 묶음을 감싼 ListView 항목 [RenderRepaintBoundary] finder.
 Finder _sectionBoundary(AppLocalizations l10n) => find
     .ancestor(
-      of: find.text(l10n.demoAccountDebugSection),
+      of: findKeepHangulWordsText(l10n.demoAccountDebugSection),
       matching: find.byType(RepaintBoundary),
     )
     .first;
