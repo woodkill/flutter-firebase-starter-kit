@@ -32,10 +32,12 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/demo/presentation/demo_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../settings/presentation/settings_golden_harness.dart';
 
 /// [AuthRepository] 대체 Mock — 계정 디버그 카드 렌더는 repository 를 호출하지
@@ -241,7 +243,13 @@ int _renderedLineCount(RenderParagraph rp) {
 _linkedValueLayout(WidgetTester tester) {
   final outer = find.descendant(
     of: _cardOf(Icons.link),
-    matching: find.byWidgetPredicate((w) => w is Text && w.textSpan != null),
+    matching: find.byElementPredicate(
+      (element) => switch (element.widget) {
+        Text(textSpan: _?) =>
+          element.findAncestorWidgetOfExactType<KeepHangulWordsText>() == null,
+        _ => false,
+      },
+    ),
   );
   expect(outer, findsOneWidget);
   final paragraphs = find
@@ -370,9 +378,11 @@ void main() {
               final label = formatSignUpMethod(providerId, l10n);
               final value = find.descendant(
                 of: _cardOf(Icons.how_to_reg),
-                matching: find.text(label),
+                matching: findKeepHangulWordsText(label),
               );
-              final rp = tester.renderObject<RenderParagraph>(value);
+              final rp = tester.renderObject<RenderParagraph>(
+                find.descendant(of: value, matching: find.byType(RichText)),
+              );
               expect(rp.didExceedMaxLines, isFalse, reason: '$providerId 값');
               // 이하 증거 수집 — 회귀 가드는 위 didExceedMaxLines 단언뿐이다.
               if (!_collectEvidence) continue;

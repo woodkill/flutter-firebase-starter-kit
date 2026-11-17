@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../../helpers/route_tree.dart';
 import '../../helpers/source_text.dart';
 
@@ -898,7 +899,10 @@ void main() {
           }
           await tester.pumpAndSettle();
           // 목록 끝(Dev Tools 강제 로그아웃 · kDebugMode)까지 닿았다.
-          expect(find.text(l10n.devToolsForceSignOut), findsOneWidget);
+          expect(
+            findKeepHangulWordsText(l10n.devToolsForceSignOut),
+            findsOneWidget,
+          );
           expect(tester.takeException(), isNull);
         },
       );

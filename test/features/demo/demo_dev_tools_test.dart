@@ -26,6 +26,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 /// [AuthRepository] mock.
 class MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -202,8 +204,10 @@ Future<void> _scrollTo(WidgetTester tester, Finder target) async {
 }
 
 /// Dev Tools 「테스트 알림」 버튼 finder.
-Finder _sendButton(AppLocalizations l10n) =>
-    find.widgetWithText(OutlinedButton, l10n.devToolsSendTestPush);
+Finder _sendButton(AppLocalizations l10n) => find.ancestor(
+  of: findKeepHangulWordsText(l10n.devToolsSendTestPush),
+  matching: find.byType(OutlinedButton),
+);
 
 /// [outcome] 을 돌려주게 한 뒤 테스트 알림 버튼을 탭하고 SnackBar 문구를
 /// 돌려준다 (floating 단언 포함).
@@ -221,10 +225,7 @@ Future<String> _tapAndReadSnackBar(
   await tester.pumpAndSettle();
   final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
   expect(snackBar.behavior, SnackBarBehavior.floating);
-  final content = snackBar.content;
-  // 감싸개를 아직 거치지 않은 SnackBar 문구는 그냥 Text 다.
-  if (content is Text) return content.data ?? '';
-  return (content as KeepHangulWordsText).data;
+  return (snackBar.content as KeepHangulWordsText).data;
 }
 
 void main() {
@@ -319,19 +320,19 @@ void main() {
         env.testPushClient.send,
       ).thenAnswer((_) async => const TestPushSent(2));
       final l10n = AppLocalizations.of(tester.element(find.byType(DemoScreen)));
-      final sendButton = find.widgetWithText(
-        OutlinedButton,
-        l10n.devToolsSendTestPush,
+      final sendButton = find.ancestor(
+        of: findKeepHangulWordsText(l10n.devToolsSendTestPush),
+        matching: find.byType(OutlinedButton),
       );
       await _scrollTo(tester, sendButton);
 
       // 위치: Analytics < 테스트 알림 < 강제 로그아웃 (UI-SPEC (T)).
       final analyticsY = tester
-          .getTopLeft(find.text(l10n.devToolsTriggerAnalytics))
+          .getTopLeft(findKeepHangulWordsText(l10n.devToolsTriggerAnalytics))
           .dy;
       final sendY = tester.getTopLeft(sendButton).dy;
       final signOutY = tester
-          .getTopLeft(find.text(l10n.devToolsForceSignOut))
+          .getTopLeft(findKeepHangulWordsText(l10n.devToolsForceSignOut))
           .dy;
       expect(analyticsY, lessThan(sendY));
       expect(sendY, lessThan(signOutY));
@@ -341,7 +342,7 @@ void main() {
       await tester.pumpAndSettle();
 
       verify(env.testPushClient.send).called(1);
-      expect(find.text('기기 2대에 테스트 알림을 보냈어요.'), findsOneWidget);
+      expect(findKeepHangulWordsText('기기 2대에 테스트 알림을 보냈어요.'), findsOneWidget);
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.behavior, SnackBarBehavior.floating);
     });
@@ -350,7 +351,10 @@ void main() {
         'Analytics · 테스트 알림 · 강제 로그아웃 (리뷰 IN-11)', (tester) async {
       await pumpDevToolsHarness(tester, locale: const Locale('ko'));
       final l10n = AppLocalizations.of(tester.element(find.byType(DemoScreen)));
-      await _scrollTo(tester, find.text(l10n.devToolsForceSignOut));
+      await _scrollTo(
+        tester,
+        findKeepHangulWordsText(l10n.devToolsForceSignOut),
+      );
 
       final devToolsLabels = <String>{
         l10n.devToolsResetOnboarding,
@@ -363,7 +367,7 @@ void main() {
       final labels = tester
           .widgetList<OutlinedButton>(find.byType(OutlinedButton))
           .map((button) => button.child)
-          .whereType<Text>()
+          .whereType<KeepHangulWordsText>()
           .map((text) => text.data)
           .where(devToolsLabels.contains)
           .toList();
@@ -454,8 +458,11 @@ void main() {
           expect(tester.takeException(), isNull);
           final label = tester.renderObject<RenderParagraph>(
             find.descendant(
-              of: button,
-              matching: find.text(l10n.devToolsSendTestPush),
+              of: find.descendant(
+                of: button,
+                matching: findKeepHangulWordsText(l10n.devToolsSendTestPush),
+              ),
+              matching: find.byType(RichText),
             ),
           );
           expect(label.didExceedMaxLines, isFalse);

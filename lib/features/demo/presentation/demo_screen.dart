@@ -25,6 +25,7 @@ import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/application/session_ending.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
@@ -948,7 +949,7 @@ class _DevToolsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.l10n.devToolsResetOnboardingDone),
+        content: KeepHangulWordsText(context.l10n.devToolsResetOnboardingDone),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -963,7 +964,7 @@ class _DevToolsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.l10n.devToolsTriggerErrorDone),
+        content: KeepHangulWordsText(context.l10n.devToolsTriggerErrorDone),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -978,7 +979,7 @@ class _DevToolsSection extends ConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(context.l10n.devToolsTriggerAnalyticsDone),
+        content: KeepHangulWordsText(context.l10n.devToolsTriggerAnalyticsDone),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -1013,9 +1014,12 @@ class _DevToolsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l10n.devToolsSectionTitle, style: typography.titleLarge),
+        KeepHangulWordsText(
+          l10n.devToolsSectionTitle,
+          style: typography.titleLarge,
+        ),
         Gap(spacing.sm),
-        Text(
+        KeepHangulWordsText(
           l10n.devToolsSectionDescription,
           style: typography.bodyMedium.copyWith(
             color: colorScheme.onSurfaceVariant,
@@ -1024,18 +1028,18 @@ class _DevToolsSection extends ConsumerWidget {
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleResetOnboarding(context, ref),
-          child: Text(l10n.devToolsResetOnboarding),
+          child: KeepHangulWordsText(l10n.devToolsResetOnboarding),
         ),
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleTriggerError(context, ref),
           style: colorScheme.destructiveOutlinedButtonStyle,
-          child: Text(l10n.devToolsTriggerError),
+          child: KeepHangulWordsText(l10n.devToolsTriggerError),
         ),
         Gap(spacing.md),
         OutlinedButton(
           onPressed: () => _handleTriggerAnalytics(context, ref),
-          child: Text(l10n.devToolsTriggerAnalytics),
+          child: KeepHangulWordsText(l10n.devToolsTriggerAnalytics),
         ),
         Gap(spacing.md),
         // Phase 17 D-05 · UI-SPEC (T) — Analytics 다음 · 강제 로그아웃 앞.
@@ -1044,7 +1048,7 @@ class _DevToolsSection extends ConsumerWidget {
         OutlinedButton(
           onPressed: () => _handleForceSignOut(context, ref),
           style: colorScheme.destructiveOutlinedButtonStyle,
-          child: Text(l10n.devToolsForceSignOut),
+          child: KeepHangulWordsText(l10n.devToolsForceSignOut),
         ),
       ],
     );
@@ -1109,7 +1113,10 @@ class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: KeepHangulWordsText(message),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
   }
 
@@ -1117,7 +1124,7 @@ class _SendTestPushButtonState extends ConsumerState<_SendTestPushButton> {
   Widget build(BuildContext context) {
     return OutlinedButton(
       onPressed: _sending ? null : _send,
-      child: Text(context.l10n.devToolsSendTestPush),
+      child: KeepHangulWordsText(context.l10n.devToolsSendTestPush),
     );
   }
 }
@@ -1168,7 +1175,7 @@ class _EnvironmentCard extends StatelessWidget {
 
     final Widget valueWidget;
     if (status == _EnvStatus.none) {
-      valueWidget = Text(
+      valueWidget = KeepHangulWordsText(
         value,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
@@ -1187,7 +1194,7 @@ class _EnvironmentCard extends StatelessWidget {
           color: bg,
           borderRadius: BorderRadius.circular(context.appRadius.xs),
         ),
-        child: Text(
+        child: KeepHangulWordsText(
           value,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -1216,7 +1223,7 @@ class _EnvironmentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    KeepHangulWordsText(
                       label,
                       style: typography.bodySmall.copyWith(
                         color: context.colorScheme.onSurfaceVariant,
