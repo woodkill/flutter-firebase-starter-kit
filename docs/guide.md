@@ -473,6 +473,7 @@ import '../../../core/error/result.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../shared/widgets/async_value_view.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/presentation/_widgets/auth_required.dart';
 import '../application/memo_providers.dart';
 import '../domain/memo.dart';
@@ -503,7 +504,7 @@ class MemoListScreen extends ConsumerWidget {
         value: ref.watch(memoListProvider),
         onRetry: () => ref.invalidate(memoListProvider),
         data: (memos) => memos.isEmpty
-            ? Center(child: Text(l10n.memoEmpty))
+            ? Center(child: KeepHangulWordsText(l10n.memoEmpty))
             : ListView.builder(
                 itemCount: memos.length,
                 itemBuilder: (context, index) => _MemoTile(
@@ -525,7 +526,7 @@ class _MemoTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
-      title: Text(memo.text),
+      title: KeepHangulWordsText(memo.text),
       trailing: IconButton(
         tooltip: context.l10n.memoDeleteAction,
         icon: const Icon(Icons.delete_outline),
