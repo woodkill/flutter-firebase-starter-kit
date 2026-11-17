@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
-import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// "또는" 텍스트 구분선 위젯 (D-02).
 ///
@@ -24,7 +23,7 @@ class OrDivider extends StatelessWidget {
           const Expanded(child: Divider()),
           Padding(
             padding: EdgeInsets.symmetric(horizontal: spacing.lg),
-            child: KeepHangulWordsText(
+            child: Text(
               l10n.authOrDivider,
               style: context.appTypography.bodyMedium.copyWith(
                 color: context.colorScheme.onSurfaceVariant,

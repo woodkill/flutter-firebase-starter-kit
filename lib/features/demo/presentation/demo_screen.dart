@@ -627,7 +627,7 @@ class _TypographySample extends StatelessWidget {
           ),
         ),
         Gap(spacing.xs),
-        KeepHangulWordsText(_latinPangram, style: style),
+        Text(_latinPangram, style: style),
         Gap(spacing.xs),
         KeepHangulWordsText(_koreanPangram, style: style),
       ],
@@ -696,10 +696,7 @@ class _SpacingBar extends StatelessWidget {
           ),
         ),
         Gap(spacing.sm),
-        KeepHangulWordsText(
-          '$label (${value}px)',
-          style: context.appTypography.labelMedium,
-        ),
+        Text('$label (${value}px)', style: context.appTypography.labelMedium),
       ],
     );
   }
