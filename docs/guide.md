@@ -1812,6 +1812,13 @@ LayoutBuilder(
   - 「단계」 4 대로 `findKeepHangulWordsText` 로 찾는다.
 - **시험이 `type 'KeepHangulWordsText' is not a subtype of type 'Text'` 로 실패한다.**
   - `as Text` · `tester.widget<Text>` 로 읽는 대상을 `KeepHangulWordsText` 로 바꾼다.
+  - 감싸개는 문구 언어와 무관하게 위젯 타입이 `Text` 가 아니므로 한글이 없는 영어 문구 시험에서도 난다.
+- **시험이 `type 'RenderSemanticsAnnotations' is not a subtype of type 'RenderParagraph' in type cast` 로 실패한다.**
+  - 한글이 든 감싸개 문구를 `tester.renderObject<RenderParagraph>(<감싸개 finder>)` 로 읽었다 — 감싸개의 첫 render object 는 낭독 문구를 다는 `Semantics` 쪽이다.
+  - `find.descendant(of: <감싸개 finder>, matching: find.byType(RichText))` 로 찾아 읽는다.
+- **`whereType<Text>()` 로 모은 목록이 비어 있다.**
+  - 감싸개는 `Text` 가 아니어서 오류 없이 걸러진다 — 기대 목록이 빈 시험은 늘 통과한다.
+  - `whereType<KeepHangulWordsText>()` 로 바꾸고 원문은 `.data` 로 읽는다.
 - **golden 시험이 실패한다.**
   - 감싸개를 건 문구의 줄 위치가 바뀌었다.
   - 바뀐 그림에서 어절 단위로 줄이 바뀌었는지 보고, 줄 위치가 바뀐 golden 의 시험 파일만 `--update-goldens` 로 다시 찍는다.
