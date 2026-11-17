@@ -1776,6 +1776,7 @@ LayoutBuilder(
    - 일본어 · 영어 문구는 한글이 없으므로 `Text` 와 같다 — 그 화면에 들어온 한글 값(사용자 이름 등)만 어절 단위로 묶인다.
    - 스크린 리더는 원문을 읽는다 — `semanticsLabel` 을 주면 그 값을 읽는다.
    - 문구 원문(ARB)은 바꾸지 않는다.
+   - `SelectionArea` 로 감싸 복사하면 보이지 않는 이음 문자가 함께 복사된다 — 복사할 문구는 감싸개 대신 `Text` 로 그린다.
 4. 시험에서 감싸개로 그린 한국어 문구는 `test/helpers/keep_hangul_words_finder.dart` 의 `findKeepHangulWordsText('원문')` 으로 찾는다.
    - `find.text` 는 감싸개로 그린 한국어 문구를 찾지 못한다.
    - 한글이 든 어절 안의 부분 문자열을 찾던 `find.textContaining('…')` 은 `findKeepHangulWordsTextContaining('…')` 으로 바꾼다.

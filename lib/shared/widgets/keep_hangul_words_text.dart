@@ -98,6 +98,9 @@ TextSpan _buildJoinedSpan(String text) {
 /// 원문 [data] 는 바꾸지 않는다. 묶는 표시는 그릴 때만 더하므로 저장 · 비교 ·
 /// 낭독에는 원문을 쓴다. 낭독 문구는 [semanticsLabel] 을 주지 않으면 원문이다.
 ///
+/// `SelectionArea` 로 감싸 복사하면 묶는 표시(이음 문자)가 함께 복사된다 —
+/// 복사할 문구는 감싸개 대신 [Text] 로 그린다.
+///
 /// [data] 에 한글 음절이 없으면 같은 인자로 만든 [Text] 를 그대로 돌려준다.
 class KeepHangulWordsText extends StatelessWidget {
   /// [data] 를 낱말 단위로 줄바꿈하는 [KeepHangulWordsText] 를 만든다.
