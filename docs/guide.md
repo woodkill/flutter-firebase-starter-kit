@@ -8,22 +8,23 @@
 1. [홈 화면 바꾸기](#홈-화면-바꾸기)
 2. [내 기능 추가하기](#내-기능-추가하기)
 3. [디자인 토큰 바꾸기](#디자인-토큰-바꾸기)
-4. [앱 아이콘 바꾸기](#앱-아이콘-바꾸기)
-5. [스플래시 바꾸기](#스플래시-바꾸기)
-6. [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기)
-7. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
-8. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
-9. [Firebase 서비스 쓰기](#firebase-서비스-쓰기)
-10. [빌드 · 출시](#빌드--출시)
-11. [출시 전 점검](#출시-전-점검)
-12. [앱 운영하기](#앱-운영하기)
-13. [킷 업데이트 반영](#킷-업데이트-반영)
-14. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
-15. [Git Hooks 활성화 (선택)](#git-hooks-활성화-선택)
-16. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
-17. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
-18. [테스트 돌리기](#테스트-돌리기)
-19. [알아 둘 동작](#알아-둘-동작)
+4. [한국어 문구 줄바꿈](#한국어-문구-줄바꿈)
+5. [앱 아이콘 바꾸기](#앱-아이콘-바꾸기)
+6. [스플래시 바꾸기](#스플래시-바꾸기)
+7. [언어별 앱 이름 넣기 · 앱 언어 추가하기](#언어별-앱-이름-넣기--앱-언어-추가하기)
+8. [인증 메일 발송 모드 켜고 끄기](#인증-메일-발송-모드-켜고-끄기)
+9. [인증 결과 페이지 바꾸기](#인증-결과-페이지-바꾸기)
+10. [Firebase 서비스 쓰기](#firebase-서비스-쓰기)
+11. [빌드 · 출시](#빌드--출시)
+12. [출시 전 점검](#출시-전-점검)
+13. [앱 운영하기](#앱-운영하기)
+14. [킷 업데이트 반영](#킷-업데이트-반영)
+15. [정적 분석 — woody_lints · riverpod_lint](#정적-분석--woody_lints--riverpod_lint)
+16. [Git Hooks 활성화 (선택)](#git-hooks-활성화-선택)
+17. [Flutter SDK 상향 (FVM)](#flutter-sdk-상향-fvm)
+18. [iOS 의존성 관리 (SPM)](#ios-의존성-관리-spm)
+19. [테스트 돌리기](#테스트-돌리기)
+20. [알아 둘 동작](#알아-둘-동작)
 
 ---
 
@@ -460,6 +461,7 @@ class MemoEditor extends _$MemoEditor {
 목록 화면 `lib/features/memos/presentation/memo_list_screen.dart` 를 만든다.
 - 「메모 추가」 버튼은 킷의 `AuthRequired` 로 감싼다 — 정식 사용자면 `onAuthenticated` 가 입력 시트를 띄우고, 게스트 · 로그아웃이면 `showLoginPromptSheet` 가 로그인 권유 시트를 띄운다.
 - 목록 · 불러오기 실패(「다시 시도」 버튼)는 킷의 `AsyncValueView` 가, 삭제 실패는 `showErrorSnackBar` 가 그린다.
+- 여러 줄이 될 수 있는 한국어 문구는 `Text` 대신 `KeepHangulWordsText` 로 그린다 — [한국어 문구 줄바꿈](#한국어-문구-줄바꿈).
 
 ```dart
 import 'dart:async';
@@ -910,6 +912,7 @@ cd functions && pnpm test:rules
 저장소 시험 `test/features/memos/data/memo_repository_test.dart` 를 만든다.
 - Firestore 는 mocktail 로 대신하고(킷의 `fcm_token_repository_test.dart` 와 같은 꼴), 추가 성공 · 저장 키 · 오류 처리를 본다.
 - 저장 키 시험은 모델의 키가 ⑧ 의 `hasOnly` 목록과 어긋나면 실패한다.
+- 감싸개로 그린 문구는 `test/helpers/keep_hangul_words_finder.dart` 의 `findKeepHangulWordsText` 로 찾는다 — [한국어 문구 줄바꿈](#한국어-문구-줄바꿈).
 
 ```dart
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -1740,6 +1743,91 @@ LayoutBuilder(
   [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 도 다시 한다).
 - 킷 새 판을 받을 때 `lib/core/theme/` 토큰은 내 값이다 —
   [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 21행대로 처리한다.
+
+## 한국어 문구 줄바꿈
+
+여러 줄로 감길 수 있는 한국어 문구를 그릴 때 보는 절이다. `Text` 는 「…길게 누르세 / 요」 처럼 낱말 가운데서 줄을 바꾸고, `KeepHangulWordsText` 로 그리면 한글이 든 어절 안에서는 줄을 바꾸지 않는다.
+
+### 단계
+
+1. 화면 파일에 감싸개 import 한 줄을 더하고 `Text(` 를 `KeepHangulWordsText(` 로 바꾼다.
+   - import 경로는 `lib/features/<기능>/presentation/` 아래 파일 기준이다.
+   - 인자는 그대로 둔다 — 감싸개는 `Text` 와 같은 이름의 `style` · `textAlign` · `softWrap` · `overflow` · `maxLines` · `semanticsLabel` · `textScaler` 를 받는다.
+
+   ```dart
+   import '../../../shared/widgets/keep_hangul_words_text.dart';
+
+   // 바꾸기 전
+   Center(child: Text(l10n.memoEmpty))
+
+   // 바꾼 뒤
+   Center(child: KeepHangulWordsText(l10n.memoEmpty))
+   ```
+
+2. 여러 줄이 될 수 있는 본문 · 안내 · 오류 배너 · 대화상자 · 스낵바 · `ListTile` 부제 · 버튼 라벨에 건다.
+   - 한 줄로 그리는 자리에는 걸지 않는다 — `AppBar` 제목, `maxLines: 1` · `softWrap: false` 인 `Text`, 입력칸의 `errorText` · `labelText` · `hintText` · `helperText` 다.
+   - `Tooltip.message` 처럼 `String` 만 받는 자리에는 감싸개를 쓸 수 없다 — 문자열을 돌려주는 함수는 제공하지 않는다.
+   - 킷 화면의 여러 줄 한국어 문구는 이미 감싸개로 그린다 — 홈 본문(`home_body.dart`)처럼 내가 바꾸는 화면 파일의 문구는 킷이 감싸지 않으므로 이 단계대로 직접 감싼다.
+3. 감싸개가 묶는 단위를 확인한다.
+   - 공백으로 나뉜 덩어리 가운데 한글이 든 어절을 한 단위로 묶어, 줄이 모자라면 어절째 다음 줄로 넘긴다.
+   - 가나 · 한자 · CJK 문장부호 · 전각 기호와 맞닿은 경계는 묶지 않고 원래 줄바꿈을 따른다.
+   - 공백 없는 긴 덩어리가 한 줄보다 넓으면 그 안에서 글자 단위로 줄을 바꿔 넘치지 않는다.
+   - 한글이 없는 문구는 `Text` 와 같다 — 일본어 · 영어 화면은 바뀌지 않는다.
+   - 스크린 리더는 원문을 읽는다 — `semanticsLabel` 을 주면 그 값을 읽는다.
+   - 문구 원문(ARB)은 바꾸지 않는다.
+4. 시험에서 감싸개로 그린 한국어 문구는 `test/helpers/keep_hangul_words_finder.dart` 의 `findKeepHangulWordsText('원문')` 으로 찾는다.
+   - `find.text` 는 감싸개로 그린 한국어 문구를 찾지 못한다.
+   - 한글이 든 어절 안의 부분 문자열을 찾던 `find.textContaining('…')` 은 `findKeepHangulWordsTextContaining('…')` 으로 바꾼다.
+   - 부재 단언(`findsNothing`)도 두 helper 로 바꾼다 — 그대로 두면 감싸개 문구에서 늘 통과한다.
+   - 두 helper 는 `find.text` · `find.textContaining` 이 찾는 것도 모두 찾으므로 한글이 없는 문구에 써도 결과가 같다.
+   - `tester.widget<Text>` 로 읽던 곳은 `tester.widget<KeepHangulWordsText>` 로 읽는다.
+
+   ```dart
+   // 바꾸기 전
+   expect(find.text('아직 메모가 없어요.'), findsOneWidget);
+   final Text empty = tester.widget<Text>(find.text('아직 메모가 없어요.'));
+
+   // 바꾼 뒤
+   expect(findKeepHangulWordsText('아직 메모가 없어요.'), findsOneWidget);
+   final KeepHangulWordsText empty = tester.widget<KeepHangulWordsText>(
+     findKeepHangulWordsText('아직 메모가 없어요.'),
+   );
+   ```
+
+### 확인 방법
+
+- 좁은 폭(280dp) 기기나 에뮬레이터에서 기기 글자 크기를 가장 크게 두고 그 화면을 연다.
+  - 어절 끝 음절 하나만 다음 줄로 넘어간 줄이 없어야 한다.
+- 시험을 돌린다.
+
+  ```bash
+  fvm flutter test --no-pub
+  ```
+
+### 문제 해결
+
+- **`find.text` 가 0개를 찾는다.**
+  - 감싸개로 그린 한국어 문구다.
+  - 「단계」 4 대로 `findKeepHangulWordsText` 로 찾는다.
+- **시험이 `type 'KeepHangulWordsText' is not a subtype of type 'Text'` 로 실패한다.**
+  - `as Text` · `tester.widget<Text>` 로 읽는 대상을 `KeepHangulWordsText` 로 바꾼다.
+- **golden 시험이 실패한다.**
+  - 감싸개를 건 문구의 줄 위치가 바뀌었다.
+  - 바뀐 그림에서 어절 단위로 줄이 바뀌었는지 보고, 줄 위치가 바뀐 golden 의 시험 파일만 `--update-goldens` 로 다시 찍는다.
+
+  ```bash
+  fvm flutter test --no-pub --update-goldens test/features/<기능>/<시험 파일>
+  ```
+
+- **직접 만든 줄바꿈 helper 가 있다.**
+  - 한글 음절 사이에 보이지 않는 이음 문자를 넣는 문자열 helper 를 `Text(helper(문구), semanticsLabel: 문구)` 로 쓰던 곳은 `KeepHangulWordsText(문구)` 한 줄로 바꾸고 helper 를 지운다.
+  - 감싸개는 한글이 든 어절 전체(한글 ↔ 라틴 · 숫자 · 괄호 경계 포함)를 묶어 그 helper 와 줄바꿈 자리가 다르고, 문자열을 돌려주는 함수는 제공하지 않는다.
+
+### 되돌리기
+
+- `KeepHangulWordsText(` 를 `Text(` 로 되돌리고 감싸개 import 를 지운다.
+- 시험의 `findKeepHangulWordsText` 를 `find.text` 로, `findKeepHangulWordsTextContaining` 을 `find.textContaining` 으로 되돌린다.
+  - `tester.widget<KeepHangulWordsText>` 로 읽던 곳도 `tester.widget<Text>` 로 되돌린다.
 
 ## 앱 아이콘 바꾸기
 
