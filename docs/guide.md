@@ -1780,7 +1780,7 @@ LayoutBuilder(
    - `find.text` 는 감싸개로 그린 한국어 문구를 찾지 못한다.
    - 한글이 든 어절 안의 부분 문자열을 찾던 `find.textContaining('…')` 은 `findKeepHangulWordsTextContaining('…')` 으로 바꾼다.
    - 부재 단언(`findsNothing`)도 두 helper 로 바꾼다 — 그대로 두면 감싸개 문구에서 늘 통과한다.
-   - 두 helper 는 `find.text` · `find.textContaining` 이 찾는 것도 모두 찾으므로 한글이 없는 문구에 써도 결과가 같다.
+   - 한글이 없는 문구에서 두 helper 는 `find.text` · `find.textContaining` 과 같은 개수를 찾는다 — 다만 감싸개 안 문구는 안쪽 `Text` 대신 감싸개 위젯을 돌려주므로 `tester.widget<KeepHangulWordsText>` 로 읽는다.
    - `tester.widget<Text>` 로 읽던 곳은 `tester.widget<KeepHangulWordsText>` 로 읽는다.
 
    ```dart

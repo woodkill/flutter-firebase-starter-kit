@@ -23,9 +23,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// [EditableText] 다. 감싸개 하나는 한 개로 세고, 한글이 없는 문구도 감싸개가
 /// 안에서 만든 [Text] 를 따로 세지 않아 한 개다.
 ///
-/// `find.text` 가 찾는 것에 감싸개를 더한 상위 집합이라, 감싸개가 없는 문구에서
-/// `find.text(text)` 자리에 그대로 바꿔 써도 결과가 같다. [skipOffstage] 는
-/// `find.text` 의 같은 이름 인자와 같다.
+/// 개수 기준으로 `find.text` 의 상위 집합이다 — 감싸개 안에서 만든 [Text] 는
+/// 감싸개로 대신 센다. 그래서 `find.text(text)` 자리에 바꿔 써도 찾는 개수는 같거나
+/// 많다(한글이 든 감싸개 문구만 더 찾는다). 다만 감싸개 문구는 [Text] 대신
+/// [KeepHangulWordsText] 를 돌려주므로 `tester.widget<KeepHangulWordsText>` 로
+/// 읽는다. [skipOffstage] 는 `find.text` 의 같은 이름 인자와 같다.
 Finder findKeepHangulWordsText(String text, {bool skipOffstage = true}) {
   return find.byElementPredicate(
     (element) => _matchesKeepHangulWordsText(element, (value) => value == text),
@@ -39,9 +41,9 @@ Finder findKeepHangulWordsText(String text, {bool skipOffstage = true}) {
 /// 찾는 대상과 세는 방법은 [findKeepHangulWordsText] 와 같고, 원문이 같은지
 /// 대신 [pattern] 을 담는지(`String.contains`)를 본다.
 ///
-/// `find.textContaining` 이 찾는 것에 감싸개를 더한 상위 집합이라, 감싸개가 없는
-/// 문구에서 `find.textContaining(pattern)` 자리에 그대로 바꿔 써도 결과가 같다.
-/// [skipOffstage] 는 `find.textContaining` 의 같은 이름 인자와 같다.
+/// 개수 기준으로 `find.textContaining` 의 상위 집합이다 — 감싸개 안에서 만든
+/// [Text] 는 감싸개로 대신 센다. 감싸개 문구는 [Text] 대신 [KeepHangulWordsText]
+/// 를 돌려준다. [skipOffstage] 는 `find.textContaining` 의 같은 이름 인자와 같다.
 Finder findKeepHangulWordsTextContaining(
   Pattern pattern, {
   bool skipOffstage = true,
