@@ -28,6 +28,7 @@ import '../../../core/providers/theme_provider.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/data/auth_repository.dart';
 import '_widgets/choice_sheet.dart';
 import '_widgets/notifications_section.dart';
@@ -175,11 +176,11 @@ class _AccountRow extends ConsumerWidget {
     final user = ref.watch(currentUserProvider);
     return ListTile(
       leading: ExcludeSemantics(child: ProfileAvatar(photoUrl: user?.photoUrl)),
-      title: Text(
+      title: KeepHangulWordsText(
         context.l10n.settingsAccountSection,
         style: _resolveLabelStyle(context),
       ),
-      subtitle: Text(
+      subtitle: KeepHangulWordsText(
         user?.displayName ?? user?.email ?? '-',
         softWrap: true,
         style: context.appTypography.titleMedium,
@@ -200,8 +201,11 @@ class _GuestRow extends StatelessWidget {
     final l10n = context.l10n;
     return ListTile(
       leading: const ExcludeSemantics(child: ProfileAvatar(photoUrl: null)),
-      title: Text(l10n.settingsGuestLabel, style: _resolveLabelStyle(context)),
-      subtitle: Text(
+      title: KeepHangulWordsText(
+        l10n.settingsGuestLabel,
+        style: _resolveLabelStyle(context),
+      ),
+      subtitle: KeepHangulWordsText(
         l10n.settingsSignInOrSignUp,
         softWrap: true,
         style: context.appTypography.titleMedium,
@@ -243,8 +247,11 @@ class _ThemeRow extends ConsumerWidget {
         .maybeWhen(data: (mode) => mode, orElse: () => ThemeMode.system);
     return ListTile(
       leading: const Icon(Icons.brightness_6),
-      title: Text(l10n.settingsTheme, style: _resolveLabelStyle(context)),
-      subtitle: Text(
+      title: KeepHangulWordsText(
+        l10n.settingsTheme,
+        style: _resolveLabelStyle(context),
+      ),
+      subtitle: KeepHangulWordsText(
         _formatThemeMode(l10n, themeMode),
         softWrap: true,
         style: context.appTypography.titleMedium,
@@ -290,8 +297,11 @@ class _LanguageRow extends ConsumerWidget {
     final locale = ref.watch(localeProvider);
     return ListTile(
       leading: const Icon(Icons.language),
-      title: Text(l10n.settingsLanguage, style: _resolveLabelStyle(context)),
-      subtitle: Text(
+      title: KeepHangulWordsText(
+        l10n.settingsLanguage,
+        style: _resolveLabelStyle(context),
+      ),
+      subtitle: KeepHangulWordsText(
         localeDisplayName(locale),
         softWrap: true,
         style: context.appTypography.titleMedium,
@@ -334,8 +344,11 @@ class _DemoRow extends StatelessWidget {
     final typography = context.appTypography;
     return ListTile(
       leading: const Icon(Icons.developer_mode),
-      title: Text(l10n.demoScreenTitle, style: typography.titleMedium),
-      subtitle: Text(
+      title: KeepHangulWordsText(
+        l10n.demoScreenTitle,
+        style: typography.titleMedium,
+      ),
+      subtitle: KeepHangulWordsText(
         l10n.settingsDemoScreenSubtitle,
         style: typography.bodyMedium.copyWith(
           color: context.colorScheme.onSurfaceVariant,

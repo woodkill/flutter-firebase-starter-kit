@@ -519,12 +519,15 @@ void _useViewport(WidgetTester tester, Size size) {
   addTearDown(tester.view.resetPhysicalSize);
 }
 
-/// [label] 을 title 로 가진 설정 행 [ListTile] 의 subtitle [Text].
-Text _rowValueText(WidgetTester tester, String label) {
+/// [label] 을 title 로 가진 설정 행 [ListTile] 의 subtitle [KeepHangulWordsText].
+KeepHangulWordsText _rowValueText(WidgetTester tester, String label) {
   final tile = tester.widget<ListTile>(
-    find.ancestor(of: find.text(label), matching: find.byType(ListTile)),
+    find.ancestor(
+      of: findKeepHangulWordsText(label),
+      matching: find.byType(ListTile),
+    ),
   );
-  return tile.subtitle! as Text;
+  return tile.subtitle! as KeepHangulWordsText;
 }
 
 /// 주석을 걷어낸 [source] 가 계정 화면 경로를 push/go 하는 호출 수 (D-03).
@@ -591,20 +594,23 @@ void main() {
       // 연결 가능 provider 6 — 옛 트리였다면 계정 연결 섹션이 보였을 fixture.
       await _pumpMemberSettings(tester, user: _testUser(displayName: '홍길동'));
 
-      expect(find.text(ko.settingsAccountSection), findsOneWidget);
-      expect(find.text('홍길동'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsAccountSection),
+        findsOneWidget,
+      );
+      expect(findKeepHangulWordsText('홍길동'), findsOneWidget);
       expect(
         findKeepHangulWordsText(ko.settingsGeneralSection),
         findsOneWidget,
       );
-      expect(find.text(ko.settingsThemeSystem), findsOneWidget);
-      expect(find.text('한국어'), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsOneWidget);
+      expect(findKeepHangulWordsText('한국어'), findsOneWidget);
       expect(find.byType(NotificationsSection), findsOneWidget);
       expect(
         findKeepHangulWordsText(ko.settingsDeveloperSection),
         findsOneWidget,
       );
-      expect(find.text(ko.demoScreenTitle), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.demoScreenTitle), findsOneWidget);
 
       // 계정 상세는 계정 화면으로 옮겨 갔다 (D-02 — copy → move 완료).
       expect(find.byType(ProfilePhotoTile), findsNothing);
@@ -621,17 +627,19 @@ void main() {
 
       // 배치 순서 — 계정 행 → 일반 → 테마 → 언어 → 알림 → 개발자 → 데모 행.
       final ys = [
-        tester.getTopLeft(find.text(ko.settingsAccountSection)).dy,
+        tester
+            .getTopLeft(findKeepHangulWordsText(ko.settingsAccountSection))
+            .dy,
         tester
             .getTopLeft(findKeepHangulWordsText(ko.settingsGeneralSection))
             .dy,
-        tester.getTopLeft(find.text(ko.settingsTheme)).dy,
-        tester.getTopLeft(find.text(ko.settingsLanguage)).dy,
+        tester.getTopLeft(findKeepHangulWordsText(ko.settingsTheme)).dy,
+        tester.getTopLeft(findKeepHangulWordsText(ko.settingsLanguage)).dy,
         tester.getTopLeft(find.byType(NotificationsSection)).dy,
         tester
             .getTopLeft(findKeepHangulWordsText(ko.settingsDeveloperSection))
             .dy,
-        tester.getTopLeft(find.text(ko.demoScreenTitle)).dy,
+        tester.getTopLeft(findKeepHangulWordsText(ko.demoScreenTitle)).dy,
       ];
       for (var i = 1; i < ys.length; i++) {
         expect(ys[i - 1], lessThan(ys[i]));
@@ -648,7 +656,7 @@ void main() {
         find.bySemanticsLabel('${ko.settingsAccountSection}\n홍길동'),
         findsOneWidget,
       );
-      await tester.tap(find.text('홍길동'));
+      await tester.tap(findKeepHangulWordsText('홍길동'));
       await tester.pumpAndSettle();
 
       expect(find.text('ACCOUNT ROUTE'), findsOneWidget);
@@ -665,7 +673,7 @@ void main() {
         await _pumpMemberSettings(tester, user: user);
 
         final row = find.ancestor(
-          of: find.text(ko.settingsAccountSection),
+          of: findKeepHangulWordsText(ko.settingsAccountSection),
           matching: find.byType(ListTile),
         );
         expect(
@@ -694,9 +702,9 @@ void main() {
           findKeepHangulWordsText(ko.settingsGeneralSection),
           findsOneWidget,
         );
-        expect(find.text(ko.settingsTheme), findsOneWidget);
-        expect(find.text(ko.settingsLanguage), findsOneWidget);
-        expect(find.text(ko.demoScreenTitle), findsOneWidget);
+        expect(findKeepHangulWordsText(ko.settingsTheme), findsOneWidget);
+        expect(findKeepHangulWordsText(ko.settingsLanguage), findsOneWidget);
+        expect(findKeepHangulWordsText(ko.demoScreenTitle), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -870,7 +878,10 @@ void main() {
             expect(find.byType(NotificationsSection), findsOneWidget);
           }
           // 데모 행(말단)까지 그려도 넘침 0 — ja 데모 행 · en 알림 행 포함.
-          await _scrollTo(tester, find.text(l10n.demoScreenTitle));
+          await _scrollTo(
+            tester,
+            findKeepHangulWordsText(l10n.demoScreenTitle),
+          );
           final demoSubtitle = _rowValueText(tester, l10n.demoScreenTitle);
           expect(demoSubtitle.maxLines, isNull);
           expect(tester.takeException(), isNull);
@@ -961,7 +972,7 @@ void main() {
       expect(findKeepHangulWordsText(ko.demoScreenTitle), findsNothing);
       expect(find.byKey(_kAdopterRowKey), findsNothing);
       expect(findKeepHangulWordsText('Adopter developer row'), findsNothing);
-      expect(find.text(ko.settingsLanguage), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsLanguage), findsOneWidget);
     });
   });
 
@@ -1098,22 +1109,28 @@ void main() {
       _useViewport(tester, const Size(800, 2000));
       await _pumpGuestSettings(tester);
 
-      expect(find.text(ko.settingsGuestLabel), findsOneWidget);
-      expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsGuestLabel), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsSignInOrSignUp),
+        findsOneWidget,
+      );
       expect(
         findKeepHangulWordsText(ko.settingsGeneralSection),
         findsOneWidget,
       );
-      expect(find.text(ko.settingsTheme), findsOneWidget);
-      expect(find.text(ko.settingsThemeSystem), findsOneWidget);
-      expect(find.text(ko.settingsLanguage), findsOneWidget);
-      expect(find.text('한국어'), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsTheme), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsLanguage), findsOneWidget);
+      expect(findKeepHangulWordsText('한국어'), findsOneWidget);
       expect(
         findKeepHangulWordsText(ko.settingsDeveloperSection),
         findsOneWidget,
       );
-      expect(find.text(ko.demoScreenTitle), findsOneWidget);
-      expect(find.text(ko.settingsDemoScreenSubtitle), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.demoScreenTitle), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsDemoScreenSubtitle),
+        findsOneWidget,
+      );
       // 17 D-02 정정 — 게스트에게 알림 · 정식 전용 블록 0 (T-17.1-07).
       expect(find.byType(NotificationsSection), findsNothing);
       expect(find.byType(DangerZoneSection), findsNothing);
@@ -1142,7 +1159,7 @@ void main() {
     testWidgets('T-171-SETTINGS-02: 게스트 행 탭 → 로그인 화면 push', (tester) async {
       await _pumpGuestSettings(tester);
 
-      await tester.tap(find.text(ko.settingsSignInOrSignUp));
+      await tester.tap(findKeepHangulWordsText(ko.settingsSignInOrSignUp));
       await tester.pumpAndSettle();
 
       expect(find.text('LOGIN ROUTE'), findsOneWidget);
@@ -1152,7 +1169,7 @@ void main() {
         '선택) → 다크 = 저장 + 닫힘 · SnackBar 0 (D-04 · Q2-A)', (tester) async {
       final container = await _pumpGuestSettings(tester);
 
-      await tester.tap(find.text(ko.settingsTheme));
+      await tester.tap(findKeepHangulWordsText(ko.settingsTheme));
       await tester.pumpAndSettle();
 
       expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
@@ -1168,7 +1185,7 @@ void main() {
 
       expect(find.byType(RadioListTile<ThemeMode>), findsNothing);
       expect(container.read(themeProvider).value, ThemeMode.dark);
-      expect(find.text(ko.settingsThemeDark), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsThemeDark), findsOneWidget);
       expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       expect(tester.takeException(), isNull);
@@ -1185,7 +1202,7 @@ void main() {
       // 양성 대조 — 아래에서 탭 · 선택값으로 쓰는 두 언어가 목록에 있다.
       expect(expectedLabels, containsAll(<String>['English', '한국어']));
 
-      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.tap(findKeepHangulWordsText(ko.settingsLanguage));
       await tester.pumpAndSettle();
 
       expect(
@@ -1214,7 +1231,7 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
 
       Future<void> openThemeSheet() async {
-        await tester.tap(find.text(ko.settingsTheme));
+        await tester.tap(findKeepHangulWordsText(ko.settingsTheme));
         await tester.pumpAndSettle();
         expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
       }
@@ -1222,7 +1239,7 @@ void main() {
       void expectThemeUnchanged() {
         expect(find.byType(RadioListTile<ThemeMode>), findsNothing);
         expect(container.read(themeProvider).value, ThemeMode.system);
-        expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+        expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsOneWidget);
       }
 
       // 1) 바깥(barrier) 탭 — 시트 위 화면 좌상단.
@@ -1249,7 +1266,7 @@ void main() {
       expectThemeUnchanged();
 
       // 언어도 현재값(한국어) 다시 탭 = 닫힘 · 값 불변.
-      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.tap(findKeepHangulWordsText(ko.settingsLanguage));
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
@@ -1284,8 +1301,11 @@ void main() {
       );
       expect(findKeepHangulWordsText(ko.demoScreenTitle), findsNothing);
       expect(find.byIcon(Icons.developer_mode), findsNothing);
-      expect(find.text(ko.settingsLanguage), findsOneWidget);
-      expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.settingsLanguage), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsSignInOrSignUp),
+        findsOneWidget,
+      );
     });
 
     testWidgets('T-171-SETTINGS-07: 데모 행 탭 → 데모 경로 push (D-15)', (
@@ -1293,8 +1313,8 @@ void main() {
     ) async {
       await _pumpGuestSettings(tester);
 
-      await _scrollTo(tester, find.text(ko.demoScreenTitle));
-      await tester.tap(find.text(ko.demoScreenTitle));
+      await _scrollTo(tester, findKeepHangulWordsText(ko.demoScreenTitle));
+      await tester.tap(findKeepHangulWordsText(ko.demoScreenTitle));
       await tester.pumpAndSettle();
 
       expect(find.text('DEMO ROUTE'), findsOneWidget);
@@ -1313,7 +1333,7 @@ void main() {
           ],
         );
 
-        expect(find.text(ko.settingsThemeSystem), findsOneWidget);
+        expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ListView),
@@ -1322,7 +1342,7 @@ void main() {
           findsNothing,
         );
 
-        await tester.tap(find.text(ko.settingsTheme));
+        await tester.tap(findKeepHangulWordsText(ko.settingsTheme));
         await tester.pumpAndSettle();
         expect(_sheetGroupValue<ThemeMode>(tester), ThemeMode.system);
         expect(tester.takeException(), isNull);
@@ -1336,7 +1356,10 @@ void main() {
         final l10n = lookupAppLocalizations(Locale(code));
         await _pumpGuestSettings(tester, locale: Locale(code));
 
-        expect(find.text(l10n.settingsSignInOrSignUp), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.settingsSignInOrSignUp),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
         if (code == 'ja') {
           // UI-SPEC (S) — ja 게스트 값 「ログイン・登録」 1줄.
@@ -1346,7 +1369,7 @@ void main() {
           );
         }
 
-        await tester.tap(find.text(l10n.settingsTheme));
+        await tester.tap(findKeepHangulWordsText(l10n.settingsTheme));
         await tester.pumpAndSettle();
         final tiles = tester.widgetList<RadioListTile<ThemeMode>>(
           find.byType(RadioListTile<ThemeMode>),
@@ -1364,14 +1387,14 @@ void main() {
       _useViewport(tester, const Size(780, 360));
       await _pumpGuestSettings(tester);
 
-      await tester.tap(find.text(ko.settingsTheme));
+      await tester.tap(findKeepHangulWordsText(ko.settingsTheme));
       await tester.pumpAndSettle();
       expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
       expect(tester.takeException(), isNull);
       await tester.tapAt(const Offset(8, 8));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text(ko.settingsLanguage));
+      await tester.tap(findKeepHangulWordsText(ko.settingsLanguage));
       await tester.pumpAndSettle();
       expect(
         find.byType(RadioListTile<Locale>),
@@ -1390,7 +1413,7 @@ void main() {
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(textContrastGuideline));
 
-      await tester.tap(find.text(ko.settingsTheme));
+      await tester.tap(findKeepHangulWordsText(ko.settingsTheme));
       await tester.pumpAndSettle();
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));

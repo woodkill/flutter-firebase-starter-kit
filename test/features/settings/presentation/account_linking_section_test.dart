@@ -167,12 +167,12 @@ void main() {
         // 섹션 heading 노출 (en).
         expect(find.text('Link an account'), findsOneWidget);
         // google 은 이미 linked → "Link Google" 버튼 미노출.
-        expect(find.text('Link Google'), findsNothing);
+        expect(findKeepHangulWordsText('Link Google'), findsNothing);
         // 다른 활성 소셜 provider 의 "연결" 버튼 노출 (예: Apple).
         expect(find.text('Link Apple'), findsOneWidget);
         // email 버튼 절대 없음 (email EXCLUDE).
-        expect(find.text('Link Email / Password'), findsNothing);
-        expect(find.textContaining('Email'), findsNothing);
+        expect(findKeepHangulWordsText('Link Email / Password'), findsNothing);
+        expect(findKeepHangulWordsTextContaining('Email'), findsNothing);
       },
     );
 
@@ -283,7 +283,10 @@ void main() {
 
         // 크래시 0 + 성공 snackbar 미노출.
         expect(tester.takeException(), isNull);
-        expect(find.text('Linked your Apple account.'), findsNothing);
+        expect(
+          findKeepHangulWordsText('Linked your Apple account.'),
+          findsNothing,
+        );
         // G-16-A6-2: already-linked 전용 문구 (이메일 문구 아님).
         expect(find.byType(SnackBar), findsOneWidget);
         expect(find.text(_alreadyLinkedText), findsOneWidget);
@@ -350,7 +353,7 @@ void main() {
       await _pumpSection(tester, user: user, repo: repo);
 
       // available 빈 set → heading 미노출 (섹션 미노출).
-      expect(find.text('Link an account'), findsNothing);
+      expect(findKeepHangulWordsText('Link an account'), findsNothing);
     });
   });
 
@@ -379,7 +382,7 @@ void main() {
       await tapAppleWithFailure(tester, const EmailAlreadyInUse());
 
       expect(find.text(_emailInUseText), findsOneWidget);
-      expect(find.text(_alreadyLinkedText), findsNothing);
+      expect(findKeepHangulWordsText(_alreadyLinkedText), findsNothing);
     });
 
     testWidgets('AL10 transientFailure — NoInternetConnection → 일시 오류 문구', (
@@ -388,14 +391,14 @@ void main() {
       await tapAppleWithFailure(tester, const NoInternetConnection());
 
       expect(find.text(_transientText), findsOneWidget);
-      expect(find.text(_unknownFailureText), findsNothing);
+      expect(findKeepHangulWordsText(_unknownFailureText), findsNothing);
     });
 
     testWidgets('AL11 failed — 미분류 예외 → catch-all 문구', (tester) async {
       await tapAppleWithFailure(tester, const UnknownException());
 
       expect(find.text(_unknownFailureText), findsOneWidget);
-      expect(find.text(_transientText), findsNothing);
+      expect(findKeepHangulWordsText(_transientText), findsNothing);
     });
 
     testWidgets(
@@ -429,9 +432,12 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(find.text(ko.authReauthRequired), findsNothing);
-        expect(find.text(ko.settingsLinkFailedTransient), findsNothing);
-        expect(find.text('LOGIN ROUTE'), findsNothing);
+        expect(findKeepHangulWordsText(ko.authReauthRequired), findsNothing);
+        expect(
+          findKeepHangulWordsText(ko.settingsLinkFailedTransient),
+          findsNothing,
+        );
+        expect(findKeepHangulWordsText('LOGIN ROUTE'), findsNothing);
         expect(
           router.routerDelegate.currentConfiguration.last.matchedLocation,
           AppRoutes.home,
@@ -505,7 +511,7 @@ void main() {
         expect(find.byType(SnackBar), findsOneWidget);
         expect(find.text(_alreadyLinkedHereText), findsOneWidget);
         // alreadyLinked ("다른 계정에 연결됨") 문구로 되돌아가지 않는다.
-        expect(find.text(_alreadyLinkedText), findsNothing);
+        expect(findKeepHangulWordsText(_alreadyLinkedText), findsNothing);
       },
     );
 
@@ -534,7 +540,7 @@ void main() {
 
       // 실제 렌더 경로에서도 실패 문구가 collapse 문구를 쓰지 않는지 확인.
       await tapAppleWithFailure(tester, const AccountAlreadyLinked());
-      expect(find.text(oldCollapsedText), findsNothing);
+      expect(findKeepHangulWordsText(oldCollapsedText), findsNothing);
       expect(find.text(_alreadyLinkedText), findsOneWidget);
     });
   });
@@ -549,7 +555,7 @@ void main() {
         repo: repo,
       );
 
-      expect(find.text('Link Naver'), findsNothing);
+      expect(findKeepHangulWordsText('Link Naver'), findsNothing);
       // 섹션은 다른 후보로 계속 렌더된다 (섹션 통째 미노출 회귀 방지).
       expect(find.text('Link Apple'), findsOneWidget);
     });
@@ -572,7 +578,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text(_alreadyLinkedText), findsOneWidget);
       // alreadyLinkedHere (「이미 이 계정에 연결됨」) 와 뒤바뀌지 않는다.
-      expect(find.text(_alreadyLinkedHereText), findsNothing);
+      expect(findKeepHangulWordsText(_alreadyLinkedHereText), findsNothing);
     });
 
     testWidgets('AL16 naver ReauthenticationRequired → 재로그인 라우팅', (
@@ -644,7 +650,7 @@ void main() {
         'Link LINE',
       ]) {
         expect(
-          find.text(label, skipOffstage: false),
+          findKeepHangulWordsText(label, skipOffstage: false),
           findsNothing,
           reason: '처음부터 off 인 provider 는 연결 후보에 없어야 함 ($label)',
         );
@@ -661,7 +667,10 @@ void main() {
 
       // AL8 과 같은 판정 — heading 미노출 = 섹션 미노출.
       expect(find.byType(AccountLinkingSection), findsOneWidget);
-      expect(find.text('Link an account', skipOffstage: false), findsNothing);
+      expect(
+        findKeepHangulWordsText('Link an account', skipOffstage: false),
+        findsNothing,
+      );
     });
   });
 

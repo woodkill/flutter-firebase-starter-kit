@@ -34,6 +34,7 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import 'account_golden_harness.dart';
 import 'settings_golden_harness.dart';
 
@@ -574,10 +575,12 @@ void main() {
             final label = formatSignUpMethod(id, l10n);
             final value = find.descendant(
               of: _signUpTile(),
-              matching: find.text(label),
+              matching: findKeepHangulWordsText(label),
             );
             expect(value, findsOneWidget, reason: 'value $combo');
-            final rp = tester.renderObject<RenderParagraph>(value);
+            final rp = tester.renderObject<RenderParagraph>(
+              find.descendant(of: value, matching: find.byType(RichText)),
+            );
             expect(_renderedLineCount(rp), 1, reason: 'guard-lines $combo');
             expect(rp.didExceedMaxLines, isFalse, reason: 'ellipsis $combo');
             expect(
@@ -587,7 +590,10 @@ void main() {
             );
             if (id == 'twitter.com') {
               expect(label, l10n.errorUnknownProvider);
-              expect(find.textContaining('twitter'), findsNothing);
+              expect(
+                findKeepHangulWordsTextContaining('twitter'),
+                findsNothing,
+              );
             }
             if (id == null) expect(label, '-');
 
@@ -601,7 +607,13 @@ void main() {
               ];
               for (final (tile, title) in titles) {
                 final titleRp = tester.renderObject<RenderParagraph>(
-                  find.descendant(of: tile, matching: find.text(title)),
+                  find.descendant(
+                    of: find.descendant(
+                      of: tile,
+                      matching: findKeepHangulWordsText(title),
+                    ),
+                    matching: find.byType(RichText),
+                  ),
                 );
                 expect(
                   _renderedLineCount(titleRp),

@@ -325,7 +325,7 @@ void main() {
             width: 280,
           );
           // production 탭 경로 — 설정 행을 눌러 선택창을 연다.
-          await tester.tap(find.text(rowLabel));
+          await tester.tap(findKeepHangulWordsText(rowLabel));
           await settleGoldenAssets(tester);
 
           expect(find.byType(BottomSheet), findsOneWidget);

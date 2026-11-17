@@ -1074,16 +1074,19 @@ void main() {
         expect(tile.subtitle, isNotNull);
 
         // 제목 = 홈 카드 라벨 키 · bodySmall + onSurfaceVariant.
-        final title = tile.title! as Text;
+        final title = tile.title! as KeepHangulWordsText;
         expect(title.data, entry.key);
         expect(title.style?.fontSize, equals(titleRole?.fontSize));
         expect(title.style?.fontWeight, equals(titleRole?.fontWeight));
         expect(title.style?.color, equals(theme.colorScheme.onSurfaceVariant));
 
         // 값 = titleMedium (색 미지정 — theme 기본 onSurface).
-        final value = tile.subtitle! as Text;
-        expect(value.style?.fontSize, equals(valueRole?.fontSize));
-        expect(value.style?.fontWeight, equals(valueRole?.fontWeight));
+        final subtitle = tile.subtitle!;
+        final valueStyle = subtitle is KeepHangulWordsText
+            ? subtitle.style
+            : (subtitle as Text).style;
+        expect(valueStyle?.fontSize, equals(valueRole?.fontSize));
+        expect(valueStyle?.fontWeight, equals(valueRole?.fontWeight));
 
         // ListTile 은 SDK 기본 — mockup 과 byte 동일 전제. 세 줄 플래그는
         // SDK 에서 nullable 이라 미지정 = null (theme · false 로 해석은 SDK 내부).
@@ -1095,11 +1098,12 @@ void main() {
       }
 
       // 이메일 주소만 2줄 + 말줄임 (WR-14).
-      final emailValue = tiles['Email']!.subtitle! as Text;
+      final emailValue = tiles['Email']!.subtitle! as KeepHangulWordsText;
       expect(emailValue.maxLines, 2);
       expect(emailValue.overflow, TextOverflow.ellipsis);
       // 가입 수단 값 — 줄 수 제한 없음 (D-04 개정 (R1)).
-      final signUpValue = tiles['Sign-up method']!.subtitle! as Text;
+      final signUpValue =
+          tiles['Sign-up method']!.subtitle! as KeepHangulWordsText;
       expect(signUpValue.maxLines, isNull);
       expect(signUpValue.overflow, isNull);
       expect(signUpValue.softWrap, isTrue);
@@ -1788,7 +1792,7 @@ void main() {
           expect(
             find.descendant(
               of: find.byType(SnackBar),
-              matching: find.text(ko.errorAppCheckFailed),
+              matching: findKeepHangulWordsText(ko.errorAppCheckFailed),
             ),
             findsOneWidget,
           );
@@ -1992,7 +1996,7 @@ void main() {
         expect(
           find.descendant(
             of: _findTileByIcon(Icons.badge),
-            matching: find.text('홍길동'),
+            matching: findKeepHangulWordsText('홍길동'),
           ),
           findsOneWidget,
           reason: '표시 이름 값',
@@ -2009,26 +2013,29 @@ void main() {
       final repo = await _pumpLogoutHarness(tester, locale: locale);
 
       // 취소 — 호출 0.
-      await tester.tap(find.text(l10n.authAccountSignOut));
+      await tester.tap(findKeepHangulWordsText(l10n.authAccountSignOut));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(find.text(l10n.authLogoutConfirmMessage), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.authLogoutConfirmMessage),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byType(AlertDialog),
-          matching: find.text(l10n.authLogoutConfirmTitle),
+          matching: findKeepHangulWordsText(l10n.authLogoutConfirmTitle),
         ),
         findsWidgets,
       );
-      await tester.tap(find.text(l10n.commonCancel));
+      await tester.tap(findKeepHangulWordsText(l10n.commonCancel));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       verifyNever(repo.signOutAndResetOnboarding);
 
       // 확인 — 호출 1 · signOut 단독 호출 0.
-      await tester.tap(find.text(l10n.authAccountSignOut));
+      await tester.tap(findKeepHangulWordsText(l10n.authAccountSignOut));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(l10n.authAccountSignOut).last);
+      await tester.tap(findKeepHangulWordsText(l10n.authAccountSignOut).last);
       await tester.pumpAndSettle();
       verify(repo.signOutAndResetOnboarding).called(1);
       verifyNever(repo.signOut);
@@ -2137,8 +2144,11 @@ void main() {
         ) async {
           await _pumpLogoutHarness(tester, locale: locale);
           final l10n = lookupAppLocalizations(locale);
-          await _scrollTo(tester, find.text(l10n.authAccountSignOut));
-          await tester.tap(find.text(l10n.authAccountSignOut));
+          await _scrollTo(
+            tester,
+            findKeepHangulWordsText(l10n.authAccountSignOut),
+          );
+          await tester.tap(findKeepHangulWordsText(l10n.authAccountSignOut));
           await tester.pumpAndSettle();
 
           // 다이얼로그를 연 채 기기를 가로로 돌린 상황 재현.
@@ -2152,8 +2162,13 @@ void main() {
           // 본문은 Text 1개라 넘쳐도 예외 없이 잘리기만 한다 — 잘림을 따로 본다.
           final body = tester.renderObject<RenderParagraph>(
             find.descendant(
-              of: dialog,
-              matching: find.text(l10n.authLogoutConfirmMessage),
+              of: find.descendant(
+                of: dialog,
+                matching: findKeepHangulWordsText(
+                  l10n.authLogoutConfirmMessage,
+                ),
+              ),
+              matching: find.byType(RichText),
             ),
           );
           expect(
@@ -2171,7 +2186,10 @@ void main() {
               find
                   .descendant(
                     of: dialog,
-                    matching: find.widgetWithText(TextButton, action),
+                    matching: find.ancestor(
+                      of: findKeepHangulWordsText(action),
+                      matching: find.byType(TextButton),
+                    ),
                   )
                   .hitTestable(),
               findsOneWidget,

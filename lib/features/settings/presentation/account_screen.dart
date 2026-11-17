@@ -26,6 +26,7 @@ import '../../../core/router/app_routes.dart';
 import '../../../core/theme/app_button_styles.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/application/session_ending.dart';
 import '../../auth/data/auth_repository.dart';
 import '../application/unlink_eligibility.dart';
@@ -105,8 +106,11 @@ class AccountScreen extends ConsumerWidget {
             const ProfilePhotoTile(),
             ListTile(
               leading: const Icon(Icons.badge),
-              title: Text(l10n.authAccountDisplayName, style: titleStyle),
-              subtitle: Text(
+              title: KeepHangulWordsText(
+                l10n.authAccountDisplayName,
+                style: titleStyle,
+              ),
+              subtitle: KeepHangulWordsText(
                 user?.displayName ?? '-',
                 softWrap: true,
                 style: valueStyle,
@@ -116,8 +120,11 @@ class AccountScreen extends ConsumerWidget {
             // softWrap + ellipsis(주소는 provider 이름 규칙 대상이 아님).
             ListTile(
               leading: const Icon(Icons.alternate_email),
-              title: Text(l10n.authAccountEmail, style: titleStyle),
-              subtitle: Text(
+              title: KeepHangulWordsText(
+                l10n.authAccountEmail,
+                style: titleStyle,
+              ),
+              subtitle: KeepHangulWordsText(
                 l10n.settingsAccountEmail(email),
                 maxLines: 2,
                 softWrap: true,
@@ -127,8 +134,11 @@ class AccountScreen extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.calendar_today),
-              title: Text(l10n.authAccountCreatedAt, style: titleStyle),
-              subtitle: Text(
+              title: KeepHangulWordsText(
+                l10n.authAccountCreatedAt,
+                style: titleStyle,
+              ),
+              subtitle: KeepHangulWordsText(
                 user == null
                     ? '-'
                     : user.createdAt.formatYMD(locale.languageCode),
@@ -143,8 +153,15 @@ class AccountScreen extends ConsumerWidget {
             // 1줄은 golden harness 가드가 고정.
             ListTile(
               leading: const Icon(Icons.how_to_reg),
-              title: Text(l10n.authAccountSignUpMethod, style: titleStyle),
-              subtitle: Text(signUpValue, softWrap: true, style: valueStyle),
+              title: KeepHangulWordsText(
+                l10n.authAccountSignUpMethod,
+                style: titleStyle,
+              ),
+              subtitle: KeepHangulWordsText(
+                signUpValue,
+                softWrap: true,
+                style: valueStyle,
+              ),
             ),
             // 연결된 계정 — maxLines · overflow 없음. semanticsLabel 을 주지
             // 않는다: 주면 안쪽 해제 버튼 노드가 지워진다. 대신 이름마다
@@ -153,7 +170,10 @@ class AccountScreen extends ConsumerWidget {
             // 낭독되지 않는다 (UI-SPEC §Semantics (16.8)).
             ListTile(
               leading: const Icon(Icons.link),
-              title: Text(l10n.authAccountLinkedAccounts, style: titleStyle),
+              title: KeepHangulWordsText(
+                l10n.authAccountLinkedAccounts,
+                style: titleStyle,
+              ),
               subtitle: Text.rich(
                 linkedSpan,
                 softWrap: true,
@@ -169,7 +189,10 @@ class AccountScreen extends ConsumerWidget {
             // Phase 17.1 D-05 · Q5-A — 로그아웃 = 목록 한 줄(기본 색).
             ListTile(
               leading: const Icon(Icons.logout),
-              title: Text(l10n.authAccountSignOut, style: valueStyle),
+              title: KeepHangulWordsText(
+                l10n.authAccountSignOut,
+                style: valueStyle,
+              ),
               onTap: () => _confirmSignOut(context, ref),
             ),
             Gap(spacing.xxl),
@@ -211,14 +234,16 @@ class AccountScreen extends ConsumerWidget {
         // provider 라벨만 (PII 0) · 목록은 user stream 재방출로 갱신.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(l10n.accountUnlinkSucceededSnackbar(providerLabel)),
+            content: KeepHangulWordsText(
+              l10n.accountUnlinkSucceededSnackbar(providerLabel),
+            ),
           ),
         );
       case AccountUnlinkOutcome.reauthRequired:
         // D-06 으로 기대하지 않는 방어 매핑 — Surface D 와 같은 재로그인
         // 라우팅 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE: 재인증 표시 필수).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.authReauthRequired)),
+          SnackBar(content: KeepHangulWordsText(l10n.authReauthRequired)),
         );
         // await 전 캡처를 안 하는 이유 = router 없는 harness(golden)에서
         // 탭 → 다이얼로그 경로가 예외 없이 열려야 하고, 이 arm 만 router 가 필요하다.
@@ -226,31 +251,43 @@ class AccountScreen extends ConsumerWidget {
         unawaited(router.push(AppRoutes.buildReauthLocation(AppRoutes.login)));
       case AccountUnlinkOutcome.lastCredential:
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsUnlinkFailedLastCredential)),
+          SnackBar(
+            content: KeepHangulWordsText(
+              l10n.settingsUnlinkFailedLastCredential,
+            ),
+          ),
         );
       case AccountUnlinkOutcome.alreadyUnlinked:
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsUnlinkFailedAlreadyUnlinked)),
+          SnackBar(
+            content: KeepHangulWordsText(
+              l10n.settingsUnlinkFailedAlreadyUnlinked,
+            ),
+          ),
         );
       case AccountUnlinkOutcome.transientFailure:
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsUnlinkFailedTransient)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsUnlinkFailedTransient),
+          ),
         );
       case AccountUnlinkOutcome.appCheckFailed:
         // Phase 17 D-42 · D-43 — 해제 callable · provider 측 끊기의 App Check
         // 차단 · 재로그인 라우팅 0 · 연결 유지(같은 화면에서 재시도).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.errorAppCheckFailed)),
+          SnackBar(content: KeepHangulWordsText(l10n.errorAppCheckFailed)),
         );
       case AccountUnlinkOutcome.failed:
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsUnlinkFailedUnknown)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsUnlinkFailedUnknown),
+          ),
         );
       case AccountUnlinkOutcome.identityMismatch:
         // Phase 16.10 D-08 — 다른 provider 계정으로 로그인함 · 연결 유지.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(
+            content: KeepHangulWordsText(
               l10n.settingsUnlinkFailedIdentityMismatch(providerLabel),
             ),
           ),
@@ -259,7 +296,9 @@ class AccountScreen extends ConsumerWidget {
         // Phase 16.10 D-11 — provider 측 끊기 실패로 킷 해제 중단 · 연결 유지.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(l10n.settingsUnlinkFailedDisconnect(providerLabel)),
+            content: KeepHangulWordsText(
+              l10n.settingsUnlinkFailedDisconnect(providerLabel),
+            ),
           ),
         );
       case AccountUnlinkOutcome.unlinkFailedAfterDisconnect:
@@ -267,7 +306,7 @@ class AccountScreen extends ConsumerWidget {
         // 실패한 부분 상태 · 킷 연결 유지.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(
+            content: KeepHangulWordsText(
               l10n.settingsUnlinkFailedAfterDisconnect(providerLabel),
             ),
           ),
@@ -277,7 +316,7 @@ class AccountScreen extends ConsumerWidget {
         // 풀리지 않아 재시도 안내 없는 문구 · 연결 유지.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(
+            content: KeepHangulWordsText(
               l10n.settingsUnlinkFailedProviderConfig(providerLabel),
             ),
           ),
@@ -307,17 +346,17 @@ class AccountScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(l10n.authLogoutConfirmTitle),
-        content: Text(l10n.authLogoutConfirmMessage),
+        title: KeepHangulWordsText(l10n.authLogoutConfirmTitle),
+        content: KeepHangulWordsText(l10n.authLogoutConfirmMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.commonCancel),
+            child: KeepHangulWordsText(l10n.commonCancel),
           ),
           TextButton(
             style: ctx.colorScheme.destructiveTextButtonStyle,
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(l10n.authAccountSignOut),
+            child: KeepHangulWordsText(l10n.authAccountSignOut),
           ),
         ],
       ),

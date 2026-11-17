@@ -183,7 +183,7 @@ void main() {
       final languageBottom = tester
           .getBottomLeft(
             find.ancestor(
-              of: find.text(l10n.settingsLanguage),
+              of: findKeepHangulWordsText(l10n.settingsLanguage),
               matching: find.byType(ListTile),
             ),
           )
@@ -388,7 +388,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(l10n.settingsSignInOrSignUp), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.settingsSignInOrSignUp),
+        findsOneWidget,
+      );
       expect(find.byType(NotificationsSection), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
       expect(
