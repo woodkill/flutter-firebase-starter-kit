@@ -44,6 +44,8 @@ final Map<String, String> _placementCases = <String, String>{
   '김철수さんの': '${_joined(<String>['김', '철', '수'])}さんの',
   'ようこそ、김철수さん！': 'ようこそ、${_joined(<String>['김', '철', '수'])}さん！',
   '김철수（キム）さん': '${_joined(<String>['김', '철', '수'])}（キム）さん',
+  // 보충 평면 한자(U+20BB7)도 한자라 맞닿은 경계가 빠진다.
+  '김\u{20BB7}田さん': '김\u{20BB7}田さん',
   // 띄어쓰기 · 줄바꿈 · 탭은 덩어리 경계다.
   '가나 다라\n마바\t사아':
       '${_joined(<String>['가', '나'])} ${_joined(<String>['다', '라'])}'
@@ -288,7 +290,13 @@ void main() {
     testWidgets(
       'T-27-WRAP-02 구조 — 이음 문자마다 letterSpacing 0 만 가진 자식 span 하나 · 나머지 자식 style 은 null',
       (tester) async {
-        final hangulKeys = _placementCases.keys.where(_hangul.hasMatch);
+        // 한글이 들어도 모든 경계가 예외라 이음 문자가 0개인 표본은 뺀다.
+        final hangulKeys = _placementCases.entries
+            .where(
+              (entry) =>
+                  _hangul.hasMatch(entry.key) && entry.value.contains(_wj),
+            )
+            .map((entry) => entry.key);
         expect(hangulKeys, isNotEmpty);
         for (final key in hangulKeys) {
           await _pumpBox(tester, KeepHangulWordsText(key));

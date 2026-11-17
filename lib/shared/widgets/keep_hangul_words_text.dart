@@ -23,7 +23,8 @@ bool _isCjkNonHangul(int codePoint) =>
     (codePoint >= 0x3400 && codePoint <= 0x4DBF) ||
     (codePoint >= 0x4E00 && codePoint <= 0x9FFF) ||
     (codePoint >= 0xF900 && codePoint <= 0xFAFF) ||
-    (codePoint >= 0xFF01 && codePoint <= 0xFF9F);
+    (codePoint >= 0xFF01 && codePoint <= 0xFF9F) ||
+    (codePoint >= 0x20000 && codePoint <= 0x3FFFF);
 
 /// 맞닿은 두 글자 [before] · [after] 사이를 원래 줄바꿈 규칙에 맡길지 본다.
 ///
