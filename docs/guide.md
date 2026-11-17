@@ -562,6 +562,7 @@ import '../../../../core/error/result.dart';
 import '../../../../core/l10n/exception_l10n.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../application/memo_providers.dart';
 import '../../domain/memo.dart';
 
@@ -644,7 +645,7 @@ class _MemoAddSheetState extends ConsumerState<MemoAddSheet> {
           Gap(spacing.md),
           FilledButton(
             onPressed: _isSaving ? null : _save,
-            child: Text(l10n.memoAddAction),
+            child: KeepHangulWordsText(l10n.memoAddAction),
           ),
         ],
       ),
@@ -714,8 +715,14 @@ import '../../features/memos/presentation/memo_list_screen.dart';
               Gap(spacing.sm),
               FilledButton.tonal(
                 onPressed: () => context.push(AppRoutes.memos),
-                child: Text(l10n.memoListTitle),
+                child: KeepHangulWordsText(l10n.memoListTitle),
               ),
+```
+
+   같은 파일 import 목록의 `theme_extensions.dart` 줄 다음에 감싸개 import 를 넣는다.
+
+```dart
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 ```
 
    홈 본문이 바뀌므로 홈 golden 은 ⑩ 에서 다시 만든다.
@@ -1165,7 +1172,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 
 1. 만든 파일을 지운다 — `lib/features/memos/` · `test/features/memos/` ·
    `functions/test/rules/memos.rules.test.ts`.
-2. ⑥ 에서 더한 경로 상수 셋 · import 줄 · `GoRoute` · 홈 진입 버튼을 지우고,
+2. ⑥ 에서 더한 경로 상수 셋 · import 줄(라우터 · 홈 본문) · `GoRoute` · 홈 진입 버튼을 지우고,
    `app_router_observers_test.dart` 의 두 개수를 14 로 돌린다.
 3. ⑦ 의 ARB 키 다섯을 세 파일에서 지우고 `fvm flutter gen-l10n` 을 돌린다.
 4. ⑧ 의 `match /memos/{memoId}` 블록을 지우고 확인 방법 1번의 명령으로 rules 를 다시 배포한다.
