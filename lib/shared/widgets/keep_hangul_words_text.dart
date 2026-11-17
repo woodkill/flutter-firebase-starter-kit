@@ -7,8 +7,14 @@ final String _wordJoiner = String.fromCharCode(0x2060);
 final RegExp _hangulSyllable = RegExp('[가-힣]');
 
 /// [grapheme] 이 덩어리를 나누는 공백(띄어쓰기 · 줄바꿈 · 탭)인지 본다.
+///
+/// 줄바꿈은 LF · CR, 그리고 한 글자로 묶이는 CRLF 다.
 bool _isSpace(String grapheme) =>
-    grapheme == ' ' || grapheme == '\n' || grapheme == '\t';
+    grapheme == ' ' ||
+    grapheme == '\n' ||
+    grapheme == '\r\n' ||
+    grapheme == '\r' ||
+    grapheme == '\t';
 
 /// [codePoint] 가 CJK 문장부호 · 가나 · 한자 · 전각 기호 · 반각 가나인지 본다.
 bool _isCjkNonHangul(int codePoint) =>

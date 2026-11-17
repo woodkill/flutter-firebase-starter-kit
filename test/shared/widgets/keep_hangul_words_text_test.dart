@@ -48,6 +48,9 @@ final Map<String, String> _placementCases = <String, String>{
   '가나 다라\n마바\t사아':
       '${_joined(<String>['가', '나'])} ${_joined(<String>['다', '라'])}'
       '\n${_joined(<String>['마', '바'])}\t${_joined(<String>['사', '아'])}',
+  // CRLF(한 글자) · CR 줄바꿈도 덩어리 경계라 앞 줄 끝 낱말은 묶이지 않는다.
+  'Hello\r\n세계': 'Hello\r\n${_joined(<String>['세', '계'])}',
+  'Hello\r세계': 'Hello\r${_joined(<String>['세', '계'])}',
   // ZWJ 이모지 · 결합 부호 안에는 넣지 않는다(글자 단위).
   '김\u{1F469}\u{200D}\u{1F4BB}님': _joined(<String>[
     '김',
