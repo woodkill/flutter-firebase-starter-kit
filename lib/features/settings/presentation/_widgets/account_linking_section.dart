@@ -27,6 +27,7 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/presentation/_widgets/auth_in_progress_overlay.dart';
 import '../../../auth/presentation/_widgets/branded_social_button.dart';
@@ -132,7 +133,7 @@ class AccountLinkingSection extends ConsumerWidget {
             right: spacing.lg,
             bottom: spacing.sm,
           ),
-          child: Text(
+          child: KeepHangulWordsText(
             l10n.settingsAccountLinkingGuide,
             style: typography.bodyMedium.copyWith(
               color: context.colorScheme.onSurfaceVariant,
@@ -197,7 +198,7 @@ class AccountLinkingSection extends ConsumerWidget {
                 spacing.lg,
                 spacing.xs,
               ),
-              child: Text(
+              child: KeepHangulWordsText(
                 l10n.settingsAccountLinkingSection,
                 // settings_screen.dart heading 과 동일 role·색 (accent 토큰
                 // 미사용 — UI-SPEC Layout Contract Surface D).
@@ -241,7 +242,9 @@ class AccountLinkingSection extends ConsumerWidget {
         // 버튼이 available 집합에서 제거.
         messenger.showSnackBar(
           SnackBar(
-            content: Text(l10n.accountLinkingSucceededSnackbar(providerLabel)),
+            content: KeepHangulWordsText(
+              l10n.accountLinkingSucceededSnackbar(providerLabel),
+            ),
           ),
         );
       case AccountLinkOutcome.reauthRequired:
@@ -253,45 +256,57 @@ class AccountLinkingSection extends ConsumerWidget {
         // 재인증 표시를 붙여야 guard 분기 (6) 이 push 한 로그인 화면을 홈으로
         // 튕기지 않는다 (R_EXTRA_G3_REAUTH_LOGIN_BOUNCE).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.authReauthRequired)),
+          SnackBar(content: KeepHangulWordsText(l10n.authReauthRequired)),
         );
         unawaited(router.push(AppRoutes.buildReauthLocation(AppRoutes.login)));
       case AccountLinkOutcome.alreadyLinked:
         // `credential-already-in-use` / Custom Token callable
         // `already-exists` — 해당 신원이 **다른 계정** 소유 (A6 실측).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsLinkFailedAlreadyLinked)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsLinkFailedAlreadyLinked),
+          ),
         );
       case AccountLinkOutcome.alreadyLinkedHere:
         // WR-04: `provider-already-linked` — 이미 **현재 계정에** 연결됨.
         // alreadyLinked 문구 ("다른 계정에 연결됨 → 먼저 해제") 는 이 경우
         // 사실과 반대이고 수행도 불가능하다.
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsLinkFailedAlreadyLinkedHere)),
+          SnackBar(
+            content: KeepHangulWordsText(
+              l10n.settingsLinkFailedAlreadyLinkedHere,
+            ),
+          ),
         );
       case AccountLinkOutcome.emailInUse:
         // `email-already-in-use` / `account-exists-with-different-credential`
         // — 이메일 충돌. 문구에 email 값 자체는 넣지 않는다 (T-16-15-02).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsLinkFailedEmailInUse)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsLinkFailedEmailInUse),
+          ),
         );
       case AccountLinkOutcome.transientFailure:
         // `network-request-failed` / `too-many-requests` / ServiceUnavailable
         // — 재시도로 해소 가능한 일시 오류.
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsLinkFailedTransient)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsLinkFailedTransient),
+          ),
         );
       case AccountLinkOutcome.appCheckFailed:
         // Phase 17 D-42 · D-43 — App Check 차단 · 재로그인 라우팅 0
         // (같은 화면에서 재시도 → 계속되면 업데이트 안내).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.errorAppCheckFailed)),
+          SnackBar(content: KeepHangulWordsText(l10n.errorAppCheckFailed)),
         );
       case AccountLinkOutcome.failed:
         // 미분류 실패 catch-all — 정확한 코드는 repository 의 kDebugMode
         // `code=` 로그로 logcat 에 남는다 (T-16-15-01).
         messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsLinkFailedUnknown)),
+          SnackBar(
+            content: KeepHangulWordsText(l10n.settingsLinkFailedUnknown),
+          ),
         );
       case AccountLinkOutcome.unsupported:
         // email (Surface D EXCLUDE) — 실패가 아니라 미지원. 후보 목록에
@@ -299,7 +314,9 @@ class AccountLinkingSection extends ConsumerWidget {
         // brand verbatim 라벨 (brand 라벨 신규 0, T-16-15-03).
         messenger.showSnackBar(
           SnackBar(
-            content: Text(l10n.settingsLinkUnsupportedProvider(providerLabel)),
+            content: KeepHangulWordsText(
+              l10n.settingsLinkUnsupportedProvider(providerLabel),
+            ),
           ),
         );
       case AccountLinkOutcome.cancelled:

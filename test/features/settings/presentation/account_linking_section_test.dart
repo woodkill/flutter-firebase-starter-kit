@@ -51,6 +51,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/brand_button_text_scale.dart';
+import '../../../helpers/keep_hangul_words_finder.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -424,7 +425,7 @@ void main() {
         expect(
           find.descendant(
             of: find.byType(SnackBar),
-            matching: find.text(ko.errorAppCheckFailed),
+            matching: findKeepHangulWordsText(ko.errorAppCheckFailed),
           ),
           findsOneWidget,
         );
@@ -683,7 +684,10 @@ void main() {
           // Google 은 이미 연결돼 있다 — 나머지 다섯이 「연결」 문구 그대로
           // 그려진다.
           final l10n = lookupAppLocalizations(locale);
-          expect(find.text(l10n.settingsAccountLinkingSection), findsOneWidget);
+          expect(
+            findKeepHangulWordsText(l10n.settingsAccountLinkingSection),
+            findsOneWidget,
+          );
           expectBrandButtonLabelsCapped(
             tester,
             errors,
