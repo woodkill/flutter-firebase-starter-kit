@@ -72,7 +72,7 @@ bool _matchesKeepHangulWordsText(
     return matches(widget.data);
   }
   if (widget is Text) {
-    if (element.findAncestorWidgetOfExactType<KeepHangulWordsText>() != null) {
+    if (_hasKeepHangulWordsTextAncestor(element)) {
       return false;
     }
     final value = widget.data ?? widget.textSpan?.toPlainText();
@@ -82,4 +82,17 @@ bool _matchesKeepHangulWordsText(
     return matches(widget.controller.text);
   }
   return false;
+}
+
+/// [element] 위에 감싸개(하위 클래스 포함)가 있는지 본다.
+///
+/// 정확한 타입이 아니라 `is` 로 보므로 [KeepHangulWordsText] 를 상속한 위젯이
+/// 안에서 만든 [Text] 도 감싸개 안 [Text] 로 센다.
+bool _hasKeepHangulWordsTextAncestor(Element element) {
+  var isFound = false;
+  element.visitAncestorElements((ancestor) {
+    isFound = ancestor.widget is KeepHangulWordsText;
+    return !isFound;
+  });
+  return isFound;
 }

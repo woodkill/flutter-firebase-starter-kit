@@ -4,7 +4,7 @@
 // 감싸개 밖 `Text` · 여러 개 · tap · 위젯 꺼내기) · T-27-FIND-07
 // `findKeepHangulWordsTextContaining` · T-27-FIND-08 `find.text` ·
 // `find.textContaining` 의 상위 집합(감싸개 없는 `Text.rich` · 입력칸
-// `EditableText` · 화면 밖).
+// `EditableText` · 화면 밖) · T-27-FIND-09 감싸개 하위 클래스도 한 개.
 //
 // 표본은 이 파일 안 리터럴 — 킷 문구에 기대지 않는다.
 
@@ -13,6 +13,11 @@ import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'keep_hangul_words_finder.dart';
+
+/// 감싸개를 상속한 시험용 위젯 — 하위 클래스도 감싸개 하나로 세는지 본다.
+class _SubclassedKeepHangulWordsText extends KeepHangulWordsText {
+  const _SubclassedKeepHangulWordsText(super.data);
+}
 
 /// [children] 을 세로로 늘어놓아 pump 한다.
 Future<void> _pumpColumn(WidgetTester tester, List<Widget> children) async {
@@ -96,6 +101,22 @@ void main() {
       expect(widget.style, style);
       expect(widget.data, text);
     });
+  });
+
+  group('findKeepHangulWordsText 하위 클래스', () {
+    testWidgets(
+      'T-27-FIND-09 감싸개 하위 클래스로 그린 한글 없는 문구도 안쪽 Text 를 따로 세지 않아 한 개다',
+      (tester) async {
+        const text = 'Hello subclass';
+        await _pumpColumn(tester, const <Widget>[
+          _SubclassedKeepHangulWordsText(text),
+        ]);
+
+        expect(find.text(text), findsOneWidget, reason: '안쪽 Text 가 원문을 가진다');
+        expect(findKeepHangulWordsText(text), findsOneWidget);
+        expect(findKeepHangulWordsTextContaining('subclass'), findsOneWidget);
+      },
+    );
   });
 
   group('findKeepHangulWordsTextContaining', () {
