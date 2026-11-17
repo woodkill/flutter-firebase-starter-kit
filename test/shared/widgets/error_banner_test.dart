@@ -10,6 +10,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 /// [child] 를 ko 로케일 · 앱 테마로 pump 하는 헬퍼.
 Future<void> pumpKo(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
@@ -58,7 +60,10 @@ void main() {
 
       final ko = lookupAppLocalizations(const Locale('ko'));
       expect(find.byType(ErrorBanner), findsOneWidget);
-      expect(find.text(ko.errorServiceUnavailable), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.errorServiceUnavailable),
+        findsOneWidget,
+      );
       expect(findLiveRegion(), findsOneWidget);
     });
 

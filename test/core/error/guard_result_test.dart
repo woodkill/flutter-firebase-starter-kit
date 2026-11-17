@@ -10,6 +10,8 @@ import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 /// [CrashlyticsService] mocktail 대역 — 기록 횟수 · reason 검증용.
 class MockCrashlyticsService extends Mock implements CrashlyticsService {}
 
@@ -64,7 +66,7 @@ void main() {
       );
 
       final ko = lookupAppLocalizations(const Locale('ko'));
-      expect(find.text(ko.errorUnknown), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.errorUnknown), findsOneWidget);
     });
 
     test('T-17-ERR-02 AppException 은 그대로 실패 · 기록 0', () async {

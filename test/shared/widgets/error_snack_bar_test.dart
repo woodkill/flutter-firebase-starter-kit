@@ -5,6 +5,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_snack_bar.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 /// 버튼 탭 시 [onTap] 으로 SnackBar 헬퍼를 호출하는 화면을 pump 한다.
 Future<void> pumpTrigger(
   WidgetTester tester, {
@@ -46,7 +48,10 @@ void main() {
       await tester.tap(find.text('trigger'));
       await tester.pumpAndSettle();
 
-      expect(find.text(ko.errorServiceUnavailable), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.errorServiceUnavailable),
+        findsOneWidget,
+      );
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.action, isNull);
       expect(snackBar.behavior, isNull);
@@ -66,8 +71,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(SnackBar), findsOneWidget);
-      expect(find.text(ko.errorNoInternet), findsOneWidget);
-      expect(find.text(ko.errorServiceUnavailable), findsNothing);
+      expect(findKeepHangulWordsText(ko.errorNoInternet), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.errorServiceUnavailable), findsNothing);
     });
 
     testWidgets('T-17-ERR-05 behavior 를 넘기면 SnackBar 에 그대로 전달된다', (

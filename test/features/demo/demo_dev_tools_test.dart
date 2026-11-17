@@ -21,6 +21,7 @@ import 'package:flutter_starter_kit/features/demo/presentation/demo_screen.dart'
 import 'package:flutter_starter_kit/features/notifications/data/test_push_client.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -220,7 +221,10 @@ Future<String> _tapAndReadSnackBar(
   await tester.pumpAndSettle();
   final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
   expect(snackBar.behavior, SnackBarBehavior.floating);
-  return (snackBar.content as Text).data ?? '';
+  final content = snackBar.content;
+  // 감싸개를 아직 거치지 않은 SnackBar 문구는 그냥 Text 다.
+  if (content is Text) return content.data ?? '';
+  return (content as KeepHangulWordsText).data;
 }
 
 void main() {

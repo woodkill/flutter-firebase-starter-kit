@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/error/app_exception.dart';
 import '../../core/l10n/exception_l10n.dart';
+import 'keep_hangul_words_text.dart';
 
 /// [exception] 의 사용자 문구를 SnackBar 로 띄운다 (Phase 17 D-21).
 ///
@@ -23,7 +24,9 @@ void showErrorSnackBar(
     ..hideCurrentSnackBar()
     ..showSnackBar(
       SnackBar(
-        content: Text(resolveExceptionMessage(context, exception)),
+        content: KeepHangulWordsText(
+          resolveExceptionMessage(context, exception),
+        ),
         behavior: behavior,
       ),
     );

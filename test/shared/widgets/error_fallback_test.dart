@@ -7,6 +7,7 @@ import 'package:flutter_starter_kit/shared/widgets/error_fallback.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../features/settings/presentation/settings_golden_harness.dart';
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../../helpers/source_text.dart';
 import '../../helpers/unsupported_locale.dart';
 
@@ -91,15 +92,24 @@ void main() {
         final ko = lookupAppLocalizations(const Locale('ko'));
         expect(tester.takeException(), isNull);
         expect(find.byType(ErrorFallback), findsOneWidget);
-        expect(find.text(ko.errorWidgetFallbackTitle), findsOneWidget);
-        expect(find.text(ko.errorWidgetFallbackBody), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(ko.errorWidgetFallbackTitle),
+          findsOneWidget,
+        );
+        expect(
+          findKeepHangulWordsText(ko.errorWidgetFallbackBody),
+          findsOneWidget,
+        );
         // 기록은 그 details 그대로 정확히 1회.
         expect(recorded, hasLength(1));
         expect(identical(recorded.single, details), isTrue);
         // 재시도 버튼 없음 · 예외 문자열 노출 없음 (T-17-24).
         expect(findAnyButton(), findsNothing);
-        expect(find.textContaining('secret-internal-detail'), findsNothing);
-        expect(find.textContaining('StateError'), findsNothing);
+        expect(
+          findKeepHangulWordsTextContaining('secret-internal-detail'),
+          findsNothing,
+        );
+        expect(findKeepHangulWordsTextContaining('StateError'), findsNothing);
         expect(kErrorWidgetBuildReason, 'error_widget_build');
       },
     );
@@ -265,8 +275,14 @@ void main() {
             isNull,
             reason: '${size.width}×${size.height} overflow 0',
           );
-          expect(find.text(ko.errorWidgetFallbackTitle), findsOneWidget);
-          expect(find.text(ko.errorWidgetFallbackBody), findsOneWidget);
+          expect(
+            findKeepHangulWordsText(ko.errorWidgetFallbackTitle),
+            findsOneWidget,
+          );
+          expect(
+            findKeepHangulWordsText(ko.errorWidgetFallbackBody),
+            findsOneWidget,
+          );
           expect(find.byType(SingleChildScrollView), findsOneWidget);
           expect(findAnyButton(), findsNothing);
         }

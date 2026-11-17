@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/error/app_exception.dart';
 import '../../core/l10n/exception_l10n.dart';
 import '../../core/theme/theme_extensions.dart';
+import 'keep_hangul_words_text.dart';
 
 /// 화면 내 고정 위치 오류 배너 (D-30 · Phase 17 D-21 공용 승격).
 ///
@@ -48,7 +49,7 @@ class ErrorBanner extends StatelessWidget {
             ),
             SizedBox(width: spacing.sm),
             Expanded(
-              child: Text(
+              child: KeepHangulWordsText(
                 resolveExceptionMessage(context, ex),
                 style: context.appTypography.bodyMedium.copyWith(
                   color: colors.onErrorContainer,

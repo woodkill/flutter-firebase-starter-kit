@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 
 import '../../core/theme/theme_extensions.dart';
 import '../../l10n/generated/app_localizations.dart';
+import 'keep_hangul_words_text.dart';
 
 /// [ErrorFallback] 이 아이콘만 그리는 영역 크기 기준 (logical px).
 ///
@@ -103,7 +104,7 @@ class ErrorFallback extends StatelessWidget {
                     color: scheme.onSurfaceVariant,
                   ),
                   Gap(spacing.lg),
-                  Text(
+                  KeepHangulWordsText(
                     title,
                     textAlign: TextAlign.center,
                     style: typography.titleMedium.copyWith(
@@ -111,7 +112,7 @@ class ErrorFallback extends StatelessWidget {
                     ),
                   ),
                   Gap(spacing.sm),
-                  Text(
+                  KeepHangulWordsText(
                     body,
                     textAlign: TextAlign.center,
                     style: typography.bodyMedium.copyWith(

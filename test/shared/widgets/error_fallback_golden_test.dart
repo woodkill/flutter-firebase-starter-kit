@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/shared/widgets/error_fallback.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../features/settings/presentation/settings_golden_harness.dart';
+import '../../helpers/keep_hangul_words_finder.dart';
 
 /// golden viewport 너비 (logical px) — 지원 최소 폭.
 const double _goldenWidth = 280;
@@ -45,8 +46,14 @@ void main() {
 
         expect(tester.takeException(), isNull);
         final ko = lookupAppLocalizations(const Locale('ko'));
-        expect(find.text(ko.errorWidgetFallbackTitle), findsOneWidget);
-        expect(find.text(ko.errorWidgetFallbackBody), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(ko.errorWidgetFallbackTitle),
+          findsOneWidget,
+        );
+        expect(
+          findKeepHangulWordsText(ko.errorWidgetFallbackBody),
+          findsOneWidget,
+        );
 
         await expectLater(
           find.byType(MaterialApp),

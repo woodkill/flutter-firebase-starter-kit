@@ -6,6 +6,7 @@ import '../../core/error/app_exception.dart';
 import '../../core/l10n/l10n_extensions.dart';
 import '../../core/theme/theme_extensions.dart';
 import 'error_banner.dart';
+import 'keep_hangul_words_text.dart';
 
 /// [AsyncValue] 의 loading · error · data 3상태를 그리는 공용 위젯
 /// (Phase 17 D-23).
@@ -107,7 +108,7 @@ class _DefaultErrorView extends StatelessWidget {
           TextButton.icon(
             onPressed: retry,
             icon: const Icon(Icons.refresh),
-            label: Text(context.l10n.commonRetry),
+            label: KeepHangulWordsText(context.l10n.commonRetry),
           ),
       ],
     );

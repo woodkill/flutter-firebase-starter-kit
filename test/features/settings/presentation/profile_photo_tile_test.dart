@@ -36,6 +36,7 @@ import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import 'settings_golden_harness.dart' show kGoldenSixStrategies;
 
 class _MockCrashlyticsService extends Mock implements CrashlyticsService {}
@@ -235,7 +236,7 @@ void main() {
         find.descendant(of: sheet, matching: find.text('취소')),
         findsOneWidget,
       );
-      expect(find.text('올린 사진 삭제'), findsNothing);
+      expect(findKeepHangulWordsText('올린 사진 삭제'), findsNothing);
 
       await tester.tap(find.text('갤러리에서 사진 선택'));
       await tester.pumpAndSettle();
@@ -366,7 +367,10 @@ void main() {
       await tester.tap(find.text('올린 사진 삭제'));
       await tester.pumpAndSettle();
 
-      expect(find.text('사진을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('사진을 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
       expect(
         find.descendant(of: _photoRow(), matching: find.text('직접 올린 사진')),
         findsOneWidget,
@@ -421,7 +425,7 @@ void main() {
         ),
         findsNWidgets(2),
       );
-      expect(find.text('올린 사진 삭제'), findsNothing);
+      expect(findKeepHangulWordsText('올린 사진 삭제'), findsNothing);
     });
 
     testWidgets('T-17-PHOTO-06: 업로드 중 → 진행 링(40 dp) · 「사진을 올리는 중…」 · '
@@ -459,7 +463,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('사진을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('사진을 올리지 못했습니다. 잠시 후 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
       expect(
         find.descendant(of: _photoRow(), matching: find.text('없음')),
         findsOneWidget,

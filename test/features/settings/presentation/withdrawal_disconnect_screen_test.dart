@@ -67,6 +67,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/brand_button_text_scale.dart';
+import '../../../helpers/keep_hangul_words_finder.dart';
 import '../../../helpers/route_tree.dart' show readMatchedLocations;
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
@@ -511,7 +512,10 @@ void main() {
         kakao.calls.last.complete(const DisconnectDone());
         await tester.pumpAndSettle();
         expect(find.text(l10n.withdrawalDisconnectStatusDone), findsOneWidget);
-        expect(find.text(l10n.withdrawalDisconnectFinalHint), findsNothing);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
+          findsNothing,
+        );
         expect(_finalButton(tester).onPressed, isNotNull);
 
         await tester.tap(_finalButtonFinder());
@@ -823,7 +827,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(l10n.withdrawalDisconnectFinalHint), findsNothing);
+      expect(
+        findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
+        findsNothing,
+      );
       final button = _finalButton(tester);
       expect(button.onPressed, isNotNull);
       expect(
@@ -1456,7 +1463,10 @@ void main() {
       expect(find.byType(WithdrawalDisconnectScreen), findsNothing);
       expect(find.text('open-dialog'), findsOneWidget);
       // 오류가 아니므로 실패 안내는 없다.
-      expect(find.text(l10n.withdrawalFailureTransient), findsNothing);
+      expect(
+        findKeepHangulWordsText(l10n.withdrawalFailureTransient),
+        findsNothing,
+      );
       expect(kakao.calls, isEmpty);
       verifyNever(settingsRepo.requestAccountDeletion);
     });
@@ -1654,7 +1664,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 500));
 
         expect(find.byType(SnackBar), findsOneWidget);
-        expect(find.text(l10n.errorAppCheckFailed), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.errorAppCheckFailed),
+          findsOneWidget,
+        );
         // 행 표시 = 「해제하지 못했습니다」 + 재시도 (기존 그대로).
         expect(
           _inRow(
@@ -1682,7 +1695,7 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         expect(find.byType(SnackBar), findsNothing);
-        expect(find.text(l10n.errorAppCheckFailed), findsNothing);
+        expect(findKeepHangulWordsText(l10n.errorAppCheckFailed), findsNothing);
 
         // 재시도 → 다시 App Check 실패 전이 → SnackBar 1회 더 (누적 2).
         await tester.ensureVisible(retry);
@@ -1696,8 +1709,11 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         expect(find.byType(SnackBar), findsOneWidget);
-        expect(find.text(l10n.errorAppCheckFailed), findsOneWidget);
-        expect(find.text('login-stub'), findsNothing);
+        expect(
+          findKeepHangulWordsText(l10n.errorAppCheckFailed),
+          findsOneWidget,
+        );
+        expect(findKeepHangulWordsText('login-stub'), findsNothing);
       },
     );
 

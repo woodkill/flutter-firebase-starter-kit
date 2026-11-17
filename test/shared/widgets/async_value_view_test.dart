@@ -6,6 +6,8 @@ import 'package:flutter_starter_kit/shared/widgets/async_value_view.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 /// [child] 를 ko 로케일 · 앱 테마로 pump 하는 헬퍼.
 Future<void> pumpKo(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
@@ -35,7 +37,7 @@ void main() {
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('data:3'), findsNothing);
+      expect(findKeepHangulWordsText('data:3'), findsNothing);
     });
 
     testWidgets('T-17-ERR-07 error 기본값은 ErrorBanner 문구 + 재시도 콜백 1회', (
@@ -52,10 +54,10 @@ void main() {
       );
 
       expect(find.byType(ErrorBanner), findsOneWidget);
-      expect(find.text(ko.errorUnknown), findsOneWidget);
+      expect(findKeepHangulWordsText(ko.errorUnknown), findsOneWidget);
       expect(find.byIcon(Icons.refresh), findsOneWidget);
 
-      await tester.tap(find.text(ko.commonRetry));
+      await tester.tap(findKeepHangulWordsText(ko.commonRetry));
       await tester.pump();
 
       expect(retryCount, 1);
@@ -71,7 +73,7 @@ void main() {
       );
 
       expect(find.byType(ErrorBanner), findsOneWidget);
-      expect(find.text(ko.commonRetry), findsNothing);
+      expect(findKeepHangulWordsText(ko.commonRetry), findsNothing);
       expect(find.byType(TextButton), findsNothing);
     });
 

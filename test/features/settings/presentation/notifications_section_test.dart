@@ -40,6 +40,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import 'settings_golden_harness.dart';
 
 class _MockFbUser extends Mock implements fb.User {}
@@ -254,7 +255,10 @@ void main() {
       notifier._gate.complete();
       await tester.pumpAndSettle();
 
-      expect(find.text(l10n.errorNotificationsUpdateFailed), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.errorNotificationsUpdateFailed),
+        findsOneWidget,
+      );
       expect(_switch(tester).value, isTrue);
     });
 
@@ -320,7 +324,10 @@ void main() {
         );
 
         expect(find.byType(ErrorBanner), findsOneWidget);
-        expect(find.text(l10n.errorNotificationsUpdateFailed), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.errorNotificationsUpdateFailed),
+          findsOneWidget,
+        );
         expect(find.byType(SwitchListTile), findsNothing);
         // UI-SPEC §(N) — 오류 표시(배너 · 재시도)만 좌우 lg 안쪽 (리뷰 IN-17 —
         // errorPadding 으로 옮겨도 기하가 같다).
@@ -332,7 +339,7 @@ void main() {
         expect(section.right - banner.right, lg);
         expect(retryButton.left - section.left, lg);
 
-        final retry = find.text(l10n.commonRetry);
+        final retry = findKeepHangulWordsText(l10n.commonRetry);
         await tester.ensureVisible(retry);
         await tester.pumpAndSettle();
         await tester.tap(retry);
@@ -384,7 +391,10 @@ void main() {
       expect(find.text(l10n.settingsSignInOrSignUp), findsOneWidget);
       expect(find.byType(NotificationsSection), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
-      expect(find.text(l10n.settingsNotificationsSection), findsNothing);
+      expect(
+        findKeepHangulWordsText(l10n.settingsNotificationsSection),
+        findsNothing,
+      );
       expect(builds, 0);
       expect(tester.takeException(), isNull);
     });
