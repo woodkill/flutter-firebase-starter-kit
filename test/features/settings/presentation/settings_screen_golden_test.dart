@@ -88,6 +88,7 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import 'settings_golden_harness.dart';
 
 /// [AuthRepository] 대체 Mock — 설정 화면 렌더는 repository 를 호출하지
@@ -331,7 +332,7 @@ void main() {
           if (which == 'language') {
             // 日本語 · 한국어 동시 렌더(한국어 = 행 값 + 시트 항목).
             expect(find.text('日本語'), findsOneWidget);
-            expect(find.text('한국어'), findsNWidgets(2));
+            expect(findKeepHangulWordsText('한국어'), findsNWidgets(2));
           }
           expect(
             tester.takeException(),

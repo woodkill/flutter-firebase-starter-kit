@@ -8,6 +8,7 @@ import 'package:gap/gap.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 사진 메뉴에서 고른 동작 (취소 · 바깥 탭 · back = null).
 enum ProfilePhotoSheetAction {
@@ -71,7 +72,7 @@ class ProfilePhotoSheet extends StatelessWidget {
                 right: spacing.xl,
                 bottom: spacing.sm,
               ),
-              child: Text(
+              child: KeepHangulWordsText(
                 l10n.authAccountPhotoUrl,
                 style: typography.titleMedium,
               ),
@@ -79,7 +80,7 @@ class ProfilePhotoSheet extends StatelessWidget {
             ListTile(
               contentPadding: itemPadding,
               leading: const Icon(Icons.photo_library_outlined),
-              title: Text(
+              title: KeepHangulWordsText(
                 l10n.settingsProfilePhotoPick,
                 style: typography.bodyLarge,
               ),
@@ -90,7 +91,7 @@ class ProfilePhotoSheet extends StatelessWidget {
               ListTile(
                 contentPadding: itemPadding,
                 leading: const Icon(Icons.delete_outline),
-                title: Text(
+                title: KeepHangulWordsText(
                   l10n.settingsProfilePhotoRemove,
                   style: typography.bodyLarge,
                 ),
@@ -100,7 +101,10 @@ class ProfilePhotoSheet extends StatelessWidget {
             ListTile(
               contentPadding: itemPadding,
               leading: Icon(Icons.close, color: scheme.onSurfaceVariant),
-              title: Text(l10n.commonCancel, style: typography.bodyLarge),
+              title: KeepHangulWordsText(
+                l10n.commonCancel,
+                style: typography.bodyLarge,
+              ),
               onTap: () => Navigator.of(context).pop(),
             ),
             Gap(spacing.sm),

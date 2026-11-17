@@ -36,6 +36,7 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/app_button_styles.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../../auth/application/session_ending.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../data/disconnect/disconnect_steps.dart';
@@ -229,7 +230,7 @@ class _WithdrawalConfirmationDialogState
     return PopScope(
       canPop: !isLoading,
       child: AlertDialog(
-        title: Text(
+        title: KeepHangulWordsText(
           l10n.withdrawalDialogTitle,
           style: typography.titleLarge.copyWith(color: errorColor),
         ),
@@ -238,21 +239,24 @@ class _WithdrawalConfirmationDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(l10n.withdrawalDialogBodyLine1, style: typography.bodyLarge),
+              KeepHangulWordsText(
+                l10n.withdrawalDialogBodyLine1,
+                style: typography.bodyLarge,
+              ),
               Gap(spacing.sm),
-              Text(
+              KeepHangulWordsText(
                 l10n.withdrawalDialogBodyLine2,
                 style: typography.titleMedium.copyWith(color: errorColor),
               ),
               Gap(spacing.sm),
-              Text(
+              KeepHangulWordsText(
                 l10n.withdrawalDialogBodyLine3,
                 style: typography.bodyMedium.copyWith(
                   color: context.colorScheme.onSurfaceVariant,
                 ),
               ),
               Gap(spacing.xl),
-              Text(
+              KeepHangulWordsText(
                 l10n.withdrawalConfirmFieldLabel(
                   l10n.withdrawalConfirmFieldHint,
                 ),
@@ -281,7 +285,7 @@ class _WithdrawalConfirmationDialogState
             onPressed: isLoading
                 ? null
                 : () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
+            child: KeepHangulWordsText(l10n.commonCancel),
           ),
           Semantics(
             button: true,
@@ -291,7 +295,7 @@ class _WithdrawalConfirmationDialogState
               onPressed: (_verbatimMatch && !isLoading && !isAccountDeleted)
                   ? _onConfirm
                   : null,
-              child: Text(l10n.withdrawalConfirmAction),
+              child: KeepHangulWordsText(l10n.withdrawalConfirmAction),
             ),
           ),
         ],
@@ -304,7 +308,7 @@ class _WithdrawalConfirmationDialogState
     // 것을 자동 사용 — root context 의 SnackBar 노출.
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(SnackBar(content: KeepHangulWordsText(message)));
   }
 }
 

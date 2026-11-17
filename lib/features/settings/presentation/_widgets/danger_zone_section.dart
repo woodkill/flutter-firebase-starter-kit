@@ -7,6 +7,7 @@ import 'package:gap/gap.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import 'withdrawal_confirmation_dialog.dart';
 
 /// 위험 영역 격리 섹션 위젯 (Phase 16 D-05~D-08).
@@ -40,7 +41,7 @@ class DangerZoneSection extends StatelessWidget {
             spacing.lg,
             spacing.xs,
           ),
-          child: Text(
+          child: KeepHangulWordsText(
             l10n.settingsDangerZoneSection,
             // Layout Contract Surface B verbatim — role 자체가 이미
             // Medium weight 라 별도 override 를 두지 않는다.
@@ -53,7 +54,7 @@ class DangerZoneSection extends StatelessWidget {
             right: spacing.lg,
             bottom: spacing.sm,
           ),
-          child: Text(
+          child: KeepHangulWordsText(
             l10n.settingsDangerZoneExplainer,
             style: typography.bodyMedium.copyWith(
               color: context.colorScheme.onSurfaceVariant,
@@ -74,7 +75,7 @@ class DangerZoneSection extends StatelessWidget {
           onTap: () => WithdrawalConfirmationDialog.show(context),
           child: ListTile(
             leading: Icon(Icons.delete_forever, color: errorColor),
-            title: Text(
+            title: KeepHangulWordsText(
               l10n.settingsWithdrawalLabel,
               style: typography.titleMedium.copyWith(color: errorColor),
             ),

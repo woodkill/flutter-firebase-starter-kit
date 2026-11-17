@@ -33,6 +33,7 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/prof
 import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/shared/widgets/error_banner.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -206,7 +207,7 @@ void main() {
         matching: find.byType(ListTile),
       );
       expect(
-        tester.getTopLeft(find.text('프로필')).dy,
+        tester.getTopLeft(findKeepHangulWordsText('프로필')).dy,
         lessThan(tester.getTopLeft(row).dy),
       );
       expect(
@@ -221,7 +222,7 @@ void main() {
       final sheet = find.byType(ProfilePhotoSheet);
       expect(sheet, findsOneWidget);
       expect(
-        find.descendant(of: sheet, matching: find.text('프로필 사진')),
+        find.descendant(of: sheet, matching: findKeepHangulWordsText('프로필 사진')),
         findsOneWidget,
       );
       expect(
@@ -229,16 +230,19 @@ void main() {
         findsNWidgets(2),
       );
       expect(
-        find.descendant(of: sheet, matching: find.text('갤러리에서 사진 선택')),
+        find.descendant(
+          of: sheet,
+          matching: findKeepHangulWordsText('갤러리에서 사진 선택'),
+        ),
         findsOneWidget,
       );
       expect(
-        find.descendant(of: sheet, matching: find.text('취소')),
+        find.descendant(of: sheet, matching: findKeepHangulWordsText('취소')),
         findsOneWidget,
       );
       expect(findKeepHangulWordsText('올린 사진 삭제'), findsNothing);
 
-      await tester.tap(find.text('갤러리에서 사진 선택'));
+      await tester.tap(findKeepHangulWordsText('갤러리에서 사진 선택'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfilePhotoSheet), findsNothing);
@@ -262,7 +266,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('취소'));
+      await tester.tap(findKeepHangulWordsText('취소'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfilePhotoSheet), findsNothing);
@@ -285,7 +289,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('갤러리에서 사진 선택'));
+      await tester.tap(findKeepHangulWordsText('갤러리에서 사진 선택'));
       await tester.pumpAndSettle();
 
       expect(repository.uploadUids, <String>['u1']);
@@ -319,13 +323,16 @@ void main() {
         find.descendant(of: sheet, matching: find.byIcon(Icons.delete_outline)),
       );
       expect(deleteIcon.color, isNull);
-      final deleteTitle = tester.widget<Text>(
-        find.descendant(of: sheet, matching: find.text('올린 사진 삭제')),
+      final deleteTitle = tester.widget<KeepHangulWordsText>(
+        find.descendant(
+          of: sheet,
+          matching: findKeepHangulWordsText('올린 사진 삭제'),
+        ),
       );
       final scheme = Theme.of(tester.element(sheet)).colorScheme;
       expect(deleteTitle.style?.color, isNot(scheme.error));
 
-      await tester.tap(find.text('올린 사진 삭제'));
+      await tester.tap(findKeepHangulWordsText('올린 사진 삭제'));
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsNothing);
@@ -344,7 +351,7 @@ void main() {
 
       await tester.tap(_photoRow());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('취소'));
+      await tester.tap(findKeepHangulWordsText('취소'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ProfilePhotoSheet), findsNothing);
@@ -364,7 +371,7 @@ void main() {
 
       await tester.tap(_photoRow());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('올린 사진 삭제'));
+      await tester.tap(findKeepHangulWordsText('올린 사진 삭제'));
       await tester.pumpAndSettle();
 
       expect(
@@ -443,7 +450,7 @@ void main() {
 
       await tester.tap(_photoRow());
       await tester.pumpAndSettle();
-      await tester.tap(find.text('갤러리에서 사진 선택'));
+      await tester.tap(findKeepHangulWordsText('갤러리에서 사진 선택'));
       // 진행 링이 계속 돌아 settle 하지 않는다 — 시트 닫힘 전환만 흘린다.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
@@ -673,9 +680,11 @@ void main() {
 
             final cancel = find.descendant(
               of: sheet,
-              matching: find.widgetWithText(
-                ListTile,
-                lookupAppLocalizations(locale).commonCancel,
+              matching: find.ancestor(
+                of: findKeepHangulWordsText(
+                  lookupAppLocalizations(locale).commonCancel,
+                ),
+                matching: find.byType(ListTile),
               ),
             );
             await tester.ensureVisible(cancel);
@@ -722,7 +731,7 @@ void main() {
           tester.getRect(
             find.descendant(
               of: sheet,
-              matching: find.text(
+              matching: findKeepHangulWordsText(
                 lookupAppLocalizations(const Locale('ko')).authAccountPhotoUrl,
               ),
             ),

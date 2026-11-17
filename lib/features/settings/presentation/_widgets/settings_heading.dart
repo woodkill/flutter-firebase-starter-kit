@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 설정 · 계정 화면의 묶음 제목 (UI-SPEC Layout Contract · Q3-A).
 ///
@@ -27,7 +28,7 @@ class SettingsHeading extends StatelessWidget {
         spacing.lg,
         spacing.xs,
       ),
-      child: Text(
+      child: KeepHangulWordsText(
         label,
         // UI-SPEC Layout Contract verbatim — accent 토큰은 chevron 전용
         // 화이트리스트라 heading 에 쓰지 않는다.

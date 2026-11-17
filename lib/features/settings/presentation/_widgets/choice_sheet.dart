@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 라디오 선택창을 아래 시트로 연다 (UI-SPEC (P) · Q1-A).
 ///
@@ -79,7 +80,7 @@ class ChoiceSheet<T> extends StatelessWidget {
                 right: spacing.xl,
                 bottom: spacing.sm,
               ),
-              child: Text(title, style: typography.titleMedium),
+              child: KeepHangulWordsText(title, style: typography.titleMedium),
             ),
             RadioGroup<T>(
               groupValue: selected,
@@ -93,7 +94,10 @@ class ChoiceSheet<T> extends StatelessWidget {
                       value: value,
                       toggleable: true,
                       contentPadding: itemPadding,
-                      title: Text(label, style: typography.bodyLarge),
+                      title: KeepHangulWordsText(
+                        label,
+                        style: typography.bodyLarge,
+                      ),
                     ),
                 ],
               ),

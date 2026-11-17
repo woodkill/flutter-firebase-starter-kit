@@ -42,9 +42,12 @@ import 'package:flutter_starter_kit/features/auth/domain/user.dart';
 import 'package:flutter_starter_kit/features/settings/data/settings_repository.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/_widgets/withdrawal_confirmation_dialog.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../../helpers/keep_hangul_words_finder.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
@@ -190,10 +193,13 @@ void main() {
       await _pumpAndShowDialog(tester);
 
       // ko locale verbatim — withdrawalDialogBodyLine1/2/3.
-      expect(find.text('이 계정과 모든 데이터는 영구 삭제됩니다.'), findsOneWidget);
-      expect(find.text('삭제 후에는 복구할 수 없습니다.'), findsOneWidget);
       expect(
-        find.text('다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.'),
+        findKeepHangulWordsText('이 계정과 모든 데이터는 영구 삭제됩니다.'),
+        findsOneWidget,
+      );
+      expect(findKeepHangulWordsText('삭제 후에는 복구할 수 없습니다.'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('다시 가입하려면 동일 이메일 또는 동일 로그인 방식으로 신규 등록해야 합니다.'),
         findsOneWidget,
       );
     });
@@ -205,7 +211,10 @@ void main() {
 
       // 라벨 "탈퇴" 가 visible 한 FilledButton 위젯 찾기 (Semantics 래퍼 통과).
       final confirmBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
       );
       expect(confirmBtn.onPressed, isNull);
     });
@@ -217,7 +226,10 @@ void main() {
       await tester.pump();
 
       final confirmBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
       );
       expect(confirmBtn.onPressed, isNotNull);
     });
@@ -242,11 +254,17 @@ void main() {
       await tester.pump();
 
       final confirmBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
       );
       expect(confirmBtn.onPressed, isNull);
       await tester.tap(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
         warnIfMissed: false,
       );
       await tester.pump();
@@ -260,7 +278,10 @@ void main() {
       await tester.pump();
 
       final confirmBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
       );
       expect(confirmBtn.onPressed, isNull);
     });
@@ -271,8 +292,8 @@ void main() {
       final handle = await _pumpAndShowDialog(tester);
 
       // commonCancel ko verbatim = "취소"
-      expect(find.text('취소'), findsOneWidget);
-      await tester.tap(find.text('취소'));
+      expect(findKeepHangulWordsText('취소'), findsOneWidget);
+      await tester.tap(findKeepHangulWordsText('취소'));
       await tester.pumpAndSettle();
 
       expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
@@ -287,14 +308,19 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       // loading frame + complete frame.
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
 
       // 성공 SnackBar "회원탈퇴가 완료되었습니다." 노출.
-      expect(find.text('회원탈퇴가 완료되었습니다.'), findsOneWidget);
+      expect(findKeepHangulWordsText('회원탈퇴가 완료되었습니다.'), findsOneWidget);
       verify(settingsRepo.requestAccountDeletion).called(1);
     });
 
@@ -310,14 +336,19 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pump();
         await tester.pumpAndSettle();
 
         // withdrawalReauthRequired ko verbatim.
         expect(
-          find.text('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
           findsOneWidget,
         );
         // dialog 닫힘.
@@ -358,13 +389,21 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
 
       // withdrawalFailure ko verbatim.
-      expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'),
+        findsOneWidget,
+      );
       // dialog 유지 (재시도 가능).
       expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
     });
@@ -386,18 +425,28 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pump();
         await tester.pumpAndSettle();
 
         // withdrawalFailureTransient ko verbatim.
         expect(
-          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText(
+            '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
           findsOneWidget,
         );
         // generic 문구는 노출되지 않는다 (collapse 회귀 가드).
-        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        expect(
+          findKeepHangulWordsText('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'),
+          findsNothing,
+        );
         // dialog 유지 (재시도 가능).
         expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
       },
@@ -415,16 +464,26 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pump();
         await tester.pumpAndSettle();
 
         expect(
-          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText(
+            '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
           findsOneWidget,
         );
-        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        expect(
+          findKeepHangulWordsText('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'),
+          findsNothing,
+        );
         expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
       },
     );
@@ -448,25 +507,30 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pump();
         await tester.pumpAndSettle();
 
         // errorAppCheckFailed ko verbatim.
         expect(
-          find.text(
+          findKeepHangulWordsText(
             '요청을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요. 계속되면 앱을 최신 버전으로 업데이트해 주세요.',
           ),
           findsOneWidget,
         );
         // 재로그인 안내 · 라우팅 0.
         expect(
-          find.text('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText('보안을 위해 다시 로그인이 필요합니다. 로그인 후 다시 시도해 주세요.'),
           findsNothing,
         );
         expect(visited.where((r) => r.startsWith('/login')), isEmpty);
-        expect(find.text('login-stub'), findsNothing);
+        expect(findKeepHangulWordsText('login-stub'), findsNothing);
         expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
       },
     );
@@ -485,16 +549,26 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pump();
         await tester.pumpAndSettle();
 
         expect(
-          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText(
+            '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
           findsOneWidget,
         );
-        expect(find.text('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'), findsNothing);
+        expect(
+          findKeepHangulWordsText('회원탈퇴에 실패했습니다. 다시 시도해 주세요.'),
+          findsNothing,
+        );
         expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
       },
     );
@@ -547,7 +621,12 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pump();
 
       // loading 진입 확인 — canPop 이 false 로 잠긴 구간.
@@ -626,7 +705,12 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
@@ -654,14 +738,19 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
 
       verify(settingsRepo.requestAccountDeletion).called(1);
-      expect(find.text('withdraw-stub'), findsNothing);
-      expect(find.text('회원탈퇴가 완료되었습니다.'), findsOneWidget);
+      expect(findKeepHangulWordsText('withdraw-stub'), findsNothing);
+      expect(findKeepHangulWordsText('회원탈퇴가 완료되었습니다.'), findsOneWidget);
     });
 
     testWidgets('WC19 (16.10 Q6-A) — 로그인 사용자 부재(null)면 기존 경로로 바로 삭제', (
@@ -677,13 +766,18 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
 
       verify(settingsRepo.requestAccountDeletion).called(1);
-      expect(find.text('withdraw-stub'), findsNothing);
+      expect(findKeepHangulWordsText('withdraw-stub'), findsNothing);
     });
 
     testWidgets('WC20 (review WR-01) — 서버 조회 실패면 삭제 0 · 재시도 안내 · 다이얼로그 유지', (
@@ -706,7 +800,12 @@ void main() {
 
       await tester.enterText(find.byType(TextField), koHint);
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, koHint));
+      await tester.tap(
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
+      );
       await tester.pump();
       await tester.pump();
       await tester.pumpAndSettle();
@@ -714,14 +813,19 @@ void main() {
       expect(reads.single, 1);
       verifyNever(settingsRepo.requestAccountDeletion);
       expect(
-        find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+        findKeepHangulWordsText(
+          '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+        ),
         findsOneWidget,
       );
       expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
-      expect(find.text('withdraw-stub'), findsNothing);
+      expect(findKeepHangulWordsText('withdraw-stub'), findsNothing);
       // 재시도할 수 있다 — 확인 버튼이 다시 활성이다.
       final confirmBtn = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, koHint),
+        find.ancestor(
+          of: findKeepHangulWordsText(koHint),
+          matching: find.byType(FilledButton),
+        ),
       );
       expect(confirmBtn.onPressed, isNotNull);
     });
@@ -740,7 +844,12 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pumpAndSettle();
 
         expect(find.byType(WithdrawalConfirmationDialog), findsNothing);
@@ -763,7 +872,12 @@ void main() {
 
         await tester.enterText(find.byType(TextField), koHint);
         await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, koHint));
+        await tester.tap(
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
+        );
         await tester.pump();
         await tester.pumpAndSettle();
 
@@ -771,13 +885,18 @@ void main() {
         expect(tester.takeException(), isNull);
         verifyNever(settingsRepo.requestAccountDeletion);
         expect(
-          find.text('네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.'),
+          findKeepHangulWordsText(
+            '네트워크 또는 서비스 오류로 회원탈퇴에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+          ),
           findsOneWidget,
         );
         expect(find.byType(WithdrawalConfirmationDialog), findsOneWidget);
-        expect(find.text('withdraw-stub'), findsNothing);
+        expect(findKeepHangulWordsText('withdraw-stub'), findsNothing);
         final confirmBtn = tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, koHint),
+          find.ancestor(
+            of: findKeepHangulWordsText(koHint),
+            matching: find.byType(FilledButton),
+          ),
         );
         expect(confirmBtn.onPressed, isNotNull);
       },
@@ -794,7 +913,9 @@ void main() {
       final warningLine = AppLocalizations.of(
         dialogContext,
       ).withdrawalDialogBodyLine2;
-      final text = tester.widget<Text>(find.text(warningLine));
+      final text = tester.widget<KeepHangulWordsText>(
+        findKeepHangulWordsText(warningLine),
+      );
       final expected = dialogContext.appTypography.titleMedium;
       expect(text.style, isNotNull);
       expect(text.style!.letterSpacing, expected.letterSpacing);

@@ -62,11 +62,13 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/with
 import 'package:flutter_starter_kit/features/settings/presentation/account_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import '../../../helpers/route_tree.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -497,7 +499,7 @@ void main() {
             matching: find.byType(ListTile),
           ),
         );
-        final titleText = dangerTile.title! as Text;
+        final titleText = dangerTile.title! as KeepHangulWordsText;
         final theme = Theme.of(tester.element(find.byType(AccountScreen)));
         expect(titleText.style?.color, equals(theme.colorScheme.error));
       },
@@ -737,7 +739,7 @@ void main() {
         );
 
         // available 빈 set → 계정 연결 heading 미노출.
-        expect(find.text('Link an account'), findsNothing);
+        expect(findKeepHangulWordsText('Link an account'), findsNothing);
         // Phase 17.1 — 계정 화면은 표시 이름 · 가입일 · 로그아웃 행이 더해져 Danger
         // zone 이 800×600 lazy build 범위 밖이다 — 먼저 스크롤한다.
         await _scrollTo(tester, find.byType(DangerZoneSection));
@@ -834,7 +836,7 @@ void main() {
           ),
         );
         expect(
-          (dangerTile.title! as Text).style?.color,
+          (dangerTile.title! as KeepHangulWordsText).style?.color,
           equals(theme.colorScheme.error),
         );
       },
@@ -1314,7 +1316,7 @@ void main() {
           find.descendant(of: unlinkGoogle, matching: find.byType(Text)),
         );
         expect(innerText.textSpan!.toPlainText(), 'Google');
-        expect(find.textContaining('Google,'), findsNothing);
+        expect(findKeepHangulWordsTextContaining('Google,'), findsNothing);
         expect(tester.takeException(), isNull);
         handle.dispose();
       },
@@ -1464,7 +1466,7 @@ void main() {
           expect(find.byType(AlertDialog), findsNothing);
           expect(find.text(message), findsOneWidget);
           expect(
-            find.text(
+            findKeepHangulWordsText(
               AppLocalizationsEn().settingsUnlinkFailedAfterDisconnect(
                 'Email / Password',
               ),
@@ -1622,7 +1624,7 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.text(
+          findKeepHangulWordsText(
             "Couldn't unlink due to a network or service error. Please try again later.",
           ),
           findsNothing,
@@ -1662,7 +1664,7 @@ void main() {
         );
         expect(find.text(expected), findsOneWidget);
         expect(
-          find.text(
+          findKeepHangulWordsText(
             AppLocalizationsEn().settingsUnlinkFailedDisconnect('Google'),
           ),
           findsNothing,
@@ -1790,16 +1792,20 @@ void main() {
             ),
             findsOneWidget,
           );
-          expect(find.text(ko.authReauthRequired), findsNothing);
+          expect(findKeepHangulWordsText(ko.authReauthRequired), findsNothing);
           expect(
-            find.text(ko.settingsUnlinkFailedDisconnect('Google')),
+            findKeepHangulWordsText(
+              ko.settingsUnlinkFailedDisconnect('Google'),
+            ),
             findsNothing,
           );
           expect(
-            find.text(ko.settingsUnlinkFailedAfterDisconnect('Google')),
+            findKeepHangulWordsText(
+              ko.settingsUnlinkFailedAfterDisconnect('Google'),
+            ),
             findsNothing,
           );
-          expect(find.text('LOGIN ROUTE'), findsNothing);
+          expect(findKeepHangulWordsText('LOGIN ROUTE'), findsNothing);
           expect(
             router.routerDelegate.currentConfiguration.last.matchedLocation,
             AppRoutes.home,
@@ -1951,8 +1957,12 @@ void main() {
           findsOneWidget,
           reason: 'AppBar 제목 = 「내 계정」',
         );
-        final profileHeading = find.text(l10n.accountProfileSection);
-        final methodsHeading = find.text(l10n.accountSignInMethodsSection);
+        final profileHeading = findKeepHangulWordsText(
+          l10n.accountProfileSection,
+        );
+        final methodsHeading = findKeepHangulWordsText(
+          l10n.accountSignInMethodsSection,
+        );
         expect(profileHeading, findsOneWidget);
         expect(methodsHeading, findsOneWidget);
 
@@ -1967,7 +1977,7 @@ void main() {
           ('가입 수단', _findTileByIcon(Icons.how_to_reg)),
           ('연결된 계정', _findTileByIcon(Icons.link)),
           ('로그아웃', _findTileByIcon(Icons.logout)),
-          ('회원탈퇴', find.text(l10n.settingsWithdrawalLabel)),
+          ('회원탈퇴', findKeepHangulWordsText(l10n.settingsWithdrawalLabel)),
         ];
         for (final (name, finder) in ordered) {
           expect(finder, findsOneWidget, reason: '$name 1개');

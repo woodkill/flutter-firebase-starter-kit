@@ -195,7 +195,7 @@ void main() {
           .getBottomLeft(find.byType(NotificationsSection))
           .dy;
       final developerTop = tester
-          .getTopLeft(find.text(l10n.settingsDeveloperSection))
+          .getTopLeft(findKeepHangulWordsText(l10n.settingsDeveloperSection))
           .dy;
       expect(languageBottom, lessThan(sectionTop));
       expect(sectionBottom, lessThan(developerTop));

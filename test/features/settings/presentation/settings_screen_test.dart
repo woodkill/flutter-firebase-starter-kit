@@ -184,12 +184,14 @@ import 'package:flutter_starter_kit/features/settings/presentation/_widgets/prof
 import 'package:flutter_starter_kit/features/settings/presentation/app_settings_slot.dart';
 import 'package:flutter_starter_kit/features/settings/presentation/settings_screen.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../helpers/keep_hangul_words_finder.dart';
 import '../../../helpers/source_text.dart';
 
 class _MockFbUser extends Mock implements fb.User {}
@@ -484,7 +486,9 @@ List<String> _sheetLabels<T>(WidgetTester tester) {
     for (final element in tiles.evaluate())
       (
         y: tester.getTopLeft(find.byWidget(element.widget)).dy,
-        label: ((element.widget as RadioListTile<T>).title! as Text).data ?? '',
+        label:
+            ((element.widget as RadioListTile<T>).title! as KeepHangulWordsText)
+                .data,
       ),
   ]..sort((a, b) => a.y.compareTo(b.y));
   return [for (final entry in entries) entry.label];
@@ -589,31 +593,44 @@ void main() {
 
       expect(find.text(ko.settingsAccountSection), findsOneWidget);
       expect(find.text('홍길동'), findsOneWidget);
-      expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsGeneralSection),
+        findsOneWidget,
+      );
       expect(find.text(ko.settingsThemeSystem), findsOneWidget);
       expect(find.text('한국어'), findsOneWidget);
       expect(find.byType(NotificationsSection), findsOneWidget);
-      expect(find.text(ko.settingsDeveloperSection), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsDeveloperSection),
+        findsOneWidget,
+      );
       expect(find.text(ko.demoScreenTitle), findsOneWidget);
 
       // 계정 상세는 계정 화면으로 옮겨 갔다 (D-02 — copy → move 완료).
       expect(find.byType(ProfilePhotoTile), findsNothing);
-      expect(find.text(ko.authAccountEmail), findsNothing);
-      expect(find.textContaining('me@example.com'), findsNothing);
-      expect(find.text(ko.authAccountSignUpMethod), findsNothing);
-      expect(find.text(ko.authAccountLinkedAccounts), findsNothing);
+      expect(findKeepHangulWordsText(ko.authAccountEmail), findsNothing);
+      expect(findKeepHangulWordsTextContaining('me@example.com'), findsNothing);
+      expect(findKeepHangulWordsText(ko.authAccountSignUpMethod), findsNothing);
+      expect(
+        findKeepHangulWordsText(ko.authAccountLinkedAccounts),
+        findsNothing,
+      );
       expect(find.byType(AccountLinkingSection), findsNothing);
       expect(find.byType(DangerZoneSection), findsNothing);
-      expect(find.text(ko.settingsGuestLabel), findsNothing);
+      expect(findKeepHangulWordsText(ko.settingsGuestLabel), findsNothing);
 
       // 배치 순서 — 계정 행 → 일반 → 테마 → 언어 → 알림 → 개발자 → 데모 행.
       final ys = [
         tester.getTopLeft(find.text(ko.settingsAccountSection)).dy,
-        tester.getTopLeft(find.text(ko.settingsGeneralSection)).dy,
+        tester
+            .getTopLeft(findKeepHangulWordsText(ko.settingsGeneralSection))
+            .dy,
         tester.getTopLeft(find.text(ko.settingsTheme)).dy,
         tester.getTopLeft(find.text(ko.settingsLanguage)).dy,
         tester.getTopLeft(find.byType(NotificationsSection)).dy,
-        tester.getTopLeft(find.text(ko.settingsDeveloperSection)).dy,
+        tester
+            .getTopLeft(findKeepHangulWordsText(ko.settingsDeveloperSection))
+            .dy,
         tester.getTopLeft(find.text(ko.demoScreenTitle)).dy,
       ];
       for (var i = 1; i < ys.length; i++) {
@@ -673,7 +690,10 @@ void main() {
           find.byType(NotificationsSection),
           isAnonymous ? findsNothing : findsOneWidget,
         );
-        expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(ko.settingsGeneralSection),
+          findsOneWidget,
+        );
         expect(find.text(ko.settingsTheme), findsOneWidget);
         expect(find.text(ko.settingsLanguage), findsOneWidget);
         expect(find.text(ko.demoScreenTitle), findsOneWidget);
@@ -934,10 +954,13 @@ void main() {
         ),
       );
 
-      expect(find.text(ko.settingsDeveloperSection), findsNothing);
-      expect(find.text(ko.demoScreenTitle), findsNothing);
+      expect(
+        findKeepHangulWordsText(ko.settingsDeveloperSection),
+        findsNothing,
+      );
+      expect(findKeepHangulWordsText(ko.demoScreenTitle), findsNothing);
       expect(find.byKey(_kAdopterRowKey), findsNothing);
-      expect(find.text('Adopter developer row'), findsNothing);
+      expect(findKeepHangulWordsText('Adopter developer row'), findsNothing);
       expect(find.text(ko.settingsLanguage), findsOneWidget);
     });
   });
@@ -968,7 +991,7 @@ void main() {
       expect(appRow, findsOneWidget);
       expect(memberHeading, findsOneWidget);
       expect(memberRow, findsOneWidget);
-      expect(find.text('Empty section'), findsNothing);
+      expect(findKeepHangulWordsText('Empty section'), findsNothing);
       expect(developerHeading, findsOneWidget);
 
       final ys = <double>[
@@ -1002,9 +1025,9 @@ void main() {
       final developerHeading = find.text(en.settingsDeveloperSection);
       expect(appHeading, findsOneWidget);
       expect(appRow, findsOneWidget);
-      expect(find.text('Member section'), findsNothing);
+      expect(findKeepHangulWordsText('Member section'), findsNothing);
       expect(find.byKey(_kMemberRowKey), findsNothing);
-      expect(find.text('Empty section'), findsNothing);
+      expect(findKeepHangulWordsText('Empty section'), findsNothing);
       expect(find.byType(NotificationsSection), findsNothing);
       expect(developerHeading, findsOneWidget);
 
@@ -1035,7 +1058,10 @@ void main() {
 
       expect(find.text('App section'), findsOneWidget);
       expect(find.byKey(_kAppRowKey), findsOneWidget);
-      expect(find.text(en.settingsDeveloperSection), findsNothing);
+      expect(
+        findKeepHangulWordsText(en.settingsDeveloperSection),
+        findsNothing,
+      );
       expect(find.byKey(_kAdopterRowKey), findsNothing);
       expect(tester.widget(_findLastRow(tester)).key, _kAppRowKey);
       // 「일반」 앞 간격 1 + 앱 묶음 간격 1 — 행 없는 묶음은 간격도 없다.
@@ -1056,7 +1082,10 @@ void main() {
         ),
       );
 
-      expect(find.text(en.settingsDeveloperSection), findsNothing);
+      expect(
+        findKeepHangulWordsText(en.settingsDeveloperSection),
+        findsNothing,
+      );
       expect(tester.widget(_findLastRow(tester)).key, _kMemberRowKey);
     });
   });
@@ -1071,12 +1100,18 @@ void main() {
 
       expect(find.text(ko.settingsGuestLabel), findsOneWidget);
       expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
-      expect(find.text(ko.settingsGeneralSection), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsGeneralSection),
+        findsOneWidget,
+      );
       expect(find.text(ko.settingsTheme), findsOneWidget);
       expect(find.text(ko.settingsThemeSystem), findsOneWidget);
       expect(find.text(ko.settingsLanguage), findsOneWidget);
       expect(find.text('한국어'), findsOneWidget);
-      expect(find.text(ko.settingsDeveloperSection), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(ko.settingsDeveloperSection),
+        findsOneWidget,
+      );
       expect(find.text(ko.demoScreenTitle), findsOneWidget);
       expect(find.text(ko.settingsDemoScreenSubtitle), findsOneWidget);
       // 17 D-02 정정 — 게스트에게 알림 · 정식 전용 블록 0 (T-17.1-07).
@@ -1084,7 +1119,7 @@ void main() {
       expect(find.byType(DangerZoneSection), findsNothing);
       expect(find.byType(ProfilePhotoTile), findsNothing);
       expect(find.byType(AccountLinkingSection), findsNothing);
-      expect(find.text(ko.settingsAccountSection), findsNothing);
+      expect(findKeepHangulWordsText(ko.settingsAccountSection), findsNothing);
 
       // 배치 순서 — 게스트 행 → 일반 → 테마 → 언어 → 개발자 → 데모 행.
       final ys = [
@@ -1096,7 +1131,7 @@ void main() {
           ko.settingsDeveloperSection,
           ko.demoScreenTitle,
         ])
-          tester.getTopLeft(find.text(text)).dy,
+          tester.getTopLeft(findKeepHangulWordsText(text)).dy,
       ];
       for (var i = 1; i < ys.length; i++) {
         expect(ys[i - 1], lessThan(ys[i]));
@@ -1128,13 +1163,13 @@ void main() {
       ]);
       expect(_sheetGroupValue<ThemeMode>(tester), ThemeMode.system);
 
-      await tester.tap(find.text(ko.settingsThemeDark));
+      await tester.tap(findKeepHangulWordsText(ko.settingsThemeDark));
       await tester.pumpAndSettle();
 
       expect(find.byType(RadioListTile<ThemeMode>), findsNothing);
       expect(container.read(themeProvider).value, ThemeMode.dark);
       expect(find.text(ko.settingsThemeDark), findsOneWidget);
-      expect(find.text(ko.settingsThemeSystem), findsNothing);
+      expect(findKeepHangulWordsText(ko.settingsThemeSystem), findsNothing);
       expect(find.byType(SnackBar), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -1207,7 +1242,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(RadioListTile<ThemeMode>),
-          matching: find.text(ko.settingsThemeSystem),
+          matching: findKeepHangulWordsText(ko.settingsThemeSystem),
         ),
       );
       await tester.pumpAndSettle();
@@ -1219,7 +1254,7 @@ void main() {
       await tester.tap(
         find.descendant(
           of: find.byType(RadioListTile<Locale>),
-          matching: find.text('한국어'),
+          matching: findKeepHangulWordsText('한국어'),
         ),
       );
       await tester.pumpAndSettle();
@@ -1243,8 +1278,11 @@ void main() {
         ),
       );
 
-      expect(find.text(ko.settingsDeveloperSection), findsNothing);
-      expect(find.text(ko.demoScreenTitle), findsNothing);
+      expect(
+        findKeepHangulWordsText(ko.settingsDeveloperSection),
+        findsNothing,
+      );
+      expect(findKeepHangulWordsText(ko.demoScreenTitle), findsNothing);
       expect(find.byIcon(Icons.developer_mode), findsNothing);
       expect(find.text(ko.settingsLanguage), findsOneWidget);
       expect(find.text(ko.settingsSignInOrSignUp), findsOneWidget);
@@ -1315,7 +1353,7 @@ void main() {
         );
         expect(tiles, hasLength(3));
         for (final tile in tiles) {
-          expect((tile.title! as Text).maxLines, isNull);
+          expect((tile.title! as KeepHangulWordsText).maxLines, isNull);
         }
         expect(tester.takeException(), isNull);
       });
