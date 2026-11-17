@@ -13,6 +13,7 @@ import 'package:flutter_starter_kit/features/not_found/presentation/not_found_sc
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../settings/presentation/settings_golden_harness.dart';
 
 /// golden viewport 너비 (logical px) — 지원 최소 폭.
@@ -46,7 +47,10 @@ void main() {
 
           expect(tester.takeException(), isNull);
           final ko = lookupAppLocalizations(const Locale('ko'));
-          expect(find.text(ko.errorNotFoundGoHomeCta), findsOneWidget);
+          expect(
+            findKeepHangulWordsText(ko.errorNotFoundGoHomeCta),
+            findsOneWidget,
+          );
 
           await expectLater(
             find.byType(MaterialApp),

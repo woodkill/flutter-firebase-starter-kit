@@ -10,6 +10,7 @@ import 'package:flutter_starter_kit/features/not_found/presentation/not_found_sc
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../../helpers/source_text.dart';
 
 /// 404 [NotFoundScreen] 본문을 지정한 [locale] 로 pump 한다.
@@ -58,9 +59,12 @@ void main() {
     ) async {
       await _pumpNotFound(tester, locale: const Locale('ko'));
 
-      expect(find.text('페이지를 찾을 수 없습니다'), findsAtLeastNWidgets(1));
-      expect(find.text('요청하신 페이지가 존재하지 않습니다.'), findsOneWidget);
-      expect(find.text('홈으로'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('페이지를 찾을 수 없습니다'),
+        findsAtLeastNWidgets(1),
+      );
+      expect(findKeepHangulWordsText('요청하신 페이지가 존재하지 않습니다.'), findsOneWidget);
+      expect(findKeepHangulWordsText('홈으로'), findsOneWidget);
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
       expect(find.byType(FilledButton), findsOneWidget);
     });
@@ -141,9 +145,11 @@ void main() {
             await _pumpNotFound(tester, locale: locale);
             expect(tester.takeException(), isNull, reason: '$label 404');
 
-            final goHome = find.widgetWithText(
-              FilledButton,
-              lookupAppLocalizations(locale).errorNotFoundGoHomeCta,
+            final goHome = find.ancestor(
+              of: findKeepHangulWordsText(
+                lookupAppLocalizations(locale).errorNotFoundGoHomeCta,
+              ),
+              matching: find.byType(FilledButton),
             );
             await tester.ensureVisible(goHome);
             await tester.pumpAndSettle();
@@ -172,7 +178,7 @@ void main() {
             find.ancestor(of: icon, matching: find.byType(Column)).first,
           ),
           tester.getRect(icon),
-          tester.getRect(find.text(l10n.errorNotFoundBody)),
+          tester.getRect(findKeepHangulWordsText(l10n.errorNotFoundBody)),
           tester.getRect(find.byType(FilledButton)),
         ];
         const expected = _portraitNotFoundRects;
@@ -224,9 +230,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final goHome = find
-          .widgetWithText(
-            FilledButton,
-            lookupAppLocalizations(const Locale('ko')).errorNotFoundGoHomeCta,
+          .ancestor(
+            of: findKeepHangulWordsText(
+              lookupAppLocalizations(const Locale('ko')).errorNotFoundGoHomeCta,
+            ),
+            matching: find.byType(FilledButton),
           )
           .hitTestable();
 
@@ -258,9 +266,11 @@ void main() {
           await _pumpNotFound(tester, locale: locale);
           expect(tester.takeException(), isNull);
 
-          final goHome = find.widgetWithText(
-            FilledButton,
-            lookupAppLocalizations(locale).errorNotFoundGoHomeCta,
+          final goHome = find.ancestor(
+            of: findKeepHangulWordsText(
+              lookupAppLocalizations(locale).errorNotFoundGoHomeCta,
+            ),
+            matching: find.byType(FilledButton),
           );
           await tester.ensureVisible(goHome);
           await tester.pumpAndSettle();

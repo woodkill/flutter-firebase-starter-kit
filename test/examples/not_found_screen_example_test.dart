@@ -13,6 +13,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../helpers/keep_hangul_words_finder.dart';
+
 /// 홈 경로에 놓는 대역 화면의 문구.
 const String _homeStubText = 'home';
 
@@ -47,11 +49,17 @@ void main() {
       await tester.pumpAndSettle();
 
       final l10n = lookupAppLocalizations(const Locale('ko'));
-      expect(find.text(l10n.errorNotFoundTitle), findsAtLeastNWidgets(1));
-      expect(find.text(l10n.errorNotFoundBody), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.errorNotFoundTitle),
+        findsAtLeastNWidgets(1),
+      );
+      expect(findKeepHangulWordsText(l10n.errorNotFoundBody), findsOneWidget);
 
       await tester.tap(
-        find.widgetWithText(FilledButton, l10n.errorNotFoundGoHomeCta),
+        find.ancestor(
+          of: findKeepHangulWordsText(l10n.errorNotFoundGoHomeCta),
+          matching: find.byType(FilledButton),
+        ),
       );
       await tester.pumpAndSettle();
 

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/l10n/l10n_extensions.dart';
 import '../../../core/router/app_routes.dart';
 import '../../../core/theme/theme_extensions.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 잘못된 경로 진입 시 보이는 명시적 404 화면 — home 으로 조용히 넘기지 않는다(IN-05).
 ///
@@ -38,13 +39,13 @@ class NotFoundScreen extends StatelessWidget {
               color: colorScheme.onSurfaceVariant,
             ),
             Gap(spacing.lg),
-            Text(
+            KeepHangulWordsText(
               l10n.errorNotFoundTitle,
               style: typography.titleLarge,
               textAlign: TextAlign.center,
             ),
             Gap(spacing.sm),
-            Text(
+            KeepHangulWordsText(
               l10n.errorNotFoundBody,
               style: typography.bodyMedium.copyWith(
                 color: colorScheme.onSurfaceVariant,
@@ -55,7 +56,7 @@ class NotFoundScreen extends StatelessWidget {
             FilledButton.icon(
               onPressed: () => context.go(AppRoutes.home),
               icon: const Icon(Icons.home),
-              label: Text(l10n.errorNotFoundGoHomeCta),
+              label: KeepHangulWordsText(l10n.errorNotFoundGoHomeCta),
             ),
           ],
         ),

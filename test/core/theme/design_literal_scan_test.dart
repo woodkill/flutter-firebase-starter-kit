@@ -32,7 +32,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/design_literal_scan.dart';
 
 /// 스캔 대상 `lib/` 의 표시 주석 총수다.
-const int _designLiteralMarkerCount = 15;
+const int _designLiteralMarkerCount = 16;
 
 /// 스캔 대상 수의 하한 — 수집기가 빈 목록으로 공허하게 통과하지 않게 한다.
 const int _minScanTargetCount = 100;
