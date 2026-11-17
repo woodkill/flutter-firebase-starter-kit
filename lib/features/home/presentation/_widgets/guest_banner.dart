@@ -3,6 +3,7 @@ import 'package:gap/gap.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
 /// 게스트 사용자에게 화면 상단에 고정 노출되는 안내 배너 (Phase 10 D-13).
 ///
@@ -46,7 +47,7 @@ class GuestBanner extends StatelessWidget {
               ),
               Gap(spacing.sm),
               Expanded(
-                child: Text(
+                child: KeepHangulWordsText(
                   l10n.homeGuestBanner,
                   style: typography.bodyMedium.copyWith(
                     color: colorScheme.onSurfaceVariant,

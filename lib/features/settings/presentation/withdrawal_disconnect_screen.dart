@@ -30,6 +30,7 @@ import '../../../core/theme/app_button_styles.dart';
 import '../../../core/theme/theme_extensions.dart';
 import '../../../shared/auth/provider_label_formatter.dart';
 import '../../../shared/widgets/error_snack_bar.dart';
+import '../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../auth/application/session_ending.dart';
 import '../../auth/presentation/_widgets/social_button.dart';
 import '../data/disconnect/disconnect_step.dart';
@@ -113,7 +114,7 @@ class _WithdrawalDisconnectScreenState
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(SnackBar(content: KeepHangulWordsText(message)));
   }
 
   @override
@@ -206,7 +207,7 @@ class _WithdrawalDisconnectScreenState
                         spacing.lg,
                         spacing.sm,
                       ),
-                      child: Text(
+                      child: KeepHangulWordsText(
                         l10n.withdrawalDisconnectIntro,
                         style: typography.bodyMedium.copyWith(
                           color: scheme.onSurfaceVariant,
@@ -409,8 +410,8 @@ class _DisconnectRowTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: typography.titleMedium),
-                Text(status, style: statusStyle),
+                KeepHangulWordsText(label, style: typography.titleMedium),
+                KeepHangulWordsText(status, style: statusStyle),
               ],
             ),
           ),
@@ -445,7 +446,7 @@ class _DisconnectRowTile extends StatelessWidget {
               // 낭독된다 (UI-SPEC §Semantics 함정 1).
               child: Semantics(
                 container: true,
-                child: Text(
+                child: KeepHangulWordsText(
                   l10n.withdrawalDisconnectSkippedGuide(label),
                   style: muted,
                 ),
@@ -507,7 +508,7 @@ class _SkipButton extends StatelessWidget {
       excludeSemantics: true,
       child: TextButton(
         onPressed: onPressed,
-        child: Text(l10n.withdrawalDisconnectSkip),
+        child: KeepHangulWordsText(l10n.withdrawalDisconnectSkip),
       ),
     );
   }
@@ -530,7 +531,10 @@ class _RetryButton extends StatelessWidget {
       label: l10n.withdrawalDisconnectRetrySemantic(label),
       onTap: onPressed,
       excludeSemantics: true,
-      child: TextButton(onPressed: onPressed, child: Text(l10n.commonRetry)),
+      child: TextButton(
+        onPressed: onPressed,
+        child: KeepHangulWordsText(l10n.commonRetry),
+      ),
     );
   }
 }
@@ -571,7 +575,7 @@ class _FinalBar extends StatelessWidget {
             Gap(spacing.md),
           ],
           if (!allDone) ...[
-            Text(
+            KeepHangulWordsText(
               l10n.withdrawalDisconnectFinalHint,
               style: typography.bodyMedium.copyWith(
                 color: scheme.onSurfaceVariant,
@@ -590,7 +594,7 @@ class _FinalBar extends StatelessWidget {
             child: FilledButton(
               style: scheme.destructiveFilledButtonStyle,
               onPressed: enabled ? onDelete : null,
-              child: Text(l10n.withdrawalConfirmAction),
+              child: KeepHangulWordsText(l10n.withdrawalConfirmAction),
             ),
           ),
         ],

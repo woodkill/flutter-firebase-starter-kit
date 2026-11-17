@@ -11,6 +11,7 @@ import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../shared/widgets/async_value_view.dart';
 import '../../../../shared/widgets/error_snack_bar.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../../notifications/application/notification_settings_notifier.dart';
 
 /// 설정 화면의 「알림」 섹션 (Phase 17 D-03 · UI-SPEC §(N)).
@@ -54,7 +55,7 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
             spacing.lg,
             spacing.xs,
           ),
-          child: Text(
+          child: KeepHangulWordsText(
             l10n.settingsNotificationsSection,
             style: typography.labelMedium.copyWith(
               color: scheme.onSurfaceVariant,
@@ -69,11 +70,11 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
           errorPadding: EdgeInsets.symmetric(horizontal: spacing.lg),
           data: (isOn) => SwitchListTile(
             secondary: const Icon(Icons.notifications),
-            title: Text(
+            title: KeepHangulWordsText(
               l10n.settingsNotificationsToggle,
               style: typography.titleMedium,
             ),
-            subtitle: Text(
+            subtitle: KeepHangulWordsText(
               l10n.settingsNotificationsToggleSubtitle,
               style: typography.bodyMedium.copyWith(
                 color: scheme.onSurfaceVariant,
@@ -110,7 +111,9 @@ class _NotificationsSectionState extends ConsumerState<NotificationsSection> {
           ..hideCurrentSnackBar()
           ..showSnackBar(
             SnackBar(
-              content: Text(context.l10n.settingsNotificationsPermissionDenied),
+              content: KeepHangulWordsText(
+                context.l10n.settingsNotificationsPermissionDenied,
+              ),
             ),
           );
       case NotificationToggleResult.failed:

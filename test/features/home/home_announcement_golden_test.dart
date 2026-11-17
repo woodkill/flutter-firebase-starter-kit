@@ -30,6 +30,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
 import '../settings/presentation/settings_golden_harness.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -108,11 +109,11 @@ void main() {
           expect(
             find.descendant(
               of: find.byType(AnnouncementBar),
-              matching: find.text(_sampleKo),
+              matching: findKeepHangulWordsText(_sampleKo),
             ),
             findsOneWidget,
           );
-          expect(find.text(ko.homeGuestBanner), findsOneWidget);
+          expect(findKeepHangulWordsText(ko.homeGuestBanner), findsOneWidget);
 
           await expectLater(
             find.byType(MaterialApp),

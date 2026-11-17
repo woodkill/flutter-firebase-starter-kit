@@ -1785,7 +1785,9 @@ void main() {
               ko.settingsUnlinkProviderSemantic(ko.authAccountProviderGoogle),
             ),
           );
-          await tester.tap(find.text(ko.settingsUnlinkConfirmAction));
+          await tester.tap(
+            findKeepHangulWordsText(ko.settingsUnlinkConfirmAction),
+          );
           await tester.pumpAndSettle();
 
           expect(find.byType(AlertDialog), findsNothing);

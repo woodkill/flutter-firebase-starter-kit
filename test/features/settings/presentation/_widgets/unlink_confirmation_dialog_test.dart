@@ -52,6 +52,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../../helpers/keep_hangul_words_finder.dart';
+
 class _MockSettingsRepository extends Mock implements SettingsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -209,7 +211,7 @@ PopScope<Object?> _dialogPopScope(WidgetTester tester) {
 
 /// 「해제」 를 누르고 busy 상태까지 진행한다 — 탭 프레임 + 1프레임 전이.
 Future<void> _tapConfirmUntilBusy(WidgetTester tester, String confirm) async {
-  await tester.tap(find.text(confirm));
+  await tester.tap(findKeepHangulWordsText(confirm));
   await tester.pump();
   // UI-SPEC §Surface U — TextButton 비활성 반영은 다음 프레임.
   await tester.pump();
@@ -347,12 +349,21 @@ void main() {
         locale: const Locale('ko'),
       );
 
-      expect(find.text('Google 연결을 해제할까요?'), findsOneWidget);
-      expect(find.text('해제하면 Google 계정으로 로그인할 수 없습니다.'), findsOneWidget);
-      expect(find.text('Google 앱 연결(권한)도 함께 해제됩니다.'), findsOneWidget);
-      expect(find.text('해제하려면 Google 계정으로 한 번 로그인합니다.'), findsOneWidget);
-      expect(find.text('취소'), findsOneWidget);
-      expect(find.text('해제'), findsOneWidget);
+      expect(findKeepHangulWordsText('Google 연결을 해제할까요?'), findsOneWidget);
+      expect(
+        findKeepHangulWordsText('해제하면 Google 계정으로 로그인할 수 없습니다.'),
+        findsOneWidget,
+      );
+      expect(
+        findKeepHangulWordsText('Google 앱 연결(권한)도 함께 해제됩니다.'),
+        findsOneWidget,
+      );
+      expect(
+        findKeepHangulWordsText('해제하려면 Google 계정으로 한 번 로그인합니다.'),
+        findsOneWidget,
+      );
+      expect(findKeepHangulWordsText('취소'), findsOneWidget);
+      expect(findKeepHangulWordsText('해제'), findsOneWidget);
     });
 
     testWidgets(
@@ -428,9 +439,15 @@ void main() {
           providerLabel: label,
         );
 
-        expect(find.text('해제하면 $label 계정으로 로그인할 수 없습니다.'), findsOneWidget);
-        expect(find.text('$label 앱 연결(권한)도 함께 해제됩니다.'), findsOneWidget);
-        expect(find.textContaining('한 번 로그인합니다.'), findsNothing);
+        expect(
+          findKeepHangulWordsText('해제하면 $label 계정으로 로그인할 수 없습니다.'),
+          findsOneWidget,
+        );
+        expect(
+          findKeepHangulWordsText('$label 앱 연결(권한)도 함께 해제됩니다.'),
+          findsOneWidget,
+        );
+        expect(findKeepHangulWordsTextContaining('한 번 로그인합니다.'), findsNothing);
       });
     }
 
@@ -452,8 +469,14 @@ void main() {
           providerLabel: label,
         );
 
-        expect(find.text('$label 앱 연결(권한)도 함께 해제됩니다.'), findsOneWidget);
-        expect(find.text('해제하려면 $label 계정으로 한 번 로그인합니다.'), findsOneWidget);
+        expect(
+          findKeepHangulWordsText('$label 앱 연결(권한)도 함께 해제됩니다.'),
+          findsOneWidget,
+        );
+        expect(
+          findKeepHangulWordsText('해제하려면 $label 계정으로 한 번 로그인합니다.'),
+          findsOneWidget,
+        );
       });
     }
 
@@ -516,9 +539,12 @@ void main() {
         providerLabel: '이메일',
       );
 
-      expect(find.text('해제하면 이메일 계정으로 로그인할 수 없습니다.'), findsOneWidget);
-      expect(find.textContaining('앱 연결(권한)'), findsNothing);
-      expect(find.textContaining('한 번 로그인합니다.'), findsNothing);
+      expect(
+        findKeepHangulWordsText('해제하면 이메일 계정으로 로그인할 수 없습니다.'),
+        findsOneWidget,
+      );
+      expect(findKeepHangulWordsTextContaining('앱 연결(권한)'), findsNothing);
+      expect(findKeepHangulWordsTextContaining('한 번 로그인합니다.'), findsNothing);
     });
   });
 
@@ -542,7 +568,9 @@ void main() {
           expect(dialog, findsOneWidget, reason: '$label 다이얼로그 열림');
           // 재로그인 행 = 문단 3개(본문 · 고지 · 로그인 안내) — 최악.
           expect(
-            find.text(l10n.settingsUnlinkDialogSignInGuide('Google')),
+            findKeepHangulWordsText(
+              l10n.settingsUnlinkDialogSignInGuide('Google'),
+            ),
             findsOneWidget,
             reason: '$label 로그인 안내 문단',
           );
@@ -555,7 +583,10 @@ void main() {
               find
                   .descendant(
                     of: dialog,
-                    matching: find.widgetWithText(TextButton, action),
+                    matching: find.ancestor(
+                      of: findKeepHangulWordsText(action),
+                      matching: find.byType(TextButton),
+                    ),
                   )
                   .hitTestable(),
               findsOneWidget,
@@ -586,9 +617,11 @@ void main() {
             find
                 .descendant(
                   of: dialog,
-                  matching: find.widgetWithText(
-                    TextButton,
-                    l10n.settingsUnlinkConfirmAction,
+                  matching: find.ancestor(
+                    of: findKeepHangulWordsText(
+                      l10n.settingsUnlinkConfirmAction,
+                    ),
+                    matching: find.byType(TextButton),
                   ),
                 )
                 .hitTestable(),

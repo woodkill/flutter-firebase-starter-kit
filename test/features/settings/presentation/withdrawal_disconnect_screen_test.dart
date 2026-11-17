@@ -504,14 +504,17 @@ void main() {
         verifyNever(settingsRepo.requestAccountDeletion);
         expect(kakao.calls.length, 1);
         expect(
-          find.text(l10n.withdrawalDisconnectStatusWorking),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusWorking),
           findsOneWidget,
         );
         expect(_finalButton(tester).onPressed, isNull);
 
         kakao.calls.last.complete(const DisconnectDone());
         await tester.pumpAndSettle();
-        expect(find.text(l10n.withdrawalDisconnectStatusDone), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusDone),
+          findsOneWidget,
+        );
         expect(
           findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
           findsNothing,
@@ -521,7 +524,7 @@ void main() {
         await tester.tap(_finalButtonFinder());
         await tester.pumpAndSettle();
         verify(settingsRepo.requestAccountDeletion).called(1);
-        expect(find.text(l10n.withdrawalSuccess), findsOneWidget);
+        expect(findKeepHangulWordsText(l10n.withdrawalSuccess), findsOneWidget);
       },
     );
 
@@ -552,7 +555,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.kakao,
-          find.text(l10n.withdrawalDisconnectStatusWorking),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusWorking),
         ),
         findsOneWidget,
       );
@@ -564,7 +567,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.google,
-          find.text(l10n.withdrawalDisconnectStatusNeedsSignIn),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusNeedsSignIn),
         ),
         findsOneWidget,
       );
@@ -576,7 +579,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.line,
-          find.text(l10n.withdrawalDisconnectStatusWaiting),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusWaiting),
         ),
         findsOneWidget,
       );
@@ -591,7 +594,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.facebook,
-          find.text(l10n.withdrawalDisconnectStatusDone),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusDone),
         ),
         findsOneWidget,
       );
@@ -603,7 +606,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.kakao,
-          find.text(l10n.withdrawalDisconnectStatusFailed),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusFailed),
         ),
         findsOneWidget,
       );
@@ -621,7 +624,9 @@ void main() {
       expect(
         _inRow(
           AccountProvider.google,
-          find.text(l10n.withdrawalDisconnectStatusMismatch(googleLabel)),
+          findKeepHangulWordsText(
+            l10n.withdrawalDisconnectStatusMismatch(googleLabel),
+          ),
         ),
         findsOneWidget,
       );
@@ -630,7 +635,10 @@ void main() {
       await tester.tap(
         _inRow(
           AccountProvider.google,
-          find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+            matching: find.byType(TextButton),
+          ),
         ),
       );
       await tester.pump();
@@ -641,7 +649,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.google,
-          find.text(l10n.withdrawalDisconnectStatusSkipped),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusSkipped),
         ),
         findsOneWidget,
       );
@@ -719,7 +727,10 @@ void main() {
       expect(
         _inRow(
           AccountProvider.google,
-          find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+            matching: find.byType(TextButton),
+          ),
         ),
         findsOneWidget,
       );
@@ -750,11 +761,17 @@ void main() {
 
       final skip = _inRow(
         AccountProvider.kakao,
-        find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+        find.ancestor(
+          of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+          matching: find.byType(TextButton),
+        ),
       );
       final retry = _inRow(
         AccountProvider.kakao,
-        find.widgetWithText(TextButton, l10n.commonRetry),
+        find.ancestor(
+          of: findKeepHangulWordsText(l10n.commonRetry),
+          matching: find.byType(TextButton),
+        ),
       );
       expect(skip, findsOneWidget);
       expect(retry, findsOneWidget);
@@ -782,7 +799,10 @@ void main() {
       await tester.tap(
         _inRow(
           AccountProvider.kakao,
-          find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+            matching: find.byType(TextButton),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -790,12 +810,17 @@ void main() {
       final guide = l10n.withdrawalDisconnectSkippedGuide(
         _label(l10n, 'kakao'),
       );
-      expect(_inRow(AccountProvider.kakao, find.text(guide)), findsOneWidget);
       expect(
-        tester.getTopLeft(find.text(guide)).dy,
+        _inRow(AccountProvider.kakao, findKeepHangulWordsText(guide)),
+        findsOneWidget,
+      );
+      expect(
+        tester.getTopLeft(findKeepHangulWordsText(guide)).dy,
         greaterThan(
           tester
-              .getTopLeft(find.text(l10n.withdrawalDisconnectStatusSkipped))
+              .getTopLeft(
+                findKeepHangulWordsText(l10n.withdrawalDisconnectStatusSkipped),
+              )
               .dy,
         ),
       );
@@ -816,13 +841,19 @@ void main() {
       fakes.kakao.calls.last.complete(const DisconnectDone());
       await tester.pumpAndSettle();
 
-      expect(find.text(l10n.withdrawalDisconnectFinalHint), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
+        findsOneWidget,
+      );
       expect(_finalButton(tester).onPressed, isNull);
 
       await tester.tap(
         _inRow(
           AccountProvider.google,
-          find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+            matching: find.byType(TextButton),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -1021,7 +1052,10 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         expect(deletion.count[0], 1);
-        expect(find.text(l10n.withdrawalReauthRequired), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalReauthRequired),
+          findsOneWidget,
+        );
         expect(visits.locations, hasLength(1));
         expect(visits.locations.single, contains('reauth=1'));
 
@@ -1032,7 +1066,7 @@ void main() {
         expect(
           _inRow(
             AccountProvider.kakao,
-            find.text(l10n.withdrawalDisconnectStatusWorking),
+            findKeepHangulWordsText(l10n.withdrawalDisconnectStatusWorking),
           ),
           findsOneWidget,
         );
@@ -1075,7 +1109,10 @@ void main() {
         await tester.tap(_finalButtonFinder());
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
-        expect(find.text(l10n.withdrawalFailureTransient), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalFailureTransient),
+          findsOneWidget,
+        );
         expect(find.byType(WithdrawalDisconnectScreen), findsOneWidget);
         expect(_finalButton(tester).onPressed, isNotNull);
 
@@ -1085,12 +1122,12 @@ void main() {
         await tester.tap(_finalButtonFinder());
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
-        expect(find.text(l10n.withdrawalFailure), findsOneWidget);
+        expect(findKeepHangulWordsText(l10n.withdrawalFailure), findsOneWidget);
         expect(find.byType(WithdrawalDisconnectScreen), findsOneWidget);
         expect(
           _inRow(
             AccountProvider.kakao,
-            find.text(l10n.withdrawalDisconnectStatusDone),
+            findKeepHangulWordsText(l10n.withdrawalDisconnectStatusDone),
           ),
           findsOneWidget,
         );
@@ -1115,7 +1152,7 @@ void main() {
       await tester.tap(_finalButtonFinder());
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text(l10n.withdrawalSuccess), findsOneWidget);
+      expect(findKeepHangulWordsText(l10n.withdrawalSuccess), findsOneWidget);
       expect(deletion.count[0], 1);
     });
 
@@ -1254,7 +1291,13 @@ void main() {
         l10n.commonRetry,
       ]) {
         final button = tester.widget<TextButton>(
-          _inRow(AccountProvider.kakao, find.widgetWithText(TextButton, text)),
+          _inRow(
+            AccountProvider.kakao,
+            find.ancestor(
+              of: findKeepHangulWordsText(text),
+              matching: find.byType(TextButton),
+            ),
+          ),
         );
         expect(button.onPressed, isNull, reason: text);
       }
@@ -1265,7 +1308,10 @@ void main() {
       final retry = tester.widget<TextButton>(
         _inRow(
           AccountProvider.kakao,
-          find.widgetWithText(TextButton, l10n.commonRetry),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.commonRetry),
+            matching: find.byType(TextButton),
+          ),
         ),
       );
       expect(retry.onPressed, isNotNull);
@@ -1299,14 +1345,17 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
         expect(deletion.count[0], 1);
-        expect(find.text(l10n.withdrawalReauthRequired), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalReauthRequired),
+          findsOneWidget,
+        );
         expect(visits.locations, isEmpty);
         expect(find.byType(WithdrawalDisconnectScreen), findsOneWidget);
 
         expect(
           _inRow(
             AccountProvider.google,
-            find.text(l10n.withdrawalDisconnectStatusNeedsSignIn),
+            findKeepHangulWordsText(l10n.withdrawalDisconnectStatusNeedsSignIn),
           ),
           findsOneWidget,
         );
@@ -1317,19 +1366,25 @@ void main() {
         expect(
           _inRow(
             AccountProvider.google,
-            find.widgetWithText(TextButton, l10n.withdrawalDisconnectSkip),
+            find.ancestor(
+              of: findKeepHangulWordsText(l10n.withdrawalDisconnectSkip),
+              matching: find.byType(TextButton),
+            ),
           ),
           findsOneWidget,
         );
         expect(
           _inRow(
             AccountProvider.kakao,
-            find.text(l10n.withdrawalDisconnectStatusDone),
+            findKeepHangulWordsText(l10n.withdrawalDisconnectStatusDone),
           ),
           findsOneWidget,
         );
         expect(_finalButton(tester).onPressed, isNull);
-        expect(find.text(l10n.withdrawalDisconnectFinalHint), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
+          findsOneWidget,
+        );
 
         await tester.tap(find.byType(SocialButton));
         await tester.pump();
@@ -1366,7 +1421,10 @@ void main() {
       await tester.tap(_finalButtonFinder());
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text(l10n.withdrawalReauthRequired), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.withdrawalReauthRequired),
+        findsOneWidget,
+      );
       expect(visits.locations, hasLength(1));
 
       await tester.tap(find.text('reauth-back'));
@@ -1420,7 +1478,10 @@ void main() {
         expect(reads[0], 2);
         expect(find.byType(WithdrawalDisconnectScreen), findsNothing);
         expect(find.text('open-dialog'), findsOneWidget);
-        expect(find.text(l10n.withdrawalFailureTransient), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalFailureTransient),
+          findsOneWidget,
+        );
         expect(kakao.calls, isEmpty);
         verifyNever(settingsRepo.requestAccountDeletion);
       },
@@ -1510,8 +1571,14 @@ void main() {
         expect(find.bySemanticsLabel(l10n.commonLoading), findsOneWidget);
         // 행은 아직 0 — 소개 문단 · 안내 · 비활성 「탈퇴」 는 그대로다.
         expect(find.byType(SocialButton), findsNothing);
-        expect(find.text(l10n.withdrawalDisconnectIntro), findsOneWidget);
-        expect(find.text(l10n.withdrawalDisconnectFinalHint), findsOneWidget);
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalDisconnectIntro),
+          findsOneWidget,
+        );
+        expect(
+          findKeepHangulWordsText(l10n.withdrawalDisconnectFinalHint),
+          findsOneWidget,
+        );
         expect(_finalButton(tester).onPressed, isNull);
 
         read.complete(<String>['kakao']);
@@ -1672,13 +1739,16 @@ void main() {
         expect(
           _inRow(
             AccountProvider.kakao,
-            find.text(l10n.withdrawalDisconnectStatusFailed),
+            findKeepHangulWordsText(l10n.withdrawalDisconnectStatusFailed),
           ),
           findsOneWidget,
         );
         final retry = _inRow(
           AccountProvider.kakao,
-          find.widgetWithText(TextButton, l10n.commonRetry),
+          find.ancestor(
+            of: findKeepHangulWordsText(l10n.commonRetry),
+            matching: find.byType(TextButton),
+          ),
         );
         expect(retry, findsOneWidget);
 
@@ -1740,7 +1810,7 @@ void main() {
       expect(
         _inRow(
           AccountProvider.kakao,
-          find.text(l10n.withdrawalDisconnectStatusFailed),
+          findKeepHangulWordsText(l10n.withdrawalDisconnectStatusFailed),
         ),
         findsOneWidget,
       );

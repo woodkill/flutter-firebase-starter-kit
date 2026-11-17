@@ -9,6 +9,7 @@ import '../../../../core/providers/locale_provider.dart';
 import '../../../../core/remote_config/feature_flag.dart';
 import '../../../../core/remote_config/feature_flags_provider.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../application/dismissed_announcement.dart';
 
 /// 홈 AppBar 바로 아래에 고정되는 운영 공지 배너 (Phase 17 D-09 · D-37).
@@ -99,7 +100,7 @@ class _AnnouncementSurface extends StatelessWidget {
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: spacing.md),
-                    child: Text(
+                    child: KeepHangulWordsText(
                       message,
                       semanticsLabel: '${l10n.homeAnnouncementLabel}: $message',
                       style: context.appTypography.bodyMedium.copyWith(

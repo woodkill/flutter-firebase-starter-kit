@@ -23,6 +23,7 @@ import 'package:gap/gap.dart';
 import '../../../../core/auth/provider_id.dart';
 import '../../../../core/l10n/l10n_extensions.dart';
 import '../../../../core/theme/theme_extensions.dart';
+import '../../../../shared/widgets/keep_hangul_words_text.dart';
 import '../../data/disconnect/disconnect_step.dart';
 import '../../data/disconnect/disconnect_steps.dart';
 import '../settings_notifier.dart';
@@ -118,7 +119,7 @@ class _UnlinkConfirmationDialogState
       child: AlertDialog(
         // 가로 모드에서 넘칠 때만 스크롤 (Phase 3 D-09 · quick 261003-0fp).
         scrollable: true,
-        title: Text(
+        title: KeepHangulWordsText(
           l10n.settingsUnlinkDialogTitle(label),
           style: typography.headlineSmall,
         ),
@@ -128,7 +129,7 @@ class _UnlinkConfirmationDialogState
           children: [
             for (var i = 0; i < paragraphs.length; i++) ...[
               if (i > 0) Gap(spacing.sm),
-              Text(paragraphs[i], style: typography.bodyMedium),
+              KeepHangulWordsText(paragraphs[i], style: typography.bodyMedium),
             ],
             if (_busy) ...[
               Gap(spacing.md),
@@ -139,11 +140,11 @@ class _UnlinkConfirmationDialogState
         actions: [
           TextButton(
             onPressed: _busy ? null : () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
+            child: KeepHangulWordsText(l10n.commonCancel),
           ),
           TextButton(
             onPressed: _busy ? null : _onConfirm,
-            child: Text(l10n.settingsUnlinkConfirmAction),
+            child: KeepHangulWordsText(l10n.settingsUnlinkConfirmAction),
           ),
         ],
       ),

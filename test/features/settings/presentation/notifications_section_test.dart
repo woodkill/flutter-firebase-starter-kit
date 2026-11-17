@@ -164,11 +164,16 @@ void main() {
         notifier: _FakeNotificationSettings(initial: () async => false),
       );
 
-      final heading = find.text(l10n.settingsNotificationsSection);
+      final heading = findKeepHangulWordsText(
+        l10n.settingsNotificationsSection,
+      );
       expect(heading, findsOneWidget);
-      expect(find.text(l10n.settingsNotificationsToggle), findsOneWidget);
       expect(
-        find.text(l10n.settingsNotificationsToggleSubtitle),
+        findKeepHangulWordsText(l10n.settingsNotificationsToggle),
+        findsOneWidget,
+      );
+      expect(
+        findKeepHangulWordsText(l10n.settingsNotificationsToggleSubtitle),
         findsOneWidget,
       );
       expect(
@@ -233,7 +238,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        find.text(l10n.settingsNotificationsPermissionDenied),
+        findKeepHangulWordsText(l10n.settingsNotificationsPermissionDenied),
         findsOneWidget,
       );
       expect(find.byType(SnackBarAction), findsNothing);
@@ -291,7 +296,10 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text(l10n.settingsNotificationsSection), findsOneWidget);
+      expect(
+        findKeepHangulWordsText(l10n.settingsNotificationsSection),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byType(NotificationsSection),

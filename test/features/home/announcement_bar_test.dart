@@ -31,6 +31,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_platform_interface.dart';
 import 'package:shared_preferences_platform_interface/types.dart';
 
+import '../../helpers/keep_hangul_words_finder.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockFirebaseAuth extends Mock implements fb.FirebaseAuth {}
@@ -174,7 +176,7 @@ void main() {
       expect(find.byType(AnnouncementBar), findsOneWidget);
       final text = find.descendant(
         of: find.byType(AnnouncementBar),
-        matching: find.text(message),
+        matching: findKeepHangulWordsText(message),
       );
       expect(text, findsOneWidget);
       expect(
@@ -184,7 +186,9 @@ void main() {
       expect(find.byTooltip(ko.homeAnnouncementDismiss), findsOneWidget);
       expect(
         tester.getRect(find.byType(AnnouncementBar)).bottom,
-        lessThanOrEqualTo(tester.getRect(find.text(ko.homeGuestBanner)).top),
+        lessThanOrEqualTo(
+          tester.getRect(findKeepHangulWordsText(ko.homeGuestBanner)).top,
+        ),
       );
       expect(
         tester.getRect(find.byType(AnnouncementBar)).top,
@@ -196,8 +200,8 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(AnnouncementBar), findsOneWidget);
       expect(tester.getSize(find.byType(AnnouncementBar)), Size.zero);
-      expect(find.text(message), findsNothing);
-      expect(find.text(ko.homeGuestBanner), findsOneWidget);
+      expect(findKeepHangulWordsText(message), findsNothing);
+      expect(findKeepHangulWordsText(ko.homeGuestBanner), findsOneWidget);
     });
 
     group('닫기 기억 (D-12)', () {
@@ -237,11 +241,11 @@ void main() {
         ];
 
         await _pumpBar(tester, overrides: overrides);
-        expect(find.text('공지 A'), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 A'), findsOneWidget);
 
         await tester.tap(find.byTooltip(ko.homeAnnouncementDismiss));
         await tester.pump();
-        expect(find.text('공지 A'), findsNothing);
+        expect(findKeepHangulWordsText('공지 A'), findsNothing);
         expect(tester.getSize(find.byType(AnnouncementBar)), Size.zero);
         await tester.pumpAndSettle();
         final prefs = await SharedPreferences.getInstance();
@@ -249,13 +253,13 @@ void main() {
 
         // 앱 재시작(새 컨테이너) — 같은 문구는 숨김.
         await _pumpBar(tester, overrides: overrides);
-        expect(find.text('공지 A'), findsNothing);
+        expect(findKeepHangulWordsText('공지 A'), findsNothing);
         expect(tester.takeException(), isNull);
 
         // 콘솔에서 문구 변경 → 실행 중 다시 표시.
         updates.add(RemoteConfigUpdate(<String>{'announcement_message_ko'}));
         await tester.pumpAndSettle();
-        expect(find.text('공지 B'), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 B'), findsOneWidget);
       });
 
       testWidgets('T-17-RC-08 정확 일치 비교 — 끝 공백 · 언어 전환은 다른 문구', (tester) async {
@@ -273,7 +277,7 @@ void main() {
             ),
           ],
         );
-        expect(find.text('공지 A '), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 A '), findsOneWidget);
 
         // en 으로 'Notice' 를 닫은 뒤 ko 로 바꾸면 ko 칸 문구가 보인다.
         SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -300,13 +304,13 @@ void main() {
 
         await tester.tap(find.byTooltip(en.homeAnnouncementDismiss));
         await tester.pumpAndSettle();
-        expect(find.text('Notice'), findsNothing);
+        expect(findKeepHangulWordsText('Notice'), findsNothing);
 
         await container
             .read(localeProvider.notifier)
             .setLocale(const Locale('ko'));
         await tester.pumpAndSettle();
-        expect(find.text('공지 A'), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 A'), findsOneWidget);
       });
 
       testWidgets('T-17-RC-09 저장값 로딩 전 배너 0 · 읽기 실패면 닫은 적 없음 = 표시', (
@@ -336,11 +340,11 @@ void main() {
           ),
         );
         await tester.pump();
-        expect(find.text('공지 A'), findsNothing);
+        expect(findKeepHangulWordsText('공지 A'), findsNothing);
         expect(tester.getSize(find.byType(AnnouncementBar)), Size.zero);
         pending.complete(null);
         await tester.pumpAndSettle();
-        expect(find.text('공지 A'), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 A'), findsOneWidget);
 
         // 실제 Notifier · 읽기 실패 스토어 — 「닫은 적 없음」 으로 표시.
         final originalStore = SharedPreferencesStorePlatform.instance;
@@ -362,7 +366,7 @@ void main() {
           ],
         );
         expect(tester.takeException(), isNull);
-        expect(find.text('공지 A'), findsOneWidget);
+        expect(findKeepHangulWordsText('공지 A'), findsOneWidget);
       });
     });
   });
@@ -402,7 +406,7 @@ void main() {
             findsOneWidget,
             reason: '$label 공지 닫기 도달',
           );
-          final guestText = find.text(l10n.homeGuestBanner);
+          final guestText = findKeepHangulWordsText(l10n.homeGuestBanner);
           expect(guestText, findsOneWidget, reason: '$label 게스트 바');
           final guestBar = find
               .ancestor(of: guestText, matching: find.byType(Material))
