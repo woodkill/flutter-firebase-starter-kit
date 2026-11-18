@@ -27,7 +27,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// [EditableText] 다. 감싸개 하나는 한 개로 세고, 한글이 없는 문구도 감싸개가
 /// 안에서 만든 [Text] 를 따로 세지 않아 한 개다.
 ///
-/// 묶는 표시(U+2060)를 담지 않은 문자열로 찾으면, 파일 머리 주석의 까닭대로 개수
+/// 이 파일의 두 helper(이 함수 · [findKeepHangulWordsTextContaining])는 묶는
+/// 표시(U+2060)를 담지 않은 문자열로 찾으면, 파일 머리 주석의 까닭대로 개수
 /// 기준으로 각각 `find.text` · `find.textContaining` 의 상위 집합이다(한글이 든
 /// 감싸개 문구만 더 찾는다). 다만 감싸개 문구는 [Text] 대신 [KeepHangulWordsText]
 /// 를 돌려주므로 `tester.widget<KeepHangulWordsText>` 로 읽는다. [skipOffstage] 는
