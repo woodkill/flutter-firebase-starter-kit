@@ -27,14 +27,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// [EditableText] 다. 감싸개 하나는 한 개로 세고, 한글이 없는 문구도 감싸개가
 /// 안에서 만든 [Text] 를 따로 세지 않아 한 개다.
 ///
-/// 이 파일의 두 helper 는 감싸개의 원문을, `find.text` · `find.textContaining` 은
-/// 그려진 평문(묶는 표시 포함)을 본다 — 그래서 묶는 표시(U+2060)를 담지 않은
-/// 문자열로 찾으면 개수 기준으로 각각 `find.text` · `find.textContaining` 의 상위
-/// 집합이다. 감싸개 안에서 만든 [Text] 는 감싸개로 대신 세므로 `find.text(text)`
-/// 자리에 바꿔 써도 찾는 개수는 같거나 많다(한글이 든 감싸개 문구만 더 찾는다).
-/// 다만 감싸개 문구는 [Text] 대신 [KeepHangulWordsText] 를 돌려주므로
-/// `tester.widget<KeepHangulWordsText>` 로 읽는다. [skipOffstage] 는 `find.text`
-/// 의 같은 이름 인자와 같다.
+/// 묶는 표시(U+2060)를 담지 않은 문자열로 찾으면, 파일 머리 주석의 까닭대로 개수
+/// 기준으로 각각 `find.text` · `find.textContaining` 의 상위 집합이다(한글이 든
+/// 감싸개 문구만 더 찾는다). 다만 감싸개 문구는 [Text] 대신 [KeepHangulWordsText]
+/// 를 돌려주므로 `tester.widget<KeepHangulWordsText>` 로 읽는다. [skipOffstage] 는
+/// `find.text` 의 같은 이름 인자와 같다.
 Finder findKeepHangulWordsText(String text, {bool skipOffstage = true}) {
   return find.byElementPredicate(
     (element) => _matchesKeepHangulWordsText(element, (value) => value == text),
