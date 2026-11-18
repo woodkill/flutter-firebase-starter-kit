@@ -192,6 +192,17 @@ int _rankForDisplay(String providerId) {
 /// `Text.rich` 생성과 semantics label 지정은 호출 쪽(데모 화면 계정 디버그
 /// 정보 카드 — `demo_screen.dart` `_AccountDebugSection`) 책임이다. [style] 은
 /// 바깥 `Text.rich` 와 같은 style 을 넘긴다.
+///
+/// **라벨 `Text` 의 글자 배율은 끈다(`TextScaler.noScaling`).** `WidgetSpan`
+/// 은 자식을 `textScaler.scale(fontSize) / fontSize` 만큼 변환 확대하고, SDK 에
+/// 이 확대를 끄는 방법이 없다(flutter/flutter#126962). 자식 `Text` 가
+/// `MediaQuery` 배율을 또 읽으면 이름에만 배율이 두 번 걸리므로 자식은 자기
+/// 배율을 끈다. 변환 비율은 span 트리의 fontSize 로 계산되므로 [style] 이
+/// 바깥 `Text.rich` 와 같아야 비선형 배율에서도 이름이 주변 글자와 같은
+/// 배율로 커진다. `letterSpacing` 은 배율이 붙지 않는 절대값인데 변환이 함께
+/// 키우므로, 큰 글자에서 이름 폭이 일반 문단보다 조금 넓을 수 있다(받아들인
+/// 차이). 계정 화면의 해제 가능 변형(`linked_accounts_value.dart`)도 같은
+/// 이유로 같은 인자를 준다.
 ({InlineSpan display, String semantics}) buildLinkedAccountsValue(
   List<String> labels, {
   required String none,
@@ -211,6 +222,7 @@ int _rankForDisplay(String providerId) {
             child: Text(
               i < lastIndex ? '${labels[i]},' : labels[i],
               style: style,
+              textScaler: TextScaler.noScaling,
             ),
           ),
           if (i < lastIndex) const TextSpan(text: ' '),

@@ -1,10 +1,12 @@
 // Phase 16.8 D-10 · D-11 · D-12 — 계정 정보 화면 「연결된 계정」 값
 // (해제 가능 변형).
 //
-// UI-SPEC §Surface S (16.8) 트리 verbatim. 보기 전용 `buildLinkedAccountsValue`
-// (lib/shared/auth/ · 지금 소비처는 데모 화면 계정 디버그 정보 카드)는 손대지
-// 않는다 — 그쪽은 보기 전용이고(D-10) span 트리는
+// 트리 모양은 UI-SPEC §Surface S (16.8) 그대로다. 보기 전용
+// `buildLinkedAccountsValue`(lib/shared/auth/ · 지금 소비처는 데모 화면 계정
+// 디버그 정보 카드)와는 따로 둔다 — 그쪽은 보기 전용이고(D-10) span 트리는
 // `test/shared/auth/provider_label_formatter_test.dart` H9~H12 가 지킨다.
+// 이름 글자의 배율을 끄는 것(`textScaler: TextScaler.noScaling`)은
+// `buildLinkedAccountsValue` 와 같고, 그 이유는 그 함수의 doc 에 있다.
 // `InkWell` · `Semantics` 는 material 위젯이라 widgets 만 쓰는 `shared/` 대신
 // 설정 feature 에 둔다.
 //
@@ -119,14 +121,15 @@ class _UnlinkableName extends StatelessWidget {
             ],
           ),
           style: valueStyle,
+          textScaler: TextScaler.noScaling,
         ),
       ),
     );
   }
 }
 
-/// 해제 불가 이름 — 16.7 과 같은 `Text('라벨,')` · semantics 는 쉼표 없는
-/// 이름만 (D-11).
+/// 해제 불가 이름 — 16.7 과 같은 `Text('라벨,')`(글자 배율 차단까지 같다) ·
+/// semantics 는 쉼표 없는 이름만 (D-11).
 class _PlainName extends StatelessWidget {
   const _PlainName({
     required this.label,
@@ -145,7 +148,11 @@ class _PlainName extends StatelessWidget {
       container: true,
       label: label,
       excludeSemantics: true,
-      child: Text(comma ? '$label,' : label, style: valueStyle),
+      child: Text(
+        comma ? '$label,' : label,
+        style: valueStyle,
+        textScaler: TextScaler.noScaling,
+      ),
     );
   }
 }

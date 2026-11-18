@@ -75,7 +75,8 @@ class AccountScreen extends ConsumerWidget {
     );
     final valueStyle = typography.titleMedium;
     // WidgetSpan 안 라벨 Text 도 valueStyle — 바깥 문단과 같은 style 이어야
-    // mockup 과 byte 동일(UI-SPEC §Typography (R1)).
+    // 배율 1.0 렌더가 mockup 과 같고(UI-SPEC §Typography (R1)), 큰 글자
+    // 배율에서도 이름이 한 번만 커진다(이유는 buildLinkedAccountsValue doc).
     // Phase 16.8 — 해제 가능 변형. id · label 을 쌍으로 넘겨 버튼 여부
     // (canUnlinkProvider)와 다이얼로그 라벨을 정한다 (라벨 switch 신설 0).
     final linkedLabels = formatProviderLabels(split.linkedProviderIds, l10n);

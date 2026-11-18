@@ -8,6 +8,8 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations_ko.dart';
 import 'package:flutter_starter_kit/shared/auth/provider_label_formatter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../helpers/widget_span_text_scale.dart';
+
 void main() {
   group('formatProviderIds', () {
     final AppLocalizations en = AppLocalizationsEn();
@@ -527,6 +529,31 @@ void main() {
         );
       }
     });
+
+    // 큰 글자 배율에서 이름이 주변 글자와 같은 배율로 한 번만 커지는지 —
+    // 이름 상자를 같은 문자열 · style · 배율의 일반 Text 상자와 견준다.
+    for (final c in kWidgetSpanScaleCases) {
+      testWidgets('H14 buildLinkedAccountsValue — 배율 ${c.label} 에서 이름 '
+          '상자 = 같은 배율 일반 Text', (tester) async {
+        final labels = formatProviderLabels(orderedIds, ko);
+        final lastIndex = labels.length - 1;
+        final violations = await collectWidgetSpanScaleViolations(
+          tester,
+          buildValue: (style) => buildLinkedAccountsValue(
+            labels,
+            none: ko.authAccountLinkedAccountsNone,
+            style: style,
+          ).display,
+          tagsByName: <String, String>{
+            for (final (i, label) in labels.indexed)
+              i < lastIndex ? '$label,' : label: '[demo]',
+          },
+          caseLabel: c.label,
+          textScaler: c.scaler,
+        );
+        expect(violations, isEmpty, reason: violations.join('\n'));
+      });
+    }
   });
 }
 
