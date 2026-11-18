@@ -1334,6 +1334,268 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 상수 `AppTheme.seedColor` 를 고쳐도 되지만 킷 새 판을 받을 때 충돌하므로 config 의
   `brandColor` 를 쓴다.
 
+#### 색 역할 직접 정하기
+
+버튼 · 스위치 같은 Material 위젯과 킷 화면(온보딩 · 로그인 · 설정 · 스플래시)의 색은 시드에서 다시 계산한 팔레트의 색 역할이라, 밝은 브랜드 색은 갈색 · 검정은 청록처럼 `brandColor` 와 다른 색이 된다.
+
+**`lib/core/theme/app_color_scheme.dart` 의 `buildAppColorScheme` 을 고쳐 색 역할을 정한다.**
+- 이 함수 하나가 기본 테마와 고대비 테마에 함께 쓰이고, `ThemeData` 가 팔레트에서 만드는 값도 따라간다.
+- 스플래시도 이 함수가 돌려준 색 역할을 쓴다.
+- 킷 판은 받은 팔레트를 그대로 돌려준다.
+- 함수가 받는 `input` 은 시드 팔레트 `input.scheme` · 시드 `input.seedColor` · 대비 단계 `input.contrastLevel` · 색 변형 `input.dynamicSchemeVariant` 넷을 담는다.
+- 팔레트를 만드는 길은 둘이다.
+  - `input.scheme.copyWith(…)` 로 바꿀 역할만 덮어쓴다(아래 견본 1 · 2 · 4 · 5).
+  - 받은 시드 · 밝기 · 대비로 `ColorScheme.fromSeed` 를 다른 색 변형으로 다시 만든다(아래 견본 3).
+- 받은 밝기(`input.scheme.brightness`)의 팔레트를 돌려준다 — 라이트 테마에 다크 팔레트를 돌려주면 디버그 빌드가 멈춘다.
+  - 같은 입력에는 늘 같은 팔레트를 돌려준다. 앱은 화면을 다시 그릴 때마다 테마를 새로 만든다.
+- 기기 배경화면 색을 켜면 `input.seedColor` 는 기기 색이다 — 브랜드 색이 필요하면 `AppTheme.brandColor` 를 직접 읽는다.
+- 킷 golden 시험은 받은 팔레트로 그리므로 이 함수를 고쳐도 바뀌지 않는다.
+  - 글자 역할의 대비를 낮추면 킷 접근성 시험이 실패한다 — 그 화면의 글자가 실제로 안 보인다는 뜻이다.
+- 킷 새 판을 받을 때 이 파일은 내 파일이다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 41행대로 처리한다.
+
+아래 표에서 내 상황에 맞는 견본을 고른다.
+
+| 상황 | 지금 보이는 색(라이트 `primary`) | 견본 |
+|---|---|---|
+| 브랜드 색을 버튼 색으로 그대로 쓰고 싶다(파랑 `#3182F6`) | `#435E91` — 탁한 파랑 | 1 |
+| 브랜드 색이 밝다(노랑 `#F2B134`) | `#7C580D` — 갈색 | 2 |
+| 브랜드 색이 무채색이다(검정 `#111111`) | `#006874` — 청록 | 3 |
+| 둘째 브랜드 색이 있다 | 둘째 색이 팔레트에 없다 | 4 |
+| 고대비 테마는 대비를 지키고 기본 테마만 브랜드 색으로 쓰고 싶다 | 기본 · 고대비 모두 시드에서 다시 계산한 색 | 5 |
+
+견본은 이 파일의 첫 줄 주석 아래를 통째로 바꾸는 내용이다.
+
+**견본 1 — 라이트 테마의 버튼 색을 브랜드 색 그대로 쓴다.**
+- 라이트 팔레트의 `primary` 를 브랜드 색으로 바꾸고, 그 위 글자(`onPrimary`)는 흰색 · 검정 가운데 대비가 큰 쪽으로 고른다.
+- 다크 팔레트는 받은 그대로 둔다 — 어두운 브랜드 색이 다크 바탕 위 글자로 쓰여도 잘 보인다.
+- 브랜드 색에 따라 라이트 바탕 위 `primary` 글자의 대비가 4.5 보다 낮아진다(파랑 `#3182F6` 은 3.54) — 아래 대비 확인 시험으로 확인한다.
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'app_color_scheme_slot.dart';
+
+/// 라이트 팔레트의 `primary` 를 브랜드 색(시드) 그대로 쓴다.
+///
+/// - `onPrimary` 는 흰색 · 검정 가운데 브랜드 색과 대비비가 큰 쪽이다 —
+///   대비비는 `(밝은 쪽 휘도 + 0.05) / (어두운 쪽 휘도 + 0.05)` 다.
+/// - 다크 팔레트는 받은 그대로 둔다 — 어두운 브랜드 색이 다크 바탕 위
+///   글자로 쓰여도 잘 보이게 한다.
+ColorScheme buildAppColorScheme(AppColorSchemeInput input) {
+  if (input.scheme.brightness == Brightness.dark) {
+    return input.scheme;
+  }
+  final brand = input.seedColor;
+  final luminance = brand.computeLuminance();
+  final whiteText = 1.05 / (luminance + 0.05);
+  final blackText = (luminance + 0.05) / 0.05;
+  return input.scheme.copyWith(
+    primary: brand,
+    onPrimary: whiteText > blackText ? Colors.white : Colors.black,
+  );
+}
+```
+
+**견본 2 — 밝은 브랜드 색을 강조 바탕에 쓴다.**
+- 노랑 · 주황처럼 밝은 브랜드 색을 강조 바탕(`primaryContainer`)에 그대로 쓰고, 버튼 같은 `primary` 에는 진한 색 `_ink` 를 쓴다.
+- 다크 팔레트는 `primary` 를 브랜드 색으로 두고 그 위 글자를 `_ink` 로 쓴다.
+- 브랜드 색이 어두우면 받은 팔레트를 그대로 둔다 — `_ink` 는 내 앱의 글자 · 버튼 색으로 바꾼다.
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'app_color_scheme_slot.dart';
+
+/// 진한 색 — 내 앱의 글자 · 버튼 색으로 바꾼다.
+const Color _ink = Color(0xFF2B2B2B);
+
+/// 밝은 브랜드 색(노랑 · 주황 같은 색)을 강조 바탕(`primaryContainer`)에 그대로
+/// 쓰고, 버튼 같은 `primary` 에는 진한 색(`_ink`)을 쓴다.
+///
+/// - 브랜드 색이 어두우면 받은 팔레트를 그대로 둔다.
+/// - 다크 팔레트는 `primary` 를 브랜드 색으로 두고, 그 위 글자
+///   (`onPrimary`)를 진한 색으로 쓴다.
+ColorScheme buildAppColorScheme(AppColorSchemeInput input) {
+  final brand = input.seedColor;
+  if (ThemeData.estimateBrightnessForColor(brand) != Brightness.light) {
+    return input.scheme;
+  }
+  final scheme = input.scheme;
+  if (scheme.brightness == Brightness.dark) {
+    return scheme.copyWith(primary: brand, onPrimary: _ink);
+  }
+  return scheme.copyWith(
+    primary: _ink,
+    onPrimary: Colors.white,
+    primaryContainer: brand,
+    onPrimaryContainer: _ink,
+  );
+}
+```
+
+**견본 3 — 무채색 브랜드 색으로 무채색 팔레트를 만든다.**
+- 기본 색 변형은 검정 · 회색 · 흰색 시드에서도 청록 팔레트를 만들므로, 받은 시드 · 밝기 · 대비로 `monochrome` 색 변형 팔레트를 다시 만든다.
+- `monochrome` 팔레트는 시드와 상관없이 무채색이다 — 브랜드 색이 무채색일 때만 쓴다.
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'app_color_scheme_slot.dart';
+
+/// 무채색(검정 · 회색 · 흰색) 브랜드 — 팔레트를 `monochrome` 색 변형으로 다시
+/// 만든다.
+///
+/// - 기본 색 변형은 무채색 시드에서도 색이 든 팔레트(청록)를 만든다.
+/// - 받은 시드 · 밝기 · 대비로 다시 만들어 무채색 팔레트를 쓴다.
+ColorScheme buildAppColorScheme(AppColorSchemeInput input) =>
+    ColorScheme.fromSeed(
+      seedColor: input.seedColor,
+      brightness: input.scheme.brightness,
+      contrastLevel: input.contrastLevel,
+      dynamicSchemeVariant: DynamicSchemeVariant.monochrome,
+    );
+```
+
+**견본 4 — 둘째 브랜드 색을 `tertiary` 계열에 둔다.**
+- 둘째 색 `_secondBrand` 로 만든 팔레트의 강조 색 넷을 `tertiary` · `onTertiary` · `tertiaryContainer` · `onTertiaryContainer` 에 넣는다 — `_secondBrand` 는 내 앱의 값으로 바꾼다.
+- 킷 화면은 데모 화면의 색 견본 목록 말고는 `tertiary` 계열을 쓰지 않아 그대로이고, 내 화면에서 강조색으로 쓴다.
+- 같은 넷을 `secondary` 계열에 두면 홈 화면 공지 바와 토널 버튼(`FilledButton.tonal`)이 둘째 색이 된다.
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'app_color_scheme_slot.dart';
+
+/// 둘째 브랜드 색 — 내 앱의 값으로 바꾼다.
+const Color _secondBrand = Color(0xFF00897B);
+
+/// 둘째 브랜드 색으로 만든 팔레트의 강조 색 넷을 `tertiary` 계열에 둔다.
+///
+/// - 둘째 색 팔레트는 받은 밝기 · 대비 · 색 변형으로 만든다.
+/// - 그 팔레트의 `primary` · `onPrimary` · `primaryContainer` ·
+///   `onPrimaryContainer` 를 `tertiary` 계열 넷에 넣는다.
+ColorScheme buildAppColorScheme(AppColorSchemeInput input) {
+  final second = ColorScheme.fromSeed(
+    seedColor: _secondBrand,
+    brightness: input.scheme.brightness,
+    contrastLevel: input.contrastLevel,
+    dynamicSchemeVariant: input.dynamicSchemeVariant,
+  );
+  return input.scheme.copyWith(
+    tertiary: second.primary,
+    onTertiary: second.onPrimary,
+    tertiaryContainer: second.primaryContainer,
+    onTertiaryContainer: second.onPrimaryContainer,
+  );
+}
+```
+
+**견본 5 — 고대비 테마는 받은 팔레트를 그대로 둔다.**
+- 기본 대비에서는 견본 1 처럼 라이트 `primary` 를 브랜드 색으로 바꾸고, 고대비 테마(`contrastLevel` 1 이상)는 받은 팔레트를 그대로 둔다.
+- OS 의 대비 설정을 높인 기기에서는 고대비 팔레트의 글자 대비가 그대로 지켜진다.
+
+```dart
+import 'package:flutter/material.dart';
+
+import 'app_color_scheme_slot.dart';
+
+/// 기본 대비에서만 라이트 팔레트의 `primary` 를 브랜드 색(시드) 그대로 쓴다.
+///
+/// - 고대비 테마(`contrastLevel` 1 이상)는 받은 팔레트를 그대로 둔다 — 고대비
+///   팔레트의 대비를 지킨다.
+/// - `onPrimary` 는 흰색 · 검정 가운데 브랜드 색과 대비비가 큰 쪽이다 —
+///   대비비는 `(밝은 쪽 휘도 + 0.05) / (어두운 쪽 휘도 + 0.05)` 다.
+/// - 다크 팔레트는 받은 그대로 둔다 — 어두운 브랜드 색이 다크 바탕 위
+///   글자로 쓰여도 잘 보이게 한다.
+ColorScheme buildAppColorScheme(AppColorSchemeInput input) {
+  if (input.contrastLevel >= 1) {
+    return input.scheme;
+  }
+  if (input.scheme.brightness == Brightness.dark) {
+    return input.scheme;
+  }
+  final brand = input.seedColor;
+  final luminance = brand.computeLuminance();
+  final whiteText = 1.05 / (luminance + 0.05);
+  final blackText = (luminance + 0.05) / 0.05;
+  return input.scheme.copyWith(
+    primary: brand,
+    onPrimary: whiteText > blackText ? Colors.white : Colors.black,
+  );
+}
+```
+
+**글자 대비를 시험으로 확인한다.**
+- 아래 시험을 내 `test/` 에 새 파일로 저장하고 `_brand` 를 config `brandColor` 값으로 바꾼다 — 파일 이름은 아래 명령의 이름을 쓴다.
+  - `flutter test` 는 config 를 읽지 않으므로 시드를 시험에 직접 적는다.
+- 기본 · 고대비 테마의 라이트 · 다크에서 글자 · 바탕 짝 일곱의 대비가 4.5 이상인지 본다.
+  - 4.5 는 일반 글자의 WCAG AA 기준이고, 대비비는 `(밝은 쪽 휘도 + 0.05) / (어두운 쪽 휘도 + 0.05)` 다.
+
+```dart
+// 내 앱 팔레트의 글자 대비 확인 — 기본 · 고대비 테마의 라이트 · 다크에서 짝 일곱을 본다.
+import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/theme/app_theme.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+/// 내 브랜드 색 — config 의 `brandColor` 와 같은 값으로 바꾼다.
+const Color _brand = Color(0xFF673AB7);
+
+/// 일반 글자의 대비 기준(WCAG AA)이다.
+const double _minContrast = 4.5;
+
+/// 두 색의 대비비 `(밝은 쪽 휘도 + 0.05) / (어두운 쪽 휘도 + 0.05)` 를 돌려준다.
+double _contrastRatio(Color a, Color b) {
+  final la = a.computeLuminance();
+  final lb = b.computeLuminance();
+  return la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05);
+}
+
+void main() {
+  final themes = <String, ThemeData>{
+    'light': AppTheme.light(seedColor: _brand),
+    'dark': AppTheme.dark(seedColor: _brand),
+    'light high contrast': AppTheme.light(seedColor: _brand, contrastLevel: 1),
+    'dark high contrast': AppTheme.dark(seedColor: _brand, contrastLevel: 1),
+  };
+  for (final MapEntry(key: name, value: theme) in themes.entries) {
+    test('$name — 글자 · 바탕 짝의 대비가 $_minContrast 이상이다', () {
+      final s = theme.colorScheme;
+      final pairs = <String, (Color, Color)>{
+        'onPrimary / primary': (s.onPrimary, s.primary),
+        'onPrimaryContainer / primaryContainer': (
+          s.onPrimaryContainer,
+          s.primaryContainer,
+        ),
+        'onSecondaryContainer / secondaryContainer': (
+          s.onSecondaryContainer,
+          s.secondaryContainer,
+        ),
+        'onTertiaryContainer / tertiaryContainer': (
+          s.onTertiaryContainer,
+          s.tertiaryContainer,
+        ),
+        'primary / surface': (s.primary, s.surface),
+        'onSurface / surface': (s.onSurface, s.surface),
+        'onSurfaceVariant / surface': (s.onSurfaceVariant, s.surface),
+      };
+      for (final MapEntry(key: pair, value: (fg, bg)) in pairs.entries) {
+        expect(
+          _contrastRatio(fg, bg),
+          greaterThanOrEqualTo(_minContrast),
+          reason: '$name 테마의 $pair 대비가 $_minContrast 보다 낮다',
+        );
+      }
+    });
+  }
+}
+```
+
+- 실패하면 메시지의 테마 이름과 짝 이름을 보고 그 역할의 색을 고친다.
+
+```bash
+fvm flutter test test/color_contrast_test.dart
+```
+
 #### 대비 단계 · 색 변형 · 고대비 테마
 
 `AppTheme.light()` · `AppTheme.dark()` 는 시드 말고도 대비 단계 `contrastLevel` 과 색 변형 `dynamicSchemeVariant` 를 받는다.
