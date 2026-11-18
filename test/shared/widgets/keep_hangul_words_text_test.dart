@@ -7,7 +7,7 @@
 // T-27-WRAP-09 낭독 덮어쓰기 · T-27-WRAP-10 maxLines · 말줄임 ·
 // T-27-WRAP-11 locale 무관 · T-27-WRAP-12 예외 범위 끝점 ·
 // T-27-WRAP-13 한글 갈래 인자 전달 · T-27-WRAP-14 한글 없는 문구 낭독 덮어쓰기.
-// 한글 음절 식의 끝점(힣 · 그 앞뒤 코드 포인트)은 넣는 자리 표본이 맡는다.
+// 한글 음절 범위의 끝(힣 · 범위 바로 앞뒤 코드 포인트)은 넣는 자리 표본이 맡는다.
 //
 // 표본은 이 파일 안 리터럴 — 킷 문구에 기대지 않는다. 보이지 않는 문자는
 // `String.fromCharCode` · `\u{…}` 이스케이프로만 적는다.
@@ -64,7 +64,7 @@ final Map<String, String> _placementCases = <String, String>{
   'Cafe\u{0301}로': _joined(<String>['C', 'a', 'f', 'e\u{0301}', '로']),
   // 한글이 없으면 그대로다.
   'Hello world': 'Hello world',
-  // 한글 음절 범위 끝점 — 힣(U+D7A3)은 한글이고 그 앞뒤 코드 포인트는 아니다.
+  // 한글 음절 범위(가 ~ 힣) 끝 — 힣은 범위 안, 범위 바로 앞 U+ABFF · 바로 뒤 U+D7A4 는 밖이다.
   'ID힣': _joined(<String>['I', 'D', '힣']),
   'ID\u{ABFF}': 'ID\u{ABFF}',
   'ID\u{D7A4}': 'ID\u{D7A4}',
