@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/theme/app_color_scheme.dart';
 import 'package:flutter_starter_kit/core/theme/app_color_scheme_slot.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
 import 'package:flutter_starter_kit/core/theme/app_elevation.dart';
@@ -489,5 +490,334 @@ void main() {
         );
       }
     });
+
+    test(
+      'T-29-SLOT-02: builder 가 받는 scheme 은 같은 인자의 ColorScheme.fromSeed 다',
+      () {
+        const variants = <DynamicSchemeVariant>[
+          DynamicSchemeVariant.tonalSpot,
+          DynamicSchemeVariant.fidelity,
+        ];
+        for (final seed in <Color>[AppTheme.seedColor, Colors.teal]) {
+          for (final brightness in Brightness.values) {
+            for (final contrastLevel in <double>[0, 1]) {
+              for (final variant in variants) {
+                final input = _receivedInput(
+                  brightness,
+                  seedColor: seed,
+                  contrastLevel: contrastLevel,
+                  dynamicSchemeVariant: variant,
+                );
+
+                expect(
+                  input.scheme,
+                  equals(
+                    ColorScheme.fromSeed(
+                      seedColor: seed,
+                      brightness: brightness,
+                      contrastLevel: contrastLevel,
+                      dynamicSchemeVariant: variant,
+                    ),
+                  ),
+                  reason:
+                      '$seed ${brightness.name} $contrastLevel ${variant.name}',
+                );
+              }
+            }
+          }
+        }
+      },
+    );
+
+    test('T-29-SLOT-03: 입력의 seedColor 는 정규화한 시드이고 대비 · 색 변형은 넘긴 값이다', () {
+      final normalizedTeal = Color(Colors.teal.toARGB32());
+      for (final brightness in Brightness.values) {
+        final input = _receivedInput(
+          brightness,
+          seedColor: Colors.teal,
+          contrastLevel: 0.5,
+          dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+        );
+        final theme = _buildThemeFor(brightness, seedColor: Colors.teal);
+
+        expect(
+          input.seedColor,
+          equals(normalizedTeal),
+          reason: brightness.name,
+        );
+        expect(
+          input.seedColor,
+          equals(theme.extension<AppColors>()!.brand),
+          reason: brightness.name,
+        );
+        expect(input.contrastLevel, equals(0.5), reason: brightness.name);
+        expect(
+          input.dynamicSchemeVariant,
+          equals(DynamicSchemeVariant.fidelity),
+          reason: brightness.name,
+        );
+        // 고대비 테마는 대비 단계 1.0 을 넘긴다.
+        expect(
+          _receivedInput(brightness, contrastLevel: 1).contrastLevel,
+          equals(1.0),
+          reason: brightness.name,
+        );
+      }
+    });
+
+    test('T-29-SLOT-04: 돌려준 팔레트가 colorScheme 이고 ThemeData 파생값도 따라간다', () {
+      const changedPrimary = Color(0xFF123456);
+      ColorScheme? lightResult;
+      final light = AppTheme.light(
+        colorSchemeBuilder: (input) {
+          lightResult = input.scheme.copyWith(primary: changedPrimary);
+          return lightResult!;
+        },
+      );
+
+      expect(light.colorScheme, equals(lightResult));
+      expect(light.colorScheme.primary, equals(changedPrimary));
+      expect(light.primaryColor, equals(changedPrimary));
+
+      const changedSurface = Color(0xFF0A1B2C);
+      ColorScheme? darkResult;
+      final dark = AppTheme.dark(
+        colorSchemeBuilder: (input) {
+          darkResult = input.scheme.copyWith(surface: changedSurface);
+          return darkResult!;
+        },
+      );
+
+      expect(dark.colorScheme, equals(darkResult));
+      expect(dark.scaffoldBackgroundColor, equals(changedSurface));
+      expect(dark.canvasColor, equals(changedSurface));
+    });
+
+    test('T-29-SLOT-05: 팔레트를 바꿔도 brand · extension · 시트 테마 · 글꼴은 그대로다', () {
+      ColorScheme repaint(AppColorSchemeInput input) => input.scheme.copyWith(
+        primary: const Color(0xFF123456),
+        surface: const Color(0xFF0A1B2C),
+      );
+      for (final brightness in Brightness.values) {
+        final changed = _buildThemeFor(
+          brightness,
+          seedColor: Colors.teal,
+          colorSchemeBuilder: repaint,
+        );
+        final plain = _buildThemeFor(brightness, seedColor: Colors.teal);
+
+        expect(
+          changed.colorScheme,
+          isNot(equals(plain.colorScheme)),
+          reason: brightness.name,
+        );
+        expect(
+          changed.extension<AppColors>()!.brand,
+          equals(Color(Colors.teal.toARGB32())),
+          reason: brightness.name,
+        );
+        expect(
+          changed.extensions,
+          equals(plain.extensions),
+          reason: brightness.name,
+        );
+        expect(
+          changed.bottomSheetTheme,
+          equals(plain.bottomSheetTheme),
+          reason: brightness.name,
+        );
+        expect(
+          changed.textTheme.bodyMedium?.fontFamily,
+          equals(AppTheme.fontFamily),
+          reason: brightness.name,
+        );
+        expect(
+          changed.textTheme.bodyMedium?.fontFamily,
+          equals(plain.textTheme.bodyMedium?.fontFamily),
+          reason: brightness.name,
+        );
+      }
+    });
+
+    test('T-29-SLOT-06: 같은 builder 로 두 번 만든 테마는 == 이다', () {
+      for (final brightness in Brightness.values) {
+        final first = _buildThemeFor(
+          brightness,
+          colorSchemeBuilder: _inkPrimaryScheme,
+        );
+        final second = _buildThemeFor(
+          brightness,
+          colorSchemeBuilder: _inkPrimaryScheme,
+        );
+
+        expect(first == second, isTrue, reason: brightness.name);
+        expect(
+          first.hashCode,
+          equals(second.hashCode),
+          reason: brightness.name,
+        );
+
+        // 같은 일을 하는 서로 다른 클로저 인스턴스여도 테마는 같다.
+        final fromClosureA = _buildThemeFor(
+          brightness,
+          colorSchemeBuilder: (input) =>
+              input.scheme.copyWith(primary: _inkColor),
+        );
+        final fromClosureB = _buildThemeFor(
+          brightness,
+          colorSchemeBuilder: (input) =>
+              input.scheme.copyWith(primary: _inkColor),
+        );
+
+        expect(fromClosureA == fromClosureB, isTrue, reason: brightness.name);
+      }
+    });
+
+    test('T-29-SLOT-07: builder 를 생략한 테마는 buildAppColorScheme 을 넘긴 테마와 같다', () {
+      for (final brightness in Brightness.values) {
+        for (final contrastLevel in <double>[0, 1]) {
+          expect(
+            _buildThemeFor(brightness, contrastLevel: contrastLevel) ==
+                _buildThemeFor(
+                  brightness,
+                  contrastLevel: contrastLevel,
+                  colorSchemeBuilder: buildAppColorScheme,
+                ),
+            isTrue,
+            reason: '${brightness.name} $contrastLevel',
+          );
+        }
+      }
+    });
+
+    test(
+      'T-29-SLOT-07: app_theme.dart 는 형을 적은 지역 변수로 buildAppColorScheme 을 묶는다',
+      () {
+        final String code = stripSlashComments(
+          readTrackedFile('lib/core/theme/app_theme.dart'),
+        );
+
+        expect(
+          RegExp(
+            r'final\s+AppColorSchemeBuilder\s+\w+\s*=\s*colorSchemeBuilder\s*\?\?\s*buildAppColorScheme\s*;',
+          ).allMatches(code).length,
+          greaterThanOrEqualTo(1),
+        );
+        expect(
+          RegExp(
+            r'AppColorSchemeBuilder\?\s+colorSchemeBuilder',
+          ).allMatches(code).length,
+          greaterThanOrEqualTo(2),
+        );
+      },
+      // adopter 가 고치는 파일이라 유지보수자 트리에서만 본다.
+      skip: skipUnlessMaintainerTree(),
+    );
+
+    test(
+      'T-29-SLOT-08: 킷 판 buildAppColorScheme 은 받은 팔레트를 그대로 돌려준다',
+      () {
+        for (final brightness in Brightness.values) {
+          final scheme = ColorScheme.fromSeed(
+            seedColor: AppTheme.seedColor,
+            brightness: brightness,
+          );
+          final input = AppColorSchemeInput(
+            scheme: scheme,
+            seedColor: Color(AppTheme.seedColor.toARGB32()),
+            contrastLevel: 0,
+            dynamicSchemeVariant: DynamicSchemeVariant.tonalSpot,
+          );
+
+          expect(
+            identical(buildAppColorScheme(input), scheme),
+            isTrue,
+            reason: brightness.name,
+          );
+        }
+      },
+      // adopter 가 고치는 파일이라 유지보수자 트리에서만 본다.
+      skip: skipUnlessMaintainerTree(),
+    );
+
+    test('T-29-SLOT-09: 밝기를 바꾼 팔레트를 돌려주면 debug assert 로 멈춘다', () {
+      ColorScheme flipBrightness(AppColorSchemeInput input) =>
+          ColorScheme.fromSeed(
+            seedColor: input.seedColor,
+            brightness: input.scheme.brightness == Brightness.light
+                ? Brightness.dark
+                : Brightness.light,
+          );
+      Matcher throwsBrightnessAssert(String received, String returned) =>
+          throwsA(
+            isA<AssertionError>().having(
+              (AssertionError error) => '${error.message}',
+              'message',
+              allOf(
+                contains('buildAppColorScheme'),
+                contains('($received)'),
+                contains('a $returned ColorScheme'),
+              ),
+            ),
+          );
+
+      expect(
+        () => AppTheme.light(colorSchemeBuilder: flipBrightness),
+        throwsBrightnessAssert('light', 'dark'),
+      );
+      expect(
+        () => AppTheme.dark(colorSchemeBuilder: flipBrightness),
+        throwsBrightnessAssert('dark', 'light'),
+      );
+    });
   });
+}
+
+/// 색 역할 자리 시험의 진한 primary 색이다.
+const Color _inkColor = Color(0xFF2B2B2B);
+
+/// primary 하나를 [_inkColor] 로 바꾸는 top-level builder 다.
+ColorScheme _inkPrimaryScheme(AppColorSchemeInput input) =>
+    input.scheme.copyWith(primary: _inkColor);
+
+/// [brightness] 에 맞는 `AppTheme.light` · `AppTheme.dark` 를 같은 인자로 만든다.
+ThemeData _buildThemeFor(
+  Brightness brightness, {
+  Color seedColor = AppTheme.seedColor,
+  double contrastLevel = 0,
+  DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+  AppColorSchemeBuilder? colorSchemeBuilder,
+}) => brightness == Brightness.light
+    ? AppTheme.light(
+        seedColor: seedColor,
+        contrastLevel: contrastLevel,
+        dynamicSchemeVariant: dynamicSchemeVariant,
+        colorSchemeBuilder: colorSchemeBuilder,
+      )
+    : AppTheme.dark(
+        seedColor: seedColor,
+        contrastLevel: contrastLevel,
+        dynamicSchemeVariant: dynamicSchemeVariant,
+        colorSchemeBuilder: colorSchemeBuilder,
+      );
+
+/// 테마를 하나 만들며 색 역할 자리가 받은 입력을 돌려준다(팔레트는 그대로).
+AppColorSchemeInput _receivedInput(
+  Brightness brightness, {
+  Color seedColor = AppTheme.seedColor,
+  double contrastLevel = 0,
+  DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+}) {
+  final inputs = <AppColorSchemeInput>[];
+  _buildThemeFor(
+    brightness,
+    seedColor: seedColor,
+    contrastLevel: contrastLevel,
+    dynamicSchemeVariant: dynamicSchemeVariant,
+    colorSchemeBuilder: (input) {
+      inputs.add(input);
+      return input.scheme;
+    },
+  );
+  return inputs.single;
 }
