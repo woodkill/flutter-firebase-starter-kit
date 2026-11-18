@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/l10n/l10n_extensions.dart';
@@ -7,11 +6,15 @@ import '../../../../core/router/app_routes.dart';
 import '../../../../core/theme/theme_extensions.dart';
 import '../../../../shared/widgets/keep_hangul_words_text.dart';
 
-/// 약관 체크박스 그룹 (Phase 10 D-15, D-17, D-21).
+/// 약관 체크박스 그룹 (Phase 10 D-15, D-17, D-21 · 「상세 보기」 자리는 quick 261118-ocx 개정).
 ///
 /// "전체 동의" 체크박스 + 이용약관(필수) + 개인정보처리방침(필수) +
 /// 마케팅(선택) 4종 체크박스로 구성된다. 필수/선택 배지와 "상세 보기"
 /// 링크를 포함한다.
+///
+/// 각 약관 행은 이름 바로 뒤에 필수/선택 배지를 붙이고(한 줄에 안 들어가면
+/// 다음 줄), "상세 보기" 글자 버튼을 이름 아래 줄에 이름과 같은 시작선으로
+/// 둔다.
 ///
 /// **10-REVIEW WR-16 — 단일 진실원:** 본 위젯은 상태를 보유하지 않는
 /// [StatelessWidget] 이며, 3 플래그와 [allChecked] 를 부모(OnboardingScreen)
@@ -106,7 +109,12 @@ class TermsCheckboxGroup extends StatelessWidget {
   }
 }
 
-/// 단일 약관 행 (체크박스 + 라벨 + 필수/선택 배지 + 상세 보기 링크).
+/// 단일 약관 행 — 체크박스 + 제목 묶음(이름 · 배지 줄과 그 아래 "상세 보기").
+///
+/// "상세 보기" 를 타일 오른쪽 보조 자리에 두면 그 버튼이 글자 배율만큼 폭을
+/// 먼저 가져가 이름 칸이 0 까지 줄어든다 — 그래서 제목 안 아래 줄에 둔다
+/// (quick 261118-ocx). 배지는 한 줄 폭보다 넓을 때만 [FittedBox] 로 줄여
+/// 그린다.
 class _TermsRow extends StatelessWidget {
   const _TermsRow({
     required this.value,
@@ -129,26 +137,29 @@ class _TermsRow extends StatelessWidget {
     final typography = context.appTypography;
     final spacing = context.appSpacing;
 
-    final badge = Container(
-      // IN-03: 매직 넘버 대신 토큰에서 유도한다 — 세로 여백은 간격 xs 의
-      // 절반(2), 모서리 반경은 둥글기 xs(4). 사용자가 토큰을 바꾸면 배지도
-      // 함께 따라간다.
-      padding: EdgeInsets.symmetric(
-        horizontal: spacing.sm,
-        vertical: spacing.xs / 2,
-      ),
-      decoration: BoxDecoration(
-        color: isRequired
-            ? colorScheme.errorContainer
-            : colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(context.appRadius.xs),
-      ),
-      child: KeepHangulWordsText(
-        isRequired ? l10n.termsRequired : l10n.termsOptional,
-        style: typography.bodyMedium.copyWith(
+    final badge = FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        // IN-03: 매직 넘버 대신 토큰에서 유도한다 — 세로 여백은 간격 xs 의
+        // 절반(2), 모서리 반경은 둥글기 xs(4). 사용자가 토큰을 바꾸면 배지도
+        // 함께 따라간다.
+        padding: EdgeInsets.symmetric(
+          horizontal: spacing.sm,
+          vertical: spacing.xs / 2,
+        ),
+        decoration: BoxDecoration(
           color: isRequired
-              ? colorScheme.onErrorContainer
-              : colorScheme.onSurfaceVariant,
+              ? colorScheme.errorContainer
+              : colorScheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(context.appRadius.xs),
+        ),
+        child: KeepHangulWordsText(
+          isRequired ? l10n.termsRequired : l10n.termsOptional,
+          style: typography.bodyMedium.copyWith(
+            color: isRequired
+                ? colorScheme.onErrorContainer
+                : colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );
@@ -156,26 +167,37 @@ class _TermsRow extends StatelessWidget {
     return CheckboxListTile(
       value: value,
       onChanged: onChanged,
-      title: Row(
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: KeepHangulWordsText(
-              label,
-              style: typography.bodyMedium.copyWith(
-                color: colorScheme.onSurface,
+          Wrap(
+            spacing: spacing.sm,
+            runSpacing: spacing.xs,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              KeepHangulWordsText(
+                label,
+                style: typography.bodyMedium.copyWith(
+                  color: colorScheme.onSurface,
+                ),
               ),
-            ),
+              badge,
+            ],
           ),
-          Gap(spacing.sm),
-          badge,
+          if (onViewDetail != null)
+            TextButton(
+              onPressed: onViewDetail,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                // Material 3 TextButton 기본 최소 높이(Size(64, 40))의 높이 —
+                // 승인 렌더 값.
+                minimumSize: const Size(kMinInteractiveDimension, 40),
+                alignment: AlignmentDirectional.centerStart,
+              ),
+              child: KeepHangulWordsText(l10n.termsViewDetail),
+            ),
         ],
       ),
-      secondary: onViewDetail != null
-          ? TextButton(
-              onPressed: onViewDetail,
-              child: KeepHangulWordsText(l10n.termsViewDetail),
-            )
-          : null,
       controlAffinity: ListTileControlAffinity.leading,
     );
   }
