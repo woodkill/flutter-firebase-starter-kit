@@ -1184,8 +1184,10 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 앱의 색 · 글꼴 · 글자 스타일 · 간격 · 아이콘 크기 · 모서리 둥글기 · 투명도 · 그림자 높이(elevation) · 화면 폭 분기 · 키보드 포커스 테두리 · 컴포넌트 모양(아래 시트 · 삭제 버튼 · 큰 버튼 높이)을 내 앱에 맞게 바꾸는 절차다.
 - 브랜드 색 하나만 바꾸려면 아래 1번의 `brandColor` 만 고친다.
   - 앱 테마 · 브랜드 원색 토큰 `context.appColors.brand` · 알림 색이 모두 이 값을 따른다.
+  - 버튼 · 스위치 같은 Material 위젯의 색은 `brandColor` 그대로가 아니다(밝은 색은 갈색 · 검정은 청록) — 그대로 쓰려면 [색 역할 직접 정하기](#색-역할-직접-정하기) 를 본다.
 - 스플래시의 로고 아래 글자 · 진행 표시는 `lib/app.dart` 의 테마가 아니라 `AppTheme.light()` · `AppTheme.dark()` 에 config `brandColor` 시드와 OS 대비 설정(0.0 · 1.0)만 넘긴 테마를 쓴다.
   - `lib/app.dart` 의 테마 줄에서 바꾼 것(시드 · 대비 단계 · 색 변형 · 컴포넌트 테마 · `copyWith(extensions:)` 로 넣은 토큰 · 글자 스타일)은 스플래시에 보이지 않는다. `lib/core/theme/` 의 기본값이나 `AppTheme` 을 고친 값은 스플래시에도 보인다.
+  - [색 역할 직접 정하기](#색-역할-직접-정하기) 의 `buildAppColorScheme` 이 바꾼 색 역할도 스플래시에 보인다.
   - 라이트 · 다크는 스플래시 배경 밝기를 따르고, 배경색 · 로고는 [스플래시 바꾸기](#스플래시-바꾸기) 가 정한다.
 
 **전제:** 위저드로 처음 설정을 끝내 `config/dev.json` 이 있다([설정 위저드로 앱 준비하기](setup.md)).
@@ -1325,6 +1327,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
   개별 색을 일일이 지정하지 않아도 된다.
 - 로고 · 지도 강조 · 일러스트처럼 브랜드 hex 그대로가 필요한 곳은 `context.appColors.brand` 를 쓴다.
   - `colorScheme.primary` 는 시드에서 다시 계산한 색이라 `brandColor` 와 다르다. `brand` 는 라이트 · 다크가 같은 값이므로 위에 올릴 글자 색 · 대비는 쓰는 쪽이 정한다.
+  - Material 위젯 · 킷 화면의 `primary` 를 브랜드 색으로 정하려면 [색 역할 직접 정하기](#색-역할-직접-정하기) 를 본다.
 - 알림 색도 같은 `brandColor` 다 — 앱 안 알림과, 앱이 뒤에 있거나 꺼져 있을 때 Android 가 그리는 알림이 모두 이 색이다.
   - Android 알림 색은 빌드가 리소스 `notification_color` 로 만들므로 `brandColor` 를 바꾼 뒤 다시 빌드해야 바뀐다.
 - 앱 색만 메일 · 결과 페이지와 다르게 하려면 `lib/app.dart` 의 두 줄에 시드를 직접 넘긴다(예: `theme: AppTheme.light(seedColor: Colors.teal),` / `darkTheme: AppTheme.dark(seedColor: Colors.teal),`).
@@ -1616,6 +1619,7 @@ darkTheme: AppTheme.dark(seedColor: seed, contrastLevel: 0.5),
 - `lib/app.dart` 의 `highContrastTheme:` · `highContrastDarkTheme:` 두 줄은 같은 시드의 대비 1.0 팔레트다.
   - iOS 13 이상 · Android 14(API 34) 이상에서 OS 의 대비 설정을 높이면 앱이 이 두 테마를 쓴다.
   - 테마 줄(`theme:` · `darkTheme:`)에 `copyWith` 를 붙였다면 고대비 두 줄에도 같은 `copyWith` 를 붙인다 — 붙이지 않으면 대비를 높인 기기에서 바꾼 값이 빠진다.
+  - 색 역할은 테마 줄의 `copyWith` 대신 [색 역할 직접 정하기](#색-역할-직접-정하기) 에서 한 번 바꾼다 — 기본 · 고대비 테마와 스플래시가 함께 바뀐다.
 - `context.appColors` 의 `success` · `warning` · `info` 와 그 `on-` 짝은 대비 단계를 따르지 않는다.
   - 대비를 높인 테마에서도 같은 색이다. 바꾸려면 고대비 두 줄의 `copyWith(extensions:)` 에 3번의 `AppColors` 를 따로 넣는다.
 
@@ -1652,6 +1656,7 @@ darkTheme: AppTheme.dark(seedColor: seed, contrastLevel: 0.5),
 - 기기 색은 Android 12 이상에서만 오고, 그 밖의 기기(iOS 포함)에서는 `null` 이라 킷 시드 팔레트를 쓴다.
 - 기기 색을 쓰면 `context.appColors.brand` 도 기기 색이 되지만, 알림 색 · `kit` 모드 메일 · 결과 페이지는 config `brandColor` 그대로라 기기 색과 어긋난다.
   - 어긋나지 않게 하려면 이 소절을 쓰지 않고 `brandColor` 를 브랜드 색으로 둔다.
+  - [색 역할 직접 정하기](#색-역할-직접-정하기) 의 `input.seedColor` 도 기기 색이다 — 브랜드 색이 필요하면 그 함수에서 `AppTheme.brandColor` 를 직접 읽는다.
 - 위젯 시험 · golden 시험 환경에서는 기기 색이 오지 않아 킷 시드로 그린다.
   - 기기 색은 Android 12 이상 기기에서 앱을 실행해 확인한다.
 
@@ -2001,6 +2006,9 @@ LayoutBuilder(
 - **`brandColor` 를 바꿨는데 앱 색이 보라색이다.**
   - 값이 `#RRGGBB` 형식이 아니면 `AppTheme.seedColor` 로 칠한다.
   - 형식을 고친 뒤 앱을 다시 빌드한다.
+- **`brandColor` 를 넣었는데 버튼 색이 그 색이 아니다(노랑은 갈색 · 검정은 청록).**
+  - 버튼 · 스위치 같은 Material 위젯은 `brandColor` 가 아니라 시드에서 다시 계산한 팔레트의 `primary` 로 칠한다.
+  - 그 색을 직접 정하려면 [색 역할 직접 정하기](#색-역할-직접-정하기) 의 견본을 `lib/core/theme/app_color_scheme.dart` 에 넣는다.
 - **화면 golden 의 글자가 네모 상자로 그려진다.**
   - 테마가 쓰는 글꼴을 golden 하네스가 올리지 않으면 flutter 시험 환경은 그 글자를 상자로 그린다.
   - 두 하네스가 `loadAppFont()` 를 부르는지, `kAppFontAssetPath` 가 `pubspec.yaml` 의 asset 경로와 같은지 본다.
@@ -3318,6 +3326,7 @@ release 빌드에도 보이는 내 앱 설정(예: 거리 단위 · 기능 켜�
 | 알림 채널 이름 · 설명 | ARB `notificationChannelGeneralName` · `notificationChannelGeneralDescription` |
 | 알림 아이콘 | `android/app/src/main/res/drawable/ic_notification.xml` 하나 — 흰색 단색 vector 로 브랜드 실루엣을 넣는다(색을 넣어도 OS 는 투명도만 쓴다) |
 | 알림 색 | config 의 `brandColor` 하나 — 앱 안 알림과, 앱이 뒤에 있거나 꺼져 있을 때 Android 가 그리는 알림이 모두 이 색이다(빌드가 리소스 `notification_color` 를 만든다). 바꾸는 법은 [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 1번이고, 바꾼 뒤 다시 빌드한다 |
+| 앱 색 역할(버튼 · 스위치 등 Material 위젯과 킷 화면의 `primary` · `primaryContainer` 등) | `lib/core/theme/app_color_scheme.dart` 의 `buildAppColorScheme` 하나 — 기본 · 고대비 테마와 스플래시가 함께 바뀐다. 견본은 [디자인 토큰 바꾸기](#디자인-토큰-바꾸기) 의 [색 역할 직접 정하기](#색-역할-직접-정하기) |
 | 알림 문구 언어 추가 | 서버 `functions/src/messaging/test_push_copy.ts` 의 `TestPushLocale` · `TEST_PUSH_COPY` + 앱 `normalizeFcmLocale` 이 받는 언어 + `firestore.rules` fcmTokens 의 `locale` 허용 목록. ARB 와 별개다 |
 | 알림 탭으로 열 화면 | 새 화면은 홈 GoRoute 의 `routes` 안에 두고, 경로를 `kNotificationRoutableRoutes` 에 더한다 — 단계 · 넣지 않는 화면 · 정식 사용자 전용 화면은 [④ 알림 탭으로 열 화면](#-알림-탭으로-열-화면--허용-목록). 경로는 문자열이 정확히 같아야 하므로 query · 경로 변수는 쓸 수 없다 |
 | 앱 링크(딥링크)로 여는 화면 | Android 앱은 알림 data 의 `route` 를 앱 시작 경로로 받지 않도록 `lib/core/router/app_router.dart` 의 `overridePlatformDefaultLocation: true` 로 늘 스플래시에서 시작한다. MainActivity 에 App Links 를 붙이면 이 설정을 함께 다시 본다 |
