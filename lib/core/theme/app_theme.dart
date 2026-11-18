@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
+import 'app_color_scheme.dart';
+import 'app_color_scheme_slot.dart';
 import 'app_colors.dart';
 import 'app_elevation.dart';
 import 'app_icon_sizes.dart';
@@ -17,6 +19,8 @@ import 'app_typography.dart';
 /// 컴포넌트 테마는 Material 3 기본과 다른 아래 시트 테마 하나만 건다 — 버튼 높이 ·
 /// 구분선 · 진행 표시는 Material 3 기본값을 쓴다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
+/// [ColorScheme.fromSeed] 팔레트를 사용자 파일의 [buildAppColorScheme] 에 넘겨
+/// 돌려받은 팔레트로 [ThemeData] 를 만든다 — 킷 판은 받은 팔레트 그대로다.
 /// [AppColors.brand] 에는 넘긴 시드를 불투명 [Color] 로 정규화해 그대로 넣는다.
 /// [fontFamily] 를 테마 글꼴로 건다.
 ///
@@ -81,6 +85,37 @@ abstract final class AppTheme {
     ),
   );
 
+  /// 시드 팔레트 [seedScheme] 를 색 역할 자리에 넘겨 테마에 쓸 팔레트를 받는다.
+  ///
+  /// [colorSchemeBuilder] 가 null 이면 사용자 파일의 [buildAppColorScheme] 을
+  /// 부른다. 자리는 [ThemeData] 생성자 앞이라 [ThemeData] 가 팔레트에서
+  /// 파생하는 값도 돌려받은 팔레트를 따른다. 돌려받은 팔레트의 밝기가
+  /// [seedScheme] 과 다르면 debug 빌드에서 멈춘다.
+  static ColorScheme _resolveColorScheme({
+    required ColorScheme seedScheme,
+    required Color seedColor,
+    required double contrastLevel,
+    required DynamicSchemeVariant dynamicSchemeVariant,
+    required AppColorSchemeBuilder? colorSchemeBuilder,
+  }) {
+    final AppColorSchemeBuilder build =
+        colorSchemeBuilder ?? buildAppColorScheme;
+    final ColorScheme scheme = build(
+      AppColorSchemeInput(
+        scheme: seedScheme,
+        seedColor: Color(seedColor.toARGB32()),
+        contrastLevel: contrastLevel,
+        dynamicSchemeVariant: dynamicSchemeVariant,
+      ),
+    );
+    assert(
+      scheme.brightness == seedScheme.brightness,
+      'buildAppColorScheme (${seedScheme.brightness.name}) returned a '
+      '${scheme.brightness.name} ColorScheme — keep the brightness.',
+    );
+    return scheme;
+  }
+
   /// 라이트 모드 [ThemeData]를 생성한다.
   ///
   /// [AppColors], [AppTypography], [AppSpacing], [AppIconSizes], [AppRadius],
@@ -95,6 +130,9 @@ abstract final class AppTheme {
   ///   중간 대비는 0.5, 높은 대비는 1.0 이다.
   /// - `dynamicSchemeVariant`: 팔레트 생성 방식 · 기본
   ///   [DynamicSchemeVariant.tonalSpot].
+  /// - `colorSchemeBuilder`: 시드 팔레트에서 색 역할을 바꾸는 함수 · null 이면
+  ///   사용자 파일의 [buildAppColorScheme] · 킷 golden 시험은 받은 팔레트를
+  ///   그대로 돌려주는 함수를 넘긴다.
   ///
   /// [AppColors] 의 시맨틱 색(`success` · `warning` · `info`)은 대비 단계를
   /// 따르지 않는다 — 대비를 바꿔도 같은 색이다.
@@ -105,11 +143,18 @@ abstract final class AppTheme {
     Color seedColor = AppTheme.seedColor,
     double contrastLevel = 0.0,
     DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+    AppColorSchemeBuilder? colorSchemeBuilder,
   }) {
-    final colorScheme = ColorScheme.fromSeed(
+    final colorScheme = _resolveColorScheme(
+      seedScheme: ColorScheme.fromSeed(
+        seedColor: seedColor,
+        contrastLevel: contrastLevel,
+        dynamicSchemeVariant: dynamicSchemeVariant,
+      ),
       seedColor: seedColor,
       contrastLevel: contrastLevel,
       dynamicSchemeVariant: dynamicSchemeVariant,
+      colorSchemeBuilder: colorSchemeBuilder,
     );
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
@@ -143,6 +188,9 @@ abstract final class AppTheme {
   ///   중간 대비는 0.5, 높은 대비는 1.0 이다.
   /// - `dynamicSchemeVariant`: 팔레트 생성 방식 · 기본
   ///   [DynamicSchemeVariant.tonalSpot].
+  /// - `colorSchemeBuilder`: 시드 팔레트에서 색 역할을 바꾸는 함수 · null 이면
+  ///   사용자 파일의 [buildAppColorScheme] · 킷 golden 시험은 받은 팔레트를
+  ///   그대로 돌려주는 함수를 넘긴다.
   ///
   /// [AppColors] 의 시맨틱 색(`success` · `warning` · `info`)은 대비 단계를
   /// 따르지 않는다 — 대비를 바꿔도 같은 색이다.
@@ -153,12 +201,19 @@ abstract final class AppTheme {
     Color seedColor = AppTheme.seedColor,
     double contrastLevel = 0.0,
     DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
+    AppColorSchemeBuilder? colorSchemeBuilder,
   }) {
-    final colorScheme = ColorScheme.fromSeed(
+    final colorScheme = _resolveColorScheme(
+      seedScheme: ColorScheme.fromSeed(
+        seedColor: seedColor,
+        brightness: Brightness.dark,
+        contrastLevel: contrastLevel,
+        dynamicSchemeVariant: dynamicSchemeVariant,
+      ),
       seedColor: seedColor,
-      brightness: Brightness.dark,
       contrastLevel: contrastLevel,
       dynamicSchemeVariant: dynamicSchemeVariant,
+      colorSchemeBuilder: colorSchemeBuilder,
     );
     // brightness 미지정 — colorScheme 이 있으면 거기서 파생된다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);

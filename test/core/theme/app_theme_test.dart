@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_starter_kit/core/theme/app_color_scheme_slot.dart';
 import 'package:flutter_starter_kit/core/theme/app_colors.dart';
 import 'package:flutter_starter_kit/core/theme/app_elevation.dart';
 import 'package:flutter_starter_kit/core/theme/app_icon_sizes.dart';
@@ -460,6 +461,33 @@ void main() {
           expectedRadius,
         ),
       );
+    });
+  });
+
+  // ─── T-29-SLOT: 색 역할 자리 ─────────────────────────────
+  //
+  // 테마는 시드 팔레트를 색 역할 자리(`colorSchemeBuilder`)에 한 번 넘기고,
+  // 돌려받은 팔레트로 `ThemeData` 를 만든다.
+  group('T-29-SLOT: 색 역할 자리', () {
+    test('T-29-SLOT-01: builder 는 테마 하나에 한 번 불리고 돌려준 팔레트가 colorScheme 이다', () {
+      for (final brightness in Brightness.values) {
+        final inputs = <AppColorSchemeInput>[];
+        ColorScheme recordInput(AppColorSchemeInput input) {
+          inputs.add(input);
+          return input.scheme;
+        }
+
+        final ThemeData theme = brightness == Brightness.light
+            ? AppTheme.light(colorSchemeBuilder: recordInput)
+            : AppTheme.dark(colorSchemeBuilder: recordInput);
+
+        expect(inputs, hasLength(1), reason: brightness.name);
+        expect(
+          theme.colorScheme,
+          equals(inputs.single.scheme),
+          reason: brightness.name,
+        );
+      }
     });
   });
 }
