@@ -51,6 +51,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../helpers/app_font.dart';
+import '../../../helpers/received_color_scheme.dart';
 
 /// [AuthRepository] 를 mocktail 로 대체하기 위한 Mock.
 ///
@@ -206,7 +207,9 @@ Future<void> _settleAssets(WidgetTester tester) async {
 Widget _wrapApp({required Brightness brightness, required Widget home}) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: brightness == Brightness.light ? AppTheme.light() : AppTheme.dark(),
+    theme: brightness == Brightness.light
+        ? AppTheme.light(colorSchemeBuilder: keepReceivedColorScheme)
+        : AppTheme.dark(colorSchemeBuilder: keepReceivedColorScheme),
     locale: const Locale('en'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,

@@ -12,6 +12,7 @@ import 'package:flutter_starter_kit/core/theme/app_typography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../helpers/planning_docs.dart';
+import '../../helpers/received_color_scheme.dart';
 import '../../helpers/source_text.dart';
 
 void main() {
@@ -194,8 +195,13 @@ void main() {
     });
 
     test('다른 seed 로 light() 를 만들면 colorScheme.primary 가 달라진다', () {
-      final defaultTheme = AppTheme.light();
-      final tealTheme = AppTheme.light(seedColor: Colors.teal);
+      final defaultTheme = AppTheme.light(
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
+      final tealTheme = AppTheme.light(
+        seedColor: Colors.teal,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
 
       expect(
         tealTheme.colorScheme.primary,
@@ -205,8 +211,13 @@ void main() {
     });
 
     test('다른 seed 로 dark() 를 만들면 colorScheme.primary 가 달라진다', () {
-      final defaultTheme = AppTheme.dark();
-      final tealTheme = AppTheme.dark(seedColor: Colors.teal);
+      final defaultTheme = AppTheme.dark(
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
+      final tealTheme = AppTheme.dark(
+        seedColor: Colors.teal,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
 
       expect(
         tealTheme.colorScheme.primary,
@@ -295,6 +306,9 @@ void main() {
   //
   // 두 인자는 SDK `ColorScheme.fromSeed` 의 이름 · 기본값 그대로다. 생략하면
   // 지금 팔레트와 같아야 골든이 바뀌지 않는다.
+  //
+  // `fromSeed` 와 직접 견주므로 받은 팔레트를 그대로 돌려주는 builder 를 넘긴다 —
+  // 내 앱이 자리를 채워도 통과한다.
   group('T-24-THM: 대비 · 색 변형 인자', () {
     test('T-24-THM-01: 인자를 생략한 테마는 SDK 기본값을 넘긴 테마와 같다', () {
       // 기본값과 같은 값을 상수가 아닌 값으로 넘겨 「생략 = SDK 기본값」 을 견준다.
@@ -302,27 +316,29 @@ void main() {
       final variant = DynamicSchemeVariant.values.byName('tonalSpot');
 
       expect(
-        AppTheme.light() ==
+        AppTheme.light(colorSchemeBuilder: keepReceivedColorScheme) ==
             AppTheme.light(
+              colorSchemeBuilder: keepReceivedColorScheme,
               contrastLevel: contrastLevel,
               dynamicSchemeVariant: variant,
             ),
         isTrue,
       );
       expect(
-        AppTheme.dark() ==
+        AppTheme.dark(colorSchemeBuilder: keepReceivedColorScheme) ==
             AppTheme.dark(
+              colorSchemeBuilder: keepReceivedColorScheme,
               contrastLevel: contrastLevel,
               dynamicSchemeVariant: variant,
             ),
         isTrue,
       );
       expect(
-        AppTheme.light().colorScheme,
+        AppTheme.light(colorSchemeBuilder: keepReceivedColorScheme).colorScheme,
         equals(ColorScheme.fromSeed(seedColor: AppTheme.seedColor)),
       );
       expect(
-        AppTheme.dark().colorScheme,
+        AppTheme.dark(colorSchemeBuilder: keepReceivedColorScheme).colorScheme,
         equals(
           ColorScheme.fromSeed(
             seedColor: AppTheme.seedColor,
@@ -334,8 +350,14 @@ void main() {
 
     test('T-24-THM-02: contrastLevel 1.0 은 대비 1.0 팔레트이고 '
         'AppColors 는 그대로다', () {
-      final light = AppTheme.light(contrastLevel: 1);
-      final dark = AppTheme.dark(contrastLevel: 1);
+      final light = AppTheme.light(
+        contrastLevel: 1,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
+      final dark = AppTheme.dark(
+        contrastLevel: 1,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
 
       expect(
         light.colorScheme,
@@ -353,22 +375,54 @@ void main() {
           ),
         ),
       );
-      expect(light.colorScheme, isNot(equals(AppTheme.light().colorScheme)));
-      expect(dark.colorScheme, isNot(equals(AppTheme.dark().colorScheme)));
+      expect(
+        light.colorScheme,
+        isNot(
+          equals(
+            AppTheme.light(
+              colorSchemeBuilder: keepReceivedColorScheme,
+            ).colorScheme,
+          ),
+        ),
+      );
+      expect(
+        dark.colorScheme,
+        isNot(
+          equals(
+            AppTheme.dark(
+              colorSchemeBuilder: keepReceivedColorScheme,
+            ).colorScheme,
+          ),
+        ),
+      );
       expect(
         light.extension<AppColors>(),
-        equals(AppTheme.light().extension<AppColors>()),
+        equals(
+          AppTheme.light(
+            colorSchemeBuilder: keepReceivedColorScheme,
+          ).extension<AppColors>(),
+        ),
       );
       expect(
         dark.extension<AppColors>(),
-        equals(AppTheme.dark().extension<AppColors>()),
+        equals(
+          AppTheme.dark(
+            colorSchemeBuilder: keepReceivedColorScheme,
+          ).extension<AppColors>(),
+        ),
       );
     });
 
     test('T-24-THM-03: dynamicSchemeVariant 는 fromSeed 로 넘어간다', () {
       const variant = DynamicSchemeVariant.fidelity;
-      final light = AppTheme.light(dynamicSchemeVariant: variant);
-      final dark = AppTheme.dark(dynamicSchemeVariant: variant);
+      final light = AppTheme.light(
+        dynamicSchemeVariant: variant,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
+      final dark = AppTheme.dark(
+        dynamicSchemeVariant: variant,
+        colorSchemeBuilder: keepReceivedColorScheme,
+      );
 
       expect(
         light.colorScheme,
@@ -389,8 +443,26 @@ void main() {
           ),
         ),
       );
-      expect(light.colorScheme, isNot(equals(AppTheme.light().colorScheme)));
-      expect(dark.colorScheme, isNot(equals(AppTheme.dark().colorScheme)));
+      expect(
+        light.colorScheme,
+        isNot(
+          equals(
+            AppTheme.light(
+              colorSchemeBuilder: keepReceivedColorScheme,
+            ).colorScheme,
+          ),
+        ),
+      );
+      expect(
+        dark.colorScheme,
+        isNot(
+          equals(
+            AppTheme.dark(
+              colorSchemeBuilder: keepReceivedColorScheme,
+            ).colorScheme,
+          ),
+        ),
+      );
     });
   });
 

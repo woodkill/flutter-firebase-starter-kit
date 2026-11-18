@@ -19,6 +19,8 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/branded_
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../helpers/received_color_scheme.dart';
+
 /// [child] 를 폭 360 상자에 담아 [brightness] 테마 · en locale 로 감싼다.
 ///
 /// 앱 테마([AppTheme])를 그대로 쓴다. locale 과 delegate 를 명시해 테스트를
@@ -32,8 +34,8 @@ Widget _wrap(
   TargetPlatform? platform,
 }) {
   final baseTheme = brightness == Brightness.light
-      ? AppTheme.light()
-      : AppTheme.dark();
+      ? AppTheme.light(colorSchemeBuilder: keepReceivedColorScheme)
+      : AppTheme.dark(colorSchemeBuilder: keepReceivedColorScheme);
   return MaterialApp(
     debugShowCheckedModeBanner: false,
     theme: platform != null

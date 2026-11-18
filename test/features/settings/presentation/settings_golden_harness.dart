@@ -34,6 +34,7 @@ import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../helpers/app_font.dart';
+import '../../../helpers/received_color_scheme.dart';
 
 /// golden device pixel ratio — mockup 촬영 조건(DPR 3)과 같다.
 const double kGoldenDpr = 3;
@@ -124,10 +125,13 @@ List<String>? goldenCjkFamilies(String lang) => switch (lang) {
 /// `lib/` 테마는 건드리지 않는다 — 로그인 버튼 라벨의 한글 · 가나가 기기 글꼴로
 /// 넘어가는 것을 test 에서 재현한다. 테마 글자는 앱 글꼴이 그린다
 /// (UI-SPEC §Mockup CJK 재현성).
+///
+/// 사용자 색 역할 자리 대신 받은 팔레트를 그대로 돌려주는 함수를 넘긴다 — 내 앱이
+/// 자리를 채워도 golden 이 바뀌지 않는다.
 ThemeData goldenTheme(Brightness brightness, String lang) {
   final base = brightness == Brightness.light
-      ? AppTheme.light()
-      : AppTheme.dark();
+      ? AppTheme.light(colorSchemeBuilder: keepReceivedColorScheme)
+      : AppTheme.dark(colorSchemeBuilder: keepReceivedColorScheme);
   final families = goldenCjkFamilies(lang);
   if (families == null) return base;
   return base.copyWith(
