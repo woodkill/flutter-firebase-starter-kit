@@ -403,7 +403,7 @@ void main() {
       }
     });
 
-    testWidgets('T-27-WRAP-12 예외 범위 끝점 — 범위 안 끝점은 묶지 않고 바로 밖 이웃은 묶는다', (
+    testWidgets('T-27-WRAP-12 예외 범위 끝점 — 범위 안 끝점은 묶지 않고 범위 밖 이웃은 묶는다', (
       tester,
     ) async {
       var inside = 0;
