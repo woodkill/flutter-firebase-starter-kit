@@ -5,7 +5,9 @@
 // T-27-WRAP-05 어절 안 줄바꿈 0 · T-27-WRAP-06 긴 덩어리 넘침 0 ·
 // T-27-WRAP-07 ja · en 픽셀 같음 · T-27-WRAP-08 낭독 원문 ·
 // T-27-WRAP-09 낭독 덮어쓰기 · T-27-WRAP-10 maxLines · 말줄임 ·
-// T-27-WRAP-11 locale 무관.
+// T-27-WRAP-11 locale 무관 · T-27-WRAP-12 예외 범위 끝점 ·
+// T-27-WRAP-13 한글 갈래 인자 전달 · T-27-WRAP-14 한글 없는 문구 낭독 덮어쓰기.
+// 한글 음절 식의 끝점(힣 · 그 앞뒤 코드 포인트)은 넣는 자리 표본이 맡는다.
 //
 // 표본은 이 파일 안 리터럴 — 킷 문구에 기대지 않는다. 보이지 않는 문자는
 // `String.fromCharCode` · `\u{…}` 이스케이프로만 적는다.
@@ -62,7 +64,27 @@ final Map<String, String> _placementCases = <String, String>{
   'Cafe\u{0301}로': _joined(<String>['C', 'a', 'f', 'e\u{0301}', '로']),
   // 한글이 없으면 그대로다.
   'Hello world': 'Hello world',
+  // 한글 음절 범위 끝점 — 힣(U+D7A3)은 한글이고 그 앞뒤 코드 포인트는 아니다.
+  'ID힣': _joined(<String>['I', 'D', '힣']),
+  'ID\u{ABFF}': 'ID\u{ABFF}',
+  'ID\u{D7A4}': 'ID\u{D7A4}',
 };
+
+/// 예외 범위 표 — (처음, 끝) 코드 포인트. 감싸개의 범위 목록과 같은 일곱 칸이다.
+const List<(int, int)> _exceptionRanges = <(int, int)>[
+  (0x3000, 0x303F),
+  (0x3040, 0x30FF),
+  (0x3400, 0x4DBF),
+  (0x4E00, 0x9FFF),
+  (0xF900, 0xFAFF),
+  (0xFF01, 0xFF9F),
+  (0x20000, 0x3FFFF),
+];
+
+/// [codePoint] 가 예외 범위 표 어느 한 칸에 드는지 본다.
+bool _inExceptionRanges(int codePoint) => _exceptionRanges.any(
+  (range) => codePoint >= range.$1 && codePoint <= range.$2,
+);
 
 /// 픽셀 캡처 대상 [RepaintBoundary] 의 key.
 final GlobalKey _boundaryKey = GlobalKey();
@@ -380,6 +402,104 @@ void main() {
         expect(outputs, hasLength(1), reason: data);
       }
     });
+
+    testWidgets('T-27-WRAP-12 예외 범위 끝점 — 범위 안 끝점은 묶지 않고 바로 밖 이웃은 묶는다', (
+      tester,
+    ) async {
+      var inside = 0;
+      var outside = 0;
+      for (final range in _exceptionRanges) {
+        for (final codePoint in <int>[
+          range.$1,
+          range.$2,
+          range.$1 - 1,
+          range.$2 + 1,
+        ]) {
+          final mark = String.fromCharCode(codePoint);
+          final data = '가$mark나';
+          await _pumpBox(tester, KeepHangulWordsText(data));
+          final label = 'U+${codePoint.toRadixString(16)}';
+          // 이웃 범위 안으로 들어가는 끝점은 표 전체로 판정한다.
+          if (_inExceptionRanges(codePoint)) {
+            inside++;
+            expect(_plainUnderWrapper(tester), data, reason: label);
+          } else {
+            outside++;
+            expect(
+              _plainUnderWrapper(tester),
+              _joined(<String>['가', mark, '나']),
+              reason: label,
+            );
+          }
+        }
+      }
+      // 안 = 끝점 14 + 맞붙은 두 범위의 이웃 2 · 밖 = 나머지 12 — 표 한 칸이 빠져도 깨진다.
+      expect(inside, 16);
+      expect(outside, 12);
+    });
+
+    testWidgets('T-27-WRAP-13 한글 갈래 — 감싸개 아래가 넘긴 인자 그대로의 Text.rich 다', (
+      tester,
+    ) async {
+      const style = TextStyle(fontSize: 13);
+      const scaler = TextScaler.linear(1.1);
+      await _pumpBox(
+        tester,
+        const KeepHangulWordsText(
+          '가나 다라',
+          style: style,
+          textAlign: TextAlign.center,
+          softWrap: false,
+          overflow: TextOverflow.fade,
+          maxLines: 3,
+          textScaler: scaler,
+        ),
+      );
+      final given = _textUnderWrapper(tester);
+      expect(given.data, isNull);
+      expect(given.textSpan, isNotNull);
+      expect(given.style, style);
+      expect(given.textAlign, TextAlign.center);
+      expect(given.softWrap, isFalse);
+      expect(given.overflow, TextOverflow.fade);
+      expect(given.maxLines, 3);
+      expect(given.textScaler, scaler);
+
+      await _pumpBox(tester, const KeepHangulWordsText('가나 다라'));
+      final bare = _textUnderWrapper(tester);
+      expect(bare.data, isNull);
+      expect(bare.textSpan, isNotNull);
+      expect(bare.style, isNull);
+      expect(bare.textAlign, isNull);
+      expect(bare.softWrap, isNull);
+      expect(bare.overflow, isNull);
+      expect(bare.maxLines, isNull);
+      expect(bare.textScaler, isNull);
+    });
+
+    testWidgets(
+      'T-27-WRAP-14 한글 없는 문구 낭독 덮어쓰기 — semanticsLabel 을 주면 그 값을 읽는다',
+      (tester) async {
+        final handle = tester.ensureSemantics();
+        for (final data in <String>['Hello world', 'ログインできません']) {
+          await _pumpBox(
+            tester,
+            KeepHangulWordsText(data, semanticsLabel: '안내: $data'),
+          );
+          expect(
+            _textUnderWrapper(tester).semanticsLabel,
+            '안내: $data',
+            reason: data,
+          );
+          expect(
+            tester.getSemantics(find.byType(KeepHangulWordsText)).label,
+            '안내: $data',
+            reason: data,
+          );
+        }
+        handle.dispose();
+      },
+    );
   });
 
   group('KeepHangulWordsText 렌더 · 낭독', () {
