@@ -2021,7 +2021,7 @@ LayoutBuilder(
   - 다시 만든 golden 기준 이미지도 같은 꼴로 그 `goldens/` 디렉터리를 되돌린다.
 - `brandColor` 는 example 값 `#673AB7` 로 되돌리고 앱을 다시 빌드한다(`kit` 모드면
   [발송 모드 절](#인증-메일-발송-모드-켜고-끄기) 「켜기」 ④ · ⑥ 도 다시 한다).
-- 킷 새 판을 받을 때 `lib/core/theme/` 토큰은 내 값으로 남기고, `app_theme.dart` 의 색 역할 자리 배선과 `app_color_scheme_slot.dart` 의 충돌은 —
+- 킷 새 판을 받을 때 `lib/core/theme/` 토큰은 내 값으로 남기고, `app_theme.dart` 의 색 역할 자리 배선과 `app_color_scheme_slot.dart` 의 충돌은
   [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 21행대로 처리한다.
 
 ## 한국어 문구 줄바꿈
