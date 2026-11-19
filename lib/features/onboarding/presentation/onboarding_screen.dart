@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
@@ -225,12 +226,30 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final spacing = context.appSpacing;
     final typography = context.appTypography;
     final colorScheme = context.colorScheme;
+    // 투명 AppBar 뒤로 보이는 것은 Scaffold 바탕(surface)이라 아이콘 밝기도 그
+    // 색으로 판정한다. SDK 가 불투명 AppBar 에 쓰는 것과 같은 판정 함수라 사용자
+    // 소유 색 역할 파일에서 surface 를 바꿔도 바탕을 따라간다.
+    final isSurfaceDark =
+        ThemeData.estimateBrightnessForColor(colorScheme.surface) ==
+        Brightness.dark;
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         // design-literal: 온보딩 AppBar 는 색 없이 화면 배경을 그대로 비춘다 — 색 토큰 자리가 아니다
         backgroundColor: Colors.transparent,
+        // 인자가 없으면 SDK 가 AppBar 바탕색 밝기로 아이콘을 고르는데, 투명색은
+        // 어두운 색으로 판정돼 늘 흰 아이콘이 된다. 그래서 바탕 밝기로 명시한다.
+        // 프리셋은 내비게이션 바 색까지 담으므로 상태 표시줄 필드만 담는다 —
+        // statusBarBrightness 는 iOS 용이라 아이콘과 반대 값이다(스플래시 틀과 같은 꼴).
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarIconBrightness: isSurfaceDark
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: isSurfaceDark
+              ? Brightness.dark
+              : Brightness.light,
+        ),
         actions: [
           if (!_isLastPage)
             TextButton(

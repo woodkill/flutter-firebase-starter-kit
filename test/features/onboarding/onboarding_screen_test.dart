@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/analytics/analytics_service.dart';
@@ -222,6 +223,9 @@ GoRouter _buildRouter() {
 /// [appLocalizationsDelegate] 는 앱 문구 delegate 이고 기본값은 ARB 에서 만든
 /// [AppLocalizations.delegate] 다. 3장 문구가 길어도 흐름이 통과하는지 보는
 /// 시험만 긴 문구 delegate 를 넣는다.
+///
+/// [theme] 은 앱 테마이고 기본값(null)은 [AppTheme.light] 다. 다크 테마에서의
+/// 상태 표시줄 아이콘을 보는 시험만 [AppTheme.dark] 를 넣는다.
 Future<void> _pumpOnboarding(
   WidgetTester tester, {
   required _MockAuthRepository mockRepo,
@@ -232,6 +236,7 @@ Future<void> _pumpOnboarding(
   bool isFirebaseInitialized = true,
   LocalizationsDelegate<AppLocalizations> appLocalizationsDelegate =
       AppLocalizations.delegate,
+  ThemeData? theme,
 }) async {
   SharedPreferences.setMockInitialValues({});
   final router = _buildRouter();
@@ -247,7 +252,7 @@ Future<void> _pumpOnboarding(
           termsProvider.overrideWith(() => termsOverride),
       ],
       child: MaterialApp.router(
-        theme: AppTheme.light(),
+        theme: theme ?? AppTheme.light(),
         locale: const Locale('en'),
         localizationsDelegates: [
           appLocalizationsDelegate,
@@ -1032,6 +1037,37 @@ void main() {
       );
     });
   });
+
+  group('OnboardingScreen 상태 표시줄 아이콘 색', () {
+    testWidgets('SB1: 라이트 테마 — 밝은 바탕이라 어두운 아이콘', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+      );
+
+      expect(_readStatusBarBrightness(tester), (
+        Brightness.dark,
+        Brightness.light,
+      ), reason: '라이트 바탕: (Android 아이콘 밝기, iOS 상태 표시줄 밝기) 순서');
+    });
+
+    testWidgets('SB2: 다크 테마 — 어두운 바탕이라 밝은 아이콘', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        theme: AppTheme.dark(),
+      );
+
+      expect(_readStatusBarBrightness(tester), (
+        Brightness.light,
+        Brightness.dark,
+      ), reason: '다크 바탕: (Android 아이콘 밝기, iOS 상태 표시줄 밝기) 순서');
+    });
+  });
 }
 
 /// 가로 모드 테스트가 다루는 슬라이드 1·2 명세 (index · 제목 · 본문 조회 함수).
@@ -1105,6 +1141,25 @@ Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
   await tester.ensureVisible(tiles.at(2));
   await tester.tap(tiles.at(2)); // privacy
   await tester.pump();
+}
+
+/// AppBar 가 고른 상태 표시줄 스타일을 layer 에 싣는 자리의 값을 읽는다.
+///
+/// 첫 값은 Android 가 읽는 아이콘 밝기이고, 둘째 값은 iOS 가 읽는 상태 표시줄
+/// 밝기(아이콘과 반대 값)다. AppBar 인자가 아니라 이 자리를 읽어야 인자가 없을
+/// 때 SDK 가 고른 값까지 본다.
+(Brightness?, Brightness?) _readStatusBarBrightness(WidgetTester tester) {
+  final finder = find.descendant(
+    of: find.byType(AppBar),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is AnnotatedRegion<SystemUiOverlayStyle>,
+    ),
+  );
+  expect(finder, findsOneWidget);
+  final style = tester
+      .widget<AnnotatedRegion<SystemUiOverlayStyle>>(finder)
+      .value;
+  return (style.statusBarIconBrightness, style.statusBarBrightness);
 }
 
 /// 테스트용 정식 사용자 스텁.
