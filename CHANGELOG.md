@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.15] - 2026-11-20
+
 ### 사용자 조치
 
 - `flutter_native_splash.yaml` 의 `color` · `color_dark` 를 내 색으로 바꾼 저장소는 이 판을 받은 뒤 새 내 파일 `lib/features/splash/presentation/splash_body.dart` 가 킷 값(`Color(0xFFFFFFFF)` · `Color(0xFF000000)`)으로 들어오므로, 그 파일의 `kSplashColor` · `kSplashColorDark` 에 yaml 과 같은 색을 `Color(0xFF<6자리>)` 꼴로 적는다(yaml `"#F2B134"` 면 `Color(0xFFF2B134)`) — 안 하면 `test/infrastructure/native_splash_yaml_test.dart` 가 실패하고 그 메시지가 적을 줄(`const Color kSplashColor = Color(0xFFF2B134);` 꼴)을 알려 준다. 로고 그림 경로(`image` · `image_dark`)를 다른 이름으로 바꿨다면 `kSplashImage` · `kSplashImageDark` 에도 같은 경로를 적는다. 그 경로가 `assets/images/splash/` 바로 아래 파일이 아니면(그 아래 하위 디렉터리의 파일도 포함) 그 파일이나 그 파일이 든 디렉터리를 `pubspec.yaml` 의 `flutter:` → `assets:` 에 빌드를 한정하지 않은 항목(`flavors:` · `platforms:` 조건은 `docs/guide.md` 「스플래시 바꾸기」 ②)으로 등록하고, 파일 이름의 대소문자도 실제 파일과 같게 적는다 — 그 시험이 실패하면 그 메시지가 원인과 할 일을 알려 준다. 그 시험이 `flutter_native_splash.yaml` · `pubspec.yaml` 의 어느 줄을 읽지 못했다고 말하면 그 줄을 `docs/guide.md` 「스플래시 바꾸기」 ② 의 꼴로 고친다 — 고칠 꼴(블록 꼴 · 들여쓰기 · `assets:` 목록 항목의 꼴)은 ② 에 있다. `android_12:` 블록의 `color` · `color_dark` 줄은 지우거나 위의 색과 같은 값으로 두고(블록은 남긴다), 그 블록의 `image` · `image_dark` 줄은 지웠다면 되살려 위의 그림 경로와 같은 값으로 적는다 — 이 두 줄이 없거나 다르면 그 시험이 실패한다. 플랫폼별 색 · 로고 키와 배경 그림 키도 그 시험이 보므로 `docs/guide.md` 「스플래시 바꾸기」 ② 대로 맞춘다. yaml 의 색 · 그림 경로를 바꾸지 않았고 `android_12:` 블록의 그림 줄도 그대로이며, 이 판을 받은 뒤 그 시험이 통과하면 할 일이 없다.
@@ -282,7 +284,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.14...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.15...HEAD
+[1.0.0-rc.15]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.15
 [1.0.0-rc.14]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.14
 [1.0.0-rc.13]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.13
 [1.0.0-rc.12]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.12
