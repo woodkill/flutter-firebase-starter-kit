@@ -26,8 +26,8 @@ class AppColorSchemeInput {
   /// 가른다.
   final ColorScheme scheme;
 
-  /// 테마에 넘긴 시드를 불투명 [Color] 로 정규화한 값이다 — `AppColors.brand`
-  /// 와 같다.
+  /// 테마에 넘긴 시드를 `toARGB32()` 로 정규화한 [Color] 다 — 넘긴 시드가
+  /// 불투명이면 불투명이고, `AppColors.brand` 와 같다.
   final Color seedColor;
 
   /// 테마에 넘긴 대비 단계다 — 고대비 테마는 1.0 이다.

@@ -22,7 +22,8 @@ import 'app_typography.dart';
 /// [ColorScheme.fromSeed] 팔레트를 사용자 파일의 [buildAppColorScheme] 에 넘겨
 /// 돌려받은 팔레트로 [ThemeData] 를 만든다 — `colorSchemeBuilder` 인자를
 /// 넘기면 그 함수에 넘기고, 킷 판 [buildAppColorScheme] 은 받은 팔레트 그대로다.
-/// [AppColors.brand] 에는 넘긴 시드를 불투명 [Color] 로 정규화해 그대로 넣는다.
+/// [AppColors.brand] 에는 넘긴 시드를 `toARGB32()` 로 정규화해 그대로 넣는다 —
+/// 넘긴 시드가 불투명이면 불투명이다.
 /// [fontFamily] 를 테마 글꼴로 건다.
 ///
 /// **타이포그래피 계약:** 등록되는 [AppTypography] 는 기하를 포함하지 않는

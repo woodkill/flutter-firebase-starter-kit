@@ -32,8 +32,9 @@ class AppColors extends ThemeExtension<AppColors> with Diagnosticable {
   /// [brightness]에 따라 라이트/다크 시맨틱 컬러를 생성한다.
   ///
   /// [brand] 를 넘기지 않으면 config `brandColor` 의 색([AppTheme.brandColor])을
-  /// 넣는다. 넘긴 색은 불투명 [Color] 로 정규화한다 — [MaterialColor] 를 넘겨도
-  /// `==` 가 런타임 타입에 흔들리지 않는다.
+  /// 넣는다. 넘긴 색은 `toARGB32()` 로 정규화한다(넘긴 색이 불투명이면
+  /// 불투명이다) — [MaterialColor] 를 넘겨도 `==` 가 런타임 타입에 흔들리지
+  /// 않는다.
   factory AppColors.fromBrightness(Brightness brightness, {Color? brand}) {
     final AppColors semantic = switch (brightness) {
       Brightness.light => const AppColors(
