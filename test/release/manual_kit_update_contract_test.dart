@@ -15,6 +15,9 @@
 //   `git apply -3` 은 「쓰지 않는다」 문장 1회 · 되돌리기의 bash 블록은 2개다.
 // T-174-DOCS-05: 사용자 소유 표면 표가 헤더 · 41행 · 등급 단어로 시작하는 넷째 칸을
 //   갖고, 표 앞 문단의 MAJOR 기준 문장이 CHANGELOG 판 번호 규칙과 같은 문자열이다.
+// T-29-SLOT-12: 표에서 파일 칸이 `lib/core/theme/app_color_scheme.dart` 하나뿐인 행이
+//   정확히 1개이고(21행의 파일 칸은 이 경로를 글 안에 담을 뿐이라 같지 않다) 그
+//   행의 등급이 `없음` 이다.
 // T-174-DOCS-06: README 판 · 업데이트 · Issues 절에 Use this template · 킷 업데이트
 //   반영 절 링크 · Issues 안내가 있고 금지 패턴이 0 건이며, 빠른 시작이 template →
 //   clone → `./setup.sh` 순이고(단독 줄 1개 · 단계 문장 1회 · dev config 복사 단계 0 ·
@@ -149,6 +152,9 @@ const String _patchApplyToken = 'git apply -3';
 /// 사용자 소유 표면 표 헤더 (정확한 줄).
 const String _surfaceTableHeader =
     '| # | 파일 | 사용자가 바꾸는 것 | 킷이 고칠 가능성 | 충돌 시 조치 |';
+
+/// 색 역할 자리 파일 행의 파일 칸 원문(앞뒤 공백 뺀 값).
+const String _colorSchemeSlotCell = '`lib/core/theme/app_color_scheme.dart`';
 
 /// 사용자 소유 표면 표 데이터 행 수.
 const int _surfaceTableRowCount = 41;
@@ -463,6 +469,23 @@ void main() {
         1,
         reason: 'CHANGELOG 판 번호 규칙과 가이드 표 앞 문장은 같은 문자열이어야 한다',
       );
+    });
+
+    test('T-29-SLOT-12: 색 역할 자리 파일 행은 파일 칸이 그 경로 하나이고 등급이 없음이다', () {
+      final List<String> rows = collectTableLines(
+        section,
+        _surfaceTableHeader,
+      ).skip(2).toList();
+      expect(rows, hasLength(_surfaceTableRowCount));
+      // 21행의 파일 칸도 이 경로를 글 안에 담으므로 칸 전체가 같은 행만 센다.
+      final List<String> matched = rows
+          .where(
+            (String row) => row.split('|')[2].trim() == _colorSchemeSlotCell,
+          )
+          .toList();
+
+      expect(matched, hasLength(1), reason: '파일 칸이 $_colorSchemeSlotCell 인 행');
+      expect(_readLikelihoodGrade(matched.single), '없음');
     });
 
     test('T-174-DOCS-07: 절 끝 배경 링크가 유지보수자 발행 문서를 가리킨다', () {
