@@ -93,13 +93,17 @@ abstract final class AppTheme {
   /// 부른다. 자리는 [ThemeData] 생성자 앞이라 [ThemeData] 가 팔레트에서
   /// 파생하는 값도 돌려받은 팔레트를 따른다. 돌려받은 팔레트의 밝기가
   /// [seedScheme] 과 다르면 debug 빌드에서 멈춘다.
-  static ColorScheme _resolveColorScheme({
-    required ColorScheme seedScheme,
-    required Color seedColor,
-    required double contrastLevel,
-    required DynamicSchemeVariant dynamicSchemeVariant,
-    required AppColorSchemeBuilder? colorSchemeBuilder,
-  }) {
+  ///
+  /// 위치 인자로 부른다 — 호출 줄이 시드 팔레트 인자 줄과 같은 글자가 아니어야,
+  /// 그 인자 줄을 고친 저장소가 킷 새 판을 받을 때 손질이 시드 팔레트 호출 안에
+  /// 남는다.
+  static ColorScheme _resolveColorScheme(
+    ColorScheme seedScheme,
+    Color seedColor,
+    double contrastLevel,
+    DynamicSchemeVariant dynamicSchemeVariant,
+    AppColorSchemeBuilder? colorSchemeBuilder,
+  ) {
     final AppColorSchemeBuilder build =
         colorSchemeBuilder ?? buildAppColorScheme;
     final ColorScheme scheme = build(
@@ -151,16 +155,17 @@ abstract final class AppTheme {
     DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
     AppColorSchemeBuilder? colorSchemeBuilder,
   }) {
-    final colorScheme = _resolveColorScheme(
-      seedScheme: ColorScheme.fromSeed(
-        seedColor: seedColor,
-        contrastLevel: contrastLevel,
-        dynamicSchemeVariant: dynamicSchemeVariant,
-      ),
+    final seedScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       contrastLevel: contrastLevel,
       dynamicSchemeVariant: dynamicSchemeVariant,
-      colorSchemeBuilder: colorSchemeBuilder,
+    );
+    final colorScheme = _resolveColorScheme(
+      seedScheme,
+      seedColor,
+      contrastLevel,
+      dynamicSchemeVariant,
+      colorSchemeBuilder,
     );
     // useMaterial3 미지정 — Flutter 3.41 기준 기본값이 true 다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
@@ -209,17 +214,18 @@ abstract final class AppTheme {
     DynamicSchemeVariant dynamicSchemeVariant = DynamicSchemeVariant.tonalSpot,
     AppColorSchemeBuilder? colorSchemeBuilder,
   }) {
-    final colorScheme = _resolveColorScheme(
-      seedScheme: ColorScheme.fromSeed(
-        seedColor: seedColor,
-        brightness: Brightness.dark,
-        contrastLevel: contrastLevel,
-        dynamicSchemeVariant: dynamicSchemeVariant,
-      ),
+    final seedScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
+      brightness: Brightness.dark,
       contrastLevel: contrastLevel,
       dynamicSchemeVariant: dynamicSchemeVariant,
-      colorSchemeBuilder: colorSchemeBuilder,
+    );
+    final colorScheme = _resolveColorScheme(
+      seedScheme,
+      seedColor,
+      contrastLevel,
+      dynamicSchemeVariant,
+      colorSchemeBuilder,
     );
     // brightness 미지정 — colorScheme 이 있으면 거기서 파생된다.
     final base = ThemeData(colorScheme: colorScheme, fontFamily: fontFamily);
