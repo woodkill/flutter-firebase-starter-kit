@@ -1354,6 +1354,7 @@ fvm flutter run --flavor dev --dart-define-from-file=config/dev.json
 - 기기 배경화면 색을 켜면 `input.seedColor` 는 기기 색이다 — 브랜드 색이 필요하면 `AppTheme.brandColor` 를 직접 읽는다.
 - 킷 golden 시험은 받은 팔레트로 그리므로 이 함수를 고쳐도 바뀌지 않는다.
   - 글자 역할의 대비를 낮추면 킷 접근성 시험이 실패한다 — 그 화면의 글자가 실제로 안 보인다는 뜻이다.
+  - 대비 단계(`input.contrastLevel`)를 버려 고대비 테마에 기본 테마와 같은 팔레트를 돌려주면 `test/app_high_contrast_test.dart` 가 실패한다 — `ColorScheme.fromSeed` 로 다시 만들 때는 `contrastLevel: input.contrastLevel` 을 넘긴다.
 - 킷 새 판을 받을 때 이 파일은 내 파일이다 — [킷 업데이트 반영](#킷-업데이트-반영) 의 사용자 소유 표면 표 41행대로 처리한다.
 
 아래 표에서 내 상황에 맞는 견본을 고른다.
