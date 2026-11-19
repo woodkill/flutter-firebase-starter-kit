@@ -1,8 +1,8 @@
 // 색 역할 자리 소스 계약 — 사용자 파일을 바꿔 끼우지 않고는 닿지 않는 갈래와,
 // 킷 트리에서는 값이 같아 지워도 티가 나지 않는 주입 자리를 소스 글자로 고정한다.
 //
-// T-29-SLOT-10: 기본 builder 갈래(`colorSchemeBuilder == null`)의 밝기 assert 메시지가
-//   받은 밝기 · 돌려받은 밝기를 모두 담는다.
+// T-29-SLOT-10: 기본 builder 갈래(`colorSchemeBuilder == null ?` 쪽)의 밝기 assert
+//   메시지 글자 — 받은 밝기 다음 돌려받은 밝기 — 를 그대로 고정한다.
 // T-29-SLOT-11: golden 시험 · golden harness 의 모든 테마 호출과, 테마 시험 파일의 주입이
 //   필요한 시험 범위의 모든 테마 호출이 받은 팔레트 그대로 쓰는 builder 를 넘긴다.
 //
@@ -101,7 +101,7 @@ List<String> _findCallsWithoutInjection(List<String> calls) => <String>[
 
 void main() {
   test(
-    'T-29-SLOT-10: 기본 builder 갈래의 밝기 assert 메시지가 받은 밝기와 돌려받은 밝기를 담는다',
+    'T-29-SLOT-10: 기본 builder 갈래의 밝기 assert 메시지 글자가 받은 밝기 → 돌려받은 밝기 순서 그대로다',
     () {
       final String code = _stripComments(
         readTrackedFile('lib/core/theme/app_theme.dart'),
