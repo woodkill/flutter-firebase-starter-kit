@@ -4201,7 +4201,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 18 | `lib/features/home/presentation/home_body.dart` | 홈 본문 | 중간 | 내 값 · 「홈 화면 바꾸기」 의 배선 체크리스트는 지킨다 |
 | 19 | `lib/features/home/presentation/home_screen.dart` · `lib/core/router/app_router.dart` 의 홈 라우트 | 화면 교체 · 라우트 추가 | 높음 (라우트 · 리스너) | 자동 병합을 먼저 보고, 충돌은 직접 합친다 · 구조 테스트가 결과를 검사한다 |
 | 20 | `lib/features/demo/` · `test/features/demo/` · 데모를 지우며 고친 테스트 | 데모 삭제(「홈 화면 바꾸기」 ③ 지우는 법) | 중간 | 데모 파일은 규칙 1(`git rm`) · 고친 테스트는 「데모를 지웠다면」 규칙 3 대로 충돌 블록을 푼다 |
-| 21 | `lib/core/theme/` 토큰 (브랜드 색 · 알림 색은 `config/*.json` 의 `brandColor` · 색 역할 자리 `lib/core/theme/app_color_scheme.dart` 는 41행) | 테마 토큰 | 중간 | 내 값 · 단 `lib/core/theme/app_theme.dart` 의 색 역할 자리 배선(`light()` · `dark()` 의 `colorSchemeBuilder` 인자와 `_resolveColorScheme(…)` 호출)과 킷 파일 `lib/core/theme/app_color_scheme_slot.dart` 는 킷 값 |
+| 21 | `lib/core/theme/` 토큰 (브랜드 색 · 알림 색은 `config/*.json` 의 `brandColor` · 색 역할 자리 `lib/core/theme/app_color_scheme.dart` 는 41행) | 테마 토큰 | 중간 | 내 값 · 단 `lib/core/theme/app_theme.dart` 의 색 역할 자리 배선(`app_color_scheme.dart` · `app_color_scheme_slot.dart` import 두 줄, `_resolveColorScheme` 정의, `light()` · `dark()` 의 `colorSchemeBuilder` 인자와 `_resolveColorScheme(…)` 호출)은 킷 값 — 내가 원래 있던 줄을 고쳐 배선과 충돌하면 킷 값 · 같은 자리에 양쪽이 서로 다른 줄을 더해 충돌하면 양쪽 줄을 모두 남긴다 · 킷 파일 `lib/core/theme/app_color_scheme_slot.dart` 는 킷 값 |
 | 22 | `android/app/src/main/res/drawable/ic_notification.xml` | 알림 아이콘 | 낮음 | 내 값 |
 | 23 | `ios/Runner/Info.plist` · `InfoPlist.strings` | 권한 문구 · 추적 허용 문구 | 중간 (새 로그인 수단 키 · URL scheme) | 다른 키는 자동 병합 · 같은 키는 내 값 · 언어별 `CFBundleDisplayName` 은 빌드가 ARB `appTitle` 로 `<언어>.lproj/InfoPlist.strings` 에 얹는다(내 다른 키는 남는다) |
 | 24 | `android/app/src/main/AndroidManifest.xml` | 권한 · 메타데이터 | 중간 | 자동 병합을 먼저 보고, 충돌은 직접 합친다 |
