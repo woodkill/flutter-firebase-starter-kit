@@ -826,6 +826,7 @@ void main() {
               (AssertionError error) => '${error.message}',
               'message',
               allOf(
+                contains('colorSchemeBuilder'),
                 contains('buildAppColorScheme'),
                 contains('($received)'),
                 contains('a $returned ColorScheme'),

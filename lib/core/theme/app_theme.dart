@@ -20,7 +20,8 @@ import 'app_typography.dart';
 /// 구분선 · 진행 표시는 Material 3 기본값을 쓴다.
 /// [seedColor]를 변경하면 전체 팔레트가 교체된다.
 /// [ColorScheme.fromSeed] 팔레트를 사용자 파일의 [buildAppColorScheme] 에 넘겨
-/// 돌려받은 팔레트로 [ThemeData] 를 만든다 — 킷 판은 받은 팔레트 그대로다.
+/// 돌려받은 팔레트로 [ThemeData] 를 만든다 — `colorSchemeBuilder` 인자를
+/// 넘기면 그 함수에 넘기고, 킷 판 [buildAppColorScheme] 은 받은 팔레트 그대로다.
 /// [AppColors.brand] 에는 넘긴 시드를 불투명 [Color] 로 정규화해 그대로 넣는다.
 /// [fontFamily] 를 테마 글꼴로 건다.
 ///
@@ -110,8 +111,12 @@ abstract final class AppTheme {
     );
     assert(
       scheme.brightness == seedScheme.brightness,
-      'buildAppColorScheme (${seedScheme.brightness.name}) returned a '
-      '${scheme.brightness.name} ColorScheme — keep the brightness.',
+      colorSchemeBuilder == null
+          ? 'buildAppColorScheme (${seedScheme.brightness.name}) returned a '
+                '${scheme.brightness.name} ColorScheme — keep the brightness.'
+          : 'colorSchemeBuilder (passed in place of buildAppColorScheme) '
+                '(${seedScheme.brightness.name}) returned a '
+                '${scheme.brightness.name} ColorScheme — keep the brightness.',
     );
     return scheme;
   }
