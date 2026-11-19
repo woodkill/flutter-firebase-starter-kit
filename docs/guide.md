@@ -1464,6 +1464,7 @@ ColorScheme buildAppColorScheme(AppColorSchemeInput input) =>
 - 둘째 색 `_secondBrand` 로 만든 팔레트의 강조 색 넷을 `tertiary` · `onTertiary` · `tertiaryContainer` · `onTertiaryContainer` 에 넣는다 — `_secondBrand` 는 내 앱의 값으로 바꾼다.
 - 킷 화면은 데모 화면의 색 견본 목록 말고는 `tertiary` 계열을 쓰지 않아 그대로이고, 내 화면에서 강조색으로 쓴다.
 - 같은 넷을 `secondary` 계열에 두면 홈 화면 공지 바와 토널 버튼(`FilledButton.tonal`)이 둘째 색이 된다.
+- `tertiaryFixed` · `tertiaryFixedDim` · `onTertiaryFixed` · `onTertiaryFixedVariant` 는 첫 시드 값이다 — 쓰면 그 넷에 둘째 팔레트 `primaryFixed` · `primaryFixedDim` · `onPrimaryFixed` · `onPrimaryFixedVariant` 도 넣는다.
 
 ```dart
 import 'package:flutter/material.dart';
