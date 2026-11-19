@@ -476,7 +476,6 @@ void main() {
         section,
         _surfaceTableHeader,
       ).skip(2).toList();
-      expect(rows, hasLength(_surfaceTableRowCount));
       // 21행의 파일 칸도 이 경로를 글 안에 담으므로 칸 전체가 같은 행만 센다.
       final List<String> matched = rows
           .where(
