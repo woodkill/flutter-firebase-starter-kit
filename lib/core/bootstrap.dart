@@ -18,6 +18,7 @@ import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 
 import '../app.dart';
 import '../features/notifications/data/firebase_messaging_background_handler.dart';
+import '../features/splash/presentation/splash_frame.dart';
 import 'auth/provider_id.dart';
 import 'config/app_config.dart';
 import 'error/error_widget_builder.dart';
@@ -40,11 +41,20 @@ void _registerBackgroundMessageHandler() {
   }
 }
 
+/// 스플래시 로고 미리 디코딩([precacheSplashLogo])을 기다리는 상한 시간이다.
+///
+/// 디코딩은 [bootstrap] 의 다른 초기화(Firebase 등)와 겹쳐 돌므로 대개 [runApp]
+/// 앞에서 더 기다리는 시간은 0 이다. 시간은 디코딩을 시작한 때부터 재고, 자산
+/// 묶음이 멈추거나 기기가 아주 느려 이 시간을 넘기면 더 기다리지 않는다 — 그때
+/// 로고는 지금처럼 첫 프레임 뒤에 그려진다.
+const Duration _kSplashLogoPrecacheTimeout = Duration(milliseconds: 500);
+
 /// 앱 초기화 시퀀스를 실행한다 (Phase 10 D-28).
 ///
 /// 실행 순서:
 /// 1. [runZonedGuarded] 로 전체 시퀀스를 감싸 Zone 미처리 에러 수집 (경로 1)
-/// 2. [WidgetsFlutterBinding.ensureInitialized] -- Flutter 엔진 바인딩
+/// 2. [WidgetsFlutterBinding.ensureInitialized] -- Flutter 엔진 바인딩 → 곧바로
+///    [precacheSplashLogo] 시작(기다리지 않고 아래 초기화와 겹쳐 돈다)
 /// 3. [initializeDateFormatting] -- intl 날짜 포맷 데이터 초기화
 /// 4. [initializeFirebase] -- Firebase 초기화 (실패 허용)
 /// 5. Firebase 초기화 성공 시 App Check 활성화 → FCM 백그라운드 핸들러 등록
@@ -59,7 +69,8 @@ void _registerBackgroundMessageHandler() {
 ///    가 만든 builder([buildReleaseErrorWidget] 본문 + 세션당 1회 non-fatal
 ///    기록 · 리뷰 IN-14)로 교체 (Phase 17 D-22 -- 깨진 화면 대체, Firebase
 ///    초기화 결과와 무관하게 설치)
-/// 8. [runApp] -- [ProviderScope] 로 감싼 [App] 위젯 실행
+/// 8. 스플래시 로고 미리 디코딩을 기다린 뒤 [runApp] -- [ProviderScope] 로 감싼
+///    [App] 위젯 실행
 ///
 /// [isFirebaseInitializedProvider] 에 Firebase 초기화 결과를 override 로
 /// 주입하여 Router 와 화면 모두에서 Provider 를 통해 접근할 수 있도록 한다.
@@ -76,6 +87,14 @@ Future<void> bootstrap() async {
     runZonedGuarded<Future<void>>(
       () async {
         WidgetsFlutterBinding.ensureInitialized();
+        // 스플래시 로고 디코딩을 지금 시작해 아래 초기화와 겹쳐 돌리고, runApp
+        // 바로 전에 기다린다. Android 12 이상은 Flutter 첫 프레임에서 OS
+        // 스플래시를 걷으므로 그 프레임에 로고가 그려져 있어야 로고가 깜빡이지
+        // 않는다. throw 하지 않고 상한 시간 안에 끝나 아래 runApp 보장을 깨지
+        // 않는다.
+        final Future<void> splashLogoPrecache = precacheSplashLogo(
+          timeout: _kSplashLogoPrecacheTimeout,
+        );
 
         // 초기화 전 구간을 try 로 감싸 어떤 실패에도 [runApp] 이 반드시
         // 호출되도록 보장한다. 이전에는 [initializeDateFormatting] 이나
@@ -241,6 +260,9 @@ Future<void> bootstrap() async {
             },
           );
         }
+
+        // 위에서 시작한 스플래시 로고 디코딩을 기다린다 — 대개 이미 끝나 있다.
+        await splashLogoPrecache;
 
         runApp(
           ProviderScope(

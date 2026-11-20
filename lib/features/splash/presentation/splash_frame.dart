@@ -1,6 +1,8 @@
 // 스플래시 화면의 틀 — 킷 파일이다. 내 화면의 값(배경색 · 로고)과 로고 아래
 // 내용은 `splash_body.dart` 에 둔다. 로고 자리 · 크기를 바꾸려면 이 파일을
 // 고쳐야 하고, 킷 업데이트 때 생기는 충돌은 직접 푼다.
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -27,6 +29,8 @@ typedef SplashBodyBuilder =
 /// - 로고는 화면 정가운데에 원본 픽셀 ÷ 4 크기로 그린다(네이티브 스플래시와
 ///   같은 규칙). 화면보다 커도 줄이지 않는다. 로고를 읽지 못하면 그 자리를
 ///   비우고 디버그 로그에 경로와 원인을 남긴다.
+/// - 앱 시작이 [precacheSplashLogo] 로 로고를 미리 디코딩해 두므로 첫 프레임부터
+///   로고가 그 크기로 보인다.
 /// - 로고 아래 내용은 배경 밝기로 고른 라이트 · 다크 테마 아래에서 그린다.
 ///   테마는 본문 안쪽에만 씌운다 — 화면 위에 띄우는 대화상자 · 알림 막대는 앱
 ///   테마 그대로다.
@@ -62,7 +66,9 @@ class SplashFrame extends StatelessWidget {
     final Color background = isOsDark
         ? colorDark ?? kSplashColorDark
         : color ?? kSplashColor;
-    final String logoAsset = isOsDark ? kSplashImageDark : kSplashImage;
+    final ExactAssetImage logo = _buildSplashLogoImage(
+      MediaQuery.platformBrightnessOf(context),
+    );
     final isBackgroundDark =
         ThemeData.estimateBrightnessForColor(background) == Brightness.dark;
     // OS 가 대비를 높이면 앱의 대비 테마(lib/app.dart)와 같은 1.0 팔레트를 쓴다 —
@@ -102,16 +108,15 @@ class SplashFrame extends StatelessWidget {
                 children: <Widget>[
                   LayoutId(
                     id: _SplashSlot.logo,
-                    child: Image.asset(
-                      logoAsset,
-                      scale: 4,
+                    child: Image(
+                      image: logo,
                       errorBuilder: (_, error, stackTrace) {
                         // 로고를 읽지 못하면 자리는 비우되 원인은 디버그 로그로
                         // 남긴다 — 경로가 pubspec.yaml 의 flutter: assets: 에
                         // 등록되지 않은 경우가 흔하다.
                         if (kDebugMode) {
                           debugPrint(
-                            'splash_logo load failed ($logoAsset): '
+                            'splash_logo load failed (${logo.assetName}): '
                             '$error\n$stackTrace',
                           );
                         }
@@ -143,6 +148,84 @@ class SplashFrame extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 로고 원본 픽셀을 화면 크기로 바꾸는 나눗수다 — 네이티브 스플래시와 같은 ÷ 4.
+const double _kSplashLogoScale = 4;
+
+/// OS 밝기 [osBrightness] 에 맞는 스플래시 로고 그림 제공자를 만든다.
+///
+/// [SplashFrame] 의 로고와 [precacheSplashLogo] 가 이 함수 하나를 같이 쓴다 —
+/// 자산 · 배율이 같아야 이미지 캐시 키가 같아서, 미리 디코딩한 그림을 첫
+/// 프레임이 그대로 쓴다.
+ExactAssetImage _buildSplashLogoImage(Brightness osBrightness) =>
+    ExactAssetImage(
+      osBrightness == Brightness.dark ? kSplashImageDark : kSplashImage,
+      scale: _kSplashLogoScale,
+    );
+
+/// 스플래시 로고를 `runApp` 전에 디코딩해 이미지 캐시에 넣어 둔다.
+///
+/// Android 12 이상은 Flutter 첫 프레임에서 OS 스플래시를 걷는다. 그 프레임에
+/// 로고가 아직 디코딩되지 않았으면 로고 칸이 0 × 0 이라 로고가 빠지고 아래
+/// 내용이 화면 가운데로 올라붙는다. 미리 디코딩해 두면 [SplashFrame] 이 첫
+/// 프레임부터 로고를 원본 ÷ 4 크기로 그린다.
+///
+/// - 지금 OS 밝기의 로고 하나만 디코딩한다. [osBrightness] 가 null 이면
+///   [SplashFrame] 의 `MediaQuery` 와 같은 출처(바인딩의 platformDispatcher)의
+///   밝기를 쓴다 — 앱에서는 [PlatformDispatcher.instance] 와 같은 객체다.
+/// - [bundle] 이 null 이면 앱의 로고 `Image` 와 같은 [rootBundle] 에서 읽는다.
+/// - throw 하지 않고 [timeout] 안에 끝난다. 자산이 없거나 디코딩에 실패하거나
+///   자산 묶음이 멈추면 디버그 로그만 남긴다 — 그때 로고는 지금처럼 첫 프레임
+///   뒤에 그려진다. 상한 시간의 값과 이유는 부르는 쪽(앱 시작)이 정한다.
+Future<void> precacheSplashLogo({
+  required Duration timeout,
+  AssetBundle? bundle,
+  Brightness? osBrightness,
+}) async {
+  final ExactAssetImage logo = _buildSplashLogoImage(
+    osBrightness ??
+        WidgetsBinding.instance.platformDispatcher.platformBrightness,
+  );
+  final completer = Completer<void>();
+  final listener = ImageStreamListener(
+    (image, synchronousCall) {
+      // 받은 그림은 이 리스너 몫의 사본이다 — 캐시의 그림은 그대로 남는다.
+      image.dispose();
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    },
+    onError: (error, stackTrace) {
+      if (!completer.isCompleted) {
+        completer.completeError(error, stackTrace);
+      }
+    },
+  );
+  ImageStream? stream;
+  try {
+    stream = logo.resolve(ImageConfiguration(bundle: bundle ?? rootBundle))
+      ..addListener(listener);
+    await completer.future.timeout(timeout);
+  } on TimeoutException {
+    if (kDebugMode) {
+      debugPrint(
+        'splash_logo precache timed out (${logo.assetName}) after '
+        '${timeout.inMilliseconds}ms',
+      );
+    }
+  } on Object catch (error, stackTrace) {
+    if (kDebugMode) {
+      debugPrint(
+        'splash_logo precache failed (${logo.assetName}): '
+        '$error\n$stackTrace',
+      );
+    }
+  } finally {
+    // 캐시에 든 그림은 리스너를 떼도 남는다 — 첫 프레임의 로고 Image 가 같은
+    // 키로 바로 받아 간다.
+    stream?.removeListener(listener);
   }
 }
 
