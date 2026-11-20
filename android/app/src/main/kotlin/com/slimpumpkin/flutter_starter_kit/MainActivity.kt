@@ -8,6 +8,7 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import com.linecorp.linesdk.auth.internal.LineAuthenticationActivity
 
@@ -15,10 +16,33 @@ import com.linecorp.linesdk.auth.internal.LineAuthenticationActivity
  * 킷의 유일한 Android 호스트 Activity.
  *
  * Phase 16.5 D-23: NAVER 앱 설치 판정 채널([NaverHostChannel]) 을 엔진 수명에 맞춰
- * 등록 · 해제만 한다. 판정 로직은 채널 클래스에 있다.
+ * 등록 · 해제한다. 판정 로직은 채널 클래스에 있다.
+ *
+ * Android 12 이상에서는 OS 스플래시가 사라지는 애니메이션을 끈다([onCreate]).
  */
 class MainActivity : FlutterFragmentActivity() {
     private var naverHostChannel: NaverHostChannel? = null
+
+    /**
+     * Android 12 이상에서 OS 스플래시를 애니메이션 없이 바로 걷도록 퇴장 리스너를 건다.
+     *
+     * **왜** — Android 12 이상의 OS 스플래시는 Flutter 첫 프레임이 그려질 때 짧은 페이드로
+     * 사라진다. 그동안 로고가 약 40ms 옅어졌다 돌아와 깜빡여 보인다(실기기 측정: 리스너가
+     * 없으면 매 콜드 스타트 · 있으면 0 회). Flutter 스플래시는 같은 배경 · 같은 로고를 같은
+     * 자리에 그리므로 바로 걷어도 화면이 이어진다. Flutter 공식 문서의 예제 꼴 그대로다 —
+     * https://docs.flutter.dev/platform-integration/android/splash-screen
+     *
+     * **순서** — 리스너는 `super.onCreate` 전에 건다(문서 예제와 같은 자리).
+     *
+     * **첫 프레임** — 페이드가 가려 주던 Flutter 첫 프레임이 그대로 보이므로, 앱 시작
+     * (`lib/core/bootstrap.dart`)이 그 전에 로고를 미리 디코딩해 첫 프레임부터 로고를 그린다.
+     */
+    override fun onCreate(savedInstanceState: Bundle?) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            splashScreen.setOnExitAnimationListener { splashScreenView -> splashScreenView.remove() }
+        }
+        super.onCreate(savedInstanceState)
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
