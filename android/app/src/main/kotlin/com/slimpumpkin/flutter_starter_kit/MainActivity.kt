@@ -34,8 +34,9 @@ class MainActivity : FlutterFragmentActivity() {
      *
      * **순서** — 리스너는 `super.onCreate` 전에 건다(문서 예제와 같은 자리).
      *
-     * **첫 프레임** — 페이드가 가려 주던 Flutter 첫 프레임이 그대로 보이므로, 앱 시작
-     * (`lib/core/bootstrap.dart`)이 그 전에 로고를 미리 디코딩해 첫 프레임부터 로고를 그린다.
+     * **첫 프레임** — 페이드가 없으면 Flutter 첫 프레임이 그대로 보인다. 로고 디코딩이 늦은
+     * 기기에서 그 프레임에 로고가 빠지지 않도록 앱 시작(`lib/core/bootstrap.dart`)이 그 전에
+     * 로고를 미리 디코딩한다.
      */
     override fun onCreate(savedInstanceState: Bundle?) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
