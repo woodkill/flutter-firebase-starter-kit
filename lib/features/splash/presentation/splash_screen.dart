@@ -342,8 +342,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         return AlertDialog(
           // 가로 모드에서 넘칠 때만 스크롤 (Phase 3 D-09 · quick 261003-0fp).
           scrollable: true,
-          icon: Icon(Icons.cloud_off, color: colorScheme.onErrorContainer),
-          iconColor: colorScheme.errorContainer,
+          // 아이콘 색은 iconColor 한 곳에서 정한다 — 대화상자가 아이콘을
+          // IconTheme 으로 감싸 그 색을 준다. 아이콘은 대화상자 바탕
+          // (surfaceContainerHigh) 위에 그려지므로 그 바탕과 짝인 error 를
+          // 쓴다. onErrorContainer 는 errorContainer 상자 위에서만 짝이다.
+          icon: const Icon(Icons.cloud_off),
+          iconColor: colorScheme.error,
           title: KeepHangulWordsText(l10n.splashFailureTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
