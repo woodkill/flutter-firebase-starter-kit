@@ -14,6 +14,14 @@
 
 ## [Unreleased]
 
+### 사용자 조치
+
+- 화면 golden 을 다시 만들어 둔 저장소(「디자인 토큰 바꾸기」 의 토큰 · 글꼴을 바꾸거나 「홈 화면 바꾸기」 ③ 으로 데모 화면을 지운 뒤)는 이 판을 받을 때 기본 아바타의 사람 아이콘 색이 바뀐 golden 18장(`test/features/settings/presentation/goldens/` 의 `settings_171_guest_ko_280_*` · `settings_171_member_ko_280_*` · `settings_171_picker_language_ko_280_*` · `settings_171_picker_theme_ko_280_*` · `account_171_worst_ko_280_*` · `account_171_worst_end_ko_280_*` · `unlink_dialog_ko_280_*` 16장, `test/features/auth/presentation/goldens/reauth_account_success_*.png` 2장) 가운데 다시 만든 것에서 `CONFLICT (content)` 가 난다 — 어느 쪽이든 다시 만들므로 충돌 난 golden 을 `git checkout --theirs -- <경로>` 와 `git add <경로>` 로 풀고, merge 를 마친 뒤 `fvm flutter test --update-goldens test/features/settings/presentation/settings_screen_golden_test.dart test/features/settings/presentation/account_screen_golden_test.dart test/features/auth/presentation/auth_surfaces_golden_test.dart` 로 다시 만들어 눈으로 본 뒤 커밋한다. golden 을 다시 만든 적이 없다면 할 일이 없다.
+
+### Fixed
+
+- 설정 화면의 계정 · 게스트 행과 「내 계정」 의 프로필 사진 행에서 사진이 없을 때 그리는 기본 아바타의 사람 아이콘이 원 바탕(`primaryContainer`)의 짝이 아닌 색 역할(`onSurfaceVariant`)이라, 기기에서 대비를 높인 고대비 테마나 `lib/core/theme/app_color_scheme.dart` 에서 `primaryContainer` 와 `onPrimaryContainer` 를 함께 바꾼 팔레트에서 잘 안 보이던 문제를 고친다 — 아이콘은 바탕의 짝 `onPrimaryContainer` 로 그려지므로, 그 파일에서 `primaryContainer` 를 바꿀 때는 `onPrimaryContainer` 도 그 위 글자 색으로 함께 정한다. 바탕 색 · 아바타 크기 · 사진이 있을 때의 모습은 그대로다. 바뀐 파일은 `lib/features/settings/presentation/_widgets/profile_avatar.dart` 와 시험 · golden 이고, 그 파일을 고치지 않았고 위 「사용자 조치」 의 golden 항목에 해당하지 않으면 merge 로 끝난다.
+
 ## [1.0.0-rc.15] - 2026-11-20
 
 ### 사용자 조치
