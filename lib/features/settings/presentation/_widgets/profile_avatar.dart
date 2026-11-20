@@ -1,7 +1,7 @@
-// Phase 17.1 UI-SPEC §(S) DRY — 사진 행 · 설정 계정/게스트 행 공용 아바타.
+// 사진 행 · 설정 계정/게스트 행 공용 아바타.
 //
-// profile_photo_tile.dart 의 private 아바타를 verbatim 으로 옮긴 public 위젯
-// (렌더 동일 — 기존 설정 golden byte 불변이 증거).
+// 사진이 없으면 사람 아이콘을 원 바탕(primaryContainer)과 짝인 역할
+// (onPrimaryContainer)로 그린다 — 두 색을 CircleAvatar 한 곳에서 정한다.
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -25,11 +25,13 @@ class ProfileAvatar extends StatelessWidget {
     // CircleAvatar 는 backgroundImage 를 BoxFit.cover 로 채운다 — 원형 가운데
     // 맞춤(D-41). 이미지 로드 실패는 배경색만 남기고 조용히 넘긴다.
     return CircleAvatar(
+      // 바탕과 아이콘은 짝 역할이다 — 아이콘에는 색을 주지 않아 전경색을
+      // 받는다. 색 역할 자리에서 두 역할을 함께 정하면 아바타도 그 짝을 쓴다.
+      backgroundColor: context.colorScheme.primaryContainer,
+      foregroundColor: context.colorScheme.onPrimaryContainer,
       backgroundImage: url != null ? CachedNetworkImageProvider(url) : null,
       onBackgroundImageError: url != null ? (_, _) {} : null,
-      child: url == null
-          ? Icon(Icons.person, color: context.colorScheme.onSurfaceVariant)
-          : null,
+      child: url == null ? const Icon(Icons.person) : null,
     );
   }
 }
