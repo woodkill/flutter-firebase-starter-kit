@@ -1597,8 +1597,8 @@ void main() {
       expect(_bodyTheme(tester).colorScheme, highContrast, reason: '대비 높임 켜짐');
     });
 
-    testWidgets('T-26-FRAME-06: 상태 표시줄 아이콘 밝기 — 밝은 배경 dark · '
-        '어두운 배경 light · 내비게이션 바 값은 걸지 않는다', (tester) async {
+    testWidgets('T-26-FRAME-06: 상태 표시줄 바탕 투명 · 아이콘 밝기 — 밝은 배경 '
+        'dark · 어두운 배경 light · 내비게이션 바 값은 걸지 않는다', (tester) async {
       _expectInjectedColorsOpposite();
       await _pumpFrame(tester, color: _kBrightInjected);
       _expectStatusBarOnly(
@@ -1913,21 +1913,35 @@ SystemUiOverlayStyle _overlayStyle(WidgetTester tester) => tester
     )
     .value;
 
-/// [style] 이 상태 표시줄 필드만 담는지 단언한다 — 아이콘 밝기 =
+/// [style] 이 상태 표시줄 필드만 담는지 단언한다 — 바탕 = 투명 · 아이콘 밝기 =
 /// [iconBrightness] · iOS 상태 표시줄 밝기 = 그 반대 · 내비게이션 바 값 없음.
 void _expectStatusBarOnly(
   SystemUiOverlayStyle style, {
   required Brightness iconBrightness,
   required String reason,
 }) {
+  const transparent = Color(0x00000000);
+  final statusBarBrightness = iconBrightness == Brightness.dark
+      ? Brightness.light
+      : Brightness.dark;
+  expect(style.statusBarColor, transparent, reason: reason);
   expect(style.statusBarIconBrightness, iconBrightness, reason: reason);
+  expect(style.statusBarBrightness, statusBarBrightness, reason: reason);
+  // 내비게이션 바 값은 다음 화면까지 남으므로 하나도 걸지 않는다.
+  expect(style.systemNavigationBarColor, isNull, reason: reason);
+  expect(style.systemNavigationBarDividerColor, isNull, reason: reason);
+  expect(style.systemNavigationBarIconBrightness, isNull, reason: reason);
+  expect(style.systemNavigationBarContrastEnforced, isNull, reason: reason);
+  // 위에서 하나씩 보지 않은 필드(상태 표시줄 대비 막 등)도 비어 있어야 한다.
   expect(
-    style.statusBarBrightness,
-    iconBrightness == Brightness.dark ? Brightness.light : Brightness.dark,
+    style,
+    SystemUiOverlayStyle(
+      statusBarColor: transparent,
+      statusBarIconBrightness: iconBrightness,
+      statusBarBrightness: statusBarBrightness,
+    ),
     reason: reason,
   );
-  expect(style.systemNavigationBarColor, isNull, reason: reason);
-  expect(style.systemNavigationBarIconBrightness, isNull, reason: reason);
 }
 
 /// 한 변 [pixels] px 정사각 PNG 바이트를 만든다(`runAsync` 안에서 인코딩).

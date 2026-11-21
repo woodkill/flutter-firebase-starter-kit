@@ -34,7 +34,8 @@ typedef SplashBodyBuilder =
 /// - 로고 아래 내용은 배경 밝기로 고른 라이트 · 다크 테마 아래에서 그린다.
 ///   테마는 본문 안쪽에만 씌운다 — 화면 위에 띄우는 대화상자 · 알림 막대는 앱
 ///   테마 그대로다.
-/// - 상태 표시줄 아이콘 밝기도 배경 밝기를 따른다.
+/// - 상태 표시줄은 바탕을 투명으로 두고, 아이콘 밝기는 배경 밝기를 따른다.
+///   내비게이션 바 값은 걸지 않는다.
 class SplashFrame extends StatelessWidget {
   /// [SplashFrame] 을 생성한다.
   const SplashFrame({
@@ -85,10 +86,15 @@ class SplashFrame extends StatelessWidget {
           );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // 밝은 배경에는 어두운 아이콘, 어두운 배경에는 밝은 아이콘이다. SDK 프리셋
-      // (`SystemUiOverlayStyle.light` · `.dark`)은 내비게이션 바 색까지 담으므로
-      // 상태 표시줄 필드만 담는다 — statusBarBrightness 는 iOS 용으로 반대 값이다.
+      // 상태 표시줄 필드만 담는다. 바탕은 투명이다 — 바탕색이 없으면 Android 14
+      // 이하에서 엔진이 상태 표시줄을 25% 어둡게 칠하고, 투명은 M3 AppBar 가 쓰는
+      // 값이라 다음 화면에 남아도 그대로다. 내비게이션 바 값(SDK 프리셋
+      // `SystemUiOverlayStyle.light` · `.dark` 포함)은 다음 화면까지 남는데
+      // 되돌릴 기본값이 하나가 아니라서 넣지 않는다. 아이콘은 밝은 배경에 어둡게,
+      // 어두운 배경에 밝게 — statusBarBrightness 는 iOS 용으로 반대 값이다.
       value: SystemUiOverlayStyle(
+        // design-literal: 상태 표시줄 바탕은 투명이다 — 색 토큰 자리가 아니다
+        statusBarColor: const Color(0x00000000),
         statusBarIconBrightness: isBackgroundDark
             ? Brightness.light
             : Brightness.dark,
