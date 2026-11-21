@@ -7,7 +7,8 @@ import '../../../../shared/widgets/keep_hangul_words_text.dart';
 /// 온보딩 공통 슬라이드 레이아웃 (UI-SPEC § OnboardingSlide).
 ///
 /// 아이콘 원형 배지 (96dp = `xxxl * 2`, [ColorScheme.primaryContainer]) +
-/// 헤드라인 + 본문 텍스트의 세로 중앙 정렬 구조.
+/// 헤드라인 + 본문 텍스트의 세로 중앙 정렬 구조. [icon] 이 null 이면 배지와 그
+/// 아래 간격을 그리지 않는다.
 ///
 /// `xxxl * 2 = 96dp` 는 UI-SPEC Exception 3 의 명시적 식이며, 디자인 토큰
 /// 스케일 외 값을 직접 쓰지 않기 위한 계산이다.
@@ -20,14 +21,18 @@ import '../../../../shared/widgets/keep_hangul_words_text.dart';
 class OnboardingSlide extends StatelessWidget {
   /// [OnboardingSlide] 를 생성한다.
   const OnboardingSlide({
-    required this.icon,
     required this.title,
     required this.body,
+    this.icon,
     super.key,
   });
 
-  /// 슬라이드 중앙에 표시할 아이콘.
-  final IconData icon;
+  /// 슬라이드 위쪽 원형 배지에 그릴 아이콘.
+  ///
+  /// null 이면 배지와 그 아래 간격을 그리지 않는다 — 마지막 슬라이드(약관)는
+  /// 흔한 폰(360×780 dp)의 기본 글자 배율에서 약관 묶음까지 한 화면에
+  /// 들어가도록 아이콘 없이 그린다(quick 261121-lf2).
+  final IconData? icon;
 
   /// 슬라이드 제목 텍스트.
   final String title;
@@ -41,6 +46,7 @@ class OnboardingSlide extends StatelessWidget {
     final spacing = context.appSpacing;
     final typography = context.appTypography;
     final badgeSize = spacing.xxxl * 2; // UI-SPEC Exception 3: 96dp
+    final icon = this.icon;
 
     final content = Semantics(
       label: '$title. $body',
@@ -50,20 +56,22 @@ class OnboardingSlide extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: badgeSize,
-              height: badgeSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: colorScheme.primaryContainer,
+            if (icon != null) ...[
+              Container(
+                width: badgeSize,
+                height: badgeSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: colorScheme.primaryContainer,
+                ),
+                child: Icon(
+                  icon,
+                  size: spacing.xxxl,
+                  color: colorScheme.onPrimaryContainer,
+                ),
               ),
-              child: Icon(
-                icon,
-                size: spacing.xxxl,
-                color: colorScheme.onPrimaryContainer,
-              ),
-            ),
-            Gap(spacing.xl),
+              Gap(spacing.xl),
+            ],
             KeepHangulWordsText(
               title,
               style: typography.headlineMedium.copyWith(

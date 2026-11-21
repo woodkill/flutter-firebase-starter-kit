@@ -286,8 +286,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     padding: EdgeInsets.symmetric(horizontal: spacing.lg),
                     child: Column(
                       children: [
+                        // 마지막 슬라이드는 아이콘 원을 그리지 않는다 — 360×780 dp 기본
+                        // 글자 배율에서 약관 묶음과 필수 미동의 오류 문구까지 한 화면에
+                        // 들어가게(quick 261121-lf2).
                         OnboardingSlide(
-                          icon: Icons.public,
                           title: l10n.onboardingSlide3Title,
                           body: l10n.onboardingSlide3Body,
                         ),

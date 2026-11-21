@@ -959,6 +959,9 @@ void main() {
         );
         expect(slideFinder, findsOneWidget, reason: '$where: 제목이 든 슬라이드 1개');
         final icon = tester.widget<OnboardingSlide>(slideFinder).icon;
+        if (icon == null) {
+          fail('$where: 슬라이드 1·2 는 아이콘 원을 그린다 — icon 이 null');
+        }
         // 배지 = 아이콘의 가장 가까운 Container 조상.
         final badge = tester.getRect(
           find
