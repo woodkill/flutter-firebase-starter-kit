@@ -7,6 +7,7 @@
 // T-27-WRAP-09 낭독 덮어쓰기 · T-27-WRAP-10 maxLines · 말줄임 ·
 // T-27-WRAP-11 locale 무관 · T-27-WRAP-12 예외 범위 끝점 ·
 // T-27-WRAP-13 한글 갈래 인자 전달 · T-27-WRAP-14 한글 없는 문구 낭독 덮어쓰기.
+// T-27-WRAP-15 긴 덩어리 배율 · T-27-WRAP-16 긴 덩어리 뒤 어절(quick 261121-ep1 이 더함).
 // 한글 음절 범위의 끝(힣 · 범위 바로 앞뒤 코드 포인트)은 넣는 자리 표본이 맡는다.
 //
 // 표본은 이 파일 안 리터럴 — 킷 문구에 기대지 않는다. 보이지 않는 문자는
@@ -153,6 +154,9 @@ const List<double> _letterSpacings = <double>[0, 0.1, 0.15, 0.25, 0.4, 0.5];
 /// 낭독 · 말줄임 시험 문구.
 const String _sentence = '탈퇴하기 전에 이 계정에 연결된 서비스의 앱 권한을 하나씩 해제합니다.';
 
+/// 공백 없는 42음절 덩어리 — T-27-WRAP-15 · 16 표본(T-27-WRAP-06 지역 상수와 같은 글자).
+const String _longChunk = '가나다라마바사아자차카타파하가나다라마바사아자차카타파하가나다라마바사아자차카타파하';
+
 /// [base] 에 글자 간격 [letterSpacing] 과 글꼴 [font] 를 건 스타일을 만든다.
 ///
 /// `Roboto` 는 한글 · 가나를 `MockCjkKR` 대체 글꼴로 그리는 사슬이다.
@@ -294,6 +298,33 @@ RenderParagraph _paragraphInBox(WidgetTester tester) {
       matching: find.byType(RichText),
     ),
   );
+}
+
+/// 실제 그려진 문단 [paragraph] 의 글자 상자에서 가장 오른쪽 끝과 줄 수를 잰다.
+///
+/// [joined] 는 이음 문자를 포함한 평문이다. 공백 · 이음 문자는 뺀다 — 줄 끝 공백
+/// 상자는 폭 밖으로 걸칠 수 있고, 그것은 글자 넘침이 아니다. 줄 수는
+/// `BoxHeightStyle.max` 상자의 top 값 수다. 표본은 BMP 글자뿐이라 코드 유닛
+/// 하나가 글자 하나다.
+({double maxRight, int lineCount}) _measureGlyphBoxes(
+  RenderParagraph paragraph,
+  String joined,
+) {
+  var maxRight = double.negativeInfinity;
+  final tops = <double>{};
+  for (var i = 0; i < joined.length; i++) {
+    final character = joined[i];
+    if (character == ' ' || character == _wj) continue;
+    final boxes = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: i, extentOffset: i + 1),
+      boxHeightStyle: ui.BoxHeightStyle.max,
+    );
+    for (final box in boxes) {
+      if (box.right > maxRight) maxRight = box.right;
+      tops.add(box.top);
+    }
+  }
+  return (maxRight: maxRight, lineCount: tops.length);
 }
 
 void main() {
@@ -633,6 +664,152 @@ void main() {
         greaterThanOrEqualTo(lineHeight * 2),
       );
     });
+
+    testWidgets(
+      'T-27-WRAP-15 긴 덩어리 배율 — 공백 없는 42음절이 폭 100 · 160 × 배율 1 · 1.3 · 2 에서 예외 없이 글자 상자 오른쪽 ≤ 폭 · 2줄 이상',
+      (tester) async {
+        var cells = 0;
+        for (final font in const <String>['PretendardJP', 'MockCjkKR']) {
+          for (final width in const <double>[100, 160]) {
+            for (final scale in const <double>[1, 1.3, 2]) {
+              final scaler = TextScaler.linear(scale);
+              final label = '$font · $width · $scale';
+              await _pumpBox(
+                tester,
+                _styledText(
+                  _longChunk,
+                  keep: true,
+                  font: font,
+                  letterSpacing: 0.25,
+                  textScaler: scaler,
+                ),
+                width: width,
+              );
+              expect(tester.takeException(), isNull, reason: label);
+              // 이음 문자 포함 평문(83자)으로 잰다 — 원문 42자만 재면 절반만 본다.
+              final kept = _measureGlyphBoxes(
+                _paragraphInBox(tester),
+                _richTextInBox(
+                  tester,
+                ).text.toPlainText(includeSemanticsLabels: false),
+              );
+              expect(kept.maxRight, lessThanOrEqualTo(width), reason: label);
+              expect(kept.lineCount, greaterThanOrEqualTo(2), reason: label);
+
+              // 대조: softWrap 끔 감싸개는 한 줄로 폭을 넘는다 — 단언이 민감하다.
+              await _pumpBox(
+                tester,
+                Builder(
+                  builder: (context) => KeepHangulWordsText(
+                    _longChunk,
+                    style: _styleWithFont(
+                      Theme.of(context).textTheme.bodyMedium!,
+                      font,
+                      0.25,
+                    ),
+                    textScaler: scaler,
+                    softWrap: false,
+                  ),
+                ),
+                width: width,
+              );
+              expect(tester.takeException(), isNull, reason: '$label 대조');
+              final control = _measureGlyphBoxes(
+                _paragraphInBox(tester),
+                _richTextInBox(
+                  tester,
+                ).text.toPlainText(includeSemanticsLabels: false),
+              );
+              expect(control.maxRight, greaterThan(width), reason: '$label 대조');
+              expect(control.lineCount, 1, reason: '$label 대조');
+              cells++;
+            }
+          }
+        }
+        expect(cells, 12);
+      },
+    );
+
+    testWidgets(
+      'T-27-WRAP-16 긴 덩어리 뒤 어절 — 넓은 덩어리 뒤 어절은 한 줄에 들어가면 어절째 넘어가고 글자 상자는 폭 안',
+      (tester) async {
+        const sample = '$_longChunk 버튼을 길게 누르세요';
+        final words = sample.substring(_longChunk.length + 1).split(' ');
+        for (final font in const <String>['PretendardJP', 'MockCjkKR']) {
+          var checkedCells = 0;
+          var wrapperWordStarts = 0;
+          var plainInsideStarts = 0;
+          for (final width in const <double>[100, 160]) {
+            for (final scale in const <double>[1, 1.3, 2]) {
+              final scaler = TextScaler.linear(scale);
+              final label = '$font · $width · $scale';
+              await _pumpBox(
+                tester,
+                _styledText(
+                  sample,
+                  keep: true,
+                  font: font,
+                  letterSpacing: 0.25,
+                  textScaler: scaler,
+                ),
+                width: width,
+              );
+              expect(tester.takeException(), isNull, reason: label);
+              // 뒤 어절 가운데 하나라도 한 줄보다 넓으면 어절째 넘어갈 수 없어 뺀다.
+              final keptText = _richTextInBox(tester);
+              final widest = words
+                  .map((word) => _chunkWidth(keptText, word))
+                  .reduce((a, b) => a > b ? a : b);
+              if (widest > width) continue;
+              checkedCells++;
+              final glyphs = _measureGlyphBoxes(
+                _paragraphInBox(tester),
+                keptText.text.toPlainText(includeSemanticsLabels: false),
+              );
+              expect(glyphs.maxRight, lessThanOrEqualTo(width), reason: label);
+              // 넓은 덩어리 안(offset ≤ 42) 줄 시작 자리는 고정하지 않는다.
+              final kept = _lineStartsInOriginal(keptText, width);
+              final wordStarts = kept.starts.where(
+                (start) => start > _longChunk.length,
+              );
+              for (final start in wordStarts) {
+                expect(sample[start - 1], ' ', reason: '$label @ $start');
+              }
+              wrapperWordStarts += wordStarts.length;
+              // 시험 화면 높이(600)에서 잘리기 전 칸만 오므로 건너뛰기 뒤에 둔다.
+              expect(
+                kept.height,
+                _paragraphInBox(tester).size.height,
+                reason: '$label 다시 배치한 높이',
+              );
+
+              // 원문 Text 대조: 뒤 어절 안에서 줄을 시작해 표본이 민감하다.
+              await _pumpBox(
+                tester,
+                _styledText(
+                  sample,
+                  keep: false,
+                  font: font,
+                  letterSpacing: 0.25,
+                  textScaler: scaler,
+                ),
+                width: width,
+              );
+              expect(tester.takeException(), isNull, reason: '$label 원문');
+              plainInsideStarts +=
+                  _lineStartsInOriginal(_richTextInBox(tester), width).starts
+                      .where(
+                        (s) => s > _longChunk.length && sample[s - 1] != ' ',
+                      )
+                      .length;
+            }
+          }
+          expect(checkedCells, greaterThan(0), reason: font);
+          expect(wrapperWordStarts, greaterThanOrEqualTo(1), reason: font);
+          expect(plainInsideStarts, greaterThanOrEqualTo(1), reason: font);
+        }
+      },
+    );
 
     testWidgets('T-27-WRAP-07 ja · en — 폭 280 에서 원문 Text 와 rawRgba · 높이 같다', (
       tester,
