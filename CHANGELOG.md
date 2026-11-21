@@ -21,7 +21,7 @@
 
 ### Changed
 
-- `KeepHangulWordsText` 가 한 줄보다 넓은 어절 안에서 줄을 바꾸는 자리는 부호를 가리지 않아 닫는 부호(「?」 · 「)」 등)가 줄 맨 앞에, 여는 괄호가 줄 끝에 올 수 있다는 한계를 `docs/guide.md` 「한국어 문구 줄바꿈」 3번과 감싸개 클래스 문서 주석에 적는다 — `Text` 로 그리면 이 꼴이 없고, 어절이 한 줄보다 넓을 때만 생기며 아주 큰 글자나 대화상자 제목 같은 좁은 자리에서 그렇게 된다. 감싸개 동작과 화면은 그대로다. 바뀐 파일은 `docs/guide.md` · `lib/shared/widgets/keep_hangul_words_text.dart`(주석)이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
+- `KeepHangulWordsText` 가 한 줄보다 넓은 어절 안에서 줄을 바꾸는 자리는 부호를 가리지 않아 닫는 부호(「?」 · 「)」 등)가 줄 맨 앞에, 여는 괄호가 줄 끝에 올 수 있다는 한계를 `docs/guide.md` 「한국어 문구 줄바꿈」 단계 3 과 감싸개 클래스 문서 주석에 적는다 — `Text` 로 그리면 이 꼴이 없고, 어절이 한 줄보다 넓을 때만 생기며 아주 큰 글자나 대화상자 제목 같은 좁은 자리에서 그렇게 된다. 감싸개 동작과 화면은 그대로다. 바뀐 파일은 `docs/guide.md` · `lib/shared/widgets/keep_hangul_words_text.dart`(주석)이고, 그 파일들을 고치지 않았다면 merge 로 끝난다.
 
 ### Fixed
 
