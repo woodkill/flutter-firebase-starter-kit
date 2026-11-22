@@ -7,6 +7,8 @@
 // 그래서 위젯 값뿐 아니라 시험 바인딩이 실제로 보낸 합친 값
 // (`SystemChrome.latestStyle`)을 단언한다.
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/app.dart';
@@ -59,6 +61,15 @@ void _expectNavigationBar(
   expect(style.systemNavigationBarDividerColor, isNull);
 }
 
+/// 앱 바깥 영역만 둔 [MaterialApp] 에 [home] 을 띄운다 — `lib/app.dart` builder 꼴.
+Future<void> _pumpWithRegion(WidgetTester tester, Widget home) =>
+    tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => AppSystemBarsRegion(child: child!),
+        home: home,
+      ),
+    );
+
 /// 실제 [App] 을 Firebase 없이 띄운다 — 첫 프레임은 스플래시다.
 Future<void> _pumpApp(WidgetTester tester) => tester.pumpWidget(
   ProviderScope(
@@ -110,6 +121,100 @@ void main() {
       // 스플래시 값이 다음 화면에 남지 않는다 — 기본 영역이 되돌린다.
       await _advanceToHome(tester);
       _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
+    });
+
+    testWidgets('T-30-BARS-04: 실제 App · OS 다크 → 홈 — 내비게이션 바 세 필드 = '
+        'OS 다크 기본값', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _pumpApp(tester);
+      await _advanceToHome(tester);
+
+      _expectNavigationBar(SystemChrome.latestStyle, _darkDefault);
+    });
+
+    testWidgets('T-30-BARS-05: 실제 App · OS 다크 + 앱 테마 라이트 → 홈 — 막 색 · '
+        '아이콘은 OS 밝기 기준(다크 기본값)', (tester) async {
+      // theme_mode 1 = ThemeMode.light — setUp 의 빈 값을 덮는다.
+      SharedPreferences.setMockInitialValues({'theme_mode': 1});
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _pumpApp(tester);
+      await _advanceToHome(tester);
+
+      // 전제 — 홈의 앱 테마는 라이트다(OS 와 다른 칸).
+      expect(
+        Theme.of(tester.element(find.byType(HomeScreen))).brightness,
+        Brightness.light,
+      );
+      _expectNavigationBar(SystemChrome.latestStyle, _darkDefault);
+    });
+
+    testWidgets('T-30-BARS-06: AppBar 화면 — 상태 표시줄은 AppBar 값 · 내비게이션 바 '
+        '세 필드는 기본값', (tester) async {
+      await _pumpWithRegion(
+        tester,
+        Scaffold(appBar: AppBar(title: const Text('AppBar'))),
+      );
+
+      final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      _expectNavigationBar(style, _lightDefault);
+      // 기본 영역은 상태 표시줄 필드를 담지 않는다 — 밝은 AppBar 의 값이 나간다.
+      expect(style!.statusBarColor, const Color(0x00000000));
+      expect(style.statusBarIconBrightness, Brightness.dark);
+      expect(style.statusBarBrightness, Brightness.light);
+    });
+
+    testWidgets('T-30-BARS-07: 안쪽 화면 전체 영역이 기본 영역을 이긴다 — 내비게이션 '
+        '바 세 필드를 담으면 그 값 · 상태 표시줄 필드만 담으면 내비게이션 바는 null', (tester) async {
+      const innerNavigation = SystemUiOverlayStyle(
+        systemNavigationBarColor: Color(0xFF00FF00),
+        systemNavigationBarContrastEnforced: false,
+        systemNavigationBarIconBrightness: Brightness.light,
+      );
+      await _pumpWithRegion(
+        tester,
+        const AnnotatedRegion<SystemUiOverlayStyle>(
+          value: innerNavigation,
+          child: Scaffold(body: Text('inner')),
+        ),
+      );
+      expect(SystemChrome.latestStyle, innerNavigation);
+
+      // 상태 표시줄 필드만 담은 화면 — 기본 영역 값이 섞이지 않아 내비게이션 바
+      // 필드가 null 로 나간다. 그래서 내 화면 영역은 세 필드를 모두 적는다.
+      const innerStatusOnly = SystemUiOverlayStyle(
+        statusBarColor: Color(0x00000000),
+        statusBarIconBrightness: Brightness.light,
+      );
+      await _pumpWithRegion(
+        tester,
+        const AnnotatedRegion<SystemUiOverlayStyle>(
+          value: innerStatusOnly,
+          child: Scaffold(body: Text('inner')),
+        ),
+      );
+      expect(SystemChrome.latestStyle, innerStatusOnly);
+      expect(SystemChrome.latestStyle!.systemNavigationBarColor, isNull);
+    });
+
+    testWidgets('T-30-BARS-08: iOS · 영역 없는 화면 — 보낸 값이 모두 null(상태 표시줄 '
+        '밝기 null)', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+      final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      final int regionCount = find
+          .byType(AppSystemBarsRegion)
+          .evaluate()
+          .length;
+      debugDefaultTargetPlatformOverride = null;
+
+      expect(regionCount, 1);
+      // iOS 엔진은 상태 표시줄 밝기가 null 이면 아무것도 하지 않는다 — 전체 `==`
+      // 로 기본 영역이 상태 표시줄 값을 하나도 보내지 않음을 본다.
+      expect(style, const SystemUiOverlayStyle());
+      expect(style!.statusBarBrightness, isNull);
+      expect(style.statusBarIconBrightness, isNull);
     });
   });
 }
