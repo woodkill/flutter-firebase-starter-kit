@@ -2197,6 +2197,7 @@ LayoutBuilder(
 
 앱을 켤 때 보이는 두 화면 — 네이티브 스플래시(OS 가 그리는 첫 화면)와 Flutter 스플래시(로고 · 진행 표시 · 준비 문구) — 를 함께 내 것으로 바꾸는 절차다.
 - 두 화면은 기기의 라이트 · 다크 설정을 따라 같은 배경색 · 같은 로고를 같은 자리 · 같은 크기로 보인다. 앱 설정의 테마는 홈 화면부터 적용된다.
+- 두 화면 사이 3버튼 내비게이션 바 모양은 [알아 둘 동작](#알아-둘-동작) 의 「시스템 바 · 화면 아래 여백」 에 있다.
 - 킷의 스플래시 로고 `assets/images/splash/logo.png` · `logo_dark.png` 는 128x128 투명 PNG 라 화면에 보이지 않는다 — 배경색(라이트 흰색 · 다크 검은색)만 보인다.
 
 **전제:** 네이티브 스플래시 파일은 `pubspec.yaml` 의 `dependencies` 에 있는 `flutter_native_splash` 가 만든다.
@@ -4951,7 +4952,7 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 
 ## 알아 둘 동작
 
-앱 사용자가 로그인 · 계정 화면에서 보게 되는 동작을 짧게 모은다. 항목 끝의 「바꾸려면」 이 고칠 파일이다.
+앱 사용자가 로그인 · 계정 화면과 시스템 바에서 보게 되는 동작을 짧게 모은다. 항목 끝의 「바꾸려면」 이 고칠 파일이다.
 
 **로그인 화면.**
 - 켠 소셜 로그인 수단의 버튼이 위에서부터 놓이고(수단이 적어도 위 정렬 그대로다), 그 아래 「또는」 구분선 · 「이메일로 계속」 · 가입 링크가 있다.
@@ -5029,3 +5030,23 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 - 앱은 그 결과에서 access token 만 쓰고 나머지 프로필은 버린다.
 - 프로필 값은 서버가 그 토큰으로 네이버에 직접 확인한 값만 쓴다.
 - 기기에 오는 항목은 네이버 개발자 센터의 동의 항목 설정이 정한다 — 쓰지 않는 항목은 동의 항목에서 켜지 않는다.
+
+**시스템 바 · 화면 아래 여백.**
+- Android 10 이상에서 앱이 상태 표시줄 · 내비게이션 바 뒤까지 그려진다(Android 15 이상은 원래 그렇다).
+- Android 9 이하는 바 뒤로 그리지 않고 아래 여백이 그대로다 — Flutter 의 이 기능이 Android 10 미만에서 동작하지 않는다.
+- 상태 표시줄은 투명하다. 내비게이션 바 막은 Android 15 이상이면 OS 가 3버튼 내비게이션에 까는 반투명 막이다.
+- Android 10 ~ 14 는 앱 기본값(라이트 흰색 · 다크 검정 반투명 · 대비 강제 켬 · 아이콘은 OS 밝기의 반대)이 Android 15 이상의 3버튼 막과 같은 모습으로 내비게이션 바를 칠한다.
+- Android 8 ~ 9 는 바 뒤로 그리지 않지만 내비게이션 바 색 · 아이콘은 앱이 정한 값을 따른다.
+- 내 화면의 아래 버튼 · 시트 · 목록 끝은 `SafeArea`(또는 `MediaQuery.paddingOf(context).bottom`)로 바 높이만큼 띄운다 — 띄우지 않으면 바에 가린다.
+  - Android 10 ~ 14 에서도 두 값이 내비게이션 바 높이를 받는다.
+- 스플래시 화면은 Android 10 이상의 3버튼 내비게이션에서 막 없이 스플래시 배경색이 바 아래까지 이어지고, 다음 화면부터 위 막이 깔린다.
+- 내 화면에서 내비게이션 바 값을 바꾸려면 그 화면을 `AnnotatedRegion<SystemUiOverlayStyle>` 로 감싸고 `systemNavigationBarColor` · `systemNavigationBarContrastEnforced` · `systemNavigationBarIconBrightness` 세 필드를 모두 적는다.
+  - 화면을 떠나면 앱 기본값으로 돌아가고, 일부만 적으면 나머지는 앞 화면 값으로 남는다.
+  - 색은 Android 8 ~ 14 에서만 적용되고 Android 15 이상은 OS 가 정한다. 대비 강제 · 아이콘 밝기는 Android 15 이상에서도 적용된다.
+- 켜는 코드는 `lib/core/bootstrap.dart` 의 `SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge)` 이고, Android 에서만 `runApp` 전에 부른다.
+- 한계:
+  - Android 7 ~ 7.1 은 앱이 내비게이션 바 색 · 아이콘 밝기를 바꿀 수 없어 OS 기본 모습 그대로이고, 스플래시 바도 투명이 되지 않는다.
+  - Android 8 ~ 9 는 Flutter 스플래시 동안 내비게이션 바가 스플래시 배경색이 아니라 창 바탕색(라이트 흰색 · 다크 검정)이다.
+  - Android 10 ~ 11 은 네이티브 스플래시의 내비게이션 바가 검정이라 Flutter 스플래시로 넘어갈 때 스플래시 배경색으로 바뀐다.
+  - 다크 모드 · 3버튼 내비게이션에서는 스플래시가 끝나는 순간 내비게이션 바 자리가 한두 프레임 앱 바탕색으로 보였다가 막으로 바뀔 수 있다.
+- 바꾸려면: `lib/core/theme/app_system_bars.dart`(앱 기본값) · `lib/features/splash/presentation/splash_frame.dart`(스플래시) · `lib/core/bootstrap.dart`(켜는 코드).
