@@ -6,6 +6,7 @@ import 'core/l10n/app_title.dart';
 import 'core/providers/locale_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/router/app_router.dart';
+import 'core/theme/app_system_bars.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/_widgets/session_ending_overlay.dart';
 import 'features/notifications/application/notification_settings_notifier.dart';
@@ -81,8 +82,10 @@ class App extends ConsumerWidget {
       routerConfig: router,
       // quick 261011-e6c — Navigator 위에 진행 오버레이를 한 번만 얹는다.
       // 진행 중이 아닐 때는 child 를 같은 크기 제약으로 그대로 그린다.
-      builder: (context, child) =>
-          SessionEndingOverlay(child: child ?? const SizedBox.shrink()),
+      // 그 바깥을 내비게이션 바 기본 값 영역이 감싸 스플래시가 바꾼 값을 되돌린다.
+      builder: (context, child) => AppSystemBarsRegion(
+        child: SessionEndingOverlay(child: child ?? const SizedBox.shrink()),
+      ),
     );
   }
 }
