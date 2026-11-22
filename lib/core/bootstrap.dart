@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 // Phase 14 — see ROADMAP.md (LINE Login SDK init).
 import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,7 +55,9 @@ const Duration _kSplashLogoPrecacheTimeout = Duration(milliseconds: 500);
 /// 실행 순서:
 /// 1. [runZonedGuarded] 로 전체 시퀀스를 감싸 Zone 미처리 에러 수집 (경로 1)
 /// 2. [WidgetsFlutterBinding.ensureInitialized] -- Flutter 엔진 바인딩 → 곧바로
-///    [precacheSplashLogo] 시작(기다리지 않고 아래 초기화와 겹쳐 돈다)
+///    [precacheSplashLogo] 시작(기다리지 않고 아래 초기화와 겹쳐 돈다) →
+///    Android 면 [SystemChrome.setEnabledSystemUIMode] 로 창을 시스템 바 뒤까지
+///    편다(실패해도 다음 단계로 간다)
 /// 3. [initializeDateFormatting] -- intl 날짜 포맷 데이터 초기화
 /// 4. [initializeFirebase] -- Firebase 초기화 (실패 허용)
 /// 5. Firebase 초기화 성공 시 App Check 활성화 → FCM 백그라운드 핸들러 등록
@@ -95,6 +98,20 @@ Future<void> bootstrap() async {
         final Future<void> splashLogoPrecache = precacheSplashLogo(
           timeout: _kSplashLogoPrecacheTimeout,
         );
+
+        // Android 에서 창을 시스템 바 뒤까지 편다(edge-to-edge) — Android 15
+        // 이상은 OS 가 이미 그렇게 그리고, 엔진은 Android 10 미만에서 이 요청을
+        // 아무것도 하지 않고 넘긴다. 실패해도 아래 runApp 보장을 깨지 않도록 따로
+        // 잡는다.
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          try {
+            await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+          } on Object catch (error) {
+            if (kDebugMode) {
+              debugPrint('edge-to-edge 켜기 실패: $error');
+            }
+          }
+        }
 
         // 초기화 전 구간을 try 로 감싸 어떤 실패에도 [runApp] 이 반드시
         // 호출되도록 보장한다. 이전에는 [initializeDateFormatting] 이나
