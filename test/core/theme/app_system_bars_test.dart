@@ -14,6 +14,7 @@ import 'package:flutter_starter_kit/core/config/splash_config.dart';
 import 'package:flutter_starter_kit/core/providers/firebase_providers.dart';
 import 'package:flutter_starter_kit/core/theme/app_system_bars.dart';
 import 'package:flutter_starter_kit/features/home/presentation/home_screen.dart';
+import 'package:flutter_starter_kit/features/splash/presentation/splash_frame.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -29,6 +30,14 @@ const SystemUiOverlayStyle _darkDefault = SystemUiOverlayStyle(
   systemNavigationBarColor: Color(0xCC000000),
   systemNavigationBarContrastEnforced: true,
   systemNavigationBarIconBrightness: Brightness.light,
+);
+
+/// 킷 기본 스플래시 배경(밝음) 위 스플래시 값 — 막 없이 투명 · 대비 강제 끔 ·
+/// 배경 밝기 판정 아이콘(밝은 배경이라 어두운 아이콘).
+const SystemUiOverlayStyle _splashOnLight = SystemUiOverlayStyle(
+  systemNavigationBarColor: Color(0x00000000),
+  systemNavigationBarContrastEnforced: false,
+  systemNavigationBarIconBrightness: Brightness.dark,
 );
 
 /// [style] 의 내비게이션 바 세 필드가 [expected] 와 같고 구분선이 null 인지
@@ -89,6 +98,18 @@ void main() {
       // 전체 `==` — 상태 표시줄 네 필드 · 구분선은 null 이어야 한다.
       expect(buildDefaultNavigationBarStyle(Brightness.light), _lightDefault);
       expect(buildDefaultNavigationBarStyle(Brightness.dark), _darkDefault);
+    });
+
+    testWidgets('T-30-BARS-03: 실제 App 첫 프레임(스플래시) — 내비게이션 바 세 필드 = '
+        '스플래시 값 · 홈에 닿으면 기본값', (tester) async {
+      await _pumpApp(tester);
+
+      expect(find.byType(SplashFrame), findsOneWidget);
+      _expectNavigationBar(SystemChrome.latestStyle, _splashOnLight);
+
+      // 스플래시 값이 다음 화면에 남지 않는다 — 기본 영역이 되돌린다.
+      await _advanceToHome(tester);
+      _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
     });
   });
 }

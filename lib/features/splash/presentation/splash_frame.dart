@@ -86,12 +86,15 @@ class SplashFrame extends StatelessWidget {
           );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      // 상태 표시줄 필드만 담는다. 바탕은 투명이다 — 바탕색이 없으면 Android 14
-      // 이하에서 엔진이 상태 표시줄을 25% 어둡게 칠하고, 투명은 M3 AppBar 가 쓰는
-      // 값이라 다음 화면에 남아도 그대로다. 내비게이션 바 값(SDK 프리셋
-      // `SystemUiOverlayStyle.light` · `.dark` 포함)은 다음 화면까지 남는데
-      // 되돌릴 기본값이 하나가 아니라서 넣지 않는다. 아이콘은 밝은 배경에 어둡게,
-      // 어두운 배경에 밝게 — statusBarBrightness 는 iOS 용으로 반대 값이다.
+      // 상태 표시줄 세 필드와 내비게이션 바 세 필드를 담는다. 상태 표시줄 바탕은
+      // 투명이다 — 바탕색이 없으면 Android 14 이하에서 엔진이 상태 표시줄을 25%
+      // 어둡게 칠하고, 투명은 M3 AppBar 가 쓰는 값이라 다음 화면에 남아도 그대로다.
+      // 내비게이션 바는 투명 · 대비 강제 끔이다 — 3버튼 막을 꺼 배경색이 바
+      // 아래까지 이어진다. 다음 화면은 앱 맨 바깥 영역(`AppSystemBarsRegion`)이
+      // 같은 세 필드를 기본 값으로 되돌린다. SDK 프리셋
+      // (`SystemUiOverlayStyle.light` · `.dark`)은 내비게이션 바를 불투명 검정으로
+      // 담아 쓰지 않는다. 아이콘은 밝은 배경에 어둡게, 어두운 배경에 밝게 —
+      // statusBarBrightness 는 iOS 용으로 반대 값이다.
       value: SystemUiOverlayStyle(
         // design-literal: 상태 표시줄 바탕은 투명이다 — 색 토큰 자리가 아니다
         statusBarColor: const Color(0x00000000),
@@ -101,6 +104,12 @@ class SplashFrame extends StatelessWidget {
         statusBarBrightness: isBackgroundDark
             ? Brightness.dark
             : Brightness.light,
+        // design-literal: 내비게이션 바 바탕은 투명이다 — 색 토큰 자리가 아니다
+        systemNavigationBarColor: const Color(0x00000000),
+        systemNavigationBarContrastEnforced: false,
+        systemNavigationBarIconBrightness: isBackgroundDark
+            ? Brightness.light
+            : Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: background,

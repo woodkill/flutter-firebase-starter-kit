@@ -1598,17 +1598,17 @@ void main() {
     });
 
     testWidgets('T-26-FRAME-06: 상태 표시줄 바탕 투명 · 아이콘 밝기 — 밝은 배경 '
-        'dark · 어두운 배경 light · 내비게이션 바 값은 걸지 않는다', (tester) async {
+        'dark · 어두운 배경 light · 내비게이션 바는 막 없이 배경 밝기 아이콘', (tester) async {
       _expectInjectedColorsOpposite();
       await _pumpFrame(tester, color: _kBrightInjected);
-      _expectStatusBarOnly(
+      _expectSplashSystemBars(
         _overlayStyle(tester),
         iconBrightness: Brightness.dark,
         reason: '밝은 배경',
       );
 
       await _pumpFrame(tester, color: _kDarkInjected);
-      _expectStatusBarOnly(
+      _expectSplashSystemBars(
         _overlayStyle(tester),
         iconBrightness: Brightness.light,
         reason: '어두운 배경',
@@ -1913,9 +1913,13 @@ SystemUiOverlayStyle _overlayStyle(WidgetTester tester) => tester
     )
     .value;
 
-/// [style] 이 상태 표시줄 필드만 담는지 단언한다 — 바탕 = 투명 · 아이콘 밝기 =
-/// [iconBrightness] · iOS 상태 표시줄 밝기 = 그 반대 · 내비게이션 바 값 없음.
-void _expectStatusBarOnly(
+/// [style] 이 스플래시 시스템 바 값인지 단언한다.
+///
+/// 상태 표시줄 세 필드 — 바탕 = 투명 · 아이콘 밝기 = [iconBrightness] · iOS
+/// 상태 표시줄 밝기 = 그 반대. 내비게이션 바 세 필드 — 바탕 = 투명 · 대비 강제
+/// 끔 · 아이콘 밝기 = 배경 판정([iconBrightness] 와 같음). 구분선은 null 이고,
+/// 전체 값도 이 여섯 필드뿐이다.
+void _expectSplashSystemBars(
   SystemUiOverlayStyle style, {
   required Brightness iconBrightness,
   required String reason,
@@ -1927,11 +1931,16 @@ void _expectStatusBarOnly(
   expect(style.statusBarColor, transparent, reason: reason);
   expect(style.statusBarIconBrightness, iconBrightness, reason: reason);
   expect(style.statusBarBrightness, statusBarBrightness, reason: reason);
-  // 내비게이션 바 값은 다음 화면까지 남으므로 하나도 걸지 않는다.
-  expect(style.systemNavigationBarColor, isNull, reason: reason);
+  // 내비게이션 바는 3버튼 막을 꺼 배경색이 바 아래까지 이어지게 한다 — 다음
+  // 화면은 앱 맨 바깥 영역이 같은 세 필드를 기본 값으로 되돌린다.
+  expect(style.systemNavigationBarColor, transparent, reason: reason);
+  expect(style.systemNavigationBarContrastEnforced, isFalse, reason: reason);
+  expect(
+    style.systemNavigationBarIconBrightness,
+    iconBrightness,
+    reason: reason,
+  );
   expect(style.systemNavigationBarDividerColor, isNull, reason: reason);
-  expect(style.systemNavigationBarIconBrightness, isNull, reason: reason);
-  expect(style.systemNavigationBarContrastEnforced, isNull, reason: reason);
   // 위에서 하나씩 보지 않은 필드(상태 표시줄 대비 막 등)도 비어 있어야 한다.
   expect(
     style,
@@ -1939,6 +1948,9 @@ void _expectStatusBarOnly(
       statusBarColor: transparent,
       statusBarIconBrightness: iconBrightness,
       statusBarBrightness: statusBarBrightness,
+      systemNavigationBarColor: transparent,
+      systemNavigationBarContrastEnforced: false,
+      systemNavigationBarIconBrightness: iconBrightness,
     ),
     reason: reason,
   );
