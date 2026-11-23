@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_starter_kit/core/router/app_routes.dart';
 import 'package:flutter_starter_kit/core/theme/app_theme.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
+import 'package:flutter_starter_kit/features/onboarding/presentation/app_terms_confirmation_slot.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../helpers/keep_hangul_words_finder.dart';
 
 /// 부모가 3 플래그를 보유하는 테스트 하네스 (WR-16 이후 계약).
 ///
@@ -53,6 +56,95 @@ class _TermsHarnessState extends State<_TermsHarness> {
     );
   }
 }
+
+/// 확인 행 시험의 행 문구.
+const _confirmationLabel = 'Test confirmation A';
+
+/// 확인 행 시험의 행 안내.
+const _confirmationHint = 'Test confirmation A is required.';
+
+/// 확인 행 시험의 행 목록 — 안내가 있는 행 하나.
+const _confirmations = <AppTermsConfirmation>[
+  AppTermsConfirmation(
+    label: _confirmationLabel,
+    missingHint: _confirmationHint,
+  ),
+];
+
+/// 부모가 확인 행 체크 값을 보유하는 테스트 하네스 (WR-16 이후 계약).
+///
+/// 안내 표시 여부는 [showConfirmationHints] 로 고정한다 — 체크해도 내리지 않아,
+/// 안내가 사라지는 것이 묶음의 판정 덕분인지 본다. 확인 행 콜백 인자는
+/// [onConfirmationCalls] 에 차례로 기록한다.
+class _ConfirmationHarness extends StatefulWidget {
+  const _ConfirmationHarness({
+    required this.showConfirmationHints,
+    required this.onConfirmationCalls,
+  });
+
+  final bool showConfirmationHints;
+  final List<(int, bool?)> onConfirmationCalls;
+
+  @override
+  State<_ConfirmationHarness> createState() => _ConfirmationHarnessState();
+}
+
+class _ConfirmationHarnessState extends State<_ConfirmationHarness> {
+  final List<bool> _checks = List<bool>.filled(_confirmations.length, false);
+
+  @override
+  Widget build(BuildContext context) {
+    return TermsCheckboxGroup(
+      service: false,
+      privacy: false,
+      marketing: false,
+      allChecked: false,
+      onServiceChanged: (_) {},
+      onPrivacyChanged: (_) {},
+      onMarketingChanged: (_) {},
+      onAllChanged: (_) {},
+      confirmations: _confirmations,
+      confirmationChecks: List<bool>.of(_checks),
+      onConfirmationChanged: (index, value) {
+        widget.onConfirmationCalls.add((index, value));
+        setState(() => _checks[index] = value ?? false);
+      },
+      showConfirmationHints: widget.showConfirmationHints,
+    );
+  }
+}
+
+/// 확인 행 하네스를 앱 틀에 넣어 돌려준다.
+Widget _wrapConfirmations({
+  required bool showConfirmationHints,
+  required List<(int, bool?)> onConfirmationCalls,
+}) {
+  final router = _buildRouter(
+    _ConfirmationHarness(
+      showConfirmationHints: showConfirmationHints,
+      onConfirmationCalls: onConfirmationCalls,
+    ),
+  );
+  return ProviderScope(
+    child: MaterialApp.router(
+      theme: AppTheme.light(),
+      localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: AppLocalizations.supportedLocales,
+      routerConfig: router,
+    ),
+  );
+}
+
+/// 문구가 [label] 인 묶음 타일을 찾는다.
+Finder _tileOf(String label) => find.ancestor(
+  of: findKeepHangulWordsText(label),
+  matching: find.byType(CheckboxListTile),
+);
 
 class _ChangeRecorder {
   bool? service;
@@ -214,6 +306,114 @@ void main() {
       await tester.tap(viewButtons2.last);
       await tester.pumpAndSettle();
       expect(find.text('PRIVACY_DETAIL'), findsOneWidget);
+    });
+  });
+
+  group('TermsCheckboxGroup 필수 확인 행', () {
+    testWidgets('T-33-GROUP-01: 타일 순서는 전체 동의 · 이용약관 · 개인정보 · 확인 행 · '
+        '마케팅이고, 확인 행에는 [필수] 배지가 있고 「상세 보기」 가 없다', (tester) async {
+      await tester.pumpWidget(
+        _wrapConfirmations(
+          showConfirmationHints: false,
+          onConfirmationCalls: <(int, bool?)>[],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(TermsCheckboxGroup)),
+      );
+      final order = <String>[
+        l10n.termsAcceptAll,
+        l10n.termsService,
+        l10n.termsPrivacy,
+        _confirmationLabel,
+        l10n.termsMarketing,
+      ];
+      expect(find.byType(CheckboxListTile), findsNWidgets(order.length));
+      for (var i = 0; i < order.length; i++) {
+        expect(
+          tester.widget(find.byType(CheckboxListTile).at(i)),
+          same(tester.widget(_tileOf(order[i]))),
+          reason: '타일 $i = ${order[i]}',
+        );
+      }
+
+      final tile = _tileOf(_confirmationLabel);
+      expect(
+        find.descendant(
+          of: tile,
+          matching: findKeepHangulWordsText(l10n.termsRequired),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tile, matching: find.byType(TextButton)),
+        findsNothing,
+      );
+    });
+
+    testWidgets('T-33-GROUP-02: 안내 표시 중 체크하지 않은 확인 행만 오류 색 안내를 그리고, '
+        '체크하거나 안내 표시가 꺼지면 그리지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _wrapConfirmations(
+          showConfirmationHints: true,
+          onConfirmationCalls: <(int, bool?)>[],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final hint = findKeepHangulWordsText(_confirmationHint);
+      expect(hint, findsOneWidget);
+      // 실제로 칠하는 색은 그려진 글리프(RichText) 의 style 색이다.
+      final glyph = tester.widget<RichText>(
+        find.descendant(of: hint, matching: find.byType(RichText)),
+      );
+      final colorScheme = Theme.of(
+        tester.element(find.byType(TermsCheckboxGroup)),
+      ).colorScheme;
+      expect(glyph.text.style?.color, colorScheme.error);
+
+      // 안내 표시는 켠 채로 행을 체크한다 — 안내가 사라져야 한다.
+      await tester.tap(_tileOf(_confirmationLabel));
+      await tester.pump();
+      expect(
+        tester.widget<CheckboxListTile>(_tileOf(_confirmationLabel)).value,
+        isTrue,
+      );
+      expect(findKeepHangulWordsText(_confirmationHint), findsNothing);
+
+      // 안내 표시가 꺼져 있으면 체크하지 않은 행에도 안내가 없다.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        _wrapConfirmations(
+          showConfirmationHints: false,
+          onConfirmationCalls: <(int, bool?)>[],
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<CheckboxListTile>(_tileOf(_confirmationLabel)).value,
+        isFalse,
+      );
+      expect(findKeepHangulWordsText(_confirmationHint), findsNothing);
+    });
+
+    testWidgets('T-33-GROUP-03: 확인 행을 탭하면 부모가 onConfirmationChanged(0, true) 를 '
+        '받는다', (tester) async {
+      final calls = <(int, bool?)>[];
+      await tester.pumpWidget(
+        _wrapConfirmations(
+          showConfirmationHints: false,
+          onConfirmationCalls: calls,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(_tileOf(_confirmationLabel));
+      await tester.pump();
+
+      expect(calls, <(int, bool?)>[(0, true)]);
     });
   });
 }

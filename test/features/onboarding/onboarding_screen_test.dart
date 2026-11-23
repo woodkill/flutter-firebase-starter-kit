@@ -26,6 +26,7 @@ import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
 import 'package:flutter_starter_kit/features/terms/presentation/terms_notifier.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations.dart';
 import 'package:flutter_starter_kit/l10n/generated/app_localizations_en.dart';
+import 'package:flutter_starter_kit/shared/widgets/keep_hangul_words_text.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
@@ -210,6 +211,33 @@ List<AppTermsConfirmation> _buildOneConfirmation(
     label: _confirmationALabel,
     missingHint: _confirmationAHint,
   ),
+];
+
+/// 확인 행 시험의 행 B 문구.
+const _confirmationBLabel = 'Test confirmation B';
+
+/// 확인 행 시험의 행 B 안내.
+const _confirmationBHint = 'Test confirmation B is required.';
+
+/// 안내가 있는 확인 행 A · B 둘을 이 순서로 돌려주는 builder.
+List<AppTermsConfirmation> _buildTwoConfirmations(
+  AppTermsConfirmationsInput input,
+) => const <AppTermsConfirmation>[
+  AppTermsConfirmation(
+    label: _confirmationALabel,
+    missingHint: _confirmationAHint,
+  ),
+  AppTermsConfirmation(
+    label: _confirmationBLabel,
+    missingHint: _confirmationBHint,
+  ),
+];
+
+/// 안내 없는(`missingHint` null) 확인 행 A 하나를 돌려주는 builder.
+List<AppTermsConfirmation> _buildConfirmationWithoutHint(
+  AppTermsConfirmationsInput input,
+) => const <AppTermsConfirmation>[
+  AppTermsConfirmation(label: _confirmationALabel),
 ];
 
 GoRouter _buildRouter({
@@ -1155,17 +1183,202 @@ void main() {
       expect(find.text('HOME'), findsOneWidget);
       verify(() => mockRepo.signInAnonymously()).called(1);
     });
+
+    testWidgets('T-33-ROW-02: 「전체 동의」 가 이용약관 · 개인정보 · 마케팅 · 확인 행을 '
+        '함께 켜고 끈다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      final rows = <String>[
+        l10n.termsService,
+        l10n.termsPrivacy,
+        l10n.termsMarketing,
+        _confirmationALabel,
+      ];
+
+      await _tapTermsTile(tester, l10n.termsAcceptAll);
+      for (final label in rows) {
+        expect(_termsTileValue(tester, label), isTrue, reason: label);
+      }
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isTrue);
+
+      await _tapTermsTile(tester, l10n.termsAcceptAll);
+      for (final label in rows) {
+        expect(_termsTileValue(tester, label), isFalse, reason: label);
+      }
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isFalse);
+    });
+
+    testWidgets('T-33-ROW-03: 넷 다 체크한 뒤 확인 행만 해제하면 「전체 동의」 가 꺼지고, '
+        '다시 체크하면 켜진다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+      await _tapTermsTile(tester, l10n.termsMarketing);
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isTrue);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(_termsTileValue(tester, _confirmationALabel), isFalse);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isFalse);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isTrue);
+    });
+
+    testWidgets('T-33-ROW-04: 안내 없는 확인 행을 체크하지 않고 「Get started」 를 누르면 '
+        '공통 문구만 뜨고 진행하지 않는다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildConfirmationWithoutHint,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+      // 확인 행 제목 칸에는 행 문구와 [필수] 배지만 있다 — 안내 줄이 없다.
+      expect(
+        find.descendant(
+          of: _termsTile(_confirmationALabel),
+          matching: find.byType(KeepHangulWordsText),
+        ),
+        findsNWidgets(2),
+      );
+      verifyNever(() => mockRepo.signInAnonymously());
+    });
+
+    testWidgets('T-33-ROW-05: 공통 문구와 행 안내는 다른 페이지로 갔다가 마지막 슬라이드로 '
+        '돌아오면 숨어 있다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapGetStarted(tester);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+
+      // 앞 페이지로 끌어 넘긴다 — 마지막 슬라이드를 떠났는지 먼저 확인한다.
+      await tester.drag(find.byType(PageView), const Offset(600, 0));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(FilledButton, 'Get started'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Next'), findsOneWidget);
+
+      // 마지막 슬라이드로 돌아와 그 자리에서 센다 — 화면 밖 슬라이드는 finder 가
+      // 건너뛰어 앞 페이지에서 센 0 은 리셋이 없어도 나온다.
+      await tester.tap(find.widgetWithText(FilledButton, 'Next'));
+      await tester.pumpAndSettle();
+      expect(findKeepHangulWordsText(_confirmationALabel), findsOneWidget);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsNothing);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+    });
+
+    testWidgets('T-33-ROW-06: 확인 행 둘 가운데 A 만 체크하면 B 의 안내만 뜨고 진행하지 '
+        '않으며, A 가 B 위에 있다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildTwoConfirmations,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+      await _tapTermsTile(tester, _confirmationALabel);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationBHint), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+      expect(
+        tester.getTopLeft(_termsTile(_confirmationALabel)).dy,
+        lessThan(tester.getTopLeft(_termsTile(_confirmationBLabel)).dy),
+      );
+      verifyNever(() => mockRepo.signInAnonymously());
+    });
+
+    testWidgets('T-33-ROW-07: 확인 행이 없으면 필수 둘만으로 진행하고, 「전체 동의」 는 '
+        '마케팅까지 켜야 켜진다', (tester) async {
+      final mockAuth = stubFirstUserSignIn();
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+        // T-33 시험은 builder 를 늘 명시한다 — 하네스 기본값이 바뀌어도 이 시험은
+        // 행 0개를 본다.
+        // ignore: avoid_redundant_argument_values
+        termsConfirmationsBuilder: _buildNoTermsConfirmations,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isFalse);
+
+      await _tapTermsTile(tester, l10n.termsMarketing);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isTrue);
+
+      await _tapTermsTile(tester, l10n.termsMarketing);
+      expect(_termsTileValue(tester, l10n.termsAcceptAll), isFalse);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsOneWidget);
+      verify(() => mockRepo.signInAnonymously()).called(1);
+    });
   });
 }
+
+/// 문구가 [label] 인 약관 묶음 타일을 찾는다.
+Finder _termsTile(String label) => find.ancestor(
+  of: findKeepHangulWordsText(label),
+  matching: find.byType(CheckboxListTile),
+);
+
+/// 문구가 [label] 인 약관 묶음 타일의 체크 값을 읽는다.
+bool? _termsTileValue(WidgetTester tester, String label) =>
+    tester.widget<CheckboxListTile>(_termsTile(label)).value;
 
 /// 문구가 [label] 인 약관 묶음 타일을 화면 안으로 끌어와 누른다.
 ///
 /// index 대신 문구로 고른다 — 확인 행이 끼면 타일 순서가 바뀐다.
 Future<void> _tapTermsTile(WidgetTester tester, String label) async {
-  final tile = find.ancestor(
-    of: findKeepHangulWordsText(label),
-    matching: find.byType(CheckboxListTile),
-  );
+  final tile = _termsTile(label);
   expect(tile, findsOneWidget, reason: label);
   await tester.ensureVisible(tile);
   await tester.tap(tile);
