@@ -1148,6 +1148,7 @@ Apple 을 끄고 다른 소셜 로그인만 켜면 App Store Review Guidelines 4
 - 인증 · 재설정 메일을 킷이 보내게 할 때 — [인증 메일 발송 모드 켜고 끄기](guide.md#인증-메일-발송-모드-켜고-끄기)
 - 메일 링크를 연 뒤 보이는 결과 페이지를 바꿀 때 — [인증 결과 페이지 바꾸기](guide.md#인증-결과-페이지-바꾸기)
 - 알림 · Remote Config · Storage · Firestore 를 쓸 때 — [Firebase 서비스 쓰기](guide.md#firebase-서비스-쓰기)
+- 가입 때 나이 확인(예: 만 14세 이상) 같은 필수 확인 행을 켤 때 — [약관 동의에 필수 확인 행 더하기](guide.md#약관-동의에-필수-확인-행-더하기)
 - Crashlytics 대시보드에서 오류 보고를 볼 때 — [Crashlytics · Analytics](guide.md#crashlytics--analytics)
 - release 서명 키를 만들 때 — [릴리스 서명(keystore)](guide.md#릴리스-서명keystore)
 - 출시 뒤 로그인 수단을 막거나 알림을 보낼 때 — [앱 운영하기](guide.md#앱-운영하기)
