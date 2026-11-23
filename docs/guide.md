@@ -5037,7 +5037,7 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 - 상태 표시줄은 투명하고 그 뒤는 Android 버전과 무관하게 그려진다. 내비게이션 바 막은 Android 15 이상이면 OS 가 3버튼 내비게이션에 까는 반투명 막이다.
 - Android 에서 AppBar 없는 화면의 상태 표시줄은 앱 기본값(투명 바탕 · 아이콘은 앱 바탕 `colorScheme.surface` 밝기의 반대)을 받는다.
   - AppBar 가 있는 화면은 AppBar 의 상태 표시줄 값을 쓴다.
-  - 바탕이 다른 화면(예: 어두운 그림이 위까지 차는 화면)은 그 화면을 `AnnotatedRegion<SystemUiOverlayStyle>` 로 감싸 `statusBarColor` · `statusBarIconBrightness` 를 직접 정한다.
+  - 바탕이 다른 화면(예: 어두운 그림이 위까지 차는 화면)은 그 화면을 `AnnotatedRegion<SystemUiOverlayStyle>` 로 감싸 `statusBarColor` · `statusBarIconBrightness` 를 직접 정한다 — 화면 전체를 감싼 영역은 앱 기본값의 내비게이션 바 값까지 대신하므로, 아래 「내 화면에서 내비게이션 바 값을 바꾸려면」 의 세 필드도 함께 적는다.
 - Android 10 ~ 14 의 3버튼 내비게이션은 앱 기본값(라이트 흰색 · 다크 검정 반투명 · 대비 강제 켬 · 아이콘은 OS 밝기의 반대)이 Android 15 이상의 3버튼 막과 같은 모습으로 내비게이션 바를 칠한다.
   - 제스처 내비게이션(화면 양옆에 뒤로 가기 제스처 영역이 있는 방식)에서는 앱 기본값이 바 색을 투명으로 보낸다. 그래서 Android 10 ~ 14 에서도 Android 15 이상처럼 제스처 띠가 투명하고 화면이 띠 뒤까지 그려진다.
 - Android 8 ~ 9 는 내비게이션 바 뒤로 그리지 않지만 그 바의 색 · 아이콘은 앱이 정한 값을 따른다.
