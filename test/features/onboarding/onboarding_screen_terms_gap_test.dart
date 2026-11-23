@@ -55,7 +55,7 @@ Future<void> _pumpLastSlide(
 }
 
 /// 약관 묶음 위쪽과 같은 칸의 슬라이드 본문 아래쪽 사이 간격을 잰다.
-double _gapAboveTermsGroup(WidgetTester tester) {
+double _measureGapAboveTermsGroup(WidgetTester tester) {
   final column = find
       .ancestor(
         of: find.byType(TermsCheckboxGroup),
@@ -78,7 +78,7 @@ void main() {
     await _pumpLastSlide(tester, _buildOneRow);
 
     expect(
-      _gapAboveTermsGroup(tester),
+      _measureGapAboveTermsGroup(tester),
       tester.element(find.byType(TermsCheckboxGroup)).appSpacing.sm,
     );
   });
@@ -89,7 +89,7 @@ void main() {
     await _pumpLastSlide(tester, _buildNoRows);
 
     expect(
-      _gapAboveTermsGroup(tester),
+      _measureGapAboveTermsGroup(tester),
       tester.element(find.byType(TermsCheckboxGroup)).appSpacing.xl,
     );
   });
