@@ -355,7 +355,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           title: l10n.onboardingSlide3Title,
                           body: l10n.onboardingSlide3Body,
                         ),
-                        Gap(spacing.xl),
+                        // 확인 행이 있을 때만 줄인다(행 1개 · 안내도 한 화면에) — 없으면 그대로.
+                        Gap(_confirmations.isEmpty ? spacing.xl : spacing.sm),
                         TermsCheckboxGroup(
                           service: _service,
                           privacy: _privacy,
