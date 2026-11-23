@@ -3320,6 +3320,98 @@ release 빌드에도 보이는 내 앱 설정(예: 거리 단위 · 기능 켜�
 
 되돌리기: 목록에서 그 묶음 항목을 지운다.
 
+### 약관 동의에 필수 확인 행 더하기
+
+가입할 때 사용자가 꼭 체크해야 하는 확인 행(예: 나이 확인 「만 14세 이상입니다」)을 약관 동의 묶음에 더할 때 보는 절이다.
+- 행은 `lib/features/onboarding/presentation/app_terms_confirmations.dart` 의 `buildAppTermsConfirmations` 가 돌려주는 `AppTermsConfirmation`(행 문구 · 안내 문구)이고, 이 파일은 내 파일이다(킷 판은 빈 목록).
+- 행은 온보딩 마지막 화면의 약관 묶음에서 개인정보처리방침 아래 · 마케팅 위에 [필수] 배지와 함께 뜨고, 「상세 보기」 는 없다.
+- 행을 체크해야 「시작하기」 로 진행하고, 「전체 동의」 가 이 행도 함께 켜고 끈다.
+- 체크하지 않고 「시작하기」 를 누르면 묶음 아래 공통 문구가 뜨고, 안내 문구를 준 행에는 행 문구 밑에 그 안내가 오류 색으로 뜬다.
+- 이메일 · 소셜 로그인 · 게스트에서 정식 전환 등 가입 경로가 모두 이 화면에서 동의를 받는다.
+- 설정 위저드는 이 행을 다루지 않는다 — 켜고 끄는 곳은 이 파일 하나다.
+
+근거 — 이 행은 법률 자문이 아니다.
+- 「개인정보 보호법」 제22조의2 ①: 「개인정보처리자는 만 14세 미만 아동의 개인정보를 처리하기 위하여 이 법에 따른 동의를 받아야 할 때에는 그 법정대리인의 동의를 받아야 하며, 법정대리인이 동의하였는지를 확인하여야 한다.」
+- 개인정보보호위원회 「아동･청소년 개인정보 보호 안내서(2024. 12.) 23쪽」 은 회원가입 때 연령을 확인하는 방법으로 「(방법2) “만 14세 이상” 이라는 항목에 스스로 체크하도록 하는 방법」 을 든다.
+- 14세 미만을 받는 앱은 이 행 대신 법정대리인 동의 절차를 따로 만든다.
+  - 같은 안내서 28쪽: 「특히, 이용자의 연령 직접 기입 또는 ‘만 14세 이상’ 미체크 등을 통해 만 14세 미만 아동임을 인지하였음에도 불구하고 법정대리인 동의 절차를 누락하는 경우가 발생하지 않도록 주의」
+- 체크는 사용자가 스스로 하는 확인이라 나이를 증명하거나 위조를 막는 장치가 아니다.
+- 연령 정책 · 기준 나이 · 문구와 법적 판단은 내 앱 몫이다.
+
+1. **행 문구 · 안내 문구 키를 ARB 세 파일에 더하고 `fvm flutter gen-l10n` 을 돌린다.**
+   - 넣는 자리와 설명(`@` 키) 규칙은 [⑦ ARB 세 언어](#-arb-세-언어) 와 같다.
+   - 안내가 필요 없으면 행 문구 키만 더한다 — 그 행을 체크하지 않았을 때 묶음 아래 공통 문구만 뜬다.
+
+   `lib/l10n/app_en.arb`:
+
+   ```json
+     "signupAgeConfirmation": "I am 14 years or older",
+     "@signupAgeConfirmation": {
+       "description": "Required confirmation row on the onboarding terms step (age)"
+     },
+
+     "signupAgeConfirmationHint": "You must be 14 or older to sign up.",
+     "@signupAgeConfirmationHint": {
+       "description": "Hint under the age row when it is left unchecked"
+     }
+   ```
+
+   `lib/l10n/app_ko.arb`:
+
+   ```json
+     "signupAgeConfirmation": "만 14세 이상입니다",
+     "signupAgeConfirmationHint": "만 14세 미만은 가입할 수 없어요."
+   ```
+
+   `lib/l10n/app_ja.arb`:
+
+   ```json
+     "signupAgeConfirmation": "14歳以上です",
+     "signupAgeConfirmationHint": "14歳未満の方は登録できません。"
+   ```
+
+   ```bash
+   fvm flutter gen-l10n
+   ```
+
+2. **`lib/features/onboarding/presentation/app_terms_confirmations.dart` 에 import 한 줄과 행 하나를 더한다.**
+   - import 는 `import 'app_terms_confirmation_slot.dart';` 바로 위에, 행은 목록의 `// 예:` 줄 아래에 넣는다.
+   - 행이 여럿이면 목록 순서대로 뜬다. 안내 문구 키를 더하지 않았으면 행에서 `missingHint:` 줄을 뺀다.
+
+   ```dart
+   import '../../../core/l10n/l10n_extensions.dart';
+   ```
+
+   ```dart
+     AppTermsConfirmation(
+       label: input.context.l10n.signupAgeConfirmation,
+       missingHint: input.context.l10n.signupAgeConfirmationHint,
+     ),
+   ```
+
+3. **분석 · 시험을 돌리고 앱에서 확인한다.**
+   - 온보딩 화면을 직접 그리는 킷 시험은 이 목록 대신 빈 목록으로 그린다.
+   - 앱을 새로 설치해 마지막 화면에서 체크하지 않고 「시작하기」 를 누르면 공통 문구와 안내가 뜨고, 체크하면 진행한다.
+
+   ```bash
+   fvm dart analyze
+   fvm flutter test
+   ```
+
+알아 둘 동작:
+- 체크했다는 사실은 동의 기록(`users/{uid}.termsAccepted`)에 따로 남지 않는다 — 행을 켠 앱 판에서 `termsAccepted` 가 생긴 계정이 곧 확인을 거친 계정이다.
+- 확인 전에는 앱을 쓸 수 없지만, 세션이 끊긴 뒤 로그인 화면에서 새로 가입한 계정은 확인 전에도 로그인 계정이 남는다.
+- 행은 첫 사용자를 받기 전에 켠다.
+  - 나중에 켜면 이미 동의한 계정 · 기기(게스트 기기의 로컬 동의 포함)는 행을 보지 않는다 — 동의를 다시 받을지 보는 판정이 약관 버전만 보기 때문이다.
+  - 그런 계정을 가르려면 `termsAccepted.acceptedAt` 을 행을 켠 날짜와 견준다.
+  - 이미 동의한 사용자에게 행을 다시 받는 기능은 킷에 없다.
+- 행 1개(안내 문구 포함)는 360×780 dp · 3버튼 내비게이션 폰의 기본 글자 크기에서 체크하지 않고 「시작하기」 를 누른 뒤에도 약관 화면이 스크롤 없이 한 화면이고 공통 문구와 안내가 보인다.
+  - 행이 있을 때만 슬라이드 본문과 약관 묶음 사이 간격이 좁아진다(행이 없으면 그대로).
+  - 행을 2개 이상 넣으면 같은 폰에서도 약관 화면이 스크롤될 수 있다(예시 문구로 영어는 체크하기 전부터, 한국어 · 일본어는 체크하지 않고 「시작하기」 를 누른 뒤) — 한 화면을 지키는 것은 행 1개까지다.
+  - 예시 문구 길이로 잰 값이다 — 행 문구나 안내가 길어 줄이 늘면 스크롤될 수 있다.
+
+되돌리기: 목록에서 그 행 항목을 지운다(킷 판처럼 빈 목록) — 약관 화면이 행이 없던 모양으로 돌아간다.
+
 ### 바꿀 수 있는 지점
 
 | 바꾸고 싶은 것 | 고칠 곳 |
