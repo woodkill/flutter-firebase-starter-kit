@@ -355,8 +355,8 @@ void main() {
       expect(style.statusBarIconBrightness, Brightness.light);
     });
 
-    testWidgets('T-30-BARS-13: Android · 화면 왼쪽 제스처 영역이 있으면(제스처 '
-        '내비게이션) 색만 투명 · 0 이면 3버튼 막', (tester) async {
+    testWidgets('T-30-BARS-13: Android · 화면 양옆 제스처 영역이 있으면(제스처 '
+        '내비게이션) 색만 투명 · 세로 화면 3버튼 꼴(양옆 0)이면 3버튼 막', (tester) async {
       // 제스처 영역은 물리 픽셀로 준다 — 시험 화면 배율은 3 이다.
       addTearDown(tester.view.resetSystemGestureInsets);
 
@@ -376,8 +376,11 @@ void main() {
       await tester.pump();
       _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
 
-      // 왼쪽이 0 이면 3버튼 막으로 돌아온다.
-      tester.view.systemGestureInsets = FakeViewPadding.zero;
+      // 세로 화면 3버튼 꼴(위 24 · 아래 48 dp · 양옆 0)이면 3버튼 막으로 돌아온다.
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        top: 72,
+        bottom: 144,
+      );
       await tester.pump();
       _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
     });
