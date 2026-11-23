@@ -69,7 +69,7 @@ class TermsCheckboxGroup extends StatelessWidget {
   /// 마케팅 체크 변경 콜백.
   final ValueChanged<bool?> onMarketingChanged;
 
-  /// "전체 동의" 체크 변경 콜백 — 3 플래그를 한 번에 설정한다.
+  /// "전체 동의" 체크 변경 콜백 — 3 플래그와 확인 행을 한 번에 설정한다.
   final ValueChanged<bool?> onAllChanged;
 
   /// 앱이 더한 필수 확인 행 — 위에서부터 화면 순서다. 기본값은 빈 목록이다.

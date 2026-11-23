@@ -27,8 +27,9 @@ import 'onboarding_notifier.dart';
 /// 흐름:
 /// 1. 1~2번 슬라이드: AppBar "건너뛰기" 노출, FilledButton "다음" 으로 이동.
 /// 2. 3번 슬라이드(마지막): "건너뛰기" 숨김, [TermsCheckboxGroup] 표시,
-///    FilledButton "시작하기". 필수 2개 미동의 시 disabled. 필수 확인 행
-///    ([termsConfirmationsBuilder])도 필수로 센다.
+///    FilledButton "시작하기". 필수 약관 둘과 필수 확인 행
+///    ([termsConfirmationsBuilder])을 모두 체크하지 않고 누르면 진행하지 않고
+///    오류 문구를 보인다.
 /// 3. "시작하기" 탭 → [TermsNotifier.accept] → [AuthRepository.signInAnonymously]
 ///    → [OnboardingNotifier.markSeen] → Analytics 이벤트 → [AppRoutes.home].
 /// 4. **Issue #9 (Plan 10-13):** 이미 정식(비익명) 사용자로 로그인된 상태에서
@@ -219,8 +220,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   /// 약관 3 플래그를 갱신한다 (WR-16 — 부모가 단일 진실원).
   ///
-  /// 지정하지 않은 인자는 현재 값을 유지한다. 필수 2개가 충족되면
-  /// `_showRequiredError` 헬퍼 텍스트를 내린다.
+  /// 지정하지 않은 인자는 현재 값을 유지한다. 필수 항목(약관 둘 · 확인 행)이
+  /// 모두 충족되면 `_showRequiredError` 헬퍼 텍스트를 내린다.
   void _setTerms({bool? service, bool? privacy, bool? marketing}) {
     setState(() {
       _service = service ?? _service;
