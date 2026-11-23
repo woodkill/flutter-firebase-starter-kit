@@ -28,8 +28,8 @@ import 'onboarding_notifier.dart';
 /// 1. 1~2번 슬라이드: AppBar "건너뛰기" 노출, FilledButton "다음" 으로 이동.
 /// 2. 3번 슬라이드(마지막): "건너뛰기" 숨김, [TermsCheckboxGroup] 표시,
 ///    FilledButton "시작하기". 필수 약관 둘과 필수 확인 행
-///    ([termsConfirmationsBuilder])을 모두 체크하지 않고 누르면 진행하지 않고
-///    오류 문구를 보인다.
+///    ([termsConfirmationsBuilder]) 가운데 하나라도 체크하지 않은 채 누르면
+///    진행하지 않고 오류 문구를 보인다.
 /// 3. "시작하기" 탭 → [TermsNotifier.accept] → [AuthRepository.signInAnonymously]
 ///    → [OnboardingNotifier.markSeen] → Analytics 이벤트 → [AppRoutes.home].
 /// 4. **Issue #9 (Plan 10-13):** 이미 정식(비익명) 사용자로 로그인된 상태에서
