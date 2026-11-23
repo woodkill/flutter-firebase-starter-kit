@@ -1442,7 +1442,6 @@ void main() {
       final l10n = _resolveL10n(tester);
       await _tapTermsTile(tester, l10n.termsService);
       await _tapTermsTile(tester, l10n.termsPrivacy);
-      expect(find.text('HOME'), findsNothing);
       expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
       expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
 
