@@ -26,7 +26,7 @@ import 'package:flutter/services.dart';
 /// 내비게이션 바 막 색 · 아이콘 밝기를 정할 기준 밝기를 돌려준다.
 ///
 /// OS 밝기 설정을 따른다 — 막 색과 아이콘이 같은 기준을 본다.
-Brightness resolveNavigationBarBrightness(BuildContext context) =>
+Brightness _resolveNavigationBarBrightness(BuildContext context) =>
     MediaQuery.platformBrightnessOf(context);
 
 /// 기기가 제스처 내비게이션을 쓰는지 판별한다.
@@ -36,7 +36,7 @@ Brightness resolveNavigationBarBrightness(BuildContext context) =>
 /// 내비게이션에서만 화면 양옆에 뒤로 가기 제스처 영역이 생긴다. 3버튼
 /// 내비게이션은 세로 화면에서 양옆이 0 이고, 가로 화면에서는 바가 선 한쪽만 바
 /// 폭만큼 0 이 아니다. 그래서 한쪽만 보면 가로 화면 3버튼을 제스처로 잘못 고른다.
-bool usesGestureNavigation(BuildContext context) {
+bool _usesGestureNavigation(BuildContext context) {
   final EdgeInsets insets = MediaQuery.systemGestureInsetsOf(context);
   return insets.left > 0 && insets.right > 0;
 }
@@ -76,7 +76,7 @@ SystemUiOverlayStyle buildDefaultNavigationBarStyle(
 /// 상태 표시줄 바탕 색 · 아이콘 밝기 두 필드만 담는다. 바탕은 투명이고, 아이콘은
 /// 어두운 바탕에서 밝게, 밝은 바탕에서 어둡게 둔다. `statusBarBrightness` 는 iOS
 /// 용 필드라 담지 않는다.
-SystemUiOverlayStyle buildDefaultStatusBarStyle(Brightness surfaceBrightness) {
+SystemUiOverlayStyle _buildDefaultStatusBarStyle(Brightness surfaceBrightness) {
   final isDark = surfaceBrightness == Brightness.dark;
   return SystemUiOverlayStyle(
     statusBarColor: const Color(0x00000000),
@@ -86,9 +86,9 @@ SystemUiOverlayStyle buildDefaultStatusBarStyle(Brightness surfaceBrightness) {
 
 /// 앱 맨 바깥에서 내비게이션 바 · 상태 표시줄 기본 값을 알리는 영역.
 ///
-/// [resolveNavigationBarBrightness] 가 돌려준 밝기와 [usesGestureNavigation] 의
+/// [_resolveNavigationBarBrightness] 가 돌려준 밝기와 [_usesGestureNavigation] 의
 /// 판별로 [buildDefaultNavigationBarStyle] 이 만든 값을 [AnnotatedRegion] 하나로
-/// 알린다. Android 에서는 [buildDefaultStatusBarStyle] 이 만든 상태 표시줄
+/// 알린다. Android 에서는 [_buildDefaultStatusBarStyle] 이 만든 상태 표시줄
 /// 필드를 더한다 — 상태 표시줄 기준은 OS 밝기가 아니라 앱 바탕
 /// (`colorScheme.surface`) 밝기다. 투명한 상태 표시줄 뒤로 보이는 것이 앱
 /// 바탕이기 때문이다 — 판정은 [ThemeData.estimateBrightnessForColor] 다. 그림은
@@ -104,8 +104,8 @@ class AppSystemBarsRegion extends StatelessWidget {
   Widget build(BuildContext context) {
     final SystemUiOverlayStyle navigationBarStyle =
         buildDefaultNavigationBarStyle(
-          resolveNavigationBarBrightness(context),
-          isGestureNavigation: usesGestureNavigation(context),
+          _resolveNavigationBarBrightness(context),
+          isGestureNavigation: _usesGestureNavigation(context),
         );
     if (defaultTargetPlatform != TargetPlatform.android) {
       return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -113,7 +113,7 @@ class AppSystemBarsRegion extends StatelessWidget {
         child: child,
       );
     }
-    final SystemUiOverlayStyle statusBarStyle = buildDefaultStatusBarStyle(
+    final SystemUiOverlayStyle statusBarStyle = _buildDefaultStatusBarStyle(
       ThemeData.estimateBrightnessForColor(
         Theme.of(context).colorScheme.surface,
       ),
