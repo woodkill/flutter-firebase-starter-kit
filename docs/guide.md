@@ -5046,6 +5046,7 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 - 스플래시 화면은 Android 10 이상의 3버튼 내비게이션에서 막 없이 스플래시 배경색이 바 아래까지 이어지고, 다음 화면부터 위 막이 깔린다.
 - 내 화면에서 내비게이션 바 값을 바꾸려면 그 화면을 `AnnotatedRegion<SystemUiOverlayStyle>` 로 감싸고 `systemNavigationBarColor` · `systemNavigationBarContrastEnforced` · `systemNavigationBarIconBrightness` 세 필드를 모두 적는다.
   - 화면을 떠나면 앱 기본값으로 돌아가고, 일부만 적으면 나머지는 앞 화면 값으로 남는다.
+  - AppBar 없는 화면을 감쌀 때는 `statusBarColor` · `statusBarIconBrightness` 도 함께 적는다 — 화면 전체를 감싼 영역은 앱 기본값의 상태 표시줄 값까지 대신한다.
   - AppBar 의 `systemOverlayStyle` 에 적은 내비게이션 바 필드는 쓰이지 않는다 — 앱 기본값이 화면 아래를 맡기 때문이다. 내비게이션 바 값은 화면 전체를 감싼 `AnnotatedRegion` 에 적는다.
   - 색은 Android 8 ~ 14 에서만 적용되고 Android 15 이상은 OS 가 정한다. 대비 강제 · 아이콘 밝기는 Android 15 이상에서도 적용된다.
 - 켜는 코드는 `lib/core/bootstrap.dart` 의 `SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge)` 이고, Android 에서만 `runApp` 전에 부른다.
