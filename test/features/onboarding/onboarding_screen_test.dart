@@ -1422,6 +1422,127 @@ void main() {
       expect(container.read(termsProvider).acceptance, isNull);
       verifyNever(() => mockRepo.signInAnonymously());
     });
+
+    testWidgets('T-33-ROW-10: 필수 약관 둘만 체크해서는 공통 문구와 행 안내가 남고, '
+        '확인 행까지 체크해야 둘 다 사라진다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      // 아무것도 체크하지 않고 먼저 눌러 오류를 띄운다.
+      await _tapGetStarted(tester);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsNothing);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+    });
+
+    testWidgets('T-33-ROW-11: 확인 행 둘 가운데 A 만 체크하면 공통 문구와 B 안내가 남고, '
+        'B 까지 체크해야 공통 문구가 사라진다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildTwoConfirmations,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+
+      await _tapGetStarted(tester);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationBHint), findsOneWidget);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationBHint), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+
+      await _tapTermsTile(tester, _confirmationBLabel);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsNothing);
+      expect(findKeepHangulWordsText(_confirmationBHint), findsNothing);
+    });
+
+    testWidgets('T-33-ROW-12: 「전체 동의」 를 켜면 공통 문구와 행 안내가 사라지고 확인 행이 '
+        '켜진다', (tester) async {
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapGetStarted(tester);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsAcceptAll);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsNothing);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+      expect(_termsTileValue(tester, _confirmationALabel), isTrue);
+    });
+
+    testWidgets('T-33-ROW-13: 확인 행이 늘면 이미 체크한 행도 모두 풀린다', (tester) async {
+      var rows = const <AppTermsConfirmation>[_confirmationA];
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: (_) => rows,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(_termsTileValue(tester, _confirmationALabel), isTrue);
+
+      rows = const <AppTermsConfirmation>[_confirmationA, _confirmationB];
+      await _rebuildOnboarding(tester);
+
+      expect(_termsTileValue(tester, _confirmationALabel), isFalse);
+      expect(_termsTileValue(tester, _confirmationBLabel), isFalse);
+    });
+
+    testWidgets('T-33-ROW-14: 확인 행이 줄면 남은 행의 체크도 풀린다', (tester) async {
+      var rows = const <AppTermsConfirmation>[_confirmationA, _confirmationB];
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: (_) => rows,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(_termsTileValue(tester, _confirmationALabel), isTrue);
+
+      rows = const <AppTermsConfirmation>[_confirmationA];
+      await _rebuildOnboarding(tester);
+
+      expect(_termsTileValue(tester, _confirmationALabel), isFalse);
+    });
   });
 }
 

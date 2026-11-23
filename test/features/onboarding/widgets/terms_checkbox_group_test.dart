@@ -439,5 +439,30 @@ void main() {
         isNotNull,
       );
     });
+
+    testWidgets('T-33-GROUP-05: 확인 행 수와 체크 값 수가 다르면 길이 assert 가 실패한다', (
+      tester,
+    ) async {
+      // 체크 값이 더 길어 RangeError 경로가 없다 — assert 만이 잡는다.
+      await tester.pumpWidget(
+        _wrapInApp(
+          TermsCheckboxGroup(
+            service: false,
+            privacy: false,
+            marketing: false,
+            allChecked: false,
+            onServiceChanged: (_) {},
+            onPrivacyChanged: (_) {},
+            onMarketingChanged: (_) {},
+            onAllChanged: (_) {},
+            confirmations: _confirmations,
+            confirmationChecks: const <bool>[false, false],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(tester.takeException(), isA<AssertionError>());
+    });
   });
 }
