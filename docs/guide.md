@@ -3430,6 +3430,7 @@ release 빌드에도 보이는 내 앱 설정(예: 거리 단위 · 기능 켜�
 | 알림 섹션 위치 | `lib/features/settings/presentation/settings_screen.dart` 의 `const NotificationsSection()` 한 줄 |
 | 설정 「개발자」 묶음에 개발용 행 더하기 | `lib/features/settings/presentation/developer_rows.dart` 의 `buildAppDeveloperRows()` 목록에 행 위젯을 더한다(행 위젯 파일은 `lib/features/<내 feature>/` 에 둔다). 행은 「개발자 · 데모 화면」 행 뒤에 뜨고 release 빌드에서는 묶음째 빠지며, flavor 처럼 행마다 다른 조건은 목록 안에 `if (AppConfig.isDev)` 꼴로 더한다. 묶음은 화면에서만 빠지고 행 코드는 release 앱에 남을 수 있으므로 비밀 값을 행에 넣지 않는다 |
 | 설정에 앱 고유 묶음 · 행 더하기 | `lib/features/settings/presentation/app_settings_sections.dart` 의 `buildAppSettingsSections` 목록에 `AppSettingsSection`(제목 · 행 목록)을 더한다(행 위젯 파일은 `lib/features/<내 feature>/` 에 두고, 묶음 제목은 내 ARB 키로 만든 뒤 `fvm flutter gen-l10n`). 묶음은 알림 섹션 뒤(게스트는 「일반」 뒤) · 「개발자」 묶음 앞에 뜨고 release 빌드에서도 보이며, 게스트에게 숨길 묶음 · 행은 앞에 `if (!isAnonymous)` 를 붙인다. 단계와 킷 행 모양 예시는 위 「설정 화면에 앱 고유 묶음 · 행 더하기」 |
+| 약관 동의에 필수 확인 행 더하기(예: 나이 확인) | `lib/features/onboarding/presentation/app_terms_confirmations.dart` 의 `buildAppTermsConfirmations` 목록에 `AppTermsConfirmation`(행 문구 · 안내 문구)을 더한다(문구는 내 ARB 키로 만든 뒤 `fvm flutter gen-l10n`). 행은 개인정보처리방침 아래에 [필수] 배지로 뜨고 체크해야 진행한다 — 단계는 위 [약관 동의에 필수 확인 행 더하기](#약관-동의에-필수-확인-행-더하기) |
 | Storage 경로 · 크기 · 형식 | `storage.rules` 의 그 줄(예: 5MB = `5 * 1024 * 1024`) + rules 시험 경계 경우 → `pnpm test:rules`. 크기를 바꾸면 `kProfilePhotoMaxBytes` 도, 경로를 바꾸면 `profilePhotoPath` 도 고친다 |
 | 올리는 사진 크기 | `profile_photo_repository.dart` 의 `pickImage` 인자(`maxWidth` · `imageQuality`) |
 | 사진 고르는 중 앱이 종료되면 | 킷은 되찾지 않는다 — Android 는 갤러리가 떠 있는 동안 메모리가 모자라 앱이 종료되면 고른 사진이 사라진다. 필요하면 계정 정보 화면에 들어올 때 `ImagePicker.retrieveLostData()`(Android 전용)를 한 번 보고, 파일이 있으면 `ProfilePhotoRepository` 의 올리기 단계를 이어 간다 |
@@ -4316,6 +4317,7 @@ merge 뒤 사용자가 손봐야 하는 판은 MAJOR 다 — 사용자 소유 �
 | 39 | `lib/features/settings/presentation/app_settings_sections.dart` | 설정 화면에 더하는 앱 고유 묶음 목록(`buildAppSettingsSections`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
 | 40 | `lib/features/splash/presentation/splash_body.dart` · `test/features/splash/splash_body_test.dart` | Flutter 스플래시의 배경색 · 로고 그림 경로 상수와 로고 아래 내용(`buildSplashBody`) | 낮음 | 내 값 |
 | 41 | `lib/core/theme/app_color_scheme.dart` | 시드 팔레트에서 바꾸는 색 역할(`buildAppColorScheme`) | 없음 | 충돌 없음(킷 판은 받은 팔레트를 그대로 돌려준다) |
+| 42 | `lib/features/onboarding/presentation/app_terms_confirmations.dart` | 약관 동의 묶음의 필수 확인 행(`buildAppTermsConfirmations`) | 없음 | 충돌 없음(킷 판은 빈 목록) |
 
 ### 확인 방법
 
