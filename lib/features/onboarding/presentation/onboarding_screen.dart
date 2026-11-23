@@ -17,6 +17,8 @@ import '../../terms/presentation/terms_notifier.dart';
 import '_widgets/onboarding_indicator.dart';
 import '_widgets/onboarding_slide.dart';
 import '_widgets/terms_checkbox_group.dart';
+import 'app_terms_confirmation_slot.dart';
+import 'app_terms_confirmations.dart';
 import 'onboarding_notifier.dart';
 
 /// 3-slide onboarding 캐러셀 + 마지막 슬라이드 약관 동의 (Phase 10
@@ -25,7 +27,8 @@ import 'onboarding_notifier.dart';
 /// 흐름:
 /// 1. 1~2번 슬라이드: AppBar "건너뛰기" 노출, FilledButton "다음" 으로 이동.
 /// 2. 3번 슬라이드(마지막): "건너뛰기" 숨김, [TermsCheckboxGroup] 표시,
-///    FilledButton "시작하기". 필수 2개 미동의 시 disabled.
+///    FilledButton "시작하기". 필수 2개 미동의 시 disabled. 필수 확인 행
+///    ([termsConfirmationsBuilder])도 필수로 센다.
 /// 3. "시작하기" 탭 → [TermsNotifier.accept] → [AuthRepository.signInAnonymously]
 ///    → [OnboardingNotifier.markSeen] → Analytics 이벤트 → [AppRoutes.home].
 /// 4. **Issue #9 (Plan 10-13):** 이미 정식(비익명) 사용자로 로그인된 상태에서
@@ -34,7 +37,13 @@ import 'onboarding_notifier.dart';
 ///    Firestore 에 재동의를 기록한다.
 class OnboardingScreen extends ConsumerStatefulWidget {
   /// [OnboardingScreen] 을 생성한다.
-  const OnboardingScreen({super.key});
+  const OnboardingScreen({this.termsConfirmationsBuilder, super.key});
+
+  /// 약관 묶음의 필수 확인 행을 만드는 함수다.
+  ///
+  /// null 이면 사용자 파일의 `buildAppTermsConfirmations` 를 쓴다. 킷 시험은
+  /// 빈 목록을 돌려주는 함수를 넣어 사용자 파일의 행과 떨어져 그린다.
+  final AppTermsConfirmationsBuilder? termsConfirmationsBuilder;
 
   @override
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -49,6 +58,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _showRequiredError = false;
   bool _isSubmitting = false;
 
+  /// 체크한 필수 확인 행의 index 집합 (WR-16 — 부모가 단일 진실원).
+  ///
+  /// 행 수가 build 사이에 줄면 범위 밖 index 는 판정에 쓰이지 않고, 늘면 새
+  /// 행은 체크하지 않은 상태로 시작한다.
+  final Set<int> _checkedConfirmations = <int>{};
+
+  /// 마지막 `build` 에서 builder 로 받은 필수 확인 행 목록.
+  List<AppTermsConfirmation> _confirmations = const <AppTermsConfirmation>[];
+
   /// 온보딩 슬라이드 개수 (IN-07 — 단일 진실원).
   ///
   /// PageView children 개수 · [_lastPage] · [OnboardingIndicator.count] 세 곳이
@@ -62,10 +80,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   static const int _lastPage = _slideCount - 1;
 
   bool get _isLastPage => _currentPage == _lastPage;
-  bool get _requiredChecked => _service && _privacy;
+
+  /// 필수 확인 행을 모두 체크했는지 — 행이 없으면 true 다.
+  bool get _allConfirmationsChecked => List<int>.generate(
+    _confirmations.length,
+    (i) => i,
+  ).every(_checkedConfirmations.contains);
+
+  /// 「시작하기」 로 진행할 수 있는지 — 필수 약관 둘과 필수 확인 행 모두.
+  bool get _requiredChecked => _service && _privacy && _allConfirmationsChecked;
 
   /// "전체 동의" 체크박스 표시 값 (WR-16 — 부모가 단일 진실원).
-  bool get _allTermsChecked => _service && _privacy && _marketing;
+  bool get _allTermsChecked =>
+      _service && _privacy && _marketing && _allConfirmationsChecked;
 
   @override
   void dispose() {
@@ -205,9 +232,37 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
   }
 
-  /// "전체 동의" 토글 — 3 플래그를 한 번에 설정한다 (WR-16).
+  /// 필수 확인 행 [index] 의 체크를 갱신한다 (WR-16 — 부모가 단일 진실원).
+  ///
+  /// 필수 항목이 모두 충족되면 `_showRequiredError` 헬퍼 텍스트를 내린다
+  /// ([_setTerms] 와 같은 규칙).
+  void _setConfirmation(int index, bool checked) {
+    setState(() {
+      if (checked) {
+        _checkedConfirmations.add(index);
+      } else {
+        _checkedConfirmations.remove(index);
+      }
+      if (_requiredChecked) {
+        _showRequiredError = false;
+      }
+    });
+  }
+
+  /// 필수 확인 행 전체의 체크를 한 번에 바꾼다 — `setState` 는 부르는 쪽이 한다.
+  void _markAllConfirmations(bool checked) {
+    _checkedConfirmations.clear();
+    if (checked) {
+      _checkedConfirmations.addAll(
+        List<int>.generate(_confirmations.length, (i) => i),
+      );
+    }
+  }
+
+  /// "전체 동의" 토글 — 3 플래그와 필수 확인 행을 한 번에 설정한다 (WR-16).
   void _handleAllTermsChanged(bool? value) {
     final next = value ?? false;
+    _markAllConfirmations(next);
     _setTerms(service: next, privacy: next, marketing: next);
   }
 
@@ -222,6 +277,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 형을 적은 지역 변수로 묶는다 — 사용자 파일 함수의 꼴이 typedef 와 어긋나면
+    // 이 줄에서 컴파일 오류가 난다. build 에서 불러 hot reload 에도 행이 반영된다.
+    final AppTermsConfirmationsBuilder buildConfirmations =
+        widget.termsConfirmationsBuilder ?? buildAppTermsConfirmations;
+    _confirmations = buildConfirmations(
+      AppTermsConfirmationsInput(context: context),
+    );
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final typography = context.appTypography;
@@ -306,6 +368,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           onMarketingChanged: (v) =>
                               _setTerms(marketing: v ?? false),
                           onAllChanged: _handleAllTermsChanged,
+                          confirmations: _confirmations,
+                          confirmationChecks: [
+                            for (var i = 0; i < _confirmations.length; i++)
+                              _checkedConfirmations.contains(i),
+                          ],
+                          onConfirmationChanged: (index, value) =>
+                              _setConfirmation(index, value ?? false),
+                          showConfirmationHints: _showRequiredError,
                         ),
                         if (_showRequiredError) ...[
                           Gap(spacing.sm),

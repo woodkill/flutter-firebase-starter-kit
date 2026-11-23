@@ -19,6 +19,7 @@ import 'package:flutter_starter_kit/features/auth/presentation/_widgets/primary_
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_indicator.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/onboarding_slide.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/_widgets/terms_checkbox_group.dart';
+import 'package:flutter_starter_kit/features/onboarding/presentation/app_terms_confirmation_slot.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_notifier.dart';
 import 'package:flutter_starter_kit/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:flutter_starter_kit/features/terms/domain/terms_state.dart';
@@ -29,6 +30,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/keep_hangul_words_finder.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -184,14 +187,44 @@ class _LongSlide3LocalizationsDelegate
   bool shouldReload(_LongSlide3LocalizationsDelegate old) => false;
 }
 
-GoRouter _buildRouter() {
+/// 킷 하네스의 확인 행 builder — 빈 목록이다(사용자 파일의 행이 킷 시험에 섞이지
+/// 않게 한다).
+List<AppTermsConfirmation> _buildNoTermsConfirmations(
+  AppTermsConfirmationsInput input,
+) => const <AppTermsConfirmation>[];
+
+/// 확인 행 시험의 행 A 문구.
+const _confirmationALabel = 'Test confirmation A';
+
+/// 확인 행 시험의 행 A 안내.
+const _confirmationAHint = 'Test confirmation A is required.';
+
+/// 공통 필수 미동의 문구(en `termsRequiredError`).
+const _requiredErrorText = 'Please agree to all required items.';
+
+/// 안내가 있는 확인 행 A 하나를 돌려주는 builder.
+List<AppTermsConfirmation> _buildOneConfirmation(
+  AppTermsConfirmationsInput input,
+) => const <AppTermsConfirmation>[
+  AppTermsConfirmation(
+    label: _confirmationALabel,
+    missingHint: _confirmationAHint,
+  ),
+];
+
+GoRouter _buildRouter({
+  AppTermsConfirmationsBuilder termsConfirmationsBuilder =
+      _buildNoTermsConfirmations,
+}) {
   return GoRouter(
     initialLocation: AppRoutes.onboarding,
     routes: [
       GoRoute(
         path: AppRoutes.onboarding,
         name: AppRoutes.onboardingName,
-        builder: (_, _) => const OnboardingScreen(),
+        builder: (_, _) => OnboardingScreen(
+          termsConfirmationsBuilder: termsConfirmationsBuilder,
+        ),
       ),
       GoRoute(
         path: AppRoutes.home,
@@ -226,6 +259,10 @@ GoRouter _buildRouter() {
 ///
 /// [theme] 은 앱 테마이고 기본값(null)은 [AppTheme.light] 다. 다크 테마에서의
 /// 상태 표시줄 아이콘을 보는 시험만 [AppTheme.dark] 를 넣는다.
+///
+/// [termsConfirmationsBuilder] 는 약관 묶음의 필수 확인 행 builder 이고 기본값은
+/// 빈 목록 [_buildNoTermsConfirmations] 다 — 사용자 파일의 행이 킷 시험에 섞이지
+/// 않는다. 확인 행 시험만 행을 돌려주는 builder 를 넣는다.
 Future<void> _pumpOnboarding(
   WidgetTester tester, {
   required _MockAuthRepository mockRepo,
@@ -237,9 +274,13 @@ Future<void> _pumpOnboarding(
   LocalizationsDelegate<AppLocalizations> appLocalizationsDelegate =
       AppLocalizations.delegate,
   ThemeData? theme,
+  AppTermsConfirmationsBuilder termsConfirmationsBuilder =
+      _buildNoTermsConfirmations,
 }) async {
   SharedPreferences.setMockInitialValues({});
-  final router = _buildRouter();
+  final router = _buildRouter(
+    termsConfirmationsBuilder: termsConfirmationsBuilder,
+  );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -1071,6 +1112,72 @@ void main() {
       ), reason: '다크 바탕: (Android 아이콘 밝기, iOS 상태 표시줄 밝기) 순서');
     });
   });
+
+  group('OnboardingScreen 필수 확인 행', () {
+    /// 익명 사인인 성공 · 최초 사용자(currentUser null) mock 을 둔다 — Test 4 와 같다.
+    _MockFirebaseAuth stubFirstUserSignIn() {
+      when(
+        () => mockRepo.signInAnonymously(),
+      ).thenAnswer((_) async => Result.success(_stubUser()));
+      final mockAuth = _MockFirebaseAuth();
+      when(() => mockAuth.currentUser).thenReturn(null);
+      return mockAuth;
+    }
+
+    testWidgets('T-33-ROW-01: 확인 행을 체크하지 않으면 진행하지 않고 공통 문구와 행 안내가 '
+        '뜨며, 체크하면 둘 다 사라지고 진행한다', (tester) async {
+      final mockAuth = stubFirstUserSignIn();
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+        termsConfirmationsBuilder: _buildOneConfirmation,
+      );
+      await _goToSlide(tester, 2);
+
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsOneWidget);
+      verifyNever(() => mockRepo.signInAnonymously());
+
+      await _tapTermsTile(tester, _confirmationALabel);
+      expect(findKeepHangulWordsText(_confirmationAHint), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsNothing);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsOneWidget);
+      verify(() => mockRepo.signInAnonymously()).called(1);
+    });
+  });
+}
+
+/// 문구가 [label] 인 약관 묶음 타일을 화면 안으로 끌어와 누른다.
+///
+/// index 대신 문구로 고른다 — 확인 행이 끼면 타일 순서가 바뀐다.
+Future<void> _tapTermsTile(WidgetTester tester, String label) async {
+  final tile = find.ancestor(
+    of: findKeepHangulWordsText(label),
+    matching: find.byType(CheckboxListTile),
+  );
+  expect(tile, findsOneWidget, reason: label);
+  await tester.ensureVisible(tile);
+  await tester.tap(tile);
+  await tester.pump();
+}
+
+/// 「Get started」 를 화면 안으로 끌어와 누르고 전환이 끝날 때까지 기다린다.
+Future<void> _tapGetStarted(WidgetTester tester) async {
+  final cta = find.widgetWithText(FilledButton, 'Get started');
+  await tester.ensureVisible(cta);
+  await tester.tap(cta);
+  await tester.pumpAndSettle();
 }
 
 /// 가로 모드 테스트가 다루는 슬라이드 1·2 명세 (index · 제목 · 본문 조회 함수).
