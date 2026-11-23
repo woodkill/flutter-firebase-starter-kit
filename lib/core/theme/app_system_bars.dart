@@ -29,18 +29,37 @@ import 'package:flutter/services.dart';
 Brightness resolveNavigationBarBrightness(BuildContext context) =>
     MediaQuery.platformBrightnessOf(context);
 
+/// 기기가 제스처 내비게이션을 쓰는지 판별한다.
+///
+/// 화면 왼쪽 시스템 제스처 영역([MediaQuery.systemGestureInsetsOf] 의 `left`)이
+/// 0 보다 크면 제스처 내비게이션이다 — 제스처 내비게이션에서만 화면 옆에 뒤로
+/// 가기 제스처 영역이 생기고, 3버튼 내비게이션에서는 0 이다.
+bool usesGestureNavigation(BuildContext context) =>
+    MediaQuery.systemGestureInsetsOf(context).left > 0;
+
 /// [brightness] 에 맞는 내비게이션 바 기본 값을 만든다.
 ///
 /// 내비게이션 바의 색 · 대비 강제 · 아이콘 밝기 세 필드만 담는다. 아이콘은
 /// 어두운 기준에서 밝게, 밝은 기준에서 어둡게 둔다.
-SystemUiOverlayStyle buildDefaultNavigationBarStyle(Brightness brightness) {
+///
+/// [isGestureNavigation] 이 true 면 색은 투명이다 — Android 15 이상처럼 제스처
+/// 띠 아래에 막을 깔지 않는다. 색을 null 로 두지 않는 까닭은 파일 머리의 「세
+/// 필드를 늘 채운다」 다. 대비 강제 · 아이콘 밝기는 내비게이션 방식과 무관하다.
+SystemUiOverlayStyle buildDefaultNavigationBarStyle(
+  Brightness brightness, {
+  required bool isGestureNavigation,
+}) {
   final isDark = brightness == Brightness.dark;
+  final Color barColor = switch ((isGestureNavigation, isDark)) {
+    // 제스처 내비게이션 — 막 없이 투명이다.
+    (true, _) => const Color(0x00000000),
+    // Android 15 이상 OS 가 그리는 3버튼 다크 막(검정 약 80%)에 맞춘 값이다.
+    (false, true) => const Color(0xCC000000),
+    // androidx activity `EdgeToEdge` 의 라이트 막 상수(DefaultLightScrim)다.
+    (false, false) => const Color(0xE6FFFFFF),
+  };
   return SystemUiOverlayStyle(
-    systemNavigationBarColor: isDark
-        // Android 15 이상 OS 가 그리는 3버튼 다크 막(검정 약 80%)에 맞춘 값이다.
-        ? const Color(0xCC000000)
-        // androidx activity `EdgeToEdge` 의 라이트 막 상수(DefaultLightScrim)다.
-        : const Color(0xE6FFFFFF),
+    systemNavigationBarColor: barColor,
     systemNavigationBarContrastEnforced: true,
     systemNavigationBarIconBrightness: isDark
         ? Brightness.light
@@ -63,8 +82,8 @@ SystemUiOverlayStyle buildDefaultStatusBarStyle(Brightness surfaceBrightness) {
 
 /// 앱 맨 바깥에서 내비게이션 바 · 상태 표시줄 기본 값을 알리는 영역.
 ///
-/// [resolveNavigationBarBrightness] 가 돌려준 밝기로
-/// [buildDefaultNavigationBarStyle] 이 만든 값을 [AnnotatedRegion] 하나로
+/// [resolveNavigationBarBrightness] 가 돌려준 밝기와 [usesGestureNavigation] 의
+/// 판별로 [buildDefaultNavigationBarStyle] 이 만든 값을 [AnnotatedRegion] 하나로
 /// 알린다. Android 에서는 [buildDefaultStatusBarStyle] 이 만든 상태 표시줄
 /// 필드를 더한다 — 상태 표시줄 기준은 OS 밝기가 아니라 앱 바탕
 /// (`colorScheme.surface`) 밝기다. 투명한 상태 표시줄 뒤로 보이는 것이 앱
@@ -80,7 +99,10 @@ class AppSystemBarsRegion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final SystemUiOverlayStyle navigationBarStyle =
-        buildDefaultNavigationBarStyle(resolveNavigationBarBrightness(context));
+        buildDefaultNavigationBarStyle(
+          resolveNavigationBarBrightness(context),
+          isGestureNavigation: usesGestureNavigation(context),
+        );
     if (defaultTargetPlatform != TargetPlatform.android) {
       return AnnotatedRegion<SystemUiOverlayStyle>(
         value: navigationBarStyle,

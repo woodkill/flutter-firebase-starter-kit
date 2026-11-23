@@ -35,6 +35,20 @@ const SystemUiOverlayStyle _darkDefault = SystemUiOverlayStyle(
   systemNavigationBarIconBrightness: Brightness.light,
 );
 
+/// 제스처 내비게이션 · OS 라이트 기본값 — 투명 · 대비 강제 · 어두운 아이콘.
+const SystemUiOverlayStyle _lightGesture = SystemUiOverlayStyle(
+  systemNavigationBarColor: Color(0x00000000),
+  systemNavigationBarContrastEnforced: true,
+  systemNavigationBarIconBrightness: Brightness.dark,
+);
+
+/// 제스처 내비게이션 · OS 다크 기본값 — 투명 · 대비 강제 · 밝은 아이콘.
+const SystemUiOverlayStyle _darkGesture = SystemUiOverlayStyle(
+  systemNavigationBarColor: Color(0x00000000),
+  systemNavigationBarContrastEnforced: true,
+  systemNavigationBarIconBrightness: Brightness.light,
+);
+
 /// 킷 기본 스플래시 배경(밝음) 위 스플래시 값 — 막 없이 투명 · 대비 강제 끔 ·
 /// 배경 밝기 판정 아이콘(밝은 배경이라 어두운 아이콘).
 const SystemUiOverlayStyle _splashOnLight = SystemUiOverlayStyle(
@@ -114,8 +128,35 @@ void main() {
 
     test('T-30-BARS-02: 기본값은 밝기마다 내비게이션 바 세 필드만 담는다', () {
       // 전체 `==` — 상태 표시줄 네 필드 · 구분선은 null 이어야 한다.
-      expect(buildDefaultNavigationBarStyle(Brightness.light), _lightDefault);
-      expect(buildDefaultNavigationBarStyle(Brightness.dark), _darkDefault);
+      expect(
+        buildDefaultNavigationBarStyle(
+          Brightness.light,
+          isGestureNavigation: false,
+        ),
+        _lightDefault,
+      );
+      expect(
+        buildDefaultNavigationBarStyle(
+          Brightness.dark,
+          isGestureNavigation: false,
+        ),
+        _darkDefault,
+      );
+      // 제스처 내비게이션 — 색만 투명이고 대비 강제 · 아이콘은 같다.
+      expect(
+        buildDefaultNavigationBarStyle(
+          Brightness.light,
+          isGestureNavigation: true,
+        ),
+        _lightGesture,
+      );
+      expect(
+        buildDefaultNavigationBarStyle(
+          Brightness.dark,
+          isGestureNavigation: true,
+        ),
+        _darkGesture,
+      );
     });
 
     testWidgets('T-30-BARS-03: 실제 App 첫 프레임(스플래시) — 내비게이션 바 세 필드 = '
@@ -312,6 +353,38 @@ void main() {
       // 상태 표시줄 필드는 AppBar 값 그대로다.
       expect(style!.statusBarColor, const Color(0xFF0000FF));
       expect(style.statusBarIconBrightness, Brightness.light);
+    });
+
+    testWidgets('T-30-BARS-13: Android · 화면 왼쪽 제스처 영역이 있으면(제스처 '
+        '내비게이션) 색만 투명 · 0 이면 3버튼 막', (tester) async {
+      // 제스처 영역은 물리 픽셀로 준다 — 시험 화면 배율은 3 이다.
+      addTearDown(tester.view.resetSystemGestureInsets);
+
+      // 에뮬레이터 제스처 모드 크기(약 29.7 dp).
+      tester.view.systemGestureInsets = const FakeViewPadding(left: 89);
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+      _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
+
+      // 1 dp 보다 작은 영역도 제스처 내비게이션이다(판별 경계는 0).
+      tester.view.systemGestureInsets = const FakeViewPadding(left: 1);
+      await tester.pump();
+      _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
+
+      // 왼쪽이 0 이면 3버튼 막으로 돌아온다.
+      tester.view.systemGestureInsets = FakeViewPadding.zero;
+      await tester.pump();
+      _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
+    });
+
+    testWidgets('T-30-BARS-14: Android · OS 다크 · 제스처 내비게이션 — 색만 투명 · '
+        '밝은 아이콘 · 대비 강제', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      addTearDown(tester.view.resetSystemGestureInsets);
+      tester.view.systemGestureInsets = const FakeViewPadding(left: 89);
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+
+      _expectNavigationBar(SystemChrome.latestStyle, _darkGesture);
     });
   });
 }
