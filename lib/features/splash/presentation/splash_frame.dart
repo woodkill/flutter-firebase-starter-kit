@@ -35,7 +35,9 @@ typedef SplashBodyBuilder =
 ///   테마는 본문 안쪽에만 씌운다 — 화면 위에 띄우는 대화상자 · 알림 막대는 앱
 ///   테마 그대로다.
 /// - 상태 표시줄은 바탕을 투명으로 두고, 아이콘 밝기는 배경 밝기를 따른다.
-///   내비게이션 바 값은 걸지 않는다.
+///   내비게이션 바는 투명 · 대비 강제 끔으로 두어 배경색이 바 아래까지
+///   이어지고, 아이콘 밝기도 배경 밝기를 따른다 — 다음 화면은 앱 맨 바깥
+///   영역(`AppSystemBarsRegion`)이 기본 값으로 되돌린다.
 class SplashFrame extends StatelessWidget {
   /// [SplashFrame] 을 생성한다.
   const SplashFrame({
