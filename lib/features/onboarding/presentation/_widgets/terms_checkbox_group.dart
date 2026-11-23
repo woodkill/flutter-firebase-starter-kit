@@ -79,6 +79,9 @@ class TermsCheckboxGroup extends StatelessWidget {
   final List<bool> confirmationChecks;
 
   /// 확인 행 체크 변경 콜백 — 바뀐 행의 index 와 새 값을 넘긴다.
+  ///
+  /// null 이면 확인 행 타일을 끈다 — 켜진 모양인데 눌러도 바뀌지 않는 행을
+  /// 그리지 않는다.
   final void Function(int index, bool? value)? onConfirmationChanged;
 
   /// 체크하지 않은 확인 행의 안내를 보일지 — 부모가 필수 미충족 오류를 보일
@@ -102,6 +105,8 @@ class TermsCheckboxGroup extends StatelessWidget {
       confirmationChecks.length == confirmations.length,
       'confirmationChecks 는 confirmations 와 길이가 같아야 한다.',
     );
+    // 지역 변수로 받아 null 검사 뒤 승격한다(필드는 승격되지 않는다).
+    final onConfirmation = onConfirmationChanged;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -133,7 +138,9 @@ class TermsCheckboxGroup extends StatelessWidget {
         for (var i = 0; i < confirmations.length; i++)
           _TermsRow(
             value: confirmationChecks[i],
-            onChanged: (v) => onConfirmationChanged?.call(i, v),
+            onChanged: onConfirmation == null
+                ? null
+                : (v) => onConfirmation(i, v),
             label: confirmations[i].label,
             isRequired: true,
             onViewDetail: null,
@@ -168,7 +175,9 @@ class _TermsRow extends StatelessWidget {
   });
 
   final bool value;
-  final ValueChanged<bool?> onChanged;
+
+  /// 체크 변경 콜백 — null 이면 타일이 꺼진다.
+  final ValueChanged<bool?>? onChanged;
   final String label;
   final bool isRequired;
   final VoidCallback? onViewDetail;

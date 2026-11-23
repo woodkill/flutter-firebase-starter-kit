@@ -119,23 +119,10 @@ Widget _wrapConfirmations({
   required bool showConfirmationHints,
   required List<(int, bool?)> onConfirmationCalls,
 }) {
-  final router = _buildRouter(
+  return _wrapInApp(
     _ConfirmationHarness(
       showConfirmationHints: showConfirmationHints,
       onConfirmationCalls: onConfirmationCalls,
-    ),
-  );
-  return ProviderScope(
-    child: MaterialApp.router(
-      theme: AppTheme.light(),
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
     ),
   );
 }
@@ -180,8 +167,12 @@ GoRouter _buildRouter(Widget child) {
   );
 }
 
-Widget _wrap(_ChangeRecorder recorder) {
-  final router = _buildRouter(_TermsHarness(recorder: recorder));
+Widget _wrap(_ChangeRecorder recorder) =>
+    _wrapInApp(_TermsHarness(recorder: recorder));
+
+/// [child] 를 앱 틀(테마 · 문구 · 라우터)에 넣어 돌려준다.
+Widget _wrapInApp(Widget child) {
+  final router = _buildRouter(child);
   return ProviderScope(
     child: MaterialApp.router(
       theme: AppTheme.light(),
@@ -414,6 +405,39 @@ void main() {
       await tester.pump();
 
       expect(calls, <(int, bool?)>[(0, true)]);
+    });
+
+    testWidgets('T-33-GROUP-04: 확인 행은 넘기고 onConfirmationChanged 는 빼면 확인 행 '
+        '타일만 꺼지고, 다른 타일은 켜져 있다', (tester) async {
+      await tester.pumpWidget(
+        _wrapInApp(
+          TermsCheckboxGroup(
+            service: false,
+            privacy: false,
+            marketing: false,
+            allChecked: false,
+            onServiceChanged: (_) {},
+            onPrivacyChanged: (_) {},
+            onMarketingChanged: (_) {},
+            onAllChanged: (_) {},
+            confirmations: _confirmations,
+            confirmationChecks: List<bool>.filled(_confirmations.length, false),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<CheckboxListTile>(_tileOf(_confirmationLabel)).onChanged,
+        isNull,
+      );
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(TermsCheckboxGroup)),
+      );
+      expect(
+        tester.widget<CheckboxListTile>(_tileOf(l10n.termsService)).onChanged,
+        isNotNull,
+      );
     });
   });
 }
