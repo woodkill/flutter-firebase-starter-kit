@@ -1361,7 +1361,98 @@ void main() {
       expect(find.text('HOME'), findsOneWidget);
       verify(() => mockRepo.signInAnonymously()).called(1);
     });
+
+    testWidgets('T-33-ROW-08: 화면이 떠 있는 동안 확인 행 수가 줄었다 다시 늘면, 누르지 '
+        '않은 새 행은 체크하지 않은 상태로 그려진다', (tester) async {
+      var rows = const <AppTermsConfirmation>[_confirmationA, _confirmationB];
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        termsConfirmationsBuilder: (_) => rows,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapTermsTile(tester, _confirmationBLabel);
+      expect(_termsTileValue(tester, _confirmationBLabel), isTrue);
+
+      rows = const <AppTermsConfirmation>[_confirmationA];
+      await _rebuildOnboarding(tester);
+      rows = const <AppTermsConfirmation>[_confirmationA, _confirmationC];
+      await _rebuildOnboarding(tester);
+
+      expect(_termsTileValue(tester, _confirmationCLabel), isFalse);
+      expect(_termsTileValue(tester, _confirmationALabel), isFalse);
+    });
+
+    testWidgets('T-33-ROW-09: 확인 행 수가 줄었다 다시 늘면, 보이는 행을 모두 체크해도 '
+        '누르지 않은 새 행 때문에 「Get started」 가 진행하지 않는다', (tester) async {
+      final mockAuth = stubFirstUserSignIn();
+      var rows = const <AppTermsConfirmation>[_confirmationA, _confirmationB];
+      await _pumpOnboarding(
+        tester,
+        mockRepo: mockRepo,
+        mockAnalytics: mockAnalytics,
+        mockCrashlytics: mockCrashlytics,
+        auth: mockAuth,
+        termsConfirmationsBuilder: (_) => rows,
+      );
+      await _goToSlide(tester, 2);
+
+      await _tapTermsTile(tester, _confirmationBLabel);
+      rows = const <AppTermsConfirmation>[_confirmationA];
+      await _rebuildOnboarding(tester);
+      rows = const <AppTermsConfirmation>[_confirmationA, _confirmationC];
+      await _rebuildOnboarding(tester);
+
+      // 사용자가 누르는 것은 필수 약관 둘과 행 A 뿐이다 — 행 C 는 누르지 않는다.
+      final l10n = _resolveL10n(tester);
+      await _tapTermsTile(tester, l10n.termsService);
+      await _tapTermsTile(tester, l10n.termsPrivacy);
+      await _tapTermsTile(tester, _confirmationALabel);
+
+      await _tapGetStarted(tester);
+      expect(find.text('HOME'), findsNothing);
+      expect(findKeepHangulWordsText(_requiredErrorText), findsOneWidget);
+      expect(findKeepHangulWordsText(_confirmationCHint), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(OnboardingScreen)),
+      );
+      expect(container.read(termsProvider).acceptance, isNull);
+      verifyNever(() => mockRepo.signInAnonymously());
+    });
   });
+}
+
+/// 안내가 있는 확인 행 A.
+const _confirmationA = AppTermsConfirmation(
+  label: _confirmationALabel,
+  missingHint: _confirmationAHint,
+);
+
+/// 안내가 있는 확인 행 B.
+const _confirmationB = AppTermsConfirmation(
+  label: _confirmationBLabel,
+  missingHint: _confirmationBHint,
+);
+
+/// 확인 행 시험의 행 C 문구 — 목록이 바뀐 뒤에 새로 끼는 행이다.
+const _confirmationCLabel = 'Test confirmation C';
+
+/// 확인 행 시험의 행 C 안내.
+const _confirmationCHint = 'Test confirmation C is required.';
+
+/// 안내가 있는 확인 행 C.
+const _confirmationC = AppTermsConfirmation(
+  label: _confirmationCLabel,
+  missingHint: _confirmationCHint,
+);
+
+/// 온보딩 화면을 다시 그린다 — builder 가 읽는 목록을 바꾼 뒤 부른다.
+Future<void> _rebuildOnboarding(WidgetTester tester) async {
+  tester.element(find.byType(OnboardingScreen)).markNeedsBuild();
+  await tester.pump();
 }
 
 /// 문구가 [label] 인 약관 묶음 타일을 찾는다.

@@ -60,8 +60,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   /// 체크한 필수 확인 행의 index 집합 (WR-16 — 부모가 단일 진실원).
   ///
-  /// 행 수가 build 사이에 줄면 범위 밖 index 는 판정에 쓰이지 않고, 늘면 새
-  /// 행은 체크하지 않은 상태로 시작한다.
+  /// 체크는 행 위치를 따른다. build 사이에 행 수가 바뀌면 체크를 모두 버린다 —
+  /// 남겨 두면 누르지 않은 행이 옛 위치의 체크를 받아 체크된 채로 그려진다.
   final Set<int> _checkedConfirmations = <int>{};
 
   /// 마지막 `build` 에서 builder 로 받은 필수 확인 행 목록.
@@ -281,9 +281,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // 이 줄에서 컴파일 오류가 난다. build 에서 불러 hot reload 에도 행이 반영된다.
     final AppTermsConfirmationsBuilder buildConfirmations =
         widget.termsConfirmationsBuilder ?? buildAppTermsConfirmations;
-    _confirmations = buildConfirmations(
+    final confirmations = buildConfirmations(
       AppTermsConfirmationsInput(context: context),
     );
+    // 행 수가 바뀌면 옛 위치의 체크를 버린다 — 체크는 행 위치에 붙어 있어,
+    // 남겨 두면 누르지 않은 새 행이 체크된 채로 그려지고 진행 판정도 통과한다.
+    if (confirmations.length != _confirmations.length) {
+      _checkedConfirmations.clear();
+    }
+    _confirmations = confirmations;
     final l10n = context.l10n;
     final spacing = context.appSpacing;
     final typography = context.appTypography;
