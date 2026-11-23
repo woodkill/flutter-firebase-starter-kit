@@ -286,5 +286,32 @@ void main() {
       expect(style.statusBarIconBrightness, Brightness.light);
       expect(style.statusBarBrightness, Brightness.dark);
     });
+
+    testWidgets('T-30-BARS-12: Android · AppBar 의 systemOverlayStyle 에 적은 '
+        '내비게이션 바 필드는 쓰이지 않는다 — 기본 영역 값이 나간다', (tester) async {
+      const appBarStyle = SystemUiOverlayStyle(
+        statusBarColor: Color(0xFF0000FF),
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFF00FF00),
+        systemNavigationBarContrastEnforced: false,
+        systemNavigationBarIconBrightness: Brightness.light,
+      );
+      await _pumpWithRegion(
+        tester,
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('AppBar'),
+            systemOverlayStyle: appBarStyle,
+          ),
+        ),
+      );
+
+      final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      // 화면 아래는 기본 영역이 맡는다 — AppBar 의 내비게이션 바 세 필드는 밀린다.
+      _expectNavigationBar(style, _lightDefault);
+      // 상태 표시줄 필드는 AppBar 값 그대로다.
+      expect(style!.statusBarColor, const Color(0xFF0000FF));
+      expect(style.statusBarIconBrightness, Brightness.light);
+    });
   });
 }
