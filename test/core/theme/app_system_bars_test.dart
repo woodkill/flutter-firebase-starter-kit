@@ -361,12 +361,18 @@ void main() {
       addTearDown(tester.view.resetSystemGestureInsets);
 
       // 에뮬레이터 제스처 모드 크기(약 29.7 dp).
-      tester.view.systemGestureInsets = const FakeViewPadding(left: 89);
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 89,
+        right: 89,
+      );
       await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
       _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
 
       // 1 dp 보다 작은 영역도 제스처 내비게이션이다(판별 경계는 0).
-      tester.view.systemGestureInsets = const FakeViewPadding(left: 1);
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 1,
+        right: 1,
+      );
       await tester.pump();
       _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
 
@@ -381,10 +387,61 @@ void main() {
       tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
       addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
       addTearDown(tester.view.resetSystemGestureInsets);
-      tester.view.systemGestureInsets = const FakeViewPadding(left: 89);
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 89,
+        right: 89,
+      );
       await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
 
       _expectNavigationBar(SystemChrome.latestStyle, _darkGesture);
+    });
+
+    testWidgets('T-30-BARS-15: Android · 가로 화면 3버튼 내비게이션 — 바가 선 한쪽에만 '
+        '제스처 영역이 있으면 3버튼 막', (tester) async {
+      // 3버튼 가로 화면은 바 폭(48 dp)이 바가 선 한쪽 변에만 잡힌다 — 시험 화면
+      // 배율은 3 이다.
+      addTearDown(tester.view.resetSystemGestureInsets);
+
+      // 바가 왼쪽에 선 가로 화면.
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 144,
+        top: 72,
+      );
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+      _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
+
+      // 바가 오른쪽에 선 가로 화면.
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        top: 72,
+        right: 144,
+      );
+      await tester.pump();
+      _expectNavigationBar(SystemChrome.latestStyle, _lightDefault);
+    });
+
+    testWidgets('T-30-BARS-16: Android · 양옆 제스처 영역이 둘 다 있으면(제스처 '
+        '내비게이션) 색만 투명', (tester) async {
+      addTearDown(tester.view.resetSystemGestureInsets);
+
+      // 에뮬레이터 제스처 모드 꼴(약 29.7 · 24 · 29.7 · 32 dp).
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 89,
+        top: 72,
+        right: 89,
+        bottom: 96,
+      );
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+      _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
+
+      // 양옆이 24 dp 인 제스처 모드 꼴.
+      tester.view.systemGestureInsets = const FakeViewPadding(
+        left: 72,
+        top: 72,
+        right: 72,
+        bottom: 96,
+      );
+      await tester.pump();
+      _expectNavigationBar(SystemChrome.latestStyle, _lightGesture);
     });
   });
 }

@@ -31,11 +31,15 @@ Brightness resolveNavigationBarBrightness(BuildContext context) =>
 
 /// 기기가 제스처 내비게이션을 쓰는지 판별한다.
 ///
-/// 화면 왼쪽 시스템 제스처 영역([MediaQuery.systemGestureInsetsOf] 의 `left`)이
-/// 0 보다 크면 제스처 내비게이션이다 — 제스처 내비게이션에서만 화면 옆에 뒤로
-/// 가기 제스처 영역이 생기고, 3버튼 내비게이션에서는 0 이다.
-bool usesGestureNavigation(BuildContext context) =>
-    MediaQuery.systemGestureInsetsOf(context).left > 0;
+/// 화면 왼쪽과 오른쪽 시스템 제스처 영역([MediaQuery.systemGestureInsetsOf] 의
+/// `left` · `right`)이 둘 다 0 보다 크면 제스처 내비게이션이다 — 제스처
+/// 내비게이션에서만 화면 양옆에 뒤로 가기 제스처 영역이 생긴다. 3버튼
+/// 내비게이션은 세로 화면에서 양옆이 0 이고, 가로 화면에서는 바가 선 한쪽만 바
+/// 폭만큼 0 이 아니다. 그래서 한쪽만 보면 가로 화면 3버튼을 제스처로 잘못 고른다.
+bool usesGestureNavigation(BuildContext context) {
+  final EdgeInsets insets = MediaQuery.systemGestureInsetsOf(context);
+  return insets.left > 0 && insets.right > 0;
+}
 
 /// [brightness] 에 맞는 내비게이션 바 기본 값을 만든다.
 ///
