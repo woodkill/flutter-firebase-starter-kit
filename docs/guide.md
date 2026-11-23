@@ -5035,6 +5035,9 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 - Android 10 이상에서 앱이 내비게이션 바 뒤까지 그려진다(Android 15 이상은 OS 가 늘 그렇게 그린다).
 - Android 9 이하는 내비게이션 바 뒤로 그리지 않고 아래 여백이 그대로다 — Flutter 의 이 기능이 Android 10 미만에서 동작하지 않는다.
 - 상태 표시줄은 투명하고 그 뒤는 Android 버전과 무관하게 그려진다. 내비게이션 바 막은 Android 15 이상이면 OS 가 3버튼 내비게이션에 까는 반투명 막이다.
+- Android 에서 AppBar 없는 화면의 상태 표시줄은 앱 기본값(투명 바탕 · 아이콘은 앱 바탕 `colorScheme.surface` 밝기의 반대)을 받는다.
+  - AppBar 가 있는 화면은 AppBar 의 상태 표시줄 값을 쓴다.
+  - 바탕이 다른 화면(예: 어두운 그림이 위까지 차는 화면)은 그 화면을 `AnnotatedRegion<SystemUiOverlayStyle>` 로 감싸 `statusBarColor` · `statusBarIconBrightness` 를 직접 정한다.
 - Android 10 ~ 14 는 앱 기본값(라이트 흰색 · 다크 검정 반투명 · 대비 강제 켬 · 아이콘은 OS 밝기의 반대)이 Android 15 이상의 3버튼 막과 같은 모습으로 내비게이션 바를 칠한다.
 - Android 8 ~ 9 는 내비게이션 바 뒤로 그리지 않지만 그 바의 색 · 아이콘은 앱이 정한 값을 따른다.
 - 내 화면의 아래 버튼 · 시트 · 목록 끝은 `SafeArea`(또는 `MediaQuery.paddingOf(context).bottom`)로 바 높이만큼 띄운다 — 띄우지 않으면 바에 가린다.

@@ -4,6 +4,7 @@
 // 앱 맨 바깥 영역 하나가 내비게이션 바 값을 두지 않은 화면을 맡는다. 엔진은 null
 // 필드를 건너뛰어 앞 화면 값을 그대로 두므로, 스플래시가 바꾼 내비게이션 바 세
 // 필드(색 · 대비 강제 · 아이콘 밝기)를 이 영역이 같은 세 필드로 되돌려야 한다.
+// Android 에서는 AppBar 없는 화면의 상태 표시줄 값도 이 영역이 맡는다.
 // 그래서 위젯 값뿐 아니라 시험 바인딩이 실제로 보낸 합친 값
 // (`SystemChrome.latestStyle`)을 단언한다.
 
@@ -62,13 +63,19 @@ void _expectNavigationBar(
 }
 
 /// 앱 바깥 영역만 둔 [MaterialApp] 에 [home] 을 띄운다 — `lib/app.dart` builder 꼴.
-Future<void> _pumpWithRegion(WidgetTester tester, Widget home) =>
-    tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => AppSystemBarsRegion(child: child!),
-        home: home,
-      ),
-    );
+///
+/// [theme] 이 null 이면 SDK 기본 라이트 테마다.
+Future<void> _pumpWithRegion(
+  WidgetTester tester,
+  Widget home, {
+  ThemeData? theme,
+}) => tester.pumpWidget(
+  MaterialApp(
+    theme: theme,
+    builder: (context, child) => AppSystemBarsRegion(child: child!),
+    home: home,
+  ),
+);
 
 /// 실제 [App] 을 Firebase 없이 띄운다 — 첫 프레임은 스플래시다.
 Future<void> _pumpApp(WidgetTester tester) => tester.pumpWidget(
@@ -159,7 +166,7 @@ void main() {
 
       final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
       _expectNavigationBar(style, _lightDefault);
-      // 기본 영역은 상태 표시줄 필드를 담지 않는다 — 밝은 AppBar 의 값이 나간다.
+      // 밝은 AppBar 의 상태 표시줄 값이 나간다.
       expect(style!.statusBarColor, const Color(0x00000000));
       expect(style.statusBarIconBrightness, Brightness.dark);
       expect(style.statusBarBrightness, Brightness.light);
@@ -215,6 +222,69 @@ void main() {
       expect(style, const SystemUiOverlayStyle());
       expect(style!.statusBarBrightness, isNull);
       expect(style.statusBarIconBrightness, isNull);
+    });
+
+    testWidgets('T-30-BARS-09: Android · AppBar 없는 화면 — 상태 표시줄 필드 = '
+        '투명 바탕 · 앱 바탕(surface) 밝기의 반대 아이콘', (tester) async {
+      // 밝은 바탕 — 어두운 아이콘.
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+      SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      _expectNavigationBar(style, _lightDefault);
+      expect(style!.statusBarColor, const Color(0x00000000));
+      expect(style.statusBarIconBrightness, Brightness.dark);
+      // iOS 용 필드는 담지 않는다.
+      expect(style.statusBarBrightness, isNull);
+
+      // 테마 밝기는 라이트인데 바탕만 어두운 화면 — 기준이 테마 밝기가 아니라
+      // 바탕 색이므로 밝은 아이콘이다.
+      await _pumpWithRegion(
+        tester,
+        const Scaffold(body: Text('plain')),
+        theme: ThemeData(
+          colorScheme: const ColorScheme.light(surface: Color(0xFF101010)),
+        ),
+      );
+      // 앱 테마는 바뀔 때 애니메이션으로 옮겨 가므로 끝까지 진행한다.
+      await tester.pumpAndSettle();
+      style = SystemChrome.latestStyle;
+      expect(style!.statusBarColor, const Color(0x00000000));
+      expect(style.statusBarIconBrightness, Brightness.light);
+      expect(style.statusBarBrightness, isNull);
+    });
+
+    testWidgets('T-30-BARS-10: Android · OS 다크 + 앱 바탕 라이트 — 상태 표시줄은 '
+        '앱 바탕 기준 · 내비게이션 바는 OS 밝기 기준', (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await _pumpWithRegion(tester, const Scaffold(body: Text('plain')));
+
+      final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      _expectNavigationBar(style, _darkDefault);
+      expect(style!.statusBarIconBrightness, Brightness.dark);
+    });
+
+    testWidgets('T-30-BARS-11: Android · AppBar 화면 — AppBar 의 상태 표시줄 값이 '
+        '기본 영역 값을 이긴다', (tester) async {
+      const appBarStatus = SystemUiOverlayStyle(
+        statusBarColor: Color(0xFF0000FF),
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+      );
+      await _pumpWithRegion(
+        tester,
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('AppBar'),
+            systemOverlayStyle: appBarStatus,
+          ),
+        ),
+      );
+
+      final SystemUiOverlayStyle? style = SystemChrome.latestStyle;
+      _expectNavigationBar(style, _lightDefault);
+      expect(style!.statusBarColor, const Color(0xFF0000FF));
+      expect(style.statusBarIconBrightness, Brightness.light);
+      expect(style.statusBarBrightness, Brightness.dark);
     });
   });
 }
