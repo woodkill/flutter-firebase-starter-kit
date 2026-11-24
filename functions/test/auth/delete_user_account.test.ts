@@ -31,7 +31,7 @@
  *  - T-17-DEL-03: Storage 실패(force 의 Error[]) → 같은 결과 + 실패 수
  *  - T-17-DEL-04: fcmTokens 서브컬렉션 recursiveDelete — 트랜잭션 뒤 1회
  *  - T-17-DEL-05: recursiveDelete 실패 → orphan 로그 + ok:true
- *  - T-17-DEL-06: 멱등 재시도(user-not-found) 전 단계 진행 · 로그 경로 0
+ *  - T-17-DEL-06: 동시 호출 race(user-not-found) 전 단계 진행 · 로그 경로 0
  *
  * Phase 17 리뷰 WR-01 — 404 는 「지울 것 없음」 (영구 오류로 탈퇴를 막지 않음):
  *  - T-17-DEL-07: 단일 404(기본 버킷 없음) → warn 로그 · Auth · Firestore 진행
@@ -684,8 +684,8 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
     );
   });
 
-  it("T-17-DEL-06: 멱등 재시도 — 전 단계 진행 · 로그에 경로 0", async () => {
-    // 이전 시도가 Auth 삭제 직후 중단된 상태 — Storage 는 빈 prefix resolve.
+  it("T-17-DEL-06: 동시 호출 race — 전 단계 진행 · 로그에 경로 0", async () => {
+    // 두 요청이 함께 Step 1 통과 뒤 먼저 간 요청이 Auth 를 지운 상태 — Storage 는 빈 prefix resolve.
     mockWhereGet.mockResolvedValue({docs: []});
     mockDeleteUser.mockRejectedValue(
       Object.assign(new Error("user not found"), {
