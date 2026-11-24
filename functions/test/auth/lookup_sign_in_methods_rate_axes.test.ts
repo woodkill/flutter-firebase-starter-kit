@@ -374,7 +374,7 @@ describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () =>
       const tx = onlyTx();
       expect(tx.calls).toEqual(["get", "get", "update", "update"]);
       const ipUpdate = tx.updates.find((u) => refPath(u.ref) === IP_DOC_PATH);
-      expect(ipUpdate).toBeDefined();
+      expect(ipUpdate?.data).toEqual({count: {mockIncrement: 1}});
     });
 
   it("T-32-LOOKUP-08: uid 축 한도는 10 — 9 는 통과하고 count 10 으로 쓴다",
@@ -391,6 +391,6 @@ describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () =>
       const tx = onlyTx();
       expect(tx.calls).toEqual(["get", "update"]);
       const uidUpdate = tx.updates.find((u) => refPath(u.ref) === uidPath);
-      expect(uidUpdate).toBeDefined();
+      expect(uidUpdate?.data).toEqual({count: {mockIncrement: 1}});
     });
 });
