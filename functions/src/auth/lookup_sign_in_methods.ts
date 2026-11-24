@@ -16,12 +16,16 @@
 // 토큰이다. client 는 `code` 로만 분기하며 서버 message 를 렌더하지 않는다.
 // 계약 전문은 `shared/custom_token_errors.ts` 헤더 참조.
 import {getAuth} from "firebase-admin/auth";
-import {getFirestore, FieldValue, Timestamp} from "firebase-admin/firestore";
+import {getFirestore} from "firebase-admin/firestore";
 import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
 import {hashClientIp} from "../shared/client_ip_hash";
-import {readRateCounter} from "../shared/rate_limit";
+import {
+  buildUidRateLimitDocId,
+  consumeRateLimitAxes,
+} from "../shared/rate_limit";
+import type {ExceededRateAxis, RateLimitAxis} from "../shared/rate_limit";
 import {fingerprintError} from "./identity_index";
 
 type LookupSignInMethodsRequest = {
@@ -67,8 +71,9 @@ const RATE_WINDOW_SEC = 60;
  */
 const IP_RATE_LIMIT = 60;
 
-// rate limit counter 해석(`readRateCounter` · WR-08 자기치유)은 Phase 17
-// plan 18 에서 `shared/rate_limit.ts` 로 옮겨 `sendTestPush` 와 공유한다.
+// rate limit counter 의 읽기 · 판정 · 쓰기(WR-08 자기치유 · 새 창 만료 시각)는
+// `shared/rate_limit.ts` 의 다축 helper 가 맡는다 — 이 callable 도 축 목록을
+// 만들어 그 helper 를 부르고, 다른 callable 과 같은 규칙을 쓴다.
 
 /**
  * 이메일 → 기존 sign-in provider 조회 callable (Phase 16 D-09 + D-10).
@@ -108,85 +113,58 @@ export const lookupSignInMethods = onCall<LookupSignInMethodsRequest>(
     const db = getFirestore();
 
     // Step 1: D-10 — rate limit.
-    // Phase 9.1 race-fix counter 패턴 mirror — Firestore transaction-protected.
     //
     // WR-08: UID 층 하나만으로는 익명 UID 회전으로 우회되므로 IP 층을 함께
-    // 평가한다. 두 counter 를 **같은 transaction** 안에서 처리하므로 왕복은
-    // 그대로 1회다 ("all reads before all writes" 계약 보존 — 아래 read 를
-    // 모두 끝낸 뒤에만 write 한다).
-    const rateRef = db
-      .collection("rate_limits")
-      .doc(`lookupSignInMethods:${callerUid}`);
+    // 평가한다. 두 축은 **같은 transaction** 안에서 처리되므로 왕복은 그대로
+    // 1회다. transaction 은 helper 가 연다(reads-before-writes · 새 창 만료
+    // 시각 규칙은 `shared/rate_limit.ts` 한 곳).
+    const axes: RateLimitAxis[] = [
+      {
+        axis: "uid",
+        docId: buildUidRateLimitDocId("lookupSignInMethods", callerUid),
+        limit: RATE_LIMIT,
+        windowSec: RATE_WINDOW_SEC,
+      },
+    ];
     // IP 는 원문을 저장하지 않는다 (PII 최소화) — 해시를 문서 ID 로 쓴다.
     // 프록시/런타임 사정으로 IP 를 못 얻으면 IP 층은 건너뛴다 (fail-open —
     // 정당한 로그인을 IP 부재만으로 막지 않는다).
     const clientIp = request.rawRequest?.ip;
-    const ipRef = clientIp ?
-      db
-        .collection("rate_limits")
-        .doc(`lookupSignInMethodsIp:${hashClientIp(clientIp)}`) :
-      null;
-    try {
-      await db.runTransaction(async (tx) => {
-        // --- reads (모두 write 앞) ---
-        const uidSnap = await tx.get(rateRef);
-        const ipSnap = ipRef ? await tx.get(ipRef) : null;
-        const now = Timestamp.now();
-
-        const uidState = readRateCounter(uidSnap, now, RATE_WINDOW_SEC);
-        const ipState = ipSnap ?
-          readRateCounter(ipSnap, now, RATE_WINDOW_SEC) :
-          null;
-
-        // --- 한도 판정 (write 전에 모두 끝낸다) ---
-        const uidExceeded = !uidState.expired && uidState.count >= RATE_LIMIT;
-        const ipExceeded =
-          ipState !== null &&
-          !ipState.expired &&
-          ipState.count >= IP_RATE_LIMIT;
-        if (uidExceeded || ipExceeded) {
-          // D-10 3층 — email enumeration suspected alarm.
-          // PII 금지 — email 본문 / IP 원문 미노출. uid + count + 어느 축이
-          // 걸렸는지만 기록한다.
-          logger.warn(
-            "rate limit exceeded",
-            {
-              event: "email_enumeration_suspected",
-              uid: callerUid,
-              count: uidExceeded ? uidState.count : ipState?.count,
-              axis: uidExceeded ? "uid" : "ip",
-            },
-          );
-          throw new HttpsError(
-            "resource-exhausted",
-            "errorTooManyRequests",
-          );
-        }
-
-        // --- writes ---
-        if (uidState.expired) {
-          tx.set(rateRef, {count: 1, windowStart: now});
-        } else {
-          tx.update(rateRef, {count: FieldValue.increment(1)});
-        }
-        if (ipRef && ipState) {
-          if (ipState.expired) {
-            tx.set(ipRef, {count: 1, windowStart: now});
-          } else {
-            tx.update(ipRef, {count: FieldValue.increment(1)});
-          }
-        }
+    if (clientIp) {
+      axes.push({
+        axis: "ip",
+        docId: `lookupSignInMethodsIp:${hashClientIp(clientIp)}`,
+        limit: IP_RATE_LIMIT,
+        windowSec: RATE_WINDOW_SEC,
       });
+    }
+    let exceeded: ExceededRateAxis[];
+    try {
+      exceeded = await consumeRateLimitAxes(db, axes);
     } catch (err: unknown) {
-      if (err instanceof HttpsError) {
-        throw err;
-      }
       const errCode = fingerprintError(err);
       logger.warn(
         "rate limit transaction threw",
         {event: "lookup_rate_limit_failed", uid: callerUid, code: errCode},
       );
       throw new HttpsError("internal", "errorUnknown");
+    }
+    if (exceeded.length > 0) {
+      // D-10 3층 — email enumeration suspected alarm.
+      // 넘은 축은 축 목록 순서(uid → IP)로 돌아오므로 둘 다 넘으면 uid 축
+      // 값을 남긴다. PII 금지 — email 본문 / IP 원문 미노출. uid + count +
+      // 어느 축이 걸렸는지만 기록한다.
+      const hit = exceeded[0];
+      logger.warn(
+        "rate limit exceeded",
+        {
+          event: "email_enumeration_suspected",
+          uid: callerUid,
+          count: hit.count,
+          axis: hit.axis,
+        },
+      );
+      throw new HttpsError("resource-exhausted", "errorTooManyRequests");
     }
 
     // Step 2: D-09 native branch + Step 3 Custom Token fallback.

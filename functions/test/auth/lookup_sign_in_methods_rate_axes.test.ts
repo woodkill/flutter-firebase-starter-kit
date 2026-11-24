@@ -19,6 +19,7 @@
  *  - T-32-LOOKUP-03: 두 축 다 넘음 — axis uid · uid 축 count · write 0
  *  - T-32-LOOKUP-04: IP 축만 넘음 — axis ip · write 0
  *  - T-32-LOOKUP-05: transaction reject — internal · lookup_rate_limit_failed
+ *  - T-32-LOOKUP-06: 새 창 set 에 만료 시각 = 창 시작 + 60초 (나노초 0)
  */
 
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
@@ -200,6 +201,32 @@ function refPath(ref: unknown): string {
   return (ref as {path: string}).path;
 }
 
+/**
+ * set data 의 만료 시각과 창 시작의 초 차이 · 만료 시각 나노초를 읽는다.
+ *
+ * 둘 중 하나라도 `seconds` 가 숫자가 아니면 null 값을 돌려줘, 만료 시각이
+ * 없을 때 TypeError 가 아니라 값 비교 실패로 나게 한다.
+ *
+ * @param {unknown} data `tx.set` 에 넘어온 data.
+ * @return {{gap: (number|null), nanos: (number|null)}} 초 차이 · 나노초.
+ */
+function readExpireGap(data: unknown): {
+  gap: number | null;
+  nanos: number | null;
+} {
+  const d = data as {
+    windowStart?: {seconds?: unknown};
+    expireAt?: {seconds?: unknown; nanoseconds?: unknown};
+  };
+  const start = d.windowStart?.seconds;
+  const expire = d.expireAt?.seconds;
+  if (typeof start !== "number" || typeof expire !== "number") {
+    return {gap: null, nanos: null};
+  }
+  const nanos = d.expireAt?.nanoseconds;
+  return {gap: expire - start, nanos: typeof nanos === "number" ? nanos : null};
+}
+
 describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -318,4 +345,15 @@ describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () =>
       ]);
       expect(allLogs).not.toContain("PII_LOOKUP_SENTINEL");
     });
+
+  it("T-32-LOOKUP-06: 새 창 set 에 만료 시각 = 창 시작 + 60초", async () => {
+    await callLookup("u-lk6", true);
+
+    const tx = onlyTx();
+    expect(tx.sets).toHaveLength(2);
+    expect(tx.sets.map((s) => readExpireGap(s.data))).toEqual([
+      {gap: 60, nanos: 0},
+      {gap: 60, nanos: 0},
+    ]);
+  });
 });
