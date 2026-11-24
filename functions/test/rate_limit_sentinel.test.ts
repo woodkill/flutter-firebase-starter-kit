@@ -128,7 +128,7 @@ describe("rate_limits sentinel 의 stripComments — 주석 제거 순서", () =
   it("T-32-SENT-04: 줄 주석이 먼저 지워지고 두 종류 모두 지워진다", () => {
     // (a) 줄 주석 안의 `/*` 가 블록 시작으로 잡히면 아래 코드가 사라진다.
     const kept = stripComments(
-      "// templates/*.hbs\nconst KEEP = 1;\n/** doc */\nexport const x = 1;\n",
+      "  // t/*.hbs\nconst KEEP = 1;\n/** doc */\nexport const x = 1;\n",
     );
     expect(kept).toContain("const KEEP = 1;");
     // (b) 주석뿐인 입력은 줄 · 블록 어느 쪽도 남지 않는다.
