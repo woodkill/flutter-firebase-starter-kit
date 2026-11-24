@@ -7,6 +7,72 @@
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {Firestore} from "firebase-admin/firestore";
 
+/**
+ * counter 컬렉션 이름.
+ *
+ * counter 컬렉션 이름은 이 파일에만 둔다(소스 sentinel 이 고정).
+ */
+const RATE_LIMITS_COLLECTION = "rate_limits";
+
+/**
+ * uid 축 counter 문서 ID 접두사.
+ *
+ * callable 과 탈퇴 Step 5 가 같은 목록을 쓴다. uid 를 문서 ID 에 넣는 새
+ * counter 는 여기에 한 줄 더한다(탈퇴 삭제에 저절로 든다). 값은 지금까지 쓰던
+ * 문서 ID 접두사 그대로라 바꾸면 기존 counter 와 이어지지 않는다.
+ */
+export const UID_RATE_LIMIT_DOC_PREFIXES = {
+  lookupSignInMethods: "lookupSignInMethods:",
+  sendTestPush: "sendTestPush:",
+  sendVerificationMail: "sendVerificationMail:",
+  sendPasswordResetMail: "sendPasswordResetMail:",
+} as const;
+
+/** uid 축 counter 접두사 키 (`UID_RATE_LIMIT_DOC_PREFIXES` 의 키). */
+export type UidRateLimitKey = keyof typeof UID_RATE_LIMIT_DOC_PREFIXES;
+
+/**
+ * uid 축 counter 문서 ID 를 만든다 (접두사 + uid).
+ *
+ * @param {UidRateLimitKey} key 접두사 목록의 키 (callable 이름).
+ * @param {string} uid 호출자 uid.
+ * @return {string} counter 문서 ID (예: `sendTestPush:<uid>`).
+ */
+export function buildUidRateLimitDocId(
+  key: UidRateLimitKey,
+  uid: string,
+): string {
+  return UID_RATE_LIMIT_DOC_PREFIXES[key] + uid;
+}
+
+/**
+ * uid 하나의 uid 축 counter 4종을 batch 하나로 지운다.
+ *
+ * 탈퇴(`deleteUserAccount` Step 5)와 운영자가 uid 로 계정을 지우는 도구가 이
+ * 함수를 부른다. 문서 ID 가 정해져 있으므로 query 없이 접두사 목록의 모든
+ * 값에 uid 를 붙여 delete 하고 commit 은 한 번이다. 문서가 없어도
+ * precondition 없이 delete 한다.
+ *
+ * 해시 축(IP · 이메일) counter 는 지우지 않는다 — 탈퇴 시점에 찾을 수 없으며,
+ * 만료 시각(`expireAt`) + Firestore TTL 정책(켠 프로젝트만)이 지운다.
+ *
+ * 실패(commit 오류)는 그대로 reject 된다 — 호출부가 로그로 다룬다.
+ *
+ * @param {Firestore} db Firestore 인스턴스.
+ * @param {string} uid 지울 counter 의 uid.
+ * @return {Promise<void>} commit 이 끝나면 resolve.
+ */
+export async function deleteUidRateLimitDocs(
+  db: Firestore,
+  uid: string,
+): Promise<void> {
+  const batch = db.batch();
+  for (const prefix of Object.values(UID_RATE_LIMIT_DOC_PREFIXES)) {
+    batch.delete(db.collection(RATE_LIMITS_COLLECTION).doc(prefix + uid));
+  }
+  await batch.commit();
+}
+
 /** rate limit counter 문서의 해석 결과. */
 export type RateCounterState = {
   /** 현재 창의 카운트 (창이 만료됐으면 의미 없음). */
@@ -83,7 +149,7 @@ export async function consumeRateLimit(
   docId: string,
   opts: {limit: number; windowSec: number},
 ): Promise<boolean> {
-  const ref = db.collection("rate_limits").doc(docId);
+  const ref = db.collection(RATE_LIMITS_COLLECTION).doc(docId);
   return db.runTransaction(async (tx) => {
     // --- reads (모두 write 앞) ---
     const snap = await tx.get(ref);
@@ -144,7 +210,9 @@ export async function consumeRateLimitAxes(
   db: Firestore,
   axes: readonly RateLimitAxis[],
 ): Promise<ExceededRateAxis[]> {
-  const refs = axes.map((a) => db.collection("rate_limits").doc(a.docId));
+  const refs = axes.map((a) =>
+    db.collection(RATE_LIMITS_COLLECTION).doc(a.docId),
+  );
   return db.runTransaction(async (tx) => {
     // --- reads (모두 write 앞) ---
     const snaps: RateCounterSnapshot[] = [];

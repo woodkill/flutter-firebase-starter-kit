@@ -37,6 +37,13 @@
  *  - T-17-DEL-07: 단일 404(기본 버킷 없음) → warn 로그 · Auth · Firestore 진행
  *  - T-17-DEL-08: 전부 404 인 Error[](이미 삭제됨) → warn 로그 · 진행
  *  - T-17-DEL-09: 404 와 다른 code 가 섞인 Error[] → 기존대로 중단
+ *
+ * Phase 32 Step 5 — T-32-DEL 시리즈:
+ *  - T-32-DEL-01: Step 4 뒤 batch 하나로 uid 축 counter 4종을 지운다
+ *  - T-32-DEL-02: batch commit 실패 → orphan 로그 + ok:true · Step 3 · 4 그대로
+ *  - T-32-DEL-03: Step 4 실패여도 Step 5 는 돈다
+ *  - T-32-DEL-04: 멱등 재시도(user-not-found)에서도 Step 5 를 돈다
+ *  - T-32-DEL-05: Auth 삭제 실패(Step 2 throw)면 Step 5 에 이르지 않는다
  */
 
 jest.mock("firebase-functions/logger", () => ({
@@ -69,6 +76,8 @@ jest.mock("firebase-admin/auth", () => ({
 const mockWhereGet = jest.fn();
 const mockTxDelete = jest.fn();
 const mockRecursiveDelete = jest.fn();
+const mockBatchDelete = jest.fn();
+const mockBatchCommit = jest.fn();
 // call order sentinel — D7 / D11 invariant 검증용.
 const callOrder: string[] = [];
 jest.mock("firebase-admin/firestore", () => {
@@ -109,6 +118,17 @@ jest.mock("firebase-admin/firestore", () => {
         callOrder.push("recursiveDelete");
         return mockRecursiveDelete(ref);
       },
+      // Phase 32 Step 5 — uid 축 rate limit counter 삭제 batch.
+      batch: () => ({
+        delete: (ref: unknown) => {
+          callOrder.push("batch.delete");
+          mockBatchDelete(ref);
+        },
+        commit: async () => {
+          callOrder.push("batch.commit");
+          return mockBatchCommit();
+        },
+      }),
     })),
     FieldValue: {
       serverTimestamp: () => "MOCK_TIMESTAMP",
@@ -171,6 +191,9 @@ function resetAllMocks(): void {
   mockDeleteFiles.mockResolvedValue(undefined);
   mockRecursiveDelete.mockReset();
   mockRecursiveDelete.mockResolvedValue(undefined);
+  mockBatchDelete.mockReset();
+  mockBatchCommit.mockReset();
+  mockBatchCommit.mockResolvedValue(undefined);
   callOrder.length = 0;
 }
 
@@ -771,4 +794,142 @@ describe("deleteUserAccount onCall — Phase 17 탈퇴 cascade", () => {
       }),
     );
   });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 32 Step 5 — uid 축 rate limit counter 4종을 탈퇴 때 함께 지운다.
+//
+// Step 4(fcmTokens) 뒤 별도 try 다. 실패해도 계정은 이미 없으므로 orphan 로그
+// + ok:true 이고, 남은 문서는 만료 시각 + TTL 이 지운다.
+// ---------------------------------------------------------------------------
+describe("deleteUserAccount onCall — Phase 32 Step 5", () => {
+  beforeEach(resetAllMocks);
+
+  /**
+   * 신선한 ID Token 으로 [uid] 의 탈퇴를 호출한다.
+   *
+   * @param {string} uid 호출자 uid (request.auth.uid · decoded.uid 동일).
+   * @return {Promise<unknown>} callable 결과 promise.
+   */
+  function callDelete(uid: string): Promise<unknown> {
+    mockVerifyIdToken.mockResolvedValue({uid, auth_time: freshAuthTime()});
+    const wrapped = testEnv.wrap(myFunctions.deleteUserAccount);
+    return wrapped({
+      auth: {uid},
+      app: {appId: "test"},
+      data: {idToken: "FAKE_FRESH"},
+    } as never) as Promise<unknown>;
+  }
+
+  /**
+   * `mockBatchDelete` 에 넘어온 ref 의 `label` 목록을 호출 순으로 돌려준다.
+   *
+   * @return {Array<string>} `"<컬렉션>/<문서 ID>"` 목록.
+   */
+  function batchDeleteLabels(): string[] {
+    return mockBatchDelete.mock.calls.map(
+      ([ref]) => (ref as {label: string}).label,
+    );
+  }
+
+  it("T-32-DEL-01: Step 4 뒤 batch 하나로 uid 축 4종을 지운다", async () => {
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:3201"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    const result = (await callDelete("uid-3201")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    expect(batchDeleteLabels()).toEqual([
+      "rate_limits/lookupSignInMethods:uid-3201",
+      "rate_limits/sendTestPush:uid-3201",
+      "rate_limits/sendVerificationMail:uid-3201",
+      "rate_limits/sendPasswordResetMail:uid-3201",
+    ]);
+    expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+    // Step 4(fcmTokens 재귀 삭제) 뒤에 돌고, 탈퇴의 마지막 단계다.
+    expect(callOrder.indexOf("batch.delete")).toBeGreaterThan(
+      callOrder.indexOf("recursiveDelete"),
+    );
+    expect(callOrder[callOrder.length - 1]).toBe("batch.commit");
+    expect(errorMock).not.toHaveBeenCalled();
+  });
+
+  it("T-32-DEL-02: commit 실패 → orphan 로그 + ok:true · Step 3 · 4 그대로",
+    async () => {
+      mockWhereGet.mockResolvedValue({docs: [{id: "kakao:3202"}]});
+      mockDeleteUser.mockResolvedValue(undefined);
+      mockBatchCommit.mockRejectedValue(
+        Object.assign(new Error("PII_RATE_SENTINEL"), {code: "unavailable"}),
+      );
+
+      const result = (await callDelete("uid-3202")) as {ok: true};
+
+      // 계정은 이미 없다 — 남은 counter 는 만료 시각 + TTL 이 지운다.
+      expect(result.ok).toBe(true);
+      // Step 3(identity_index 1건 + users 문서) · Step 4 는 그대로 돈다.
+      expect(mockTxDelete).toHaveBeenCalledTimes(2);
+      expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
+      expect(errorMock).toHaveBeenCalledTimes(1);
+      const [, payload] = errorMock.mock.calls[0] as [
+        string,
+        Record<string, unknown>,
+      ];
+      expect(payload).toEqual({
+        event: "delete_user_rate_limits_orphan",
+        uid: "uid-3202",
+        code: "unavailable",
+      });
+      expect(serializeLogCalls(errorMock.mock.calls)).not.toContain(
+        "PII_RATE_SENTINEL",
+      );
+    });
+
+  it("T-32-DEL-03: Step 4 실패여도 Step 5 는 돈다", async () => {
+    mockWhereGet.mockResolvedValue({docs: [{id: "kakao:3203"}]});
+    mockDeleteUser.mockResolvedValue(undefined);
+    mockRecursiveDelete.mockRejectedValue(
+      Object.assign(new Error("fcm cleanup failed"), {code: "unavailable"}),
+    );
+
+    const result = (await callDelete("uid-3203")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+    // Step 4 orphan 로그 하나뿐이다.
+    expect(errorMock).toHaveBeenCalledTimes(1);
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({event: "delete_user_fcm_tokens_orphan"}),
+    );
+  });
+
+  it("T-32-DEL-04: 멱등 재시도(user-not-found)에서도 Step 5 를 돈다",
+    async () => {
+      mockWhereGet.mockResolvedValue({docs: []});
+      mockDeleteUser.mockRejectedValue(
+        Object.assign(new Error("user not found"), {
+          code: "auth/user-not-found",
+        }),
+      );
+
+      const result = (await callDelete("uid-3204")) as {ok: true};
+
+      expect(result.ok).toBe(true);
+      expect(mockBatchDelete).toHaveBeenCalledTimes(4);
+      expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+    });
+
+  it("T-32-DEL-05: Auth 삭제 실패(Step 2 throw)면 Step 5 에 이르지 않는다",
+    async () => {
+      mockWhereGet.mockResolvedValue({docs: [{id: "kakao:3205"}]});
+      mockDeleteUser.mockRejectedValue(
+        Object.assign(new Error("internal"), {code: "auth/internal-error"}),
+      );
+
+      await expect(callDelete("uid-3205")).rejects.toMatchObject({
+        code: "internal",
+      });
+      expect(mockBatchDelete).not.toHaveBeenCalled();
+      expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
 });

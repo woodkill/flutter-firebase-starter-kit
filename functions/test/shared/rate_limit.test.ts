@@ -11,6 +11,7 @@
  *    트랜잭션 순서
  *  - T-175-RATE-01: consumeRateLimitAxes 다축 — 한 transaction · 초과 축
  *    목록 · 초과 시 write 0 (Phase 17.5 kit 메일 callable)
+ *  - T-32-RATE-01 ~ 03: 만료 시각 · increment · uid 축 삭제(Phase 32)
  */
 
 // eslint-disable-next-line import/first
@@ -21,6 +22,7 @@ import type {Firestore} from "firebase-admin/firestore";
 import {
   consumeRateLimit,
   consumeRateLimitAxes,
+  deleteUidRateLimitDocs,
   readRateCounter,
 } from "../../src/shared/rate_limit";
 // eslint-disable-next-line import/first
@@ -152,4 +154,47 @@ describe("rate limit helper — Phase 17 plan 18 (Phase 16 D-10 mirror)", () => 
         {axis: "email", count: 1},
       ]);
     });
+});
+
+describe("rate limit helper — Phase 32", () => {
+  it("T-32-RATE-03: deleteUidRateLimitDocs 는 uid 축 4건을 " +
+    "batch 하나로 지운다 (precondition 없음)",
+  async () => {
+    // fake commit 은 늘 성공 — 실제 Firestore 의 없는 문서 delete 성공은
+    // UAT 가 본다(A6). 여기서는 delete 4건 · commit 1회 · precondition
+    // 인자 없음만 고정한다.
+    const deleted: string[] = [];
+    const deleteArgCounts: number[] = [];
+    let commits = 0;
+    const db = {
+      collection: (name: string) => ({
+        doc: (id: string) => ({path: `${name}/${id}`}),
+      }),
+      batch: () => ({
+        delete: (...args: unknown[]) => {
+          deleteArgCounts.push(args.length);
+          deleted.push((args[0] as {path: string}).path);
+        },
+        commit: async () => {
+          commits += 1;
+          return [];
+        },
+      }),
+    } as unknown as Firestore;
+
+    // 같은 uid 를 두 번 지워도(문서가 이미 없어도) 같은 batch 를 만든다.
+    await deleteUidRateLimitDocs(db, "u9");
+    await deleteUidRateLimitDocs(db, "u9");
+
+    expect(deleted.slice(0, 4)).toEqual([
+      "rate_limits/lookupSignInMethods:u9",
+      "rate_limits/sendTestPush:u9",
+      "rate_limits/sendVerificationMail:u9",
+      "rate_limits/sendPasswordResetMail:u9",
+    ]);
+    expect(deleted.slice(4)).toEqual(deleted.slice(0, 4));
+    expect(deleted).toHaveLength(8);
+    expect(commits).toBe(2);
+    expect(deleteArgCounts.every((n) => n === 1)).toBe(true);
+  });
 });

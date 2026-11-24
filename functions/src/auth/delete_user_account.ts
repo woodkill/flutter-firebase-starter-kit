@@ -22,6 +22,7 @@ import {onCall, HttpsError} from "firebase-functions/https";
 import * as logger from "firebase-functions/logger";
 
 import {reauthenticationRequired} from "../shared/custom_token_errors";
+import {deleteUidRateLimitDocs} from "../shared/rate_limit";
 import {assertFreshAuth} from "../shared/reauth";
 import {fingerprintError} from "./identity_index";
 
@@ -112,10 +113,13 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *           TTL D-33 이 30일 안에 정리). 트랜잭션 **밖** 단계라 jest mock 이
  *           reads-before-writes 를 강제하지 않는 한계(memory
  *           feedback_mock_transaction_constraint)에 새 위험을 더하지 않는다.
+ *   Step 5: uid 축 rate limit counter 4종(`rate_limits/{접두사}{uid}`)을
+ *           `deleteUidRateLimitDocs` 로 지운다. 실패해도 `ok: true` (orphan
+ *           로그 `delete_user_rate_limits_orphan` · 남은 문서는 만료 시각 + TTL).
  *
  * **삭제 순서 (Phase 17 — see ROADMAP.md, D-16 · D-40)**: 검증 → Storage
  * (D-40 · 실패 = 중단 · 404 는 진행) → Auth (WR-09) → Firestore →
- * fcmTokens. Storage 를 Auth 뒤에 두면
+ * fcmTokens → uid 축 rate limit counter. Storage 를 Auth 뒤에 두면
  * Storage 실패 시 계정이 이미 없어 사용자가 재시도할 수 없고 개인 사진이
  * 영구 잔존하므로 Storage 는 Auth **앞**에 둔다. 사진만 지워지고 Auth 삭제가
  * 실패한 상태는 D-40 이 수용한다 (소셜 사진 fallback · 재업로드 가능).
@@ -139,6 +143,11 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  * - `users/{uid}` **문서 1건**
  * - `users/{uid}/fcmTokens/*` 서브컬렉션 (Step 4 · `recursiveDelete` · 실패 =
  *   `delete_user_fcm_tokens_orphan` 로그)
+ * - `rate_limits` 의 uid 축 counter 4종(`lookupSignInMethods:` ·
+ *   `sendTestPush:` · `sendVerificationMail:` · `sendPasswordResetMail:` +
+ *   uid — Step 5 · `deleteUidRateLimitDocs` · 실패 =
+ *   `delete_user_rate_limits_orphan` 로그). 운영자가 uid 로 계정을 지우는
+ *   도구는 이 목록을 따르고 `deleteUidRateLimitDocs` 도 부른다.
  *
  * 아래는 **삭제되지 않는다.**
  * - 위에 명시하지 않은 `users/{uid}` 의 **서브컬렉션** — Firestore 특성상
@@ -147,6 +156,9 @@ function chunkDocIds(docIds: string[], size: number): string[][] {
  *   추가할 것.
  * - `users/{uid}/` 밖 경로의 Cloud Storage 객체 — 다른 경로에 사용자 파일을
  *   저장하도록 확장하면 Step 1.5 에 그 prefix 를 함께 추가할 것.
+ * - `rate_limits` 의 해시 축 counter(IP · 이메일 해시)와 탈퇴 뒤 다시 생긴
+ *   uid 축 counter — 만료 시각(`expireAt`) + Firestore TTL 정책(켠
+ *   프로젝트만)이 지운다.
  *
  * 스타터킷 사용자가 데이터 모델을 확장할 때 이 항목들을 함께 갱신하지 않으면
  * 탈퇴 후에도 개인정보가 남는다.
@@ -373,6 +385,26 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
         "Auth user deleted but FCM token cleanup failed — TTL will expire",
         {
           event: "delete_user_fcm_tokens_orphan",
+          uid: callerUid,
+          code: fingerprintError(err),
+        },
+      );
+    }
+
+    // Step 5: uid 축 rate limit counter 4종 삭제.
+    //
+    // Step 3 트랜잭션 **밖** 별도 try 로 둔다 — 청크 계산 · identity_index ·
+    // users 문서 삭제와 묶지 않기 위해서다. 실패 정책은 Step 4 와 같다:
+    // 계정은 이미 삭제됐으므로 orphan 로그 + `ok: true`. 남은 문서는 만료
+    // 시각(`expireAt`) + TTL 이 상한이다. 멱등 재시도(user-not-found) 경로에서도
+    // 이 단계를 돈다.
+    try {
+      await deleteUidRateLimitDocs(db, callerUid);
+    } catch (err: unknown) {
+      logger.error(
+        "Auth user deleted but rate limit cleanup failed — TTL will expire",
+        {
+          event: "delete_user_rate_limits_orphan",
           uid: callerUid,
           code: fingerprintError(err),
         },
