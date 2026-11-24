@@ -284,9 +284,9 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     // 가리키는 고아 문서만 남는다 — 아래 Step 3 참조.
     //
     // Pitfall 1 (admin.auth().deleteUser non-idempotent) 회피:
-    //   auth/user-not-found 의 catch 는 success path treat — 이미 삭제된 user
-    //   의 두 번째 호출 (client retry) 도 정상 진행. Cloud Logging 의
-    //   delete_user_auth_already_done event 가 retry 시 indicator.
+    //   auth/user-not-found 의 catch 는 success path treat — 동시 호출 race
+    //   (두 요청이 함께 Step 1 통과)의 두 번째 호출도 정상 진행. Cloud Logging
+    //   의 delete_user_auth_already_done event 가 그 race 의 indicator.
     try {
       await getAuth().deleteUser(callerUid);
       logger.info(
@@ -396,8 +396,10 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
     // Step 3 트랜잭션 **밖** 별도 try 로 둔다 — 청크 계산 · identity_index ·
     // users 문서 삭제와 묶지 않기 위해서다. 실패 정책은 Step 4 와 같다:
     // 계정은 이미 삭제됐으므로 orphan 로그 + `ok: true`. 남은 문서는 만료
-    // 시각(`expireAt`) + TTL 이 상한이다. 멱등 재시도(user-not-found) 경로에서도
-    // 이 단계를 돈다.
+    // 시각(`expireAt`) + TTL 이 상한이다. 동시 호출 race 로 Step 2 가
+    // `auth/user-not-found` 를 받는 경로에서도 이 단계를 돈다 — 순차 재시도는
+    // Step 1 `checkRevoked` 에서 `reauthenticationRequired` 로 멈추므로, 실패한
+    // Step 5 의 상한은 만료 시각 + TTL 뿐이다.
     try {
       await deleteUidRateLimitDocs(db, callerUid);
     } catch (err: unknown) {
