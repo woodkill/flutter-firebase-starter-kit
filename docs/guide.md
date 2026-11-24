@@ -3900,7 +3900,7 @@ ATT(App Tracking Transparency)는 iOS 앱이 다른 회사의 앱 · 웹사이�
 
 ## 앱 운영하기
 
-출시한 앱을 운영하면서 하는 일 — 로그인 수단 버튼을 급히 숨기기, 오류 보고 · 사용 통계 확인, 시험 알림 보내기, 게스트 계정 정리 — 을 모은다.
+출시한 앱을 운영하면서 하는 일 — 로그인 수단 버튼을 급히 숨기기, 오류 보고 · 사용 통계 확인, 시험 알림 보내기, 게스트 계정 정리, 호출 횟수 제한 기록 정리 — 을 모은다.
 - 예시는 dev flavor 기준이다.
 - flavor 마다 Firebase 프로젝트가 다르므로 콘솔 작업은 그 flavor 의 프로젝트에서 한다.
 
@@ -4085,6 +4085,53 @@ adb shell setprop debug.firebase.analytics.app .none.
 
 **끄기:** 같은 설정에서 익명 계정 자동 정리를 끈다.
 - 이미 지워진 계정은 되살아나지 않는다.
+
+### 호출 횟수 제한 기록 정리
+
+서버 함수가 남기는 호출 횟수 제한 기록(`rate_limits` 컬렉션)을 기한 안에 지우고 싶을 때 쓴다.
+- 기록마다 만료 시각 `expireAt` 이 있다 — 그 함수의 제한 창이 끝나는 시각이고, 창 길이는 각 함수 파일의 `*_WINDOW_SEC` 다.
+- 만료 시각이 지난 기록은 Firestore TTL 정책이 지운다 — 위저드는 이 정책을 켜지 않으므로 아래 단계를 프로젝트마다 한 번 한다.
+- 회원탈퇴는 그 계정 uid 로 센 기록을 바로 지우고, 나머지는 이 정책이 지운다([알아 둘 동작](#알아-둘-동작) 의 「회원탈퇴」).
+
+**켜기:**
+
+1. functions 를 다시 배포한다 — `bash scripts/deploy_functions.sh dev --apply`.
+   - 다시 배포하기 전의 함수는 만료 시각 없이 기록을 만들고, 만료 시각이 없는 기록은 TTL 정책이 지우지 않는다.
+   - 배포 목록 밖에 남은 함수(예: 메일 모드를 끈 뒤 남은 메일 함수)가 있으면 「인증 메일 발송 모드 켜고 끄기」 의 [끄기](#끄기) 명령으로 먼저 지운다.
+2. TTL 정책을 켠다 — 아래 첫째 명령을 실행하고 둘째 명령으로 상태를 본다.
+   - 둘째 명령의 상태가 `ACTIVE` 가 되면 켜진 것이다.
+   - 켜는 데 10분 넘게 걸릴 수 있고, 그동안 상태는 `CREATING` 이다.
+
+```bash
+gcloud firestore fields ttls update expireAt --collection-group=rate_limits --enable-ttl --project <your-project-id>
+gcloud firestore fields ttls list --collection-group=rate_limits --project <your-project-id>
+```
+
+3. 1 의 배포가 끝난 뒤 `rate_limits` 컬렉션을 한 번 통째로 지운다 — 만료 시각이 없는 옛 기록을 정리한다.
+   - 지워져도 진행 중인 제한 창이 처음부터 다시 열릴 뿐이다.
+   - 배포 전에 지우면 옛 함수가 만료 시각 없는 기록을 다시 만들고, 그 기록은 TTL 정책이 지우지 않는다.
+   - 명령이 확인 질문을 하므로 터미널에서 직접 실행한다 — Claude Code 같은 AI 도구 안에서는 질문 없이 「Command aborted.」 로 멈춘다.
+
+```bash
+firebase firestore:delete rate_limits --recursive --project <your-project-id>
+```
+
+**확인 방법:** 둘째 명령이 `rate_limits` 의 `expireAt` 정책 상태를 `ACTIVE` 로 보여 준다.
+- Firebase 콘솔의 Firestore 에서 그 뒤 새로 생긴 `rate_limits` 문서에 `expireAt`(timestamp) 필드가 있다.
+
+**알아 둘 것:**
+
+- 실제 삭제는 만료 뒤 보통 24시간 안에 일어난다.
+  - 보장된 상한이 아니므로, 삭제 안내에 적을 보존 기간은 여유를 두고 정한다.
+  - TTL 정책을 켜지 않은 프로젝트에서는 기록이 기한 없이 남는다.
+
+공식 문서 「Manage data retention with TTL policies」(<https://firebase.google.com/docs/firestore/ttl>):
+
+> "Data is typically deleted within 24 hours after its expiration date."
+> "Deletion through TTL is not an instantaneous process. Expired documents continue to appear in queries and lookup requests until the TTL process actually deletes them."
+
+**끄기:** 첫째 명령의 `--enable-ttl` 을 `--disable-ttl` 로 바꿔 실행한다.
+- 끈 뒤에는 기록이 다시 기한 없이 남는다.
 
 ## 킷 업데이트 반영
 
