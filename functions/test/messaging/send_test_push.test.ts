@@ -68,6 +68,14 @@ jest.mock("firebase-admin/firestore", () => {
     }
 
     /**
+     * @param {Date} d 시각.
+     * @return {MockTimestamp} 해당 시각.
+     */
+    static fromDate(d: Date): MockTimestamp {
+      return MockTimestamp.fromMillis(d.getTime());
+    }
+
+    /**
      * @return {number} epoch 밀리초.
      */
     toMillis(): number {

@@ -197,4 +197,138 @@ describe("rate limit helper — Phase 32", () => {
     expect(commits).toBe(2);
     expect(deleteArgCounts.every((n) => n === 1)).toBe(true);
   });
+
+  /**
+   * 저장소의 counter 문서에서 만료 시각을 읽어 창 시작과의 차이를 돌려준다.
+   *
+   * 만료 시각이나 창 시작이 Timestamp 가 아니면 `gap` · `nanos` 는 null 이다
+   * (단언이 TypeError 대신 값 비교로 실패하게).
+   *
+   * @param {Store} store 문서 저장소.
+   * @param {string} path 문서 경로 (`rate_limits/<docId>`).
+   * @return {{gap: (number|null), isTimestamp: boolean, nanos: (number|null)}}
+   *     만료 시각 − 창 시작(초) · Timestamp 여부 · 만료 시각 나노초.
+   */
+  function readExpireGap(store: Store, path: string): {
+    gap: number | null;
+    isTimestamp: boolean;
+    nanos: number | null;
+  } {
+    const doc = store.get(path);
+    const expireAt = doc?.expireAt;
+    const windowStart = doc?.windowStart;
+    const isTimestamp = expireAt instanceof Timestamp;
+    if (!(expireAt instanceof Timestamp) ||
+      !(windowStart instanceof Timestamp)) {
+      return {gap: null, isTimestamp, nanos: null};
+    }
+    return {
+      gap: expireAt.seconds - windowStart.seconds,
+      isTimestamp,
+      nanos: expireAt.nanoseconds,
+    };
+  }
+
+  /**
+   * [db] 의 runTransaction 을 감싸 tx 의 `update` data 를 [updates] 에 남긴다.
+   *
+   * 기존 `fakeDb` 는 고치지 않고, 넘겨받은 tx 의 다른 메서드는 그대로 쓴다.
+   *
+   * @param {Firestore} db 감쌀 fake (`fakeDb` 결과).
+   * @param {Array<unknown>} updates `tx.update` data 기록 (호출 순).
+   * @return {Firestore} update 를 기록하는 fake.
+   */
+  function wrapUpdateRecorder(db: Firestore, updates: unknown[]): Firestore {
+    type TxLike = {update: (ref: unknown, data: unknown) => unknown};
+    const inner = db as unknown as {
+      collection: unknown;
+      runTransaction: (
+        fn: (tx: unknown) => Promise<unknown>,
+      ) => Promise<unknown>;
+    };
+    const wrapped = {
+      collection: inner.collection,
+      runTransaction: (fn: (tx: unknown) => Promise<unknown>) =>
+        inner.runTransaction((tx) => {
+          const base = tx as TxLike;
+          return fn({
+            ...(tx as Record<string, unknown>),
+            update: (ref: unknown, data: unknown) => {
+              updates.push(data);
+              return base.update(ref, data);
+            },
+          });
+        }),
+    };
+    return wrapped as unknown as Firestore;
+  }
+
+  it("T-32-RATE-01: 새 창 set 은 창 끝 만료 시각(초 단위)을 쓴다",
+    async () => {
+      const store: Store = new Map();
+      const db = fakeDb(store, []);
+
+      await expect(consumeRateLimit(db, "sendTestPush:u1", {
+        limit: 5,
+        windowSec: 60,
+      })).resolves.toBe(true);
+      await expect(consumeRateLimitAxes(db, [
+        {axis: "uid", docId: "sendVerificationMail:u1", limit: 5,
+          windowSec: 600},
+        {axis: "ip", docId: "sendPasswordResetMailIp:h1", limit: 5,
+          windowSec: 60},
+      ])).resolves.toEqual([]);
+
+      // 만료 시각 = 창 시작 + 창 길이(초 단위 · 나노초 0).
+      expect(readExpireGap(store, "rate_limits/sendTestPush:u1")).toEqual(
+        {gap: 60, isTimestamp: true, nanos: 0},
+      );
+      expect(readExpireGap(store, "rate_limits/sendVerificationMail:u1"))
+        .toEqual({gap: 600, isTimestamp: true, nanos: 0});
+      expect(readExpireGap(store, "rate_limits/sendPasswordResetMailIp:h1"))
+        .toEqual({gap: 60, isTimestamp: true, nanos: 0});
+    });
+
+  it("T-32-RATE-02: 같은 창 increment 는 count 만 바꾸고 만료 시각을 두고 간다",
+    async () => {
+      const store: Store = new Map();
+      const txCalls: string[][] = [];
+      const updates: unknown[] = [];
+      const db = wrapUpdateRecorder(fakeDb(store, txCalls), updates);
+      const pushPath = "rate_limits/sendTestPush:u2";
+      const mailPath = "rate_limits/sendVerificationMail:u2";
+
+      // consumeRateLimit — 새 창 → 같은 창 increment.
+      const opts = {limit: 5, windowSec: 60};
+      await expect(consumeRateLimit(db, "sendTestPush:u2", opts))
+        .resolves.toBe(true);
+      const pushExpire = store.get(pushPath)?.expireAt;
+      await expect(consumeRateLimit(db, "sendTestPush:u2", opts))
+        .resolves.toBe(true);
+
+      // consumeRateLimitAxes — 축 하나로 같은 흐름.
+      const axes = [
+        {axis: "uid", docId: "sendVerificationMail:u2", limit: 5,
+          windowSec: 600},
+      ];
+      await expect(consumeRateLimitAxes(db, axes)).resolves.toEqual([]);
+      const mailExpire = store.get(mailPath)?.expireAt;
+      await expect(consumeRateLimitAxes(db, axes)).resolves.toEqual([]);
+
+      expect(txCalls).toEqual([
+        ["get", "set"],
+        ["get", "update"],
+        ["get", "set"],
+        ["get", "update"],
+      ]);
+      // increment payload 는 count 하나뿐이다 — 만료 시각이 미끄러지지 않는다.
+      expect(updates.map((d) => Object.keys(d as object))).toEqual([
+        ["count"],
+        ["count"],
+      ]);
+      expect(store.get(pushPath)?.expireAt).toEqual(pushExpire);
+      expect(store.get(mailPath)?.expireAt).toEqual(mailExpire);
+      expect(store.get(pushPath)?.count).toBe(2);
+      expect(store.get(mailPath)?.count).toBe(2);
+    });
 });

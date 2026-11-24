@@ -2,7 +2,8 @@
 // counter 기반 rate limit 공유 helper.
 //
 // `lookupSignInMethods` 가 쓰던 counter 해석을 그대로 옮겨 `sendTestPush` 와
-// 공유한다. counter 문서는 `rate_limits/{docId}` 의 `{count, windowStart}` 다.
+// 공유한다. counter 문서는 `rate_limits/{docId}` 의
+// `{count, windowStart, expireAt}`(만료 시각 = 창 끝 · TTL 정책 대상)다.
 // 문서 id 에는 uid · 해시만 쓴다(이메일 · IP 원문 금지).
 import {FieldValue, Timestamp} from "firebase-admin/firestore";
 import type {Firestore} from "firebase-admin/firestore";
@@ -88,6 +89,22 @@ export type RateCounterSnapshot = {
 };
 
 /**
+ * 새 창의 만료 시각을 만든다.
+ *
+ * 만료 시각 = 창 시작 초 + 창 길이(초 단위 · 나노초 0). `readRateCounter` 와
+ * 같은 초 단위라 TTL 대상 시각은 읽기 쪽 만료보다 1초 이르다 — 그 1초에 TTL 이
+ * 지우면 창이 1초 일찍 다시 열릴 뿐이다. Firestore TTL 정책 필드 이름
+ * `expireAt` 은 guide 명령과 대조 시험이 고정한다.
+ *
+ * @param {Timestamp} now 창 시작 시각.
+ * @param {number} windowSec 창 길이 (초).
+ * @return {Timestamp} 창이 끝나는 시각.
+ */
+function computeExpireAt(now: Timestamp, windowSec: number): Timestamp {
+  return Timestamp.fromDate(new Date((now.seconds + windowSec) * 1000));
+}
+
+/**
  * rate limit counter 문서를 방어적으로 해석한다 (Phase 15 리뷰 WR-08).
  *
  * 문서에 `windowStart` 가 없거나 형태가 어긋나면 (부분 write / 수동 편집 /
@@ -132,7 +149,8 @@ export function readRateCounter(
  * `rate_limits/{docId}` counter 를 Firestore transaction 안에서
  * 「read 전부 → 한도 판정 → write」 순으로 처리한다 (reads-before-writes —
  * 실 Firestore 는 write 뒤 read 를 거부한다).
- * - 창이 없거나 만료 → `{count: 1, windowStart: now}` 로 새 창.
+ * - 창이 없거나 만료 → `{count: 1, windowStart: now, expireAt: 창 끝}` 로
+ *   새 창.
  * - 창 안 · `count < limit` → `count + 1`.
  * - 창 안 · `count >= limit` → write 없이 `false`.
  *
@@ -161,7 +179,11 @@ export async function consumeRateLimit(
 
     // --- writes ---
     if (state.expired) {
-      tx.set(ref, {count: 1, windowStart: now});
+      tx.set(ref, {
+        count: 1,
+        windowStart: now,
+        expireAt: computeExpireAt(now, opts.windowSec),
+      });
     } else {
       tx.update(ref, {count: FieldValue.increment(1)});
     }
@@ -196,8 +218,8 @@ export type ExceededRateAxis = {
  * 축을 「read 전부 → 한도 판정 → write」 순으로 처리하므로 왕복은 1회이고
  * 원자적이다(reads-before-writes — 실 Firestore 는 write 뒤 read 를 거부한다).
  * - 한 축이라도 창 안 · `count >= limit` → write 0 · 넘은 축 전부를 돌려준다.
- * - 모두 허용 → 각 축을 새 창(`{count: 1, windowStart: now}`) 또는 `+1` 로
- *   쓰고 빈 목록을 돌려준다.
+ * - 모두 허용 → 각 축을 새 창(`{count: 1, windowStart: now, expireAt: 창
+ *   끝}`) 또는 `+1` 로 쓰고 빈 목록을 돌려준다.
  *
  * transaction 자체 실패(Firestore 오류)는 그대로 reject 된다 — 호출부가
  * 로그 · HttpsError 로 바꾼다.
@@ -237,7 +259,11 @@ export async function consumeRateLimitAxes(
     // --- writes ---
     refs.forEach((ref, i) => {
       if (states[i].expired) {
-        tx.set(ref, {count: 1, windowStart: now});
+        tx.set(ref, {
+          count: 1,
+          windowStart: now,
+          expireAt: computeExpireAt(now, axes[i].windowSec),
+        });
       } else {
         tx.update(ref, {count: FieldValue.increment(1)});
       }

@@ -92,6 +92,7 @@ jest.mock("firebase-admin/firestore", () => ({
   },
   Timestamp: {
     now: () => ({seconds: Math.floor(Date.now() / 1000)}),
+    fromDate: (d: Date) => ({seconds: Math.floor(d.getTime() / 1000)}),
   },
 }));
 
