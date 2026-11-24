@@ -932,4 +932,31 @@ describe("deleteUserAccount onCall — Phase 32 Step 5", () => {
       expect(mockBatchDelete).not.toHaveBeenCalled();
       expect(mockBatchCommit).not.toHaveBeenCalled();
     });
+
+  it("T-32-DEL-06: Step 3 실패여도 Step 5 는 돈다", async () => {
+    mockWhereGet.mockRejectedValue(
+      Object.assign(new Error("PII_IDX_SENTINEL"), {code: "unavailable"}),
+    );
+    mockDeleteUser.mockResolvedValue(undefined);
+
+    const result = (await callDelete("uid-3206")) as {ok: true};
+
+    expect(result.ok).toBe(true);
+    // Step 3 orphan 로그가 남고, Step 4 · Step 5 는 각자 try 라 그대로 돈다.
+    expect(errorMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        event: "delete_user_firestore_orphan",
+        uid: "uid-3206",
+      }),
+    );
+    expect(mockRecursiveDelete).toHaveBeenCalledTimes(1);
+    expect(batchDeleteLabels()).toEqual([
+      "rate_limits/lookupSignInMethods:uid-3206",
+      "rate_limits/sendTestPush:uid-3206",
+      "rate_limits/sendVerificationMail:uid-3206",
+      "rate_limits/sendPasswordResetMail:uid-3206",
+    ]);
+    expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+  });
 });

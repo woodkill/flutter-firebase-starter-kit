@@ -356,4 +356,24 @@ describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () =>
       {gap: 60, nanos: 0},
     ]);
   });
+
+  it("T-32-LOOKUP-07: IP 축 한도는 60 — 59 는 통과하고 count 60 으로 쓴다",
+    async () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      mockStore.set("rate_limits/lookupSignInMethods:u-lk7", {
+        count: 3,
+        windowStart: {seconds: nowSec},
+      });
+      mockStore.set(IP_DOC_PATH, {count: 59, windowStart: {seconds: nowSec}});
+
+      // uid 한도(10)를 IP 축에 잘못 쓰면 59 에서 막힌다.
+      await expect(callLookup("u-lk7", true)).resolves.toEqual({
+        existingProvider: null,
+      });
+      expect(exceededWarnFields()).toEqual([]);
+      const tx = onlyTx();
+      expect(tx.calls).toEqual(["get", "get", "update", "update"]);
+      const ipUpdate = tx.updates.find((u) => refPath(u.ref) === IP_DOC_PATH);
+      expect(ipUpdate).toBeDefined();
+    });
 });
