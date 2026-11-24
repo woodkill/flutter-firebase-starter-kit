@@ -4078,6 +4078,7 @@ adb shell setprop debug.firebase.analytics.app .none.
   - 로그인 수단을 연결해 정식 계정이 된 계정은 지워지지 않는다.
 - **Auth 계정이 지워져도 Firestore · Storage 의 데이터는 남는다.**
   - 그래서 킷은 익명 사용자에게 데이터를 만들지 않는다 — 기기 알림 토큰과 프로필 사진은 rules(`firestore.rules` · `storage.rules`)가 익명의 쓰기를 막고 앱도 정식 사용자에게만 그 메뉴를 보이며, `users/{uid}` 문서도 익명에게는 만들지 않는다.
+    - 호출 횟수 제한 기록은 익명 uid 로도 생기며, [호출 횟수 제한 기록 정리](#호출-횟수-제한-기록-정리) 의 TTL 정책이 지운다.
   - 익명 사용자에게 데이터를 저장하는 기능을 더하면 그 데이터를 정리하는 수단(예: 예약 실행 함수)도 함께 만든다.
 - **30일 넘게 게스트로만 쓰는 사용자도 지워진다.**
   - 지워진 계정은 다음 ID 토큰 갱신 때 로그아웃처럼 나타나고, 앱은 새 익명 계정으로 온보딩 · 약관 동의를 다시 보여 준다.
@@ -5143,10 +5144,21 @@ iOS 변형 golden)은 [테스트 안내](../test/README.md) 에 있다.
 - 어떤 행이든 건너뛸 수 있고(건너뛴 수단은 그 수단의 계정 설정에서 직접 해제하라는 안내가 붙는다), 모든 행이 끝나야 「탈퇴」 가 켜진다.
 - 서버는 마지막 로그인 뒤 5분 안에만 계정을 지운다 — 지났으면 다시 로그인하라고 한다.
 
-- **지워지는 것:** Firebase Auth 계정 · `users/{uid}` 문서 · 기기 알림 토큰(`users/{uid}/fcmTokens`) · Storage 의 `users/{uid}/` 아래 파일 · 앱 계정과 카카오 · 네이버 · 라인 계정의 묶음 기록.
+- **지워지는 것:** Firebase Auth 계정 · `users/{uid}` 문서 · 기기 알림 토큰(`users/{uid}/fcmTokens`) · Storage 의 `users/{uid}/` 아래 파일 · 앱 계정과 카카오 · 네이버 · 라인 계정의 묶음 기록 · 호출 횟수 제한 기록 가운데 이 계정 uid 로 센 것.
   - 지운 계정은 되살릴 수 없다.
-- **남는 것:** 호출 횟수 제한 기록(`rate_limits` 컬렉션 — 호출 수 · 시각만 있고 앱은 읽을 수 없다) · 건너뛴 수단 쪽 앱 연결.
+- **남는 것:** 호출 횟수 제한 기록 가운데 탈퇴 때 지우지 않는 것과 탈퇴 뒤 다시 생긴 것(아래 표의 「그 밖」) · 건너뛴 수단 쪽 앱 연결.
+  - 기록에는 호출 수 · 창 시작 · 만료 시각만 있고, 앱은 읽을 수 없다.
+  - 만료 시각은 그 함수의 제한 창이 끝나는 시각이다 — 창 길이는 각 함수 파일의 `*_WINDOW_SEC` 다.
+  - TTL 정책을 켜지 않으면 기한 없이 남는다 — 켜는 법은 [호출 횟수 제한 기록 정리](#호출-횟수-제한-기록-정리) 다.
+
+| 기록 | 문서 ID 에 든 것 | 탈퇴 때 | 그 밖 |
+|---|---|---|---|
+| uid 축 (4종) | 계정 uid | 지움 | 만료 뒤 TTL |
+| IP 축 (2종) | 접속 IP 해시 | - | 만료 뒤 TTL |
+| 이메일 축 (2종) | 이메일 해시 | - | 만료 뒤 TTL |
+
 - 바꾸려면: 진행 화면 `lib/features/settings/presentation/withdrawal_disconnect_screen.dart` · 확인 단어 ARB `withdrawalConfirmFieldHint` · 경고 문구 ARB `withdrawalDialogBodyLine1` ~ `withdrawalDialogBodyLine3` · 서버의 삭제 범위 `functions/src/auth/delete_user_account.ts` — 사용자마다 데이터를 남기는 컬렉션을 더하면 여기에 그 삭제를 더한다.
+  - 운영자가 uid 로 계정을 지우는 도구는 이 삭제 범위를 따르고, uid 축 기록 삭제 함수 `deleteUidRateLimitDocs`(`functions/src/shared/rate_limit.ts`)도 부른다.
   - 경고 문구는 앱이 서비스되는 곳의 법 요구에 맞는지 직접 확인한다.
 
 **로그아웃.**
