@@ -935,7 +935,7 @@ describe("deleteUserAccount onCall — Phase 32 Step 5", () => {
 
   it("T-32-DEL-06: Step 3 실패여도 Step 5 는 돈다", async () => {
     mockWhereGet.mockRejectedValue(
-      Object.assign(new Error("PII_IDX_SENTINEL"), {code: "unavailable"}),
+      Object.assign(new Error("step3 failed"), {code: "unavailable"}),
     );
     mockDeleteUser.mockResolvedValue(undefined);
 
