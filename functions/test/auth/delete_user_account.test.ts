@@ -43,7 +43,7 @@
  *  - T-32-DEL-02: batch commit 실패 → orphan 로그 + ok:true · Step 3 · 4 그대로
  *  - T-32-DEL-03: Step 4 실패여도 Step 5 는 돈다
  *  - T-32-DEL-04: 동시 호출 race 경로(user-not-found)에서도 Step 5 를 돈다
- *  - T-32-DEL-05: Auth 삭제 실패(Step 2 throw)면 Step 5 에 이르지 않는다
+ *  - T-32-DEL-05: Step 2 throw 면 Step 5 없음 · DEL-06: Step 3 실패여도 Step 5 를 돈다
  */
 
 jest.mock("firebase-functions/logger", () => ({

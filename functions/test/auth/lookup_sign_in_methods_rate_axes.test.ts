@@ -20,6 +20,8 @@
  *  - T-32-LOOKUP-04: IP 축만 넘음 — axis ip · write 0
  *  - T-32-LOOKUP-05: transaction reject — internal · lookup_rate_limit_failed
  *  - T-32-LOOKUP-06: 새 창 set 에 만료 시각 = 창 시작 + 60초 (나노초 0)
+ *  - T-32-LOOKUP-07: IP 축 한도 60 경계(59 통과)
+ *  - T-32-LOOKUP-08: uid 축 한도 10 경계(9 통과)
  */
 
 import type {OrderedTxHandle} from "../mocks/ordered_transaction";
