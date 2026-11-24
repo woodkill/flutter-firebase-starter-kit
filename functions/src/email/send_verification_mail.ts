@@ -25,7 +25,10 @@ import * as logger from "firebase-functions/logger";
 import {fingerprintError} from "../auth/identity_index";
 import {isAnonymousCaller} from "../shared/caller_auth";
 import {ANONYMOUS_CALLER_REASON} from "../shared/custom_token_errors";
-import {consumeRateLimitAxes} from "../shared/rate_limit";
+import {
+  buildUidRateLimitDocId,
+  consumeRateLimitAxes,
+} from "../shared/rate_limit";
 import type {ExceededRateAxis} from "../shared/rate_limit";
 import {readMailBrand, readResultPageUrl} from "./brand";
 import {hashEmail} from "./email_hash";
@@ -51,8 +54,10 @@ const EMAIL_RATE_LIMIT = 5;
 /** 커스터마이징 포인트 — 두 축 공통 창 길이 (초). */
 const RATE_WINDOW_SEC = 600;
 
-/** rate limit 문서 id 접두 — `<접두><uid>` · `<접두><이메일 해시>`. */
-const UID_DOC_PREFIX = "sendVerificationMail:";
+/**
+ * rate limit 문서 id 접두 — `<접두><이메일 해시>`(uid 축 문서 ID 는
+ * `shared/rate_limit.ts` 의 공유 목록).
+ */
 const EMAIL_DOC_PREFIX = "sendVerificationMailEmail:";
 
 /**
@@ -140,7 +145,7 @@ export const sendVerificationMail = onCall<SendVerificationMailRequest>(
       exceeded = await consumeRateLimitAxes(db, [
         {
           axis: "uid",
-          docId: `${UID_DOC_PREFIX}${uid}`,
+          docId: buildUidRateLimitDocId("sendVerificationMail", uid),
           limit: UID_RATE_LIMIT,
           windowSec: RATE_WINDOW_SEC,
         },

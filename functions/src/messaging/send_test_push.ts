@@ -34,7 +34,7 @@ import type {BooleanParam} from "firebase-functions/params";
 import {fingerprintError} from "../auth/identity_index";
 import {isAnonymousCaller} from "../shared/caller_auth";
 import {ANONYMOUS_CALLER_REASON} from "../shared/custom_token_errors";
-import {consumeRateLimit} from "../shared/rate_limit";
+import {buildUidRateLimitDocId, consumeRateLimit} from "../shared/rate_limit";
 import {
   TEST_PUSH_COPY,
   TestPushLocale,
@@ -250,10 +250,14 @@ async function enforceRateLimit(
 ): Promise<void> {
   let allowed: boolean;
   try {
-    allowed = await consumeRateLimit(db, `sendTestPush:${uid}`, {
-      limit: RATE_LIMIT,
-      windowSec: RATE_WINDOW_SEC,
-    });
+    allowed = await consumeRateLimit(
+      db,
+      buildUidRateLimitDocId("sendTestPush", uid),
+      {
+        limit: RATE_LIMIT,
+        windowSec: RATE_WINDOW_SEC,
+      },
+    );
   } catch (err: unknown) {
     logger.warn(
       "rate limit transaction threw",

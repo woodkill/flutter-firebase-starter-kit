@@ -41,7 +41,10 @@ import * as logger from "firebase-functions/logger";
 
 import {fingerprintError} from "../auth/identity_index";
 import {hashClientIp} from "../shared/client_ip_hash";
-import {consumeRateLimitAxes} from "../shared/rate_limit";
+import {
+  buildUidRateLimitDocId,
+  consumeRateLimitAxes,
+} from "../shared/rate_limit";
 import type {ExceededRateAxis, RateLimitAxis} from "../shared/rate_limit";
 import {requireStringArg} from "../shared/require_string_arg";
 import {readMailBrand, readResultPageUrl} from "./brand";
@@ -79,8 +82,10 @@ const IP_RATE_WINDOW_SEC = 60;
 const EMAIL_RATE_LIMIT = 3;
 const EMAIL_RATE_WINDOW_SEC = 600;
 
-/** rate limit 문서 id 접두 — `<접두><uid>` · `<접두><해시>`. */
-const UID_DOC_PREFIX = "sendPasswordResetMail:";
+/**
+ * rate limit 문서 id 접두 — `<접두><해시>`(uid 축 문서 ID 는
+ * `shared/rate_limit.ts` 의 공유 목록).
+ */
 const IP_DOC_PREFIX = "sendPasswordResetMailIp:";
 const EMAIL_DOC_PREFIX = "sendPasswordResetMailEmail:";
 
@@ -125,7 +130,7 @@ function buildRateAxes(caller: {
   const axes: RateLimitAxis[] = [
     {
       axis: "uid",
-      docId: `${UID_DOC_PREFIX}${caller.uid}`,
+      docId: buildUidRateLimitDocId("sendPasswordResetMail", caller.uid),
       limit: UID_RATE_LIMIT,
       windowSec: UID_RATE_WINDOW_SEC,
     },
