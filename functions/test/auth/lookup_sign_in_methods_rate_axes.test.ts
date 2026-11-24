@@ -376,4 +376,21 @@ describe("lookupSignInMethods 호출 횟수 제한 축 — 특성 시험", () =>
       const ipUpdate = tx.updates.find((u) => refPath(u.ref) === IP_DOC_PATH);
       expect(ipUpdate).toBeDefined();
     });
+
+  it("T-32-LOOKUP-08: uid 축 한도는 10 — 9 는 통과하고 count 10 으로 쓴다",
+    async () => {
+      const nowSec = Math.floor(Date.now() / 1000);
+      const uidPath = "rate_limits/lookupSignInMethods:u-lk8";
+      mockStore.set(uidPath, {count: 9, windowStart: {seconds: nowSec}});
+
+      // 한도가 10 보다 작아지면 9 에서 막힌다(위쪽 11 은 K4 가 잡는다).
+      await expect(callLookup("u-lk8", false)).resolves.toEqual({
+        existingProvider: null,
+      });
+      expect(exceededWarnFields()).toEqual([]);
+      const tx = onlyTx();
+      expect(tx.calls).toEqual(["get", "update"]);
+      const uidUpdate = tx.updates.find((u) => refPath(u.ref) === uidPath);
+      expect(uidUpdate).toBeDefined();
+    });
 });
