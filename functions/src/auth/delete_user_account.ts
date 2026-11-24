@@ -300,8 +300,8 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
           "Auth user already deleted (idempotent retry path)",
           {event: "delete_user_auth_already_done", uid: callerUid},
         );
-        // Firestore cleanup 은 계속 진행한다 — 이전 시도가 Auth 삭제 직후
-        // 중단됐다면 고아 문서가 남아 있을 수 있고, cleanup 은 멱등하다.
+        // Firestore cleanup 은 계속 진행한다 — 로그 문구의 retry 는 운영 로그
+        // 계약이라 두며, 실제로 닿는 경로는 동시 호출 race 다(위 Pitfall 1).
       } else {
         logger.error(
           "deleteUser threw",
@@ -312,7 +312,7 @@ export const deleteUserAccount = onCall<DeleteUserAccountRequest>(
       }
     }
 
-    // Step 3: D-07 — Firestore cleanup (멱등, 재호출로 수렴).
+    // Step 3: D-07 — Firestore cleanup (멱등 — race 의 두 요청이 함께 돌아도 같음).
     //
     // Pitfall 2 (memory feedback_mock_transaction_constraint) 회피:
     //   identity_index where query 는 transaction 외부 실행 (collection query
