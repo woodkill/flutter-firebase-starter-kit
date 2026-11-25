@@ -6,8 +6,8 @@
  * 바꿔 update payload 원본을 그대로 단언한다.
  *
  * 시나리오:
- *  - T-32-RATE-04: consumeRateLimit 같은 창 두 번째 호출은 정확히
- *    `{count: increment(1)}` 한 건만 쓴다 (0 · 2 증가, 리셋 `{count: 1}` 실패)
+ *  - T-32-RATE-04: consumeRateLimit 같은 창 두 번째 호출의 update 는 정확히
+ *    `{count: increment(1)}` 한 건이다 (0 · 2 증가, update 꼴 리셋 실패)
  *  - T-32-RATE-05: consumeRateLimitAxes 도 축마다 같은 payload 를 쓴다
  */
 
@@ -69,7 +69,7 @@ function fakeDb(store: Store, updates: UpdateRecord[]): Firestore {
 }
 
 describe("rate limit helper — 같은 창 increment(1) payload", () => {
-  it("T-32-RATE-04: consumeRateLimit 같은 창 호출은 {count: increment(1)} 만 쓴다",
+  it("T-32-RATE-04: consumeRateLimit 같은 창 update 는 {count: increment(1)} 한 건이다",
     async () => {
       const store: Store = new Map();
       const updates: UpdateRecord[] = [];
