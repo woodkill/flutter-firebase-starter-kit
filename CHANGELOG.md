@@ -14,6 +14,8 @@
 
 ## [Unreleased]
 
+## [1.0.0-rc.16] - 2026-11-26
+
 ### 사용자 조치
 
 - Android 10 ~ 14 기기의 3버튼 · 제스처 내비게이션에서 내 화면의 아래 버튼 · 시트 · 목록 끝이 내비게이션 바에 가리지 않는지 본다 — 가리면 그 부분을 `SafeArea` 로 감싼다(`docs/guide.md` 「알아 둘 동작」 의 「시스템 바 · 화면 아래 여백」). Android 15 이상 폰에서 이미 가리지 않았다면 할 일이 없다.
@@ -314,7 +316,8 @@
 - 앱 ID 변경 도구(`bin/rename.dart`)가 Android 앱 ID · iOS 번들 ID · 앱 이름 · Firebase 프로젝트 ID 접두어를 새 값으로 바꾼다(미리 보기가 기본).
 - 정적 분석: woody_lints · riverpod_lint 규칙으로 코드를 검사한다.
 
-[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.15...HEAD
+[Unreleased]: https://github.com/woodkill/flutter-firebase-starter-kit/compare/v1.0.0-rc.16...HEAD
+[1.0.0-rc.16]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.16
 [1.0.0-rc.15]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.15
 [1.0.0-rc.14]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.14
 [1.0.0-rc.13]: https://github.com/woodkill/flutter-firebase-starter-kit/releases/tag/v1.0.0-rc.13
