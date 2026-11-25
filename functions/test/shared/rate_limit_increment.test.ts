@@ -24,7 +24,6 @@ jest.mock("firebase-admin/firestore", () => {
   return {
     ...actual,
     FieldValue: {
-      ...actual.FieldValue,
       increment: (n: number) => ({mockIncrement: n}),
     },
   };
