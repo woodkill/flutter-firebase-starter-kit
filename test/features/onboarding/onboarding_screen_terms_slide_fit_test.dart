@@ -48,6 +48,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../helpers/app_font.dart';
 import '../../helpers/keep_hangul_words_finder.dart';
 import '../../helpers/planning_docs.dart';
+import '../../helpers/terms_tile_finder.dart';
 
 /// 인증 저장소 mock — 이 시험은 제출까지 가지 않는다.
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -307,13 +308,7 @@ Future<void> _verifySlideFit(
     }
 
     if (confirmationRow != null) {
-      final tileCount = find
-          .descendant(
-            of: find.byType(TermsCheckboxGroup),
-            matching: find.byType(CheckboxListTile),
-          )
-          .evaluate()
-          .length;
+      final tileCount = findTermsTiles().evaluate().length;
       if (tileCount != _tileCountWithOneRow) {
         violations.add('[tiles] $locale $state count=$tileCount');
       }

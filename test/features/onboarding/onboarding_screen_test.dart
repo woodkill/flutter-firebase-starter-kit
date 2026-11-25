@@ -33,6 +33,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/keep_hangul_words_finder.dart';
+import '../../helpers/terms_tile_finder.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -469,8 +470,8 @@ void main() {
 
       // 필수 2개 체크
       // index 0=AcceptAll, 1=Service, 2=Privacy, 3=Marketing
-      // 마지막 슬라이드는 SingleChildScrollView 안 → CheckboxListTile finder OK
-      final tiles = find.byType(CheckboxListTile);
+      // 마지막 슬라이드는 SingleChildScrollView 안 → 약관 행 finder OK
+      final tiles = findTermsTiles();
       await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
@@ -579,7 +580,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 필수 2개 체크.
-      final tiles = find.byType(CheckboxListTile);
+      final tiles = findTermsTiles();
       await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
@@ -645,7 +646,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Next'));
       await tester.pumpAndSettle();
 
-      final tiles = find.byType(CheckboxListTile);
+      final tiles = findTermsTiles();
       await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1));
       await tester.pump();
@@ -683,7 +684,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, 'Next'));
       await tester.pumpAndSettle();
 
-      final tiles = find.byType(CheckboxListTile);
+      final tiles = findTermsTiles();
       await tester.ensureVisible(tiles.at(1));
       await tester.tap(tiles.at(1)); // service
       await tester.pump();
@@ -1576,23 +1577,23 @@ Future<void> _rebuildOnboarding(WidgetTester tester) async {
 }
 
 /// 문구가 [label] 인 약관 묶음 타일을 찾는다.
-Finder _termsTile(String label) => find.ancestor(
-  of: findKeepHangulWordsText(label),
-  matching: find.byType(CheckboxListTile),
-);
+Finder _termsTile(String label) => findTermsTileOf(label);
 
 /// 문구가 [label] 인 약관 묶음 타일의 체크 값을 읽는다.
 bool? _termsTileValue(WidgetTester tester, String label) =>
-    tester.widget<CheckboxListTile>(_termsTile(label)).value;
+    readTermsTileValue(tester, _termsTile(label));
 
-/// 문구가 [label] 인 약관 묶음 타일을 화면 안으로 끌어와 누른다.
+/// 문구가 [label] 인 약관 묶음 타일의 체크박스를 화면 안으로 끌어와 누른다.
 ///
-/// index 대신 문구로 고른다 — 확인 행이 끼면 타일 순서가 바뀐다.
+/// index 대신 문구로 고른다 — 확인 행이 끼면 타일 순서가 바뀐다. 행 가운데가
+/// 아니라 체크박스를 누른다 — 좁은 폭에서는 행 가운데가 제목 링크에 떨어져
+/// 체크 대신 약관 화면이 열릴 수 있다.
 Future<void> _tapTermsTile(WidgetTester tester, String label) async {
   final tile = _termsTile(label);
   expect(tile, findsOneWidget, reason: label);
-  await tester.ensureVisible(tile);
-  await tester.tap(tile);
+  final checkbox = findTermsTileCheckbox(tile);
+  await tester.ensureVisible(checkbox);
+  await tester.tap(checkbox);
   await tester.pump();
 }
 
@@ -1668,7 +1669,7 @@ Future<void> _goToLastSlideAndCheckRequired(WidgetTester tester) async {
   await tester.tap(find.widgetWithText(FilledButton, 'Next'));
   await tester.pumpAndSettle();
 
-  final tiles = find.byType(CheckboxListTile);
+  final tiles = findTermsTiles();
   await tester.ensureVisible(tiles.at(1));
   await tester.tap(tiles.at(1)); // service
   await tester.pump();
