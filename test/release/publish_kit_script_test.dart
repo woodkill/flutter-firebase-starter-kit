@@ -784,5 +784,35 @@ void main() {
       expect(result.exitCode, 1);
       expect(_err(result), contains('KIT_PUBLISH_REPO'));
     }, skip: skipRules);
+
+    test('T-174-PUB-27: 판 절 뒤가 파이프 버퍼보다 큰 CHANGELOG 도 notes 를 자른다', () {
+      // 판 절을 다 읽은 뒤 나머지를 읽지 않고 끝나면, 남은 출력을 쓰던 쪽이
+      // SIGPIPE 로 죽어 pipefail 이 단계를 실패시킨다 — 옛 판 절을 크게 둔다.
+      final older = StringBuffer();
+      for (var i = 0; i < 400; i++) {
+        older.write(
+          '## [0.0.$i] - 2025-01-01\n\n### Fixed\n'
+          '- 옛 항목 $i ${'가' * 400}\n\n',
+        );
+      }
+      _buildKitMirror(
+        sb,
+        changelog:
+            '# Changelog\n\n## [Unreleased]\n\n'
+            '## [$_version] - 2026-01-01\n\n### Added\n- 첫 항목\n\n'
+            '$older'
+            '[$_version]: https://example.invalid/releases/$_version\n',
+        stamps: const <String>['mirror', 'scan', 'verify', 'check', 'push'],
+      );
+      final ProcessResult result = _runKit(<String>['release'], sb);
+      expect(result.exitCode, 0, reason: _err(result));
+      _expectLastLine(result, 'DRY-RUN OK release tag=v$_version');
+
+      final String notes = File(
+        '${sb.work}/release-notes-$_version.md',
+      ).readAsStringSync();
+      expect(notes, contains('첫 항목'));
+      expect(notes, isNot(contains('옛 항목')), reason: '다음 판 절까지 잘렸다');
+    }, skip: skipRules);
   });
 }

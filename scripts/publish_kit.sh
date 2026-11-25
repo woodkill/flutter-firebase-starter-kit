@@ -677,8 +677,10 @@ cmd_release() {
   release_tag="v$ver"
   notes="$WORK/release-notes-$ver.md"
   # 절 머리 다음 줄부터 다음 `## [` 줄 전까지 — 맨 아래 비교 링크 정의(`[x]: url`)는 뺀다.
+  # awk 는 절이 끝나도 `exit` 하지 않고 입력을 끝까지 읽는다 — 일찍 끝나면 남은 출력을 쓰던
+  # git show 가 SIGPIPE 로 죽고 pipefail 이 단계를 실패시킨다(판 절 뒤가 파이프 버퍼보다 클 때).
   git -C "$MIRROR" show main:CHANGELOG.md |
-    awk -v p="## [$ver] - " 'index($0, p) == 1 { on = 1; next } on && index($0, "## [") == 1 { exit } on && /^\[[^]]+\]: / { next } on { print }' > "$notes" ||
+    awk -v p="## [$ver] - " 'done { next } index($0, p) == 1 { on = 1; next } on && index($0, "## [") == 1 { on = 0; done = 1; next } on && /^\[[^]]+\]: / { next } on { print }' > "$notes" ||
     fail "CHANGELOG.md 에서 $ver 절을 자르지 못했다"
   grep -q '^### ' "$notes" || fail "CHANGELOG 의 $ver 절에 ### 소절이 없다 — $notes"
   repo="${KIT_PUBLISH_REPO:-woodkill/flutter-firebase-starter-kit}"
